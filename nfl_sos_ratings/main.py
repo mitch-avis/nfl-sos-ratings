@@ -79,11 +79,11 @@ def main() -> None:
         opp_combined = opp_team_df.join(opp_qb_df, on="team", how="left")
     elif opp_team_df is not None:
         opp_combined = opp_team_df
-    elif opp_qb_df is not None:
-        opp_combined = opp_qb_df
     else:
-        print("WARNING: Opponent profile data could not be merged.")
-        return
+        if opp_qb_df is None:
+            print("WARNING: No opponent profile data was computed.")
+            return
+        opp_combined = opp_qb_df
 
     opp_csv = os.path.join(OUTPUT_DIR, "opponent_profiles.csv")
     opp_combined.write_csv(opp_csv)
@@ -140,12 +140,8 @@ def main() -> None:
                 summary_cols.append(col)
 
     available_cols = [c for c in summary_cols if c in combined.columns]
-    if available_cols:
-        with pl.Config(tbl_cols=-1, tbl_rows=32, fmt_float="mixed", float_precision=2):
-            print(combined.select(available_cols).sort("team"))
-    else:
-        print("(Could not find expected summary columns; check CSV output.)")
-        print(f"Available columns: {combined.columns[:20]}...")
+    with pl.Config(tbl_cols=-1, tbl_rows=32, fmt_float="mixed", float_precision=2):
+        print(combined.select(available_cols).sort("team"))
 
     # Schedule-adjusted ratings table (sorted by SaCR descending)
     print(f"\n{'=' * 50}")
