@@ -80,8 +80,8 @@ def test_main_returns_when_no_opponent_profiles(
 
     main.main()
 
-    assert (tmp_path / "team_per_game_stats.csv").exists()
-    assert not (tmp_path / "combined.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_team_per_game_stats.csv").exists()
+    assert not (tmp_path / f"{main.SEASON}_combined.csv").exists()
     assert "No opponent profile data was computed" in capsys.readouterr().out
 
 
@@ -102,10 +102,10 @@ def test_main_handles_both_team_and_qb_profiles(
 
     main.main()
 
-    combined = pl.read_csv(tmp_path / "combined.csv")
+    combined = pl.read_csv(tmp_path / f"{main.SEASON}_combined.csv")
     assert combined.select("diff_points_for").item() == 4.0
     assert combined.select("diff_qb_passer_rating").item() == 10.0
-    assert (tmp_path / "ratings.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_ratings.csv").exists()
     assert "KC (DIV): 1 games" in capsys.readouterr().out
 
 
@@ -124,7 +124,7 @@ def test_main_handles_team_only_profiles(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
     main.main()
 
-    opponents = pl.read_csv(tmp_path / "opponent_profiles.csv")
+    opponents = pl.read_csv(tmp_path / f"{main.SEASON}_opponent_profiles.csv")
     assert opponents.columns == ["team", "points_for"]
 
 
@@ -148,5 +148,5 @@ def test_main_handles_qb_only_profiles_and_windows_stdout(
 
     main.main()
 
-    combined = pl.read_csv(tmp_path / "combined.csv")
+    combined = pl.read_csv(tmp_path / f"{main.SEASON}_combined.csv")
     assert "diff_qb_passer_rating" not in combined.columns
