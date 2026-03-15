@@ -70,7 +70,7 @@ def test_visualize_main_handles_missing_and_invalid_combined_file(
     missing_output = capsys.readouterr().out
     assert "not found" in missing_output
 
-    combined_path = tmp_path / "combined.csv"
+    combined_path = tmp_path / f"{visualize.SEASON}_combined.csv"
     pl.DataFrame({"team": ["DEN"]}).write_csv(combined_path)
     visualize.main()
 
@@ -80,15 +80,24 @@ def test_visualize_main_handles_missing_and_invalid_combined_file(
 def test_visualize_main_generates_all_plots(tmp_path: Path, visualize_df: pl.DataFrame) -> None:
     visualize.OUTPUT_DIR = str(tmp_path)
     visualize.PLOTS_DIR = os.path.join(str(tmp_path), "plots")
-    pl.DataFrame(visualize_df).write_csv(tmp_path / "combined.csv")
+    pl.DataFrame(visualize_df).write_csv(tmp_path / f"{visualize.SEASON}_combined.csv")
 
     visualize.main()
 
     assert sorted(os.listdir(visualize.PLOTS_DIR)) == [
-        "adjusted_ratings.png",
-        "diffs_defense_qb.png",
-        "diffs_offense.png",
-        "heatmap_diffs.png",
-        "sos_composite_ranking.png",
-        "sos_opponent_strength.png",
+        f"{visualize.SEASON}_adjusted_ratings.png",
+        f"{visualize.SEASON}_diffs_defense.png",
+        f"{visualize.SEASON}_diffs_offense.png",
+        f"{visualize.SEASON}_diffs_overall.png",
+        f"{visualize.SEASON}_diffs_qb.png",
+        f"{visualize.SEASON}_heatmap_diffs.png",
+        f"{visualize.SEASON}_opponent_stats_defense.png",
+        f"{visualize.SEASON}_opponent_stats_offense.png",
+        f"{visualize.SEASON}_opponent_stats_overall.png",
+        f"{visualize.SEASON}_opponent_stats_qb.png",
+        f"{visualize.SEASON}_sos_composite_ranking.png",
+        f"{visualize.SEASON}_team_stats_defense.png",
+        f"{visualize.SEASON}_team_stats_offense.png",
+        f"{visualize.SEASON}_team_stats_overall.png",
+        f"{visualize.SEASON}_team_stats_qb.png",
     ]
