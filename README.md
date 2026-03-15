@@ -17,12 +17,15 @@ head-to-head matchups.
   - [Usage](#usage)
   - [Configuration](#configuration)
   - [Output](#output)
-    - [`team_per_game_stats.csv`](#team_per_game_statscsv)
-    - [`opponent_profiles.csv`](#opponent_profilescsv)
-    - [`combined.csv`](#combinedcsv)
+    - [`{SEASON}_team_per_game_stats.csv`](#season_team_per_game_statscsv)
+    - [`{SEASON}_opponent_profiles.csv`](#season_opponent_profilescsv)
+    - [`{SEASON}_combined.csv`](#season_combinedcsv)
+    - [`{SEASON}_ratings.csv`](#season_ratingscsv)
+    - [Plot Files (`output/plots/`)](#plot-files-outputplots)
   - [Project Structure](#project-structure)
     - [Module Descriptions](#module-descriptions)
   - [Data Sources](#data-sources)
+  - [Development](#development)
   - [Example](#example)
 
 ## Overview
@@ -33,32 +36,40 @@ statistics against every other team (removing the selected team from each oppone
 averages those profiles together. The result is a detailed picture of what kind of opponents each
 team actually faced, measured across 90+ statistical categories.
 
+In addition to team/opponent profile comparisons, the project also computes schedule-adjusted
+ratings:
+
+- **SaOR** -- schedule-adjusted offense rating
+- **SaDR** -- schedule-adjusted defense rating
+- **SaCR** -- schedule-adjusted composite rating
+
 ## How It Works
 
 Using the Denver Broncos as an example:
 
-1. **Collect team stats**: Gather all of the Broncos' 2025 regular season game-by-game statistics
-   and compute per-game averages.
-2. **Identify opponents**: Find the Broncos' 14 unique regular season opponents (each NFL team plays
-   17 games against 14 unique opponents; division rivals are played twice).
+1. **Collect team stats**: Gather all of the Broncos' regular season game-by-game statistics and
+    compute per-game averages.
+2. **Identify opponents**: Find the Broncos' 14 unique regular season opponents (each NFL team
+    plays 17 games against 14 unique opponents; division rivals are played twice).
 3. **Build opponent profiles**: For each of those 14 opponents, gather all of their regular season
-   statistics *excluding* games played against the Broncos:
-   - **Division opponents** (KC, LAC, LV): Remove 2 games vs. DEN, leaving 15 games of data.
-   - **Non-division opponents**: Remove 1 game vs. DEN, leaving 16 games of data.
+    statistics *excluding* games played against the Broncos:
+    - **Division opponents** (KC, LAC, LV): Remove 2 games vs. DEN, leaving 15 games of data.
+    - **Non-division opponents**: Remove 1 game vs. DEN, leaving 16 games of data.
 4. **Average opponent profiles**: Take a simple average across all 14 opponent profiles (equal
-   weight per opponent), producing a single "opponent strength" profile for the Broncos.
-5. **Repeat for all 32 teams** to enable league-wide comparison.
+    weight per opponent), producing a single "opponent strength" profile for the Broncos.
+5. **Compute differentials and ratings**: Build `diff_*` columns and schedule-adjusted ratings.
+6. **Repeat for all 32 teams** to enable league-wide comparison.
 
 This approach removes circular bias (a team's own performance doesn't inflate or deflate their
 opponents' stats) and provides a granular, multi-dimensional view of schedule difficulty.
 
 ## Installation
 
-Requires Python 3.10+.
+Requires Python 3.12+.
 
 ```bash
 # Clone or navigate to the project directory
-cd nfl-strength-of-schedule
+cd nfl-sos-ratings
 
 # Create a virtual environment
 uv venv .venv
@@ -86,10 +97,10 @@ uv pip install -r requirements.txt
 
 ```bash
 # Run the full analysis pipeline
-python main.py
+python nfl_sos_ratings/main.py
 
 # Generate visualizations (requires main.py to have run first)
-python visualize.py
+python nfl_sos_ratings/visualize.py
 ```
 
 `main.py` will:
@@ -98,22 +109,19 @@ python visualize.py
 2. Compute per-game averages for all 32 teams.
 3. Build opponent strength profiles for all 32 teams.
 4. Compute diff columns (`diff_*`) for every paired team/opponent stat.
-5. Save three CSV files to the `output/` directory.
-6. Print a summary table to the console.
+5. Compute schedule-adjusted ratings (SaOR, SaDR, SaCR).
+6. Save season-prefixed CSV files to the `output/` directory.
+7. Print summary tables to the console.
 
 `visualize.py` will:
 
-1. Read `output/combined.csv`.
-2. Generate five PNG charts in `output/plots/`:
-   - `diffs_offense.png` -- offensive stat differentials (team minus opponent avg)
-   - `diffs_defense_qb.png` -- defensive and QB stat differentials
-   - `sos_opponent_strength.png` -- raw opponent-strength profiles
-   - `sos_composite_ranking.png` -- composite schedule-difficulty ranking
-   - `heatmap_diffs.png` -- z-scored heatmap of all diff stats across all 32 teams
+1. Read `output/{SEASON}_combined.csv`.
+2. Generate season-prefixed PNG charts in `output/plots/` (offense/defense/overall/QB splits for
+    both diff and stats views, plus summary charts).
 
 ## Configuration
 
-All configuration is centralized in `config.py`:
+All configuration is centralized in `nfl_sos_ratings/config.py`:
 
 ```python
 # Change this to analyze any NFL regular season
@@ -123,77 +131,111 @@ SEASON = 2025
 OUTPUT_DIR = "output"
 ```
 
-To run the analysis for a different season, simply change the `SEASON` value and re-run `main.py`.
+To run the analysis for a different season, simply change `SEASON` and re-run both scripts.
 The NFL division mapping and QB stat columns are also defined in `config.py` and can be adjusted as
 needed.
 
 ## Output
 
-Three CSV files are generated in the `output/` directory:
+All output filenames are prefixed with the selected `SEASON` value.
 
-### `team_per_game_stats.csv`
+### `{SEASON}_team_per_game_stats.csv`
 
 Each team's own per-game averages across all statistical categories, including:
 
-- **Offensive stats**: passing yards, rushing yards, total yards, touchdowns, EPA, first downs, air
-  yards, YAC, etc.
+- **Offensive stats**: passing yards, rushing yards, total yards, touchdowns, EPA, first downs,
+   etc.
 - **Defensive stats**: sacks, interceptions, tackles for loss, QB hits, passes defended, etc.
-- **Special teams**: field goal percentages by distance, punt/kickoff returns, etc.
-- **Scoring**: points for, points allowed (derived from game scores)
+- **Scoring**: points for, points allowed (derived from game scores).
 - **QB Next Gen Stats**: time to throw, CPOE, aggressiveness, air distance, passer rating, etc.
+- **Record metrics**: wins, losses, ties, win percentage.
 
-### `opponent_profiles.csv`
+### `{SEASON}_opponent_profiles.csv`
 
 Each team's averaged opponent strength profile -- the same stat categories as above, but
 representing the average performance of the team's 14 unique opponents (excluding
 head-to-head games).
 
-### `combined.csv`
+### `{SEASON}_combined.csv`
 
-All three datasets merged side-by-side with three column groups per stat:
+All datasets merged side-by-side with three column groups per stat:
 
 - **`stat`** -- team's own per-game average (e.g. `passing_yards`)
 - **`opp_stat`** -- opponents' average for the same stat (e.g. `opp_passing_yards`)
 - **`diff_stat`** -- difference: team minus opponent average (e.g. `diff_passing_yards`)
 
-Positive diff values mean the team outperformed its opponents in that category; negative values
-mean the opponents were stronger. For stats where lower is better (e.g. `points_allowed`,
-`sacks`), a negative diff is the advantageous direction.
+Positive diff values mean the team outperformed its opponents in that category; negative diff values
+mean opponents were stronger. For stats where lower is better (e.g. `points_allowed`), negative
+diff can be the advantageous direction.
+
+### `{SEASON}_ratings.csv`
+
+Schedule-adjusted rating output with:
+
+- `SaCR` -- composite schedule-adjusted rating
+- `SaOR` -- offense schedule-adjusted rating
+- `SaDR` -- defense schedule-adjusted rating
+
+### Plot Files (`output/plots/`)
+
+The visualization module currently generates:
+
+- **Diff charts**:
+  - `{SEASON}_diffs_offense.png`
+  - `{SEASON}_diffs_defense.png`
+  - `{SEASON}_diffs_overall.png`
+  - `{SEASON}_diffs_qb.png`
+- **Opponent stats charts**:
+  - `{SEASON}_opponent_stats_offense.png`
+  - `{SEASON}_opponent_stats_defense.png`
+  - `{SEASON}_opponent_stats_overall.png`
+  - `{SEASON}_opponent_stats_qb.png`
+- **Team stats charts**:
+  - `{SEASON}_team_stats_offense.png`
+  - `{SEASON}_team_stats_defense.png`
+  - `{SEASON}_team_stats_overall.png`
+  - `{SEASON}_team_stats_qb.png`
+- **Summary charts**:
+  - `{SEASON}_sos_composite_ranking.png`
+  - `{SEASON}_heatmap_diffs.png`
+  - `{SEASON}_adjusted_ratings.png`
 
 ## Project Structure
 
 ```text
-nfl-strength-of-schedule/
-├── config.py           # Season, divisions, QB stat columns, output path
-├── data_loader.py      # nflreadpy wrappers; loads team stats, schedule, QB NGS data
-├── team_stats.py       # Per-game stat aggregation (team-level and QB-level)
-├── opponent_stats.py   # Core SoS logic: opponent profile computation
-├── main.py             # Pipeline orchestrator: load, compute, save, summarize
-├── visualize.py        # Visualization script: generates plots from combined.csv
-├── requirements.txt    # Python dependencies
-├── output/             # Generated CSV files
-│   └── plots/          # Generated PNG charts (created by visualize.py)
+nfl-sos-ratings/
+├── nfl_sos_ratings/
+│   ├── __init__.py
+│   ├── config.py           # Season, divisions, QB stat columns, output path
+│   ├── data_loader.py      # nflreadpy wrappers; loads team stats, schedule, QB NGS data
+│   ├── team_stats.py       # Per-game stat aggregation (team-level and QB-level)
+│   ├── opponent_stats.py   # Core SoS logic: opponent profile computation
+│   ├── ratings.py          # Schedule-adjusted rating calculation (SaOR/SaDR/SaCR)
+│   ├── main.py             # Pipeline orchestrator: load, compute, save, summarize
+│   └── visualize.py        # Visualization script: generates plots from combined CSV
+├── requirements.txt
+├── pyproject.toml
 └── README.md
 ```
 
 ### Module Descriptions
 
 - **`config.py`** -- Central configuration. Change `SEASON` here to analyze any year. Contains NFL
-  division mappings and the list of QB Next Gen Stats columns to extract.
+   division mappings and the list of QB Next Gen Stats columns to extract.
 - **`data_loader.py`** -- Thin wrappers around `nflreadpy` functions. Loads weekly team stats
-  (enriched with `total_yards` and `points_for`/`points_allowed`), the regular season schedule, and
-  QB-level Next Gen Stats (reduced to one primary QB per team per week by most pass attempts).
+   (enriched with `total_yards` and `points_for`/`points_allowed`), the regular season schedule, and
+   QB-level Next Gen Stats (reduced to one primary QB per team per week by most pass attempts).
 - **`team_stats.py`** -- Computes per-game stat averages. Includes functions for all-team
-  aggregation as well as single-team aggregation with an opponent exclusion filter (used by the
-  opponent profile computation).
+   aggregation as well as single-team aggregation with an opponent exclusion filter (used by the
+   opponent profile computation).
 - **`opponent_stats.py`** -- The core strength-of-schedule logic. For each team, identifies their 14
-  unique opponents, computes each opponent's per-game stats excluding head-to-head matchups, and
-  averages the 14 profiles together.
+   unique opponents, computes each opponent's per-game stats excluding head-to-head matchups, and
+   averages the opponent profiles together.
+- **`ratings.py`** -- Builds schedule-adjusted offense, defense, and composite ratings.
 - **`main.py`** -- Orchestrates the full pipeline: data loading, team stat computation, opponent
-  profile computation, diff column generation, CSV export, and console summary output.
-- **`visualize.py`** -- Standalone visualization script. Reads `combined.csv` and generates five
-  PNG charts in `output/plots/`: offensive diffs, defensive & QB diffs, raw opponent strength
-  profiles, a composite schedule-difficulty ranking, and a z-scored diff heatmap.
+   profile computation, diff column generation, ratings generation, CSV export, and console summary.
+- **`visualize.py`** -- Standalone visualization script. Reads season-prefixed combined output and
+   generates category-separated diff and stats charts plus summary visualizations.
 
 ## Data Sources
 
@@ -205,27 +247,36 @@ All data is sourced from the [nflverse](https://github.com/nflverse) ecosystem v
 | `load_schedules()` | Game schedule & scores | Used for opponent identification and point totals |
 | `load_nextgen_stats()` | QB Next Gen Stats | Player-level passing metrics (AWS-tracked) |
 
+## Development
+
+```bash
+ruff format .
+ruff check .
+pyright .
+pytest
+```
+
 ## Example
 
-After running `python main.py`, the console output includes a summary table and opponent
-detail breakdown:
+After running `python nfl_sos_ratings/main.py`, the console output includes a summary table and
+opponent detail breakdown:
 
 ```text
 Opponent detail sample (DEN):
-  CIN: 16 games
-  DAL: 16 games
-  GB: 16 games
-  HOU: 16 games
-  IND: 16 games
-  JAX: 16 games
-  KC (DIV): 15 games
-  LAC (DIV): 15 games
-  LV (DIV): 15 games
-  NYG: 16 games
-  NYJ: 16 games
-  PHI: 16 games
-  TEN: 16 games
-  WAS: 16 games
+   CIN: 16 games
+   DAL: 16 games
+   GB: 16 games
+   HOU: 16 games
+   IND: 16 games
+   JAX: 16 games
+   KC (DIV): 15 games
+   LAC (DIV): 15 games
+   LV (DIV): 15 games
+   NYG: 16 games
+   NYJ: 16 games
+   PHI: 16 games
+   TEN: 16 games
+   WAS: 16 games
 ```
 
 Division opponents (KC, LAC, LV) correctly show 15 games of data (17 total minus 2 head-to-head
