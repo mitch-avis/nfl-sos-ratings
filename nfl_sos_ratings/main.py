@@ -66,7 +66,7 @@ def main() -> None:
     team_combined = team_per_game.join(qb_per_game, on="team", how="left").join(
         win_totals, on="team", how="left"
     )
-    team_csv = os.path.join(OUTPUT_DIR, "team_per_game_stats.csv")
+    team_csv = os.path.join(OUTPUT_DIR, f"{SEASON}_team_per_game_stats.csv")
     team_combined.write_csv(team_csv)
     print(f"Saved team per-game stats to {team_csv}")
 
@@ -85,7 +85,7 @@ def main() -> None:
             return
         opp_combined = opp_qb_df
 
-    opp_csv = os.path.join(OUTPUT_DIR, "opponent_profiles.csv")
+    opp_csv = os.path.join(OUTPUT_DIR, f"{SEASON}_opponent_profiles.csv")
     opp_combined.write_csv(opp_csv)
     print(f"Saved opponent profiles to {opp_csv}")
 
@@ -106,7 +106,7 @@ def main() -> None:
     ratings_df = compute_ratings(combined)
     combined = combined.join(ratings_df, on="team", how="left")
 
-    combined_csv = os.path.join(OUTPUT_DIR, "combined.csv")
+    combined_csv = os.path.join(OUTPUT_DIR, f"{SEASON}_combined.csv")
     combined.write_csv(combined_csv)
     print(f"Saved combined stats to {combined_csv}")
 
@@ -114,7 +114,7 @@ def main() -> None:
     ratings_summary = ratings_df.join(
         combined.select(["team", "games_played"]), on="team", how="left"
     ).select(["team", "games_played", "SaCR", "SaOR", "SaDR"])
-    ratings_csv = os.path.join(OUTPUT_DIR, "ratings.csv")
+    ratings_csv = os.path.join(OUTPUT_DIR, f"{SEASON}_ratings.csv")
     ratings_summary.write_csv(ratings_csv)
     print(f"Saved schedule-adjusted ratings to {ratings_csv}")
 
