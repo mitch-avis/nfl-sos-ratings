@@ -54,14 +54,82 @@ QB_SPECS: list[tuple[str, str, bool]] = [
     ("qb_avg_air_yards_to_sticks", "Air Yds to Sticks", True),
 ]
 
-# Raw opp_ columns to show in the schedule-difficulty overview (no diff_ prefix)
-OPP_STRENGTH_SPECS: list[tuple[str, str]] = [
+# Overall summary diffs (team minus opponent average)
+OVERALL_DIFF_SPECS: list[tuple[str, str, bool]] = [
+    ("points_for", "Pts Scored/G", True),
+    ("points_allowed", "Pts Allowed/G", False),
+    ("total_yards", "Total Yds/G", True),
+    ("passing_epa", "Pass EPA/G", True),
+    ("rushing_epa", "Rush EPA/G", True),
+]
+
+# Raw opp_ columns to show in schedule-strength views
+OFFENSE_OPP_SPECS: list[tuple[str, str]] = [
     ("opp_points_for", "Opp Pts Scored/G"),
     ("opp_total_yards", "Opp Total Yds/G"),
     ("opp_passing_yards", "Opp Pass Yds/G"),
     ("opp_rushing_yards", "Opp Rush Yds/G"),
     ("opp_passing_epa", "Opp Pass EPA/G"),
     ("opp_rushing_epa", "Opp Rush EPA/G"),
+]
+
+DEFENSE_OPP_SPECS: list[tuple[str, str]] = [
+    ("opp_points_allowed", "Opp Pts Allowed/G"),
+    ("opp_def_sacks", "Opp Def Sacks/G"),
+    ("opp_def_interceptions", "Opp Def INT/G"),
+    ("opp_def_pass_defended", "Opp Pass Def/G"),
+    ("opp_def_tackles_for_loss", "Opp TFL/G"),
+    ("opp_def_qb_hits", "Opp QB Hits/G"),
+]
+
+QB_OPP_SPECS: list[tuple[str, str]] = [
+    ("opp_qb_passer_rating", "Opp QB Rating"),
+    ("opp_qb_completion_percentage_above_expectation", "Opp QB CPOE"),
+    ("opp_qb_aggressiveness", "Opp QB Aggressiveness"),
+    ("opp_qb_avg_intended_air_yards", "Opp QB Intended Air Yds"),
+    ("opp_qb_avg_time_to_throw", "Opp QB Time to Throw"),
+]
+
+OVERALL_OPP_SPECS: list[tuple[str, str]] = [
+    ("opp_points_for", "Opp Pts Scored/G"),
+    ("opp_points_allowed", "Opp Pts Allowed/G"),
+    ("opp_total_yards", "Opp Total Yds/G"),
+    ("opp_passing_epa", "Opp Pass EPA/G"),
+    ("opp_rushing_epa", "Opp Rush EPA/G"),
+]
+
+OFFENSE_TEAM_SPECS: list[tuple[str, str]] = [
+    ("points_for", "Team Pts Scored/G"),
+    ("total_yards", "Team Total Yds/G"),
+    ("passing_yards", "Team Pass Yds/G"),
+    ("rushing_yards", "Team Rush Yds/G"),
+    ("passing_epa", "Team Pass EPA/G"),
+    ("rushing_epa", "Team Rush EPA/G"),
+]
+
+DEFENSE_TEAM_SPECS: list[tuple[str, str]] = [
+    ("points_allowed", "Team Pts Allowed/G"),
+    ("def_sacks", "Team Def Sacks/G"),
+    ("def_interceptions", "Team Def INT/G"),
+    ("def_pass_defended", "Team Pass Def/G"),
+    ("def_tackles_for_loss", "Team TFL/G"),
+    ("def_qb_hits", "Team QB Hits/G"),
+]
+
+QB_TEAM_SPECS: list[tuple[str, str]] = [
+    ("qb_passer_rating", "Team QB Rating"),
+    ("qb_completion_percentage_above_expectation", "Team QB CPOE"),
+    ("qb_aggressiveness", "Team QB Aggressiveness"),
+    ("qb_avg_intended_air_yards", "Team QB Intended Air Yds"),
+    ("qb_avg_time_to_throw", "Team QB Time to Throw"),
+]
+
+OVERALL_TEAM_SPECS: list[tuple[str, str]] = [
+    ("points_for", "Team Pts Scored/G"),
+    ("points_allowed", "Team Pts Allowed/G"),
+    ("total_yards", "Team Total Yds/G"),
+    ("passing_epa", "Team Pass EPA/G"),
+    ("rushing_epa", "Team Rush EPA/G"),
 ]
 
 
@@ -75,6 +143,11 @@ def _available_diff_specs(
 ) -> list[tuple[str, str, bool]]:
     """Filter specs to those whose diff_ column exists in df."""
     return [s for s in specs if f"diff_{s[0]}" in df.columns]
+
+
+def _available_opp_specs(df: pl.DataFrame, specs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Filter opponent stat specs to columns that exist in df."""
+    return [s for s in specs if s[0] in df.columns]
 
 
 def _draw_diff_bars(
@@ -92,12 +165,29 @@ def _draw_diff_bars(
     s_diffs = [diffs[i] for i in order]
     s_adv = [advantage[i] for i in order]
 
-    colors = ["#2ecc71" if a >= 0 else "#e74c3c" for a in s_adv]
+    colors = ["#0f9960" if a >= 0 else "#c0392b" for a in s_adv]
     ax.barh(s_teams, s_diffs, color=colors, edgecolor="white", linewidth=0.4, height=0.72)
     ax.axvline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.6)
     ax.set_title(label, fontsize=9, fontweight="bold", pad=3)
     ax.tick_params(axis="y", labelsize=6.5)
     ax.tick_params(axis="x", labelsize=7)
+    ax.set_facecolor("#fffdf7")
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+
+
+def _draw_stat_bars(ax: Axes, teams: list[str], values: list[float], label: str) -> None:
+    """Draw a ranked horizontal chart for raw opponent stats."""
+    order = np.argsort(values)
+    s_teams = [teams[i] for i in order]
+    s_values = [values[i] for i in order]
+
+    colors = sns.color_palette("crest", n_colors=len(s_values))
+    ax.barh(s_teams, s_values, color=colors, edgecolor="white", linewidth=0.4, height=0.72)
+    ax.set_title(label, fontsize=9, fontweight="bold", pad=3)
+    ax.tick_params(axis="y", labelsize=6.5)
+    ax.tick_params(axis="x", labelsize=7)
+    ax.set_facecolor("#fffdf7")
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
 
@@ -132,6 +222,7 @@ def plot_diff_grid(
     nrows = (n + ncols - 1) // ncols
 
     fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 6, nrows * 6.5), squeeze=False)
+    fig.patch.set_facecolor("#f6f3eb")
     fig.suptitle(
         f"{title}  (Team − Opp Avg) — {SEASON} NFL",
         fontsize=13,
@@ -151,9 +242,15 @@ def plot_diff_grid(
     _save_fig(fig, filename)
 
 
-def plot_sos_overview(df: pl.DataFrame, filename: str) -> None:
+def plot_sos_overview(
+    df: pl.DataFrame,
+    filename: str,
+    specs: list[tuple[str, str]] | None = None,
+    title: str = "Opponent Strength Profile",
+) -> None:
     """Ranked bar charts of raw opponent-strength metrics."""
-    available = [(col, lbl) for col, lbl in OPP_STRENGTH_SPECS if col in df.columns]
+    chosen_specs = specs if specs is not None else OVERALL_OPP_SPECS
+    available = _available_opp_specs(df, chosen_specs)
     if not available:
         print(f"  Skipping {filename}: no opp_ columns found.")
         return
@@ -164,8 +261,9 @@ def plot_sos_overview(df: pl.DataFrame, filename: str) -> None:
     nrows = (n + ncols - 1) // ncols
 
     fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 6, nrows * 6.5), squeeze=False)
+    fig.patch.set_facecolor("#f6f3eb")
     fig.suptitle(
-        f"Opponent Strength Profile — {SEASON} NFL",
+        f"{title} — {SEASON} NFL",
         fontsize=13,
         fontweight="bold",
         y=1.01,
@@ -174,23 +272,7 @@ def plot_sos_overview(df: pl.DataFrame, filename: str) -> None:
 
     for i, (col, label) in enumerate(available):
         vals = df.select(col).to_series().cast(pl.Float64).fill_null(0.0).to_list()
-        order = np.argsort(vals)
-        s_teams = [teams[j] for j in order]
-        s_vals = [vals[j] for j in order]
-
-        ax_flat[i].barh(
-            s_teams,
-            s_vals,
-            color="#3498db",
-            edgecolor="white",
-            linewidth=0.4,
-            height=0.72,
-        )
-        ax_flat[i].set_title(label, fontsize=9, fontweight="bold", pad=3)
-        ax_flat[i].tick_params(axis="y", labelsize=6.5)
-        ax_flat[i].tick_params(axis="x", labelsize=7)
-        for spine in ("top", "right"):
-            ax_flat[i].spines[spine].set_visible(False)
+        _draw_stat_bars(ax_flat[i], teams, vals, label)
 
     for j in range(len(available), len(ax_flat)):
         ax_flat[j].set_visible(False)
@@ -206,7 +288,7 @@ def plot_diff_heatmap(df: pl.DataFrame, filename: str) -> None:
     Lower-is-better stats (e.g. points_allowed) are sign-flipped so green
     always represents a team advantage.
     """
-    all_specs = OFFENSE_SPECS + DEFENSE_SPECS + QB_SPECS
+    all_specs = OFFENSE_SPECS + DEFENSE_SPECS + QB_SPECS + OVERALL_DIFF_SPECS
     available = _available_diff_specs(df, all_specs)
     if not available:
         print(f"  Skipping {filename}: no diff_ columns found.")
@@ -364,7 +446,7 @@ def plot_adjusted_ratings(df: pl.DataFrame, filename: str) -> None:
 
 def main() -> None:
     """Generate all plots from the combined schedule-strength dataset."""
-    combined_path = os.path.join(OUTPUT_DIR, "combined.csv")
+    combined_path = os.path.join(OUTPUT_DIR, f"{SEASON}_combined.csv")
     if not os.path.exists(combined_path):
         print(f"ERROR: {combined_path} not found. Run main.py first.")
         return
@@ -382,17 +464,69 @@ def main() -> None:
     os.makedirs(PLOTS_DIR, exist_ok=True)
     print(f"Generating {SEASON} NFL SoS visualizations → {PLOTS_DIR}/\n")
 
-    plot_diff_grid(df, OFFENSE_SPECS, "Offensive Differentials", "diffs_offense.png")
+    plot_diff_grid(df, OFFENSE_SPECS, "Offense Differentials", f"{SEASON}_diffs_offense.png")
+    plot_diff_grid(df, QB_SPECS, "QB Differentials", f"{SEASON}_diffs_qb.png")
     plot_diff_grid(
         df,
-        DEFENSE_SPECS + QB_SPECS,
-        "Defensive & QB Differentials",
-        "diffs_defense_qb.png",
+        DEFENSE_SPECS,
+        "Defense Differentials",
+        f"{SEASON}_diffs_defense.png",
     )
-    plot_sos_overview(df, "sos_opponent_strength.png")
-    plot_composite_sos(df, "sos_composite_ranking.png")
-    plot_diff_heatmap(df, "heatmap_diffs.png")
-    plot_adjusted_ratings(df, "adjusted_ratings.png")
+    plot_diff_grid(df, OVERALL_DIFF_SPECS, "Overall Differentials", f"{SEASON}_diffs_overall.png")
+
+    plot_sos_overview(
+        df,
+        f"{SEASON}_opponent_stats_offense.png",
+        specs=OFFENSE_OPP_SPECS,
+        title="Opponent Offense Stats",
+    )
+    plot_sos_overview(
+        df,
+        f"{SEASON}_opponent_stats_defense.png",
+        specs=DEFENSE_OPP_SPECS,
+        title="Opponent Defense Stats",
+    )
+    plot_sos_overview(
+        df,
+        f"{SEASON}_opponent_stats_qb.png",
+        specs=QB_OPP_SPECS,
+        title="Opponent QB Stats",
+    )
+    plot_sos_overview(
+        df,
+        f"{SEASON}_opponent_stats_overall.png",
+        specs=OVERALL_OPP_SPECS,
+        title="Opponent Overall Stats",
+    )
+
+    plot_sos_overview(
+        df,
+        f"{SEASON}_team_stats_offense.png",
+        specs=OFFENSE_TEAM_SPECS,
+        title="Team Offense Stats",
+    )
+    plot_sos_overview(
+        df,
+        f"{SEASON}_team_stats_defense.png",
+        specs=DEFENSE_TEAM_SPECS,
+        title="Team Defense Stats",
+    )
+    plot_sos_overview(
+        df,
+        f"{SEASON}_team_stats_qb.png",
+        specs=QB_TEAM_SPECS,
+        title="Team QB Stats",
+    )
+    plot_sos_overview(
+        df,
+        f"{SEASON}_team_stats_overall.png",
+        specs=OVERALL_TEAM_SPECS,
+        title="Team Overall Stats",
+    )
+
+    plot_composite_sos(df, f"{SEASON}_sos_composite_ranking.png")
+    plot_diff_heatmap(df, f"{SEASON}_heatmap_diffs.png")
+    plot_adjusted_ratings(df, f"{SEASON}_adjusted_ratings.png")
 
     print(f"\nDone! {len(os.listdir(PLOTS_DIR))} plots saved to {PLOTS_DIR}/")
 
