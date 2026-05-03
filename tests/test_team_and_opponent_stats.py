@@ -1,3 +1,5 @@
+"""Tests for team and opponent stats computations."""
+
 import polars as pl
 import pytest
 
@@ -60,6 +62,7 @@ def _schedule_df() -> pl.DataFrame:
 
 
 def test_team_stats_aggregations_and_win_totals() -> None:
+    """Verify team/QB per-game aggregations and win totals are computed correctly."""
     weekly = _weekly_df()
     qb = _qb_df()
 
@@ -76,6 +79,7 @@ def test_team_stats_aggregations_and_win_totals() -> None:
 
 
 def test_compute_stats_excluding_opponent() -> None:
+    """Verify exclusion helpers remove targeted opponent games for team and QB stats."""
     weekly = _weekly_df()
     qb = _qb_df()
 
@@ -90,6 +94,7 @@ def test_compute_stats_excluding_opponent() -> None:
 
 
 def test_compute_stats_excluding_opponent_returns_none() -> None:
+    """Verify exclusion helpers return None when no games remain after filtering."""
     weekly = _weekly_df().filter((pl.col("team") == "DEN") & (pl.col("opponent_team") == "KC"))
     qb = _qb_df().filter((pl.col("team_abbr") == "DEN") & (pl.col("week") == 1))
 
@@ -98,6 +103,7 @@ def test_compute_stats_excluding_opponent_returns_none() -> None:
 
 
 def test_opponent_profile_and_all_profiles() -> None:
+    """Verify single-team and all-team opponent profile computations return expected structures."""
     weekly = _weekly_df()
     qb = _qb_df()
     schedule = _schedule_df()
@@ -118,6 +124,7 @@ def test_opponent_profile_and_all_profiles() -> None:
 
 
 def test_opponent_profile_handles_missing_opponent_stats() -> None:
+    """Verify opponent profile gracefully handles opponents without remaining data."""
     weekly = pl.DataFrame(
         {
             "team": ["DEN"],
@@ -145,6 +152,7 @@ def test_opponent_profile_handles_missing_opponent_stats() -> None:
 def test_compute_all_opponent_profiles_handles_missing_qb_rows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Verify all-team opponent profile assembly works when QB rows are missing."""
     weekly = pl.DataFrame({"team": ["DEN", "KC"]})
     qb = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_passer_rating": [100.0]})
     schedule = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})
@@ -170,6 +178,7 @@ def test_compute_all_opponent_profiles_handles_missing_qb_rows(
 def test_compute_all_opponent_profiles_handles_missing_team_rows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Verify all-team opponent profile assembly works when team rows are missing."""
     weekly = pl.DataFrame({"team": ["DEN", "KC"]})
     qb = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_passer_rating": [100.0]})
     schedule = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})

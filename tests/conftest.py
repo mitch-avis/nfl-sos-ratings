@@ -1,3 +1,5 @@
+"""Shared pytest fixtures and import aliases for this test suite."""
+
 import importlib
 import sys
 from pathlib import Path
@@ -23,12 +25,14 @@ _alias_module("team_stats", "nfl_sos_ratings.team_stats")
 _alias_module("data_loader", "nfl_sos_ratings.data_loader")
 _alias_module("opponent_stats", "nfl_sos_ratings.opponent_stats")
 _alias_module("ratings", "nfl_sos_ratings.ratings")
+_alias_module("qb_stats", "nfl_sos_ratings.qb_stats")
 _alias_module("visualize", "nfl_sos_ratings.visualize")
 _alias_module("main", "nfl_sos_ratings.main")
 
 
 @pytest.fixture
 def visualize_df() -> pl.DataFrame:
+    """Return a compact DataFrame with representative plotting columns."""
     return pl.DataFrame(
         {
             "team": ["DEN", "KC", "LAC"],

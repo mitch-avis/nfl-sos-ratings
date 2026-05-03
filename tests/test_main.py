@@ -1,3 +1,5 @@
+"""Tests for nfl_sos_ratings.main pipeline behavior."""
+
 import io
 from pathlib import Path
 from types import SimpleNamespace
@@ -56,6 +58,35 @@ def _ratings_df() -> pl.DataFrame:
     return pl.DataFrame({"team": ["DEN"], "SaCR": [1.0], "SaOR": [0.8], "SaDR": [0.6]})
 
 
+def _qb_opp_profiles() -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "team": ["DEN"],
+            "qopp_points_allowed": [19.0],
+            "qopp_def_sacks": [2.4],
+            "qopp_def_interceptions": [0.9],
+            "qopp_qb_passer_rating": [91.0],
+            "qopp_qb_completion_percentage_above_expectation": [1.2],
+        }
+    )
+
+
+def _qb_ratings_df() -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "team": ["DEN"],
+            "QRaw": [0.5],
+            "QSaOR": [0.7],
+            "QSoS": [0.4],
+            "QSaCR": [0.7],
+            "QRaw_pct": [66.7],
+            "QSaOR_pct": [75.0],
+            "QSoS_pct": [62.5],
+            "QSaCR_pct": [75.0],
+        }
+    )
+
+
 def _patch_common(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(main, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(main, "SEASON", 2025)
@@ -65,11 +96,18 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(main, "compute_all_teams_per_game", lambda weekly_df: _team_per_game())
     monkeypatch.setattr(main, "compute_win_totals", lambda weekly_df: _win_totals())
     monkeypatch.setattr(main, "compute_ratings", lambda combined: _ratings_df())
+    monkeypatch.setattr(
+        main,
+        "compute_qb_opponent_profiles",
+        lambda weekly_df, qb_df, schedule_df, qb_season_df: (_qb_opp_profiles(), {"DEN": []}),
+    )
+    monkeypatch.setattr(main, "compute_qb_ratings", lambda qb_combined: _qb_ratings_df())
 
 
 def test_main_returns_when_no_opponent_profiles(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Verify main exits early with warning when opponent profiles are unavailable."""
     _patch_common(monkeypatch, tmp_path)
     monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
     monkeypatch.setattr(
@@ -81,6 +119,10 @@ def test_main_returns_when_no_opponent_profiles(
     main.main()
 
     assert (tmp_path / f"{main.SEASON}_team_per_game_stats.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_per_game_stats.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_opponent_profiles.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_combined.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_ratings.csv").exists()
     assert not (tmp_path / f"{main.SEASON}_combined.csv").exists()
     assert "No opponent profile data was computed" in capsys.readouterr().out
 
@@ -88,6 +130,7 @@ def test_main_returns_when_no_opponent_profiles(
 def test_main_handles_both_team_and_qb_profiles(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Verify main writes combined outputs when both team and QB profiles are present."""
     _patch_common(monkeypatch, tmp_path)
     monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
     monkeypatch.setattr(
@@ -103,13 +146,19 @@ def test_main_handles_both_team_and_qb_profiles(
     main.main()
 
     combined = pl.read_csv(tmp_path / f"{main.SEASON}_combined.csv")
+    qb_combined = pl.read_csv(tmp_path / f"{main.SEASON}_qb_combined.csv")
     assert combined.select("diff_points_for").item() == 4.0
     assert combined.select("diff_qb_passer_rating").item() == 10.0
+    assert qb_combined.select("qopp_points_allowed").item() == 19.0
+    assert qb_combined.select("diff_qb_passer_rating").item() == 9.0
+    assert qb_combined.select("QSaCR_pct").item() == 75.0
     assert (tmp_path / f"{main.SEASON}_ratings.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_ratings.csv").exists()
     assert "KC (DIV): 1 games" in capsys.readouterr().out
 
 
 def test_main_handles_team_only_profiles(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Verify main still writes opponent profiles when only team-level profiles are present."""
     _patch_common(monkeypatch, tmp_path)
     monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
     monkeypatch.setattr(
@@ -131,6 +180,7 @@ def test_main_handles_team_only_profiles(monkeypatch: pytest.MonkeyPatch, tmp_pa
 def test_main_handles_qb_only_profiles_and_windows_stdout(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """Verify main handles QB-only profiles and executes Windows UTF-8 stdout path."""
     _patch_common(monkeypatch, tmp_path)
     monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _empty_qb_per_game())
     monkeypatch.setattr(

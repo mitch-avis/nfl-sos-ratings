@@ -1,3 +1,5 @@
+"""Tests for nfl_sos_ratings.ratings."""
+
 import numpy as np
 import polars as pl
 import pytest
@@ -6,6 +8,7 @@ from nfl_sos_ratings import ratings
 
 
 def test_rating_helpers_cover_edge_cases() -> None:
+    """Verify helper functions handle standard and edge-case numeric inputs."""
     assert np.allclose(ratings._zscore([1.0, 2.0, 3.0]), np.array([-1.0, 0.0, 1.0]))
     assert np.allclose(ratings._zscore([2.0, 2.0, 2.0]), np.array([0.0, 0.0, 0.0]))
 
@@ -25,6 +28,7 @@ def test_rating_helpers_cover_edge_cases() -> None:
 def test_derive_weights_builds_weighted_composite_and_fallback(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """Verify weight derivation and fallback weighting behavior."""
     df = pl.DataFrame(
         {
             "stat_a": [1.0, 2.0, 3.0, 4.0],
@@ -57,6 +61,7 @@ def test_derive_weights_builds_weighted_composite_and_fallback(
 
 
 def test_compute_ratings_with_real_inputs() -> None:
+    """Verify compute_ratings emits expected schema and sensible ranking direction."""
     df = pl.DataFrame(
         {
             "team": ["A", "B", "C", "D"],
@@ -100,6 +105,7 @@ def test_compute_ratings_with_real_inputs() -> None:
 def test_compute_ratings_without_win_pct_and_without_sos_inputs(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """Verify compute_ratings falls back cleanly without win_pct and SoS columns."""
     df = pl.DataFrame(
         {
             "team": ["A", "B", "C"],
@@ -117,6 +123,7 @@ def test_compute_ratings_without_win_pct_and_without_sos_inputs(
 def test_compute_ratings_uses_neutral_blend_when_correlations_are_zero(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Verify compute_ratings uses neutral blend when offensive/defensive correlations are zero."""
     df = pl.DataFrame(
         {
             "team": ["A", "B"],

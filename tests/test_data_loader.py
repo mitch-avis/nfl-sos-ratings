@@ -1,3 +1,5 @@
+"""Tests for nfl_sos_ratings.data_loader."""
+
 import polars as pl
 import pytest
 
@@ -5,6 +7,7 @@ from nfl_sos_ratings import data_loader
 
 
 def test_extract_points_per_team_week() -> None:
+    """Verify schedule scores are pivoted to team-week points_for/points_allowed rows."""
     schedule = pl.DataFrame(
         {
             "home_team": ["DEN"],
@@ -24,6 +27,7 @@ def test_extract_points_per_team_week() -> None:
 
 
 def test_load_weekly_team_stats_enriches_and_filters(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify weekly team stats are REG-filtered and enriched with totals and points."""
     weekly = pl.DataFrame(
         {
             "team": ["DEN", "DEN"],
@@ -56,6 +60,7 @@ def test_load_weekly_team_stats_enriches_and_filters(monkeypatch: pytest.MonkeyP
 
 
 def test_load_schedule_filters_regular_season(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify schedule loading keeps only regular-season games."""
     schedule = pl.DataFrame(
         {
             "game_type": ["REG", "POST"],
@@ -72,15 +77,18 @@ def test_load_schedule_filters_regular_season(monkeypatch: pytest.MonkeyPatch) -
     assert result.select("away_team").item() == "KC"
 
 
-def test_load_qb_stats_selects_primary_qb_and_renames(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify QB loading keeps individual passers and applies qb_ prefixes."""
     qb = pl.DataFrame(
         {
-            "season_type": ["REG", "REG", "REG", "POST"],
-            "week": [1, 1, 2, 3],
-            "team_abbr": ["DEN", "DEN", "KC", "DEN"],
-            "attempts": [20, 30, 25, 40],
-            "passer_rating": [90.0, 110.0, 95.0, 120.0],
-            "avg_time_to_throw": [2.8, 2.5, 2.7, 2.9],
+            "season_type": ["REG", "REG", "REG", "REG", "POST"],
+            "week": [1, 1, 2, 2, 3],
+            "team_abbr": ["DEN", "DEN", "KC", "KC", "DEN"],
+            "player_gsis_id": ["QB1", "QB2", "QB3", "QB4", "QB1"],
+            "player_display_name": ["A QB", "B QB", "C QB", "D QB", "A QB"],
+            "attempts": [20, 30, 25, 40, 18],
+            "passer_rating": [90.0, 110.0, 95.0, 88.0, 120.0],
+            "avg_time_to_throw": [2.8, 2.5, 2.7, 3.0, 2.9],
         }
     )
 
@@ -91,6 +99,8 @@ def test_load_qb_stats_selects_primary_qb_and_renames(monkeypatch: pytest.Monkey
     assert result.columns == [
         "team_abbr",
         "week",
+        "qb_id",
+        "qb_name",
         "qb_avg_time_to_throw",
         "qb_attempts",
         "qb_passer_rating",
@@ -99,6 +109,17 @@ def test_load_qb_stats_selects_primary_qb_and_renames(monkeypatch: pytest.Monkey
         {
             "team_abbr": "DEN",
             "week": 1,
+            "qb_id": "QB1",
+            "qb_name": "A QB",
+            "qb_avg_time_to_throw": 2.8,
+            "qb_attempts": 20,
+            "qb_passer_rating": 90.0,
+        },
+        {
+            "team_abbr": "DEN",
+            "week": 1,
+            "qb_id": "QB2",
+            "qb_name": "B QB",
             "qb_avg_time_to_throw": 2.5,
             "qb_attempts": 30,
             "qb_passer_rating": 110.0,
@@ -106,8 +127,19 @@ def test_load_qb_stats_selects_primary_qb_and_renames(monkeypatch: pytest.Monkey
         {
             "team_abbr": "KC",
             "week": 2,
+            "qb_id": "QB3",
+            "qb_name": "C QB",
             "qb_avg_time_to_throw": 2.7,
             "qb_attempts": 25,
             "qb_passer_rating": 95.0,
+        },
+        {
+            "team_abbr": "KC",
+            "week": 2,
+            "qb_id": "QB4",
+            "qb_name": "D QB",
+            "qb_avg_time_to_throw": 3.0,
+            "qb_attempts": 40,
+            "qb_passer_rating": 88.0,
         },
     ]

@@ -1,3 +1,5 @@
+"""Tests for nfl_sos_ratings.visualize plotting behavior."""
+
 import os
 from pathlib import Path
 
@@ -10,6 +12,7 @@ from nfl_sos_ratings import visualize
 def test_plot_functions_skip_when_inputs_are_missing(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Verify plotting functions print skip messages when required columns are absent."""
     df = pl.DataFrame({"team": ["DEN", "KC"]})
 
     visualize.PLOTS_DIR = str(tmp_path)
@@ -18,6 +21,8 @@ def test_plot_functions_skip_when_inputs_are_missing(
     visualize.plot_diff_heatmap(df, "heatmap.png")
     visualize.plot_composite_sos(df, "composite.png")
     visualize.plot_adjusted_ratings(df, "ratings.png")
+    visualize.plot_qb_raw_vs_adjusted(df, "qb_raw_vs_adjusted.png")
+    visualize.plot_qb_schedule_vs_performance(df, "qb_schedule_vs_performance.png")
 
     output = capsys.readouterr().out
     assert "Skipping diffs.png" in output
@@ -25,9 +30,12 @@ def test_plot_functions_skip_when_inputs_are_missing(
     assert "Skipping heatmap.png" in output
     assert "Skipping composite.png" in output
     assert "Skipping ratings.png" in output
+    assert "Skipping qb_raw_vs_adjusted.png" in output
+    assert "Skipping qb_schedule_vs_performance.png" in output
 
 
 def test_plot_functions_create_expected_files(tmp_path: Path, visualize_df: pl.DataFrame) -> None:
+    """Verify plotting helpers create expected output image files."""
     visualize.PLOTS_DIR = str(tmp_path)
 
     visualize.plot_diff_grid(visualize_df, visualize.OFFENSE_SPECS, "Offense", "diffs_offense.png")
@@ -35,15 +43,34 @@ def test_plot_functions_create_expected_files(tmp_path: Path, visualize_df: pl.D
     visualize.plot_diff_heatmap(visualize_df, "heatmap_diffs.png")
     visualize.plot_composite_sos(visualize_df, "sos_composite_ranking.png")
     visualize.plot_adjusted_ratings(visualize_df, "adjusted_ratings.png")
+    visualize.plot_qb_adjusted_ratings(
+        pl.DataFrame({"team": ["DEN", "KC"], "QSaCR": [0.6, -0.4]}),
+        "qb_adjusted_ratings.png",
+    )
+    qb_df = pl.DataFrame(
+        {
+            "team": ["DEN", "KC"],
+            "QRaw": [0.2, -0.1],
+            "QSaOR": [0.6, -0.3],
+            "QSoS": [0.4, -0.2],
+            "QSaCR": [0.6, -0.3],
+        }
+    )
+    visualize.plot_qb_raw_vs_adjusted(qb_df, "qb_raw_vs_adjusted.png")
+    visualize.plot_qb_schedule_vs_performance(qb_df, "qb_schedule_vs_performance.png")
 
     assert (tmp_path / "diffs_offense.png").exists()
     assert (tmp_path / "sos_opponent_strength.png").exists()
     assert (tmp_path / "heatmap_diffs.png").exists()
     assert (tmp_path / "sos_composite_ranking.png").exists()
     assert (tmp_path / "adjusted_ratings.png").exists()
+    assert (tmp_path / "qb_adjusted_ratings.png").exists()
+    assert (tmp_path / "qb_raw_vs_adjusted.png").exists()
+    assert (tmp_path / "qb_schedule_vs_performance.png").exists()
 
 
 def test_plot_functions_hide_unused_axes(tmp_path: Path) -> None:
+    """Verify plotting grids still render when only a subset of panels is available."""
     visualize.PLOTS_DIR = str(tmp_path)
     df = pl.DataFrame(
         {
@@ -63,6 +90,7 @@ def test_plot_functions_hide_unused_axes(tmp_path: Path) -> None:
 def test_visualize_main_handles_missing_and_invalid_combined_file(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Verify visualize.main handles missing combined file and missing diff columns."""
     visualize.OUTPUT_DIR = str(tmp_path)
     visualize.PLOTS_DIR = os.path.join(str(tmp_path), "plots")
 
@@ -78,6 +106,7 @@ def test_visualize_main_handles_missing_and_invalid_combined_file(
 
 
 def test_visualize_main_generates_all_plots(tmp_path: Path, visualize_df: pl.DataFrame) -> None:
+    """Verify visualize.main generates the full expected plot set."""
     visualize.OUTPUT_DIR = str(tmp_path)
     visualize.PLOTS_DIR = os.path.join(str(tmp_path), "plots")
     pl.DataFrame(visualize_df).write_csv(tmp_path / f"{visualize.SEASON}_combined.csv")
@@ -101,3 +130,31 @@ def test_visualize_main_generates_all_plots(tmp_path: Path, visualize_df: pl.Dat
         f"{visualize.SEASON}_team_stats_overall.png",
         f"{visualize.SEASON}_team_stats_qb.png",
     ]
+
+
+def test_visualize_main_generates_qb_plot_when_qb_combined_exists(
+    tmp_path: Path, visualize_df: pl.DataFrame
+) -> None:
+    """Verify visualize.main adds QB plot when qb_combined output is available."""
+    visualize.OUTPUT_DIR = str(tmp_path)
+    visualize.PLOTS_DIR = os.path.join(str(tmp_path), "plots")
+    visualize_df.write_csv(tmp_path / f"{visualize.SEASON}_combined.csv")
+    pl.DataFrame({"team": ["DEN", "KC"], "QSaCR": [0.4, -0.2]}).write_csv(
+        tmp_path / f"{visualize.SEASON}_qb_combined.csv"
+    )
+
+    pl.DataFrame(
+        {
+            "team": ["DEN", "KC"],
+            "QRaw": [0.2, -0.1],
+            "QSaOR": [0.4, -0.2],
+            "QSoS": [0.3, -0.1],
+            "QSaCR": [0.4, -0.2],
+        }
+    ).write_csv(tmp_path / f"{visualize.SEASON}_qb_combined.csv")
+
+    visualize.main()
+
+    assert (tmp_path / "plots" / f"{visualize.SEASON}_qb_adjusted_ratings.png").exists()
+    assert (tmp_path / "plots" / f"{visualize.SEASON}_qb_raw_vs_adjusted.png").exists()
+    assert (tmp_path / "plots" / f"{visualize.SEASON}_qb_schedule_vs_performance.png").exists()
