@@ -1,10 +1,10 @@
 """Configuration constants for NFL Strength of Schedule analysis."""
 
 # Season to analyze — change this single value to run for any regular season
-SEASON = 2025
+SEASON: int = 2021
 
 # Output directory for CSVs
-OUTPUT_DIR = "output"
+OUTPUT_DIR: str = "output"
 
 # NFL division mapping
 DIVISIONS = {
