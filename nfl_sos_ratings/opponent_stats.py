@@ -1,8 +1,9 @@
 """Core strength-of-schedule logic: compute opponent stat profiles."""
 
 import polars as pl
-from config import TEAM_TO_DIVISION
-from team_stats import (
+
+from nfl_sos_ratings.config import TEAM_TO_DIVISION
+from nfl_sos_ratings.team_stats import (
     compute_qb_stats_excluding_opponent,
     compute_team_stats_excluding_opponent,
 )

@@ -38,14 +38,19 @@ def compute_all_teams_qb_per_game(qb_df: pl.DataFrame) -> pl.DataFrame:
     Returns a DataFrame with one row per team and per-game averages for every
     QB stat column.
     """
+    source = qb_df
+    if "qb_attempts" in qb_df.columns:
+        # For team summaries, use primary QB per team-week by most attempts.
+        source = qb_df.sort("qb_attempts", descending=True).group_by(["team_abbr", "week"]).first()
+
     qb_stat_cols = [
         col
-        for col, dtype in zip(qb_df.columns, qb_df.dtypes, strict=True)
+        for col, dtype in zip(source.columns, source.dtypes, strict=True)
         if dtype.is_numeric() and col not in {"week"}
     ]
 
     per_game = (
-        qb_df.group_by("team_abbr")
+        source.group_by("team_abbr")
         .agg([pl.col(c).mean().alias(c) for c in qb_stat_cols])
         .rename({"team_abbr": "team"})
         .sort("team")

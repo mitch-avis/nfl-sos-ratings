@@ -8,14 +8,21 @@ Plots are saved to output/plots/.
 """
 
 import os
+import sys
+from pathlib import Path
+
+# Allow direct execution via `python nfl_sos_ratings/visualize.py`.
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import seaborn as sns
-from config import OUTPUT_DIR, SEASON
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+
+from nfl_sos_ratings.config import OUTPUT_DIR, SEASON
 
 PLOTS_DIR = os.path.join(OUTPUT_DIR, "plots")
 
@@ -439,6 +446,91 @@ def plot_adjusted_ratings(df: pl.DataFrame, filename: str) -> None:
     _save_fig(fig, filename)
 
 
+def plot_qb_adjusted_ratings(df: pl.DataFrame, filename: str) -> None:
+    """Single-panel QB schedule-adjusted composite ranking chart.
+
+    Expects `team` and `QSaCR` columns from `{SEASON}_qb_combined.csv`.
+    """
+    if "QSaCR" not in df.columns:
+        print(f"  Skipping {filename}: no QSaCR column found.")
+        return
+
+    ranked = df.select(["team", "QSaCR"]).sort("QSaCR")
+    teams = ranked.select("team").to_series().to_list()
+    values = ranked.select("QSaCR").to_series().cast(pl.Float64).fill_null(0.0).to_list()
+    colors = ["#2ecc71" if v >= 0 else "#e74c3c" for v in values]
+
+    fig, ax = plt.subplots(figsize=(7, 10))
+    ax.barh(teams, values, color=colors, edgecolor="white", linewidth=0.4, height=0.72)
+    ax.axvline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.6)
+    ax.set_title(
+        f"QB Schedule-Adjusted Composite (QSaCR) — {SEASON} NFL",
+        fontsize=10,
+        fontweight="bold",
+        pad=6,
+    )
+    ax.set_xlabel("z-score", fontsize=9)
+    ax.tick_params(axis="y", labelsize=8)
+    ax.tick_params(axis="x", labelsize=8)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+
+    plt.tight_layout()
+    _save_fig(fig, filename)
+
+
+def plot_qb_raw_vs_adjusted(df: pl.DataFrame, filename: str) -> None:
+    """Scatter plot of raw QB composite versus schedule-adjusted offense rating."""
+    if "QRaw" not in df.columns or "QSaOR" not in df.columns:
+        print(f"  Skipping {filename}: missing QRaw/QSaOR columns.")
+        return
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    x = df.select("QRaw").to_series().cast(pl.Float64).fill_null(0.0).to_list()
+    y = df.select("QSaOR").to_series().cast(pl.Float64).fill_null(0.0).to_list()
+    teams = df.select("team").to_series().to_list()
+
+    ax.scatter(x, y, s=60, color="#0f9960", alpha=0.85, edgecolor="white", linewidth=0.6)
+    ax.axhline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.6)
+    ax.axvline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.6)
+    for team, raw_score, adjusted_score in zip(teams, x, y, strict=True):
+        ax.text(raw_score + 0.02, adjusted_score + 0.02, team, fontsize=7)
+    ax.set_title(
+        f"QB Raw vs Adjusted Offense Rating — {SEASON} NFL", fontsize=11, fontweight="bold"
+    )
+    ax.set_xlabel("QRaw", fontsize=9)
+    ax.set_ylabel("QSaOR", fontsize=9)
+    plt.tight_layout()
+    _save_fig(fig, filename)
+
+
+def plot_qb_schedule_vs_performance(df: pl.DataFrame, filename: str) -> None:
+    """Scatter plot of QB schedule difficulty versus adjusted composite performance."""
+    if "QSoS" not in df.columns or "QSaCR" not in df.columns:
+        print(f"  Skipping {filename}: missing QSoS/QSaCR columns.")
+        return
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    x = df.select("QSoS").to_series().cast(pl.Float64).fill_null(0.0).to_list()
+    y = df.select("QSaCR").to_series().cast(pl.Float64).fill_null(0.0).to_list()
+    teams = df.select("team").to_series().to_list()
+
+    ax.scatter(x, y, s=60, color="#1f78b4", alpha=0.85, edgecolor="white", linewidth=0.6)
+    ax.axhline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.6)
+    ax.axvline(0, color="gray", linewidth=0.8, linestyle="--", alpha=0.6)
+    for team, strength, performance in zip(teams, x, y, strict=True):
+        ax.text(strength + 0.02, performance + 0.02, team, fontsize=7)
+    ax.set_title(
+        f"QB Schedule Difficulty vs Adjusted Performance — {SEASON} NFL",
+        fontsize=11,
+        fontweight="bold",
+    )
+    ax.set_xlabel("QSoS", fontsize=9)
+    ax.set_ylabel("QSaCR", fontsize=9)
+    plt.tight_layout()
+    _save_fig(fig, filename)
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -527,6 +619,13 @@ def main() -> None:
     plot_composite_sos(df, f"{SEASON}_sos_composite_ranking.png")
     plot_diff_heatmap(df, f"{SEASON}_heatmap_diffs.png")
     plot_adjusted_ratings(df, f"{SEASON}_adjusted_ratings.png")
+
+    qb_combined_path = os.path.join(OUTPUT_DIR, f"{SEASON}_qb_combined.csv")
+    if os.path.exists(qb_combined_path):
+        qb_df = pl.read_csv(qb_combined_path)
+        plot_qb_adjusted_ratings(qb_df, f"{SEASON}_qb_adjusted_ratings.png")
+        plot_qb_raw_vs_adjusted(qb_df, f"{SEASON}_qb_raw_vs_adjusted.png")
+        plot_qb_schedule_vs_performance(qb_df, f"{SEASON}_qb_schedule_vs_performance.png")
 
     print(f"\nDone! {len(os.listdir(PLOTS_DIR))} plots saved to {PLOTS_DIR}/")
 
