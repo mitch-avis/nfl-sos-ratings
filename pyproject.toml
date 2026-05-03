@@ -12,10 +12,6 @@ keywords = ["stats", "sports", "football", "machine learning"]
 authors = [{ name = "Mitch Avis", email = "mitchavis@gmail.com" }]
 license = { text = "MIT" }
 dependencies = ["nflreadpy", "polars", "matplotlib", "seaborn"]
-
-[project.optional-dependencies]
-test = ["pytest>=8", "pytest-cov>=5"]
-
 classifiers = [
     "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: MIT License",
@@ -31,6 +27,7 @@ packages = ["nfl_sos_ratings"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+src = ["."]
 extend-exclude = [
     ".venv",
     ".git",
@@ -63,7 +60,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D", "S101"] # Tests use asserts and do not need docstrings
+"tests/**/*.py" = ["S101"] # Use of assert is standard in pytest
 
 [tool.ruff.lint.isort]
 known-first-party = ["nfl_sos_ratings"]
@@ -73,11 +70,38 @@ docstring-code-format = true
 
 [tool.pyright]
 pythonVersion = "3.12"
+# Production code under nfl_sos_ratings/ runs in strict mode (matches Pylance "Strict" in VS Code).
+# Tests stay on the standard-mode baseline below — they make heavy use of fixtures, Mock objects,
+# and monkeypatching where Unknown types are normal.
 typeCheckingMode = "standard"
-reportMissingImports = true
-reportMissingTypeStubs = false
 venvPath = "."
 venv = ".venv"
+pythonPlatform = "Linux"
+stubPath = "stubs"
+executionEnvironments = [{ root = "." }]
+# --- Standard-mode diagnostics promoted to errors (also surfaced by Pylance) ----------
+reportMissingImports = "error"
+reportMissingModuleSource = "warning"
+reportAttributeAccessIssue = "error"
+reportAssignmentType = "error"
+reportArgumentType = "error"
+reportReturnType = "error"
+reportCallIssue = "error"
+reportIndexIssue = "error"
+reportOperatorIssue = "error"
+reportOptionalSubscript = "error"
+reportOptionalMemberAccess = "error"
+reportOptionalCall = "error"
+reportOptionalIterable = "error"
+reportOptionalContextManager = "error"
+reportOptionalOperand = "error"
+reportGeneralTypeIssues = "error"
+reportMissingTypeStubs = false
+reportUnknownVariableType = "none"
+reportUnknownMemberType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownParameterType = "none"
+reportUnknownLambdaType = "none"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -94,7 +118,7 @@ pythonpath = ["."]
 [tool.coverage.run]
 branch = true
 source = ["nfl_sos_ratings"]
-
+omit = ["config.py", "config-*.py", "*/config.py", "*/config-*.py"]
 
 [tool.coverage.report]
 show_missing = true
