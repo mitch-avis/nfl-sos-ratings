@@ -2,7 +2,8 @@
 
 import polars as pl
 
-from nfl_sos_ratings.opponent_stats import is_division_opponent
+from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
+from nfl_sos_ratings.opponent_stats import get_opponents, is_division_opponent
 from nfl_sos_ratings.team_stats import compute_team_stats_excluding_opponent
 
 DEFENSIVE_CONTEXT_COLS: list[str] = [
@@ -13,6 +14,16 @@ DEFENSIVE_CONTEXT_COLS: list[str] = [
     "def_tackles_for_loss",
     "def_qb_hits",
 ]
+
+
+def _normalize_team_abbreviations(df: pl.DataFrame, columns: list[str]) -> pl.DataFrame:
+    """Normalize known source-specific team abbreviations in selected columns."""
+    exprs = [
+        pl.col(column).replace(TEAM_ABBR_ALIASES).alias(column)
+        for column in columns
+        if column in df.columns
+    ]
+    return df.with_columns(exprs) if exprs else df
 
 
 def _compute_qb_allowed_stats_excluding_team(
@@ -45,10 +56,40 @@ def _compute_qb_allowed_stats_excluding_team(
     if not qb_stat_cols:
         return None
 
-    return qb_allowed.select(
-        [pl.lit(defense_team).alias("opponent")]
-        + [pl.col(col).mean().alias(f"qopp_{col}") for col in qb_stat_cols]
-    )
+    agg_exprs = [pl.col(col).mean().alias(f"qopp_{col}") for col in qb_stat_cols]
+    rate_inputs = [
+        ("qb_pass_yards", "qopp_qb_yards_per_attempt"),
+        ("qb_pass_touchdowns", "qopp_qb_touchdown_rate"),
+        ("qb_interceptions", "qopp_qb_interception_rate"),
+    ]
+    if "qb_attempts" in qb_allowed.columns:
+        attempts_sum = pl.col("qb_attempts").sum()
+        for numerator_col, output_col in rate_inputs:
+            if numerator_col in qb_allowed.columns:
+                agg_exprs.append(
+                    pl.when(attempts_sum > 0)
+                    .then(pl.col(numerator_col).sum() / attempts_sum)
+                    .otherwise(None)
+                    .alias(output_col)
+                )
+
+    return qb_allowed.select([pl.lit(defense_team).alias("opponent")] + agg_exprs)
+
+
+def _get_scheduled_opponents(schedule_df: pl.DataFrame, team: str) -> list[str]:
+    """Return unique scheduled opponents when schedule columns are available."""
+    if {"home_team", "away_team"}.issubset(set(schedule_df.columns)):
+        return get_opponents(schedule_df, team)
+    return []
+
+
+def _get_faced_opponents(qb_games: pl.DataFrame) -> list[str]:
+    """Return opponents from a quarterback's actual game rows, preserving repeats."""
+    if qb_games.is_empty() or "opponent_team" not in qb_games.columns:
+        return []
+    sort_cols = [col for col in ("week", "opponent_team") if col in qb_games.columns]
+    source = qb_games.sort(sort_cols) if sort_cols else qb_games
+    return source.select("opponent_team").to_series().to_list()
 
 
 def compute_qb_opponent_profiles(
@@ -59,6 +100,11 @@ def compute_qb_opponent_profiles(
     weighted: bool = False,
 ) -> tuple[pl.DataFrame | None, dict[str, list[dict[str, str | bool | int]]]]:
     """Compute QB opponent profiles for each individual quarterback season row."""
+    weekly_df = _normalize_team_abbreviations(weekly_df, ["team", "opponent_team"])
+    qb_df = _normalize_team_abbreviations(qb_df, ["team_abbr"])
+    schedule_df = _normalize_team_abbreviations(schedule_df, ["home_team", "away_team"])
+    qb_season_df = _normalize_team_abbreviations(qb_season_df, ["team"])
+
     qb_keys = [key for key in ("qb_id", "qb_name") if key in qb_season_df.columns]
     if not qb_keys:
         qb_keys = ["team"]
@@ -86,17 +132,15 @@ def compute_qb_opponent_profiles(
             # Fallback for tests or sparse mocks missing QB identifiers.
             qb_games = qb_games_with_opponents.filter(pl.col("team_abbr") == team_label)
 
-        opponents = (
-            qb_games.select(["team_abbr", "opponent_team"]).to_dicts()
-            if not qb_games.is_empty()
-            else []
-        )
+        opponents = _get_faced_opponents(qb_games)
+        if not opponents:
+            opponents = _get_scheduled_opponents(schedule_df, team_label)
         opp_rows: list[pl.DataFrame] = []
         team_details: list[dict[str, str | bool | int]] = []
 
-        for game in opponents:
-            evaluated_team = str(game["team_abbr"])
-            opponent = str(game["opponent_team"])
+        for opponent_value in opponents:
+            evaluated_team = team_label
+            opponent = str(opponent_value)
             opp_stats = compute_team_stats_excluding_opponent(
                 weekly_df,
                 opponent,
