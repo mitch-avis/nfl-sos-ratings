@@ -1,7 +1,12 @@
 """Configuration constants for NFL Strength of Schedule analysis."""
 
-# Season to analyze — change this single value to run for any regular season
-SEASON: int = 2021
+# Season range for the full pipeline run (nfl-sos-pipeline command).
+# 2016 is the first season with available Next Gen Stats data.
+START_YEAR: int = 2016
+END_YEAR: int = 2025
+
+# Single-season target — used by main.py and visualize.py when invoked directly.
+SEASON: int = END_YEAR
 
 # Output directory for CSVs
 OUTPUT_DIR: str = "output"
@@ -26,6 +31,10 @@ for div, teams in DIVISIONS.items():
 
 # All 32 teams
 ALL_TEAMS = sorted(TEAM_TO_DIVISION.keys())
+
+# Canonicalize nflverse source differences. Schedules/team stats use LA for the Rams in some
+# datasets, while Next Gen Stats and this project use LAR.
+TEAM_ABBR_ALIASES = {"LA": "LAR"}
 
 # QB Next Gen Stats columns to extract (from load_nextgen_stats passing data)
 QB_NGS_COLS = [
