@@ -15,6 +15,7 @@ def _weekly_df() -> pl.DataFrame:
         {
             "team": ["DEN", "KC"],
             "opponent_team": ["KC", "DEN"],
+            "week": [1, 1],
             "points_for": [24, 17],
             "points_allowed": [17, 24],
         }
@@ -155,6 +156,35 @@ def test_main_handles_both_team_and_qb_profiles(
     assert (tmp_path / f"{main.SEASON}_ratings.csv").exists()
     assert (tmp_path / f"{main.SEASON}_qb_ratings.csv").exists()
     assert "KC (DIV): 1 games" in capsys.readouterr().out
+
+
+def test_main_calibrates_qb_model_with_opponent_context(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Verify QB calibration receives opponent context and differential columns."""
+    _patch_common(monkeypatch, tmp_path)
+    captured: dict[str, list[str]] = {}
+
+    def capture_calibration(historical_df: pl.DataFrame) -> tuple[float, float, float]:
+        captured["columns"] = historical_df.columns
+        return 0.1, 0.25, 0.5
+
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(main, "calibrate_qb_model", capture_calibration)
+    monkeypatch.setattr(
+        main,
+        "compute_all_opponent_profiles",
+        lambda weekly_df, qb_df, schedule_df: (
+            pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
+            pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
+            {},
+        ),
+    )
+
+    main.main()
+
+    assert "qopp_qb_passer_rating" in captured["columns"]
+    assert "diff_qb_passer_rating" in captured["columns"]
 
 
 def test_main_handles_team_only_profiles(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
