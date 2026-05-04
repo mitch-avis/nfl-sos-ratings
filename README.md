@@ -57,11 +57,25 @@ Team ratings are computed in `nfl_sos_ratings/ratings.py` from the combined team
 
 QB ratings are computed in `nfl_sos_ratings/qb_ratings.py`:
 
-- Input is individual QB season rows (not one QB per team).
-- `QRaw` uses weighted QB stat composites from available `qb_*` columns.
-- `QSoS` uses opponent defensive context (`qopp_*` columns).
-- `QSaOR` applies schedule adjustment to raw performance.
-- `QSaCR` is the final QB composite (z-scored).
+- Input is qualified individual QB season rows (not one QB per team).
+- Qualification defaults to at least 14 pass attempts per scheduled team game: 238 attempts in a
+  17-game regular season.
+- `QRaw` uses weighted conventional production-efficiency metrics as the baseline QB performance
+  view: passer rating, completion percentage over expectation, yards per attempt, touchdown rate,
+  and interception rate.
+- `QSaOR` and `QSaCR` primarily use paired QB/opponent production context. Each matched QB stat and
+  opponent-allowed stat is standardized separately before adjustment, so weak or strong schedules
+  have comparable z-score impact instead of being washed out by raw stat scale.
+- `diff_qb_*` columns are still emitted for auditability and fallback cases where paired opponent
+  columns are unavailable.
+- `QSoS` uses opponent defensive and allowed-QB production context (`qopp_*` columns), excluding
+  style-only QB fields such as aggressiveness and air-yards depth. Repeated opponents are counted by
+  the QB games actually faced; the unique team-schedule fallback is used only when QB game opponent
+  rows are unavailable.
+- `QSaOR` is the schedule-adjusted passing-performance signal.
+- `QOutcome` is the z-scored QB game-result signal from `qb_win_pct` when available.
+- `QSaCR` is the final QB composite (z-scored), blending schedule-adjusted passing performance,
+  schedule difficulty, and the calibrated outcome signal.
 - Percentile columns are also emitted.
 
 ### Historical QB calibration
@@ -69,13 +83,18 @@ QB ratings are computed in `nfl_sos_ratings/qb_ratings.py`:
 `main.py` calibrates QB model constants before rating the target season:
 
 - Historical seasons: previous 5 years (`SEASON - 5` to `SEASON - 1`, bounded at 2006+)
+- Historical calibration uses the same QB opponent-context and differential construction as the
+  target season when source data is available.
 - Grid search over:
   - minimum correlation threshold
-  - schedule weight
+  - material schedule weight, constrained so schedule context cannot be washed out by a near-zero
+    value
+  - outcome weight, capped so `qb_win_pct` informs `QSaCR` without replacing passing context
 - Objective: maximize correlation between calibrated QB composite and QB outcome target.
 - Fallback defaults if historical calibration data is unavailable:
   - `min_correlation = 0.1`
-  - `sos_weight = 0.25`
+  - `sos_weight = 2.0`
+  - `outcome_weight = 0.75`
 
 ## Requirements
 
@@ -192,13 +211,19 @@ Includes:
 
 - `qb_games_played`
 - `qb_attempts_total`
+- `qb_is_eligible` (default threshold: 238 attempts)
 - `qb_win_pct` (when weekly points columns are available)
-- `qb_is_eligible`
+- Derived attempt-normalized efficiency rates: `qb_yards_per_attempt`, `qb_touchdown_rate`, and
+  `qb_interception_rate`
 - Mean `qb_*` metrics
 
 #### `{SEASON}_qb_opponent_profiles.csv`
 
-QB opponent context, including:
+QB opponent context. Each row uses the opponents from the individual quarterback's actual game rows,
+including repeat matchups. It does not use every opponent on that quarterback's team schedule unless
+QB game/opponent rows are unavailable and a sparse-data fallback is needed.
+
+Includes:
 
 - Defensive context (e.g. `qopp_points_allowed`, `qopp_def_sacks`)
 - Allowed-QB context from opposing defenses (e.g. `qopp_qb_passer_rating`)
@@ -211,13 +236,14 @@ QB season stats joined with QB opponent profile context.
 
 Includes:
 
-- `diff_qb_*` columns where matched pairs exist
-- `QRaw`, `QSoS`, `QSaOR`, `QSaCR`
-- Percentiles: `QRaw_pct`, `QSoS_pct`, `QSaOR_pct`, `QSaCR_pct`
+- `diff_qb_*` columns where matched QB and opponent-allowed pairs exist
+- `QSaOR` from standardized paired QB/opponent production-efficiency context
+- `QRaw`, `QSoS`, `QSaOR`, `QOutcome`, `QSaCR`
+- Percentiles: `QRaw_pct`, `QSoS_pct`, `QSaOR_pct`, `QOutcome_pct`, `QSaCR_pct`
 
 #### `{SEASON}_qb_ratings.csv`
 
-Compact QB ratings table with identity columns, rating columns, and summary fields.
+Compact qualified-QB ratings table with identity columns, rating columns, and summary fields.
 
 ## Visualization Output
 
@@ -225,29 +251,20 @@ Generated under `output/plots/`.
 
 ### Team plots
 
-- `{SEASON}_diffs_offense.png`
-- `{SEASON}_diffs_defense.png`
-- `{SEASON}_diffs_overall.png`
-- `{SEASON}_diffs_qb.png`
-- `{SEASON}_opponent_stats_offense.png`
-- `{SEASON}_opponent_stats_defense.png`
-- `{SEASON}_opponent_stats_overall.png`
-- `{SEASON}_opponent_stats_qb.png`
-- `{SEASON}_team_stats_offense.png`
-- `{SEASON}_team_stats_defense.png`
-- `{SEASON}_team_stats_overall.png`
-- `{SEASON}_team_stats_qb.png`
+- `{SEASON}_adjusted_ratings_offense.png`
+- `{SEASON}_adjusted_ratings_defense.png`
+- `{SEASON}_adjusted_ratings_overall.png`
 - `{SEASON}_sos_composite_ranking.png`
-- `{SEASON}_heatmap_diffs.png`
-- `{SEASON}_adjusted_ratings.png`
 
 ### QB plots
 
 If `{SEASON}_qb_combined.csv` exists:
 
 - `{SEASON}_qb_adjusted_ratings.png`
-- `{SEASON}_qb_raw_vs_adjusted.png`
-- `{SEASON}_qb_schedule_vs_performance.png`
+- `{SEASON}_qb_raw_vs_schedule.png`
+
+QB plots label individual players as `QB Name (TEAM)` and filter to qualified quarterbacks when the
+eligibility column is available.
 
 ## Project Structure
 
@@ -282,7 +299,6 @@ From repository root:
 ```bash
 ruff format .
 ruff check .
-ty check .
 pyright .
 pytest
 ```
