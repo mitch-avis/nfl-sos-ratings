@@ -18,8 +18,8 @@ def _resolve_qb_keys(qb_df: pl.DataFrame) -> list[str]:
 def compute_qb_season_stats(
     qb_df: pl.DataFrame,
     weekly_df: pl.DataFrame | None = None,
-    min_games: int = 8,
-    min_attempts: int = 200,
+    min_games: int = 0,
+    min_attempts: int = 238,
 ) -> pl.DataFrame:
     """Aggregate per-quarterback season stats with volume and eligibility fields."""
     if qb_df.is_empty():
@@ -111,6 +111,26 @@ def compute_qb_season_stats(
         season_stats = season_stats.join(qb_results, on=qb_keys, how="left")
     else:
         season_stats = season_stats.with_columns(pl.lit(0.5).alias("qb_win_pct"))
+
+    rate_exprs: list[pl.Expr] = []
+    rate_inputs = [
+        ("qb_pass_yards", "qb_yards_per_attempt"),
+        ("qb_pass_touchdowns", "qb_touchdown_rate"),
+        ("qb_interceptions", "qb_interception_rate"),
+    ]
+    for numerator_col, output_col in rate_inputs:
+        if numerator_col in season_stats.columns:
+            rate_exprs.append(
+                pl.when(pl.col("qb_attempts_total") > 0)
+                .then(
+                    (pl.col(numerator_col) * pl.col("qb_games_played"))
+                    / pl.col("qb_attempts_total")
+                )
+                .otherwise(None)
+                .alias(output_col)
+            )
+    if rate_exprs:
+        season_stats = season_stats.with_columns(rate_exprs)
 
     return season_stats.with_columns(
         (
