@@ -59,6 +59,38 @@ def test_load_weekly_team_stats_enriches_and_filters(monkeypatch: pytest.MonkeyP
     assert result.select("points_allowed").item() == 17
 
 
+def test_load_weekly_team_stats_normalizes_rams_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify weekly team data uses the canonical Rams abbreviation."""
+    weekly = pl.DataFrame(
+        {
+            "team": ["LA"],
+            "opponent_team": ["SEA"],
+            "week": [1],
+            "season_type": ["REG"],
+            "passing_yards": [280],
+            "rushing_yards": [90],
+        }
+    )
+    schedule = pl.DataFrame(
+        {
+            "game_type": ["REG"],
+            "home_team": ["LA"],
+            "away_team": ["SEA"],
+            "week": [1],
+            "home_score": [24],
+            "away_score": [17],
+        }
+    )
+
+    monkeypatch.setattr(data_loader.nfl, "load_team_stats", lambda seasons, summary_level: weekly)
+    monkeypatch.setattr(data_loader.nfl, "load_schedules", lambda seasons: schedule)
+
+    result = data_loader.load_weekly_team_stats(2025)
+
+    assert result.select("team").item() == "LAR"
+    assert result.select("opponent_team").item() == "SEA"
+
+
 def test_load_schedule_filters_regular_season(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify schedule loading keeps only regular-season games."""
     schedule = pl.DataFrame(
@@ -75,6 +107,23 @@ def test_load_schedule_filters_regular_season(monkeypatch: pytest.MonkeyPatch) -
 
     assert result.height == 1
     assert result.select("away_team").item() == "KC"
+
+
+def test_load_schedule_normalizes_rams_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify schedule team columns use the canonical Rams abbreviation."""
+    schedule = pl.DataFrame(
+        {
+            "game_type": ["REG"],
+            "home_team": ["LA"],
+            "away_team": ["SEA"],
+        }
+    )
+
+    monkeypatch.setattr(data_loader.nfl, "load_schedules", lambda seasons: schedule)
+
+    result = data_loader.load_schedule(2025)
+
+    assert result.select("home_team").item() == "LAR"
 
 
 def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -143,3 +192,24 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_passer_rating": 88.0,
         },
     ]
+
+
+def test_load_qb_stats_normalizes_rams_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify QB team abbreviations use the canonical Rams abbreviation."""
+    qb = pl.DataFrame(
+        {
+            "season_type": ["REG"],
+            "week": [1],
+            "team_abbr": ["LA"],
+            "player_gsis_id": ["QB1"],
+            "player_display_name": ["Rams QB"],
+            "attempts": [30],
+            "passer_rating": [100.0],
+        }
+    )
+
+    monkeypatch.setattr(data_loader.nfl, "load_nextgen_stats", lambda seasons, stat_type: qb)
+
+    result = data_loader.load_qb_stats(2025)
+
+    assert result.select("team_abbr").item() == "LAR"
