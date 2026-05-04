@@ -69,3 +69,64 @@ def test_compute_qb_season_stats_handles_missing_attempts_column() -> None:
     assert result.select("qb_attempts_total").item() == 0
     assert result.select("qb_is_eligible").item() is False
     assert result.select("qb_games_played").item() == 2
+
+
+def test_compute_qb_season_stats_defaults_to_238_attempt_threshold() -> None:
+    """Verify default QB eligibility requires a full-season 238-attempt threshold."""
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["DEN", "DEN", "KC", "KC"],
+            "week": [1, 2, 1, 2],
+            "qb_id": ["QB_A", "QB_A", "QB_B", "QB_B"],
+            "qb_name": ["QB A", "QB A", "QB B", "QB B"],
+            "qb_attempts": [119, 119, 119, 118],
+            "qb_passer_rating": [100.0, 101.0, 99.0, 98.0],
+        }
+    )
+
+    result = qb_stats.compute_qb_season_stats(qb_df, min_games=2)
+
+    assert result.filter(pl.col("qb_id") == "QB_A").select("qb_is_eligible").item() is True
+    assert result.filter(pl.col("qb_id") == "QB_B").select("qb_is_eligible").item() is False
+
+
+def test_compute_qb_season_stats_default_eligibility_is_attempt_based() -> None:
+    """Verify default qualification does not add a separate games-played cutoff."""
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["DEN"] * 7,
+            "week": list(range(1, 8)),
+            "qb_id": ["QB_A"] * 7,
+            "qb_name": ["QB A"] * 7,
+            "qb_attempts": [34] * 7,
+            "qb_passer_rating": [100.0] * 7,
+        }
+    )
+
+    result = qb_stats.compute_qb_season_stats(qb_df)
+
+    assert result.select("qb_games_played").item() == 7
+    assert result.select("qb_attempts_total").item() == 238
+    assert result.select("qb_is_eligible").item() is True
+
+
+def test_compute_qb_season_stats_derives_attempt_normalized_rates() -> None:
+    """Verify season efficiency rates use total attempts instead of game-average volume."""
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["DEN", "DEN"],
+            "week": [1, 2],
+            "qb_id": ["QB_A", "QB_A"],
+            "qb_name": ["QB A", "QB A"],
+            "qb_attempts": [10, 30],
+            "qb_pass_yards": [100.0, 150.0],
+            "qb_pass_touchdowns": [2.0, 1.0],
+            "qb_interceptions": [0.0, 2.0],
+        }
+    )
+
+    result = qb_stats.compute_qb_season_stats(qb_df)
+
+    assert result.select("qb_yards_per_attempt").item() == 6.25
+    assert result.select("qb_touchdown_rate").item() == 0.075
+    assert result.select("qb_interception_rate").item() == 0.05
