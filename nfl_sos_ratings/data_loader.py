@@ -3,7 +3,7 @@
 import nflreadpy as nfl
 import polars as pl
 
-from nfl_sos_ratings.config import QB_NGS_COLS
+from nfl_sos_ratings.config import QB_NGS_COLS, TEAM_ABBR_ALIASES
 
 _QB_ID_CANDIDATES = ["player_gsis_id", "player_id", "gsis_id", "player"]
 _QB_NAME_CANDIDATES = ["player_display_name", "player_name", "player"]
@@ -17,8 +17,19 @@ def _first_existing_column(columns: list[str], candidates: list[str]) -> str | N
     return None
 
 
+def _normalize_team_abbreviations(df: pl.DataFrame, columns: list[str]) -> pl.DataFrame:
+    """Normalize known source-specific team abbreviations in selected columns."""
+    exprs = [
+        pl.col(column).replace(TEAM_ABBR_ALIASES).alias(column)
+        for column in columns
+        if column in df.columns
+    ]
+    return df.with_columns(exprs) if exprs else df
+
+
 def _extract_points_per_team_week(schedule: pl.DataFrame) -> pl.DataFrame:
     """Pivot schedule scores into one row per team per week with points_for/points_allowed."""
+    schedule = _normalize_team_abbreviations(schedule, ["home_team", "away_team"])
     home = schedule.select(
         pl.col("home_team").alias("team"),
         pl.col("week"),
@@ -43,6 +54,7 @@ def load_weekly_team_stats(season: int) -> pl.DataFrame:
     """
     df = nfl.load_team_stats(seasons=season, summary_level="week")
     df = df.filter(pl.col("season_type") == "REG")
+    df = _normalize_team_abbreviations(df, ["team", "opponent_team"])
 
     # Add total yards
     df = df.with_columns((pl.col("passing_yards") + pl.col("rushing_yards")).alias("total_yards"))
@@ -50,6 +62,7 @@ def load_weekly_team_stats(season: int) -> pl.DataFrame:
     # Add points from schedule
     schedule = nfl.load_schedules(seasons=season)
     schedule = schedule.filter(pl.col("game_type") == "REG")
+    schedule = _normalize_team_abbreviations(schedule, ["home_team", "away_team"])
     points = _extract_points_per_team_week(schedule)
     df = df.join(points, on=["team", "week"], how="left")
 
@@ -60,7 +73,7 @@ def load_schedule(season: int) -> pl.DataFrame:
     """Load the regular season schedule for a given season."""
     df = nfl.load_schedules(seasons=season)
     df = df.filter(pl.col("game_type") == "REG")
-    return df
+    return _normalize_team_abbreviations(df, ["home_team", "away_team"])
 
 
 def load_qb_stats(season: int) -> pl.DataFrame:
@@ -96,6 +109,7 @@ def load_qb_stats(season: int) -> pl.DataFrame:
             rename_map[col] = f"qb_{col}"
 
     df = df.select(keep_cols).rename(rename_map)
+    df = _normalize_team_abbreviations(df, ["team_abbr"])
 
     if "qb_id" not in df.columns:
         df = df.with_columns(pl.col("team_abbr").alias("qb_id"))
