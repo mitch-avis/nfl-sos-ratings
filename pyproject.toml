@@ -21,6 +21,11 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/mitch-avis/nfl-sos-ratings"
 
+[project.scripts]
+nfl-sos = "nfl_sos_ratings.main:main"
+nfl-sos-viz = "nfl_sos_ratings.visualize:main"
+nfl-sos-pipeline = "nfl_sos_ratings.pipeline:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["nfl_sos_ratings"]
 
