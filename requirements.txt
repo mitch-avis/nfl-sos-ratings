@@ -2,7 +2,7 @@
 #    uv pip compile requirements.in --output-file requirements.txt --strip-extras
 annotated-types==0.7.0
     # via pydantic
-certifi==2026.4.22
+certifi==2026.6.17
     # via requests
 charset-normalizer==3.4.7
     # via requests
@@ -10,19 +10,19 @@ contourpy==1.3.3
     # via matplotlib
 cycler==0.12.1
     # via matplotlib
-fonttools==4.62.1
+fonttools==4.63.0
     # via matplotlib
-idna==3.13
+idna==3.18
     # via requests
 kiwisolver==1.5.0
     # via matplotlib
-matplotlib==3.10.9
+matplotlib==3.11.0
     # via
     #   -r requirements.in
     #   seaborn
 nflreadpy==0.1.5
     # via -r requirements.in
-numpy==2.4.4
+numpy==2.5.0
     # via
     #   contourpy
     #   matplotlib
@@ -30,25 +30,25 @@ numpy==2.4.4
     #   seaborn
 packaging==26.2
     # via matplotlib
-pandas==3.0.2
+pandas==3.0.3
     # via seaborn
 pillow==12.2.0
     # via matplotlib
-platformdirs==4.9.6
+platformdirs==4.10.0
     # via nflreadpy
-polars==1.40.1
+polars==1.42.1
     # via
     #   -r requirements.in
     #   nflreadpy
-polars-runtime-32==1.40.1
+polars-runtime-32==1.42.1
     # via polars
-pydantic==2.13.3
+pydantic==2.13.4
     # via
     #   nflreadpy
     #   pydantic-settings
-pydantic-core==2.46.3
+pydantic-core==2.46.4
     # via pydantic
-pydantic-settings==2.14.0
+pydantic-settings==2.14.2
     # via nflreadpy
 pyparsing==3.3.2
     # via matplotlib
@@ -58,13 +58,13 @@ python-dateutil==2.9.0.post0
     #   pandas
 python-dotenv==1.2.2
     # via pydantic-settings
-requests==2.33.1
+requests==2.34.2
     # via nflreadpy
 seaborn==0.13.2
     # via -r requirements.in
 six==1.17.0
     # via python-dateutil
-tqdm==4.67.3
+tqdm==4.68.3
     # via nflreadpy
 typing-extensions==4.15.0
     # via
@@ -75,5 +75,5 @@ typing-inspection==0.4.2
     # via
     #   pydantic
     #   pydantic-settings
-urllib3==2.6.3
+urllib3==2.7.0
     # via requests

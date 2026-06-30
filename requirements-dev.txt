@@ -2,7 +2,7 @@
 #    uv pip compile requirements-dev.in --output-file requirements-dev.txt --strip-extras
 colorama==0.4.6
     # via -r requirements-dev.in
-coverage==7.13.5
+coverage==7.14.3
     # via pytest-cov
 execnet==2.1.2
     # via pytest-xdist
@@ -22,9 +22,9 @@ pluggy==1.6.0
     #   pytest-cov
 pygments==2.20.0
     # via pytest
-pyright==1.1.409
+pyright==1.1.411
     # via -r requirements-dev.in
-pytest==9.0.3
+pytest==9.1.1
     # via
     #   -r requirements-dev.in
     #   pytest-cov
@@ -44,11 +44,11 @@ pytest-sugar==1.1.1
     # via -r requirements-dev.in
 pytest-xdist==3.8.0
     # via -r requirements-dev.in
-ruff==0.15.12
+ruff==0.15.20
     # via -r requirements-dev.in
 termcolor==3.3.0
     # via pytest-sugar
-ty==0.0.34
+ty==0.0.55
     # via -r requirements-dev.in
 typing-extensions==4.15.0
     # via pyright
