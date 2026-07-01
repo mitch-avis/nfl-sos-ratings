@@ -7,13 +7,13 @@ name = "nfl-sos-ratings"
 version = "0.1.0"
 description = "NFL Strength of Schedule Ratings"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 keywords = ["stats", "sports", "football", "machine learning"]
 authors = [{ name = "Mitch Avis", email = "mitchavis@gmail.com" }]
 license = { text = "MIT" }
 dependencies = ["nflreadpy", "polars", "matplotlib", "seaborn"]
 classifiers = [
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
 ]
@@ -31,7 +31,7 @@ packages = ["nfl_sos_ratings"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py314"
 src = ["."]
 extend-exclude = [
     ".venv",
@@ -74,7 +74,7 @@ known-first-party = ["nfl_sos_ratings"]
 docstring-code-format = true
 
 [tool.pyright]
-pythonVersion = "3.12"
+pythonVersion = "3.14"
 # Production code under nfl_sos_ratings/ runs in strict mode (matches Pylance "Strict" in VS Code).
 # Tests stay on the standard-mode baseline below — they make heavy use of fixtures, Mock objects,
 # and monkeypatching where Unknown types are normal.
