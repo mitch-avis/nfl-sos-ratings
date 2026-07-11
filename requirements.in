@@ -1,4 +1,7 @@
+fastapi
+httpx2
+matplotlib
 nflreadpy
 polars
-matplotlib
 seaborn
+uvicorn
