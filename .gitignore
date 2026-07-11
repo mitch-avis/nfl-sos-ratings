@@ -131,3 +131,7 @@ cython_debug/
 
 # Output data
 output/
+
+# Frontend UI
+ui/web/node_modules/
+ui/web/dist/
