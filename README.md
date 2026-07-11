@@ -1,108 +1,184 @@
 # NFL Strength of Schedule Ratings
 
-This project computes schedule-strength-adjusted NFL team and quarterback ratings from nflverse via
-nflreadpy and Polars.
+`nfl-sos-ratings` measures how good NFL teams and quarterbacks actually were, relative to the
+opponents they actually faced that season. It does not treat wins and losses as ground truth.
+Instead, it builds PBP-driven offensive, defensive, and quarterback profiles, removes head-to-head
+leakage from opponent profiles, and compares subjects to the adjusted quality of their schedules.
 
-It produces:
+It currently produces:
 
-- Team-level schedule-adjusted ratings (`SaOR`, `SaDR`, `SaCR`)
-- Quarterback-level schedule-adjusted ratings (`QRaw`, `QSoS`, `QSaOR`, `QSaCR`)
-- Intermediate CSV artifacts for auditing each stage
-- Visualization plots for team and QB views
+- Team ratings: `SaOR`, `SaDR`, `SaOvR`, `SaCR`, and `SRS`
+- QB ratings: `QRaw`, `QSoS`, `QSaOR`, `QOutcome`, and `QSaCR`
+- One-hop diff-based comparison outputs
+- Simultaneous-adjustment outputs for teams and QBs
+- Intermediate CSV artifacts for auditability
+- Team and QB plots under `output/plots/`
 
 ## Table of Contents
 
-- [What This Project Does](#what-this-project-does)
-- [Method Summary](#method-summary)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [How to Run](#how-to-run)
-- [Output Files](#output-files)
-- [Visualization Output](#visualization-output)
-- [Project Structure](#project-structure)
-- [Development Commands](#development-commands)
-- [Troubleshooting](#troubleshooting)
-- [Data Source](#data-source)
+- [NFL Strength of Schedule Ratings](#nfl-strength-of-schedule-ratings)
+  - [Table of Contents](#table-of-contents)
+  - [What It Does](#what-it-does)
+  - [Current Methodology](#current-methodology)
+    - [Data Inputs](#data-inputs)
+    - [Team Pipeline](#team-pipeline)
+    - [QB Pipeline](#qb-pipeline)
+    - [Opponent Profiling Rules](#opponent-profiling-rules)
+    - [Simultaneous Adjustment](#simultaneous-adjustment)
+    - [Derived Formulas](#derived-formulas)
+  - [Requirements](#requirements)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+  - [How to Run](#how-to-run)
+  - [Output Files](#output-files)
+    - [Team outputs](#team-outputs)
+    - [QB outputs](#qb-outputs)
+    - [Plot outputs](#plot-outputs)
+  - [Project Structure](#project-structure)
+  - [Development Commands](#development-commands)
+  - [Troubleshooting](#troubleshooting)
+    - [Import path issues](#import-path-issues)
+    - [Missing plot files](#missing-plot-files)
+    - [Missing QB opponent rows](#missing-qb-opponent-rows)
+  - [Data Sources](#data-sources)
 
-## What This Project Does
+## What It Does
 
-Traditional strength-of-schedule methods use opponent win/loss records. This project instead uses
-opponent statistical profiles while explicitly removing head-to-head games between the evaluated
-team and each opponent.
+Traditional strength-of-schedule models lean on opponent records. This project instead asks:
 
-At a high level:
+- How did a team perform per game and per snap?
+- How did a QB perform per game and per dropback?
+- How strong were the exact opponents and defenses they faced?
+- What changes after you exclude head-to-head leakage and compare against that adjusted opponent
+  context?
 
-1. Build each team's per-game statistical profile.
-2. For each team, build opponent profiles from opponents' non-head-to-head games.
-3. Compare team profile vs opponent profile via `diff_*` features.
-4. Produce team schedule-adjusted ratings.
-5. Build QB season profiles from individual quarterback game rows.
-6. Build QB opponent context and QB allowed-by-defense context (`qopp_*`).
-7. Produce QB schedule-adjusted ratings with historical calibration.
+There are two separate rating systems:
 
-## Method Summary
+- Teams: offense, defense, overall, and composite ratings
+- Quarterbacks: primary passing-performance ratings plus schedule and outcome context
 
-### Team ratings (`SaOR`, `SaDR`, `SaCR`)
+## Current Methodology
 
-Team ratings are computed in `nfl_sos_ratings/ratings.py` from the combined team/opponent dataset:
+### Data Inputs
 
-- Offensive and defensive stat pools are predefined.
-- Stat weights are derived from correlation with `win_pct` (thresholded by minimum correlation).
-- Offensive and defensive schedule signals are built from opponent context columns.
-- Final offense and defense ratings are z-scored (`SaOR`, `SaDR`).
-- Composite `SaCR` blends offense and defense based on their observed correlation with `win_pct`.
+The live pipeline is PBP-first.
 
-### Quarterback ratings (`QRaw`, `QSoS`, `QSaOR`, `QSaCR`)
+- `load_pbp()` is the source of record for team-game and QB-game production, snap counts via play
+  counts, EPA, CPOE, sacks, sack-yard losses, and most mirrored defensive stats.
+- `load_snap_counts()` supplements QB participation and helps identify the primary QB for a
+  team-week.
+- `load_players()` and `load_rosters_weekly()` provide the GSIS/PFR identity crosswalk used to merge
+  PBP and snap-count QB rows onto one canonical QB identity.
+- `load_player_stats(summary_level="week")` is the authoritative source for official QB
+  attempt-based passing totals and published QB passing stats, and it is also used for defense-only
+  team stats that are not easily summarized directly from PBP, such as tackles for loss, QB hits,
+  passes defended, and safeties.
+- `load_team_stats(summary_level="week")` is the authoritative source for the published team offense
+  surface, including yards, TDs, first-down splits, EPA splits, CPOE, sacks suffered, interceptions,
+  and fumble-loss splits.
+- `load_schedules()` supplies official scores for team outcomes.
 
-QB ratings are computed in `nfl_sos_ratings/qb_ratings.py`:
+### Team Pipeline
 
-- Input is qualified individual QB season rows (not one QB per team).
-- Qualification defaults to at least 14 pass attempts per scheduled team game: 238 attempts in a
-  17-game regular season.
-- `QRaw` uses weighted conventional production-efficiency metrics as the baseline QB performance
-  view: passer rating, completion percentage over expectation, yards per attempt, touchdown rate,
-  and interception rate.
-- `QSaOR` and `QSaCR` primarily use paired QB/opponent production context. Each matched QB stat and
-  opponent-allowed stat is standardized separately before adjustment, so weak or strong schedules
-  have comparable z-score impact instead of being washed out by raw stat scale.
-- `diff_qb_*` columns are still emitted for auditability and fallback cases where paired opponent
-  columns are unavailable.
-- `QSoS` uses opponent defensive and allowed-QB production context (`qopp_*` columns), excluding
-  style-only QB fields such as aggressiveness and air-yards depth. Repeated opponents are counted by
-  the QB games actually faced; the unique team-schedule fallback is used only when QB game opponent
-  rows are unavailable.
-- `QSaOR` is the schedule-adjusted passing-performance signal.
-- `QOutcome` is the z-scored QB game-result signal from `qb_win_pct` when available.
-- `QSaCR` is the final QB composite (z-scored), blending schedule-adjusted passing performance,
-  schedule difficulty, and the calibrated outcome signal.
-- Percentile columns are also emitted.
+The team path is:
 
-### Historical QB calibration
+1. Build one PBP-derived row per team-game.
+2. Derive both per-game totals and per-snap rates.
+3. Build opponent profiles from each unique opponent's non-head-to-head games.
+4. Join team and opponent profiles and emit `diff_*` columns.
+5. Produce equal-weight team ratings:
+   - `SaOR`: offense
+   - `SaDR`: defense
+   - `SaOvR`: overall, built from `win_value` and `turnover_margin`
+   - `SaCR`: equal blend of offense, defense, and overall
+6. Produce `SRS` from point margin as a simultaneous-adjustment reference.
 
-`main.py` calibrates QB model constants before rating the target season:
+Team rating pools now use per-snap and rate-like fields rather than raw season totals.
 
-- Historical seasons: previous 5 years (`SEASON - 5` to `SEASON - 1`, bounded at 2006+)
-- Historical calibration uses the same QB opponent-context and differential construction as the
-  target season when source data is available.
-- Grid search over:
-  - minimum correlation threshold
-  - material schedule weight, constrained so schedule context cannot be washed out by a near-zero
-    value
-  - outcome weight, capped so `qb_win_pct` informs `QSaCR` without replacing passing context
-- Objective: maximize correlation between calibrated QB composite and QB outcome target.
-- Fallback defaults if historical calibration data is unavailable:
-  - `min_correlation = 0.1`
-  - `sos_weight = 2.0`
-  - `outcome_weight = 0.75`
+### QB Pipeline
+
+The QB path is:
+
+1. Build one PBP-derived row per QB-game.
+2. Canonicalize each QB row to a GSIS-based identity, using PFR IDs and roster/player metadata to
+   merge abbreviated PBP names with full-name snap-count rows.
+3. Replace attempt-based game fields with authoritative weekly `player_stats` values for attempts,
+   completions, passing yards, passing TDs, interceptions, sacks, sack yards lost, passing EPA, and
+   passing CPOE.
+4. Derive dropbacks, snaps, EPA/dropback, ANY/A, sack rate, yards per dropback, TD-INT margin rate,
+   and passer rating from the corrected official/PBP inputs.
+5. Derive late-game secondary stats from PBP score state:
+   - fourth-quarter comebacks
+   - game-winning drives
+6. Assign wins, 4QC, and GWD only to the primary QB for the team-week, chosen by snaps, then
+   dropbacks, then attempts.
+7. Build QB opponent profiles from only the primary-QB games each QB actually played.
+8. Deduplicate faced defenses before profiling and remove the old scheduled-opponent fallback.
+9. Produce equal-weight QB ratings with a fixed outcome blend.
+
+The primary QB stat pool is now centered on:
+
+- `qb_epa_per_dropback`
+- `qb_any_a`
+- `qb_completion_percentage_above_expectation`
+- `qb_td_int_margin_rate`
+- `qb_sack_rate`
+
+Secondary QB context remains available through fields such as passer rating, pass yards per
+dropback, wins, fourth-quarter comebacks, and game-winning drives.
+
+### Opponent Profiling Rules
+
+Both pipelines follow the same core rules:
+
+- Regular season only
+- Normalize team abbreviations before joins
+- Exclude all head-to-head games when profiling an opponent
+- Deduplicate opponent lists before averaging
+- Compare on per-game and per-snap or per-dropback rates
+
+### Simultaneous Adjustment
+
+The repo now includes `nfl_sos_ratings/simultaneous_adjustment.py`.
+
+It currently provides:
+
+- `solve_srs()` for point-differential SRS
+- `solve_team_stat_ridge()` for team offense/defense latent ratings
+- `solve_qb_stat_ridge()` for QB offense vs defense-allowed latent ratings
+- wrapper helpers that emit multi-stat adjusted tables for teams and QBs
+
+The main pipeline writes these simultaneous-adjustment outputs alongside the existing diff-based
+outputs so the two approaches can be compared directly.
+
+### Derived Formulas
+
+Key self-computed metrics use the following formulas:
+
+- Team per-snap rates: game total divided by offensive or defensive snaps
+- QB EPA per dropback: `qb_passing_epa / qb_dropbacks`
+- QB pass yards per dropback: `qb_pass_yards / qb_dropbacks`
+- QB TD-INT margin rate: `(qb_pass_touchdowns - qb_interceptions) / qb_dropbacks`
+- QB sack rate: `qb_sacks / qb_dropbacks`
+- QB ANY/A: `(qb_pass_yards + 20 * qb_pass_touchdowns - 45 * qb_interceptions - qb_sack_yards_lost)
+/ (qb_attempts + qb_sacks)`
+- Fourth-quarter comeback: primary QB on the eventual game winner, where the offense had at least
+  one quarter-4-or-later snap while trailing and the team's final score exceeded the opponent's
+  final score
+- Game-winning drive: primary QB on the eventual game winner, where the offense had a quarter-4-or-
+  later scoring play that moved the score from tied/trailing to leading and the team's final score
+  exceeded the opponent's final score
+
+Opponent-allowed QB rate fields and defensive mirror stats reuse the same formulas after applying
+the head-to-head exclusion rule.
 
 ## Requirements
 
-- Python 3.12+
-- Linux/macOS/Windows
-- A local virtual environment at `.venv`
+- Python 3.14+
+- Linux, macOS, or Windows
+- Local virtual environment at `.venv`
 
-Runtime dependencies are in `requirements.txt`.
+Runtime dependencies are pinned in `requirements.txt`.
 
 ## Installation
 
@@ -111,160 +187,100 @@ cd nfl-sos-ratings
 uv venv .venv
 source .venv/bin/activate
 uv pip install -r requirements.txt
-```
-
-Optional developer tooling install:
-
-```bash
 uv pip install -r requirements-dev.txt
 ```
 
 ## Configuration
 
-Edit `nfl_sos_ratings/config.py`:
+Edit `nfl_sos_ratings/config.py`.
 
 ```python
 SEASON: int = 2025
 OUTPUT_DIR: str = "output"
 ```
 
-- `SEASON` controls the target season for the pipeline.
-- `OUTPUT_DIR` controls where CSV and plot artifacts are written.
+- `SEASON` selects the target season for `main.py`
+- `OUTPUT_DIR` selects where CSVs and plots are written
 
 ## How to Run
 
-### Primary pipeline
-
-Recommended module form:
+Primary single-season pipeline:
 
 ```bash
 python -m nfl_sos_ratings.main
 ```
 
-Direct script path also works:
+Full multi-season pipeline:
 
 ```bash
-python nfl_sos_ratings/main.py
+python -m nfl_sos_ratings.pipeline
 ```
 
-### Visualization pipeline
-
-Recommended module form:
+Visualization pass:
 
 ```bash
 python -m nfl_sos_ratings.visualize
 ```
 
-Direct script path also works:
+Local analyst UI backend:
 
 ```bash
-python nfl_sos_ratings/visualize.py
+python -m nfl_sos_ratings.ui_api
 ```
+
+Local analyst UI frontend:
+
+```bash
+cd ui/web
+npm install
+npm run dev
+```
+
+Detailed frontend usage and troubleshooting notes live in `ui/web/README.md`.
 
 ## Output Files
 
-All outputs are prefixed with `SEASON` in `OUTPUT_DIR`.
+All files are written under `OUTPUT_DIR` with a `{SEASON}_` prefix.
 
-### Team artifacts
+### Team outputs
 
-#### `{SEASON}_team_per_game_stats.csv`
+- `{SEASON}_team_per_game_stats.csv` PBP-derived team-game profile rolled to one season row per
+  team. Includes per-game totals, per-snap rates, `win_value`, and `turnover_margin`.
+- `{SEASON}_opponent_profiles.csv` Averaged opponent profile rows built from unique non-head-to-head
+  opponents.
+- `{SEASON}_combined.csv` Team rows joined to opponent rows, `diff_*` columns, team ratings, `SRS`,
+  and simultaneous-adjustment team columns.
+- `{SEASON}_ratings.csv` Compact team ratings summary with `SaCR`, `SaOR`, `SaDR`, `SaOvR`, and
+  `SRS`.
+- `{SEASON}_simultaneous_team_adjustments.csv` Multi-stat simultaneous-adjustment output with
+  `adj_off_*` and `adj_def_*` columns.
 
-Team per-game profile, including:
+### QB outputs
 
-- Team offensive and defensive game stats
-- Team QB aggregate stats (team view)
-- Win totals and `win_pct`
+- `{SEASON}_qb_per_game_stats.csv` QB season summary keyed by canonical QB identity and team
+  context. Includes explicit season totals such as `qb_attempts_total`, `qb_completions_total`, and
+  `qb_pass_yards_total`; explicit per-game fields such as `qb_attempts_per_game`,
+  `qb_completions_per_game`, and `qb_pass_yards_per_game`; dropback and snap totals; EPA per
+  dropback; ANY/A; sack rate; yards per dropback; TD-INT differential fields; wins; and 4QC/GWD
+  totals.
+- `{SEASON}_qb_opponent_profiles.csv` QB opponent context built from only the primary-QB games each
+  QB actually played, with unique faced defenses and no fabricated schedule fallback.
+- `{SEASON}_qb_combined.csv` QB season rows joined to opponent context, `diff_qb_*` columns,
+  simultaneous QB adjustment columns, and final QB ratings.
+- `{SEASON}_qb_ratings.csv` Compact QB ratings summary for qualified passers.
+- `{SEASON}_simultaneous_qb_adjustments.csv` Multi-stat simultaneous-adjustment QB output with
+  `adj_*` columns.
 
-#### `{SEASON}_opponent_profiles.csv`
+### Plot outputs
 
-Opponent profile averages for each team, built from opponents' non-head-to-head games.
-
-#### `{SEASON}_combined.csv`
-
-Team and opponent profile join with derived differentials:
-
-- Team columns: `<stat>`
-- Opponent columns: `opp_<stat>`
-- Differential columns: `diff_<stat> = <stat> - opp_<stat>`
-
-Includes final team ratings:
-
-- `SaOR`
-- `SaDR`
-- `SaCR`
-
-#### `{SEASON}_ratings.csv`
-
-Compact team ratings summary with:
-
-- `team`
-- `games_played`
-- `SaCR`, `SaOR`, `SaDR`
-
-### QB artifacts
-
-#### `{SEASON}_qb_per_game_stats.csv`
-
-QB season summary table keyed by QB identity (`qb_id`, `qb_name`) and team context.
-
-Includes:
-
-- `qb_games_played`
-- `qb_attempts_total`
-- `qb_is_eligible` (default threshold: 238 attempts)
-- `qb_win_pct` (when weekly points columns are available)
-- Derived attempt-normalized efficiency rates: `qb_yards_per_attempt`, `qb_touchdown_rate`, and
-  `qb_interception_rate`
-- Mean `qb_*` metrics
-
-#### `{SEASON}_qb_opponent_profiles.csv`
-
-QB opponent context. Each row uses the opponents from the individual quarterback's actual game rows,
-including repeat matchups. It does not use every opponent on that quarterback's team schedule unless
-QB game/opponent rows are unavailable and a sparse-data fallback is needed.
-
-Includes:
-
-- Defensive context (e.g. `qopp_points_allowed`, `qopp_def_sacks`)
-- Allowed-QB context from opposing defenses (e.g. `qopp_qb_passer_rating`)
-
-All values exclude head-to-head leakage via opponent-exclusion logic.
-
-#### `{SEASON}_qb_combined.csv`
-
-QB season stats joined with QB opponent profile context.
-
-Includes:
-
-- `diff_qb_*` columns where matched QB and opponent-allowed pairs exist
-- `QSaOR` from standardized paired QB/opponent production-efficiency context
-- `QRaw`, `QSoS`, `QSaOR`, `QOutcome`, `QSaCR`
-- Percentiles: `QRaw_pct`, `QSoS_pct`, `QSaOR_pct`, `QOutcome_pct`, `QSaCR_pct`
-
-#### `{SEASON}_qb_ratings.csv`
-
-Compact qualified-QB ratings table with identity columns, rating columns, and summary fields.
-
-## Visualization Output
-
-Generated under `output/plots/`.
-
-### Team plots
+Under `output/plots/`:
 
 - `{SEASON}_adjusted_ratings_offense.png`
 - `{SEASON}_adjusted_ratings_defense.png`
 - `{SEASON}_adjusted_ratings_overall.png`
 - `{SEASON}_sos_composite_ranking.png`
-
-### QB plots
-
-If `{SEASON}_qb_combined.csv` exists:
-
-- `{SEASON}_qb_adjusted_ratings.png`
-- `{SEASON}_qb_raw_vs_schedule.png`
-
-QB plots label individual players as `QB Name (TEAM)` and filter to qualified quarterbacks when the
-eligibility column is available.
+- `{SEASON}_qb_adjusted_ratings.png` when QB combined output exists
+- `{SEASON}_qb_raw_vs_schedule.png` when QB combined output exists
 
 ## Project Structure
 
@@ -274,23 +290,27 @@ nfl-sos-ratings/
 │   ├── __init__.py
 │   ├── config.py
 │   ├── data_loader.py
-│   ├── team_stats.py
+│   ├── main.py
 │   ├── opponent_stats.py
-│   ├── ratings.py
-│   ├── qb_stats.py
+│   ├── pipeline.py
 │   ├── qb_opponent_stats.py
 │   ├── qb_ratings.py
-│   ├── main.py
+│   ├── qb_stats.py
+│   ├── ratings.py
+│   ├── simultaneous_adjustment.py
+│   ├── team_stats.py
 │   └── visualize.py
 ├── tests/
+├── ui/
+│   └── web/
 ├── output/
+├── .agents/
 ├── pyproject.toml
-├── requirements.in
-├── requirements.txt
-├── requirements-dev.in
-├── requirements-dev.txt
 └── README.md
 ```
+
+The active implementation handoff document for the ongoing methodology work is in
+`.agents/pbp-overhaul-plan.md`.
 
 ## Development Commands
 
@@ -299,41 +319,52 @@ From repository root:
 ```bash
 ruff format .
 ruff check .
+ty check .
 pyright .
 pytest
 ```
 
+Frontend build check:
+
+```bash
+cd ui/web
+npm run build
+```
+
 ## Troubleshooting
 
-### `ModuleNotFoundError: No module named 'nfl_sos_ratings'`
+### Import path issues
 
-Use either:
+Use the module form when possible:
 
-- `python -m nfl_sos_ratings.main` (recommended)
-- `python nfl_sos_ratings/main.py` (supported)
+```bash
+python -m nfl_sos_ratings.main
+```
 
-The script includes bootstrapping for direct path execution.
+### Missing plot files
 
-### Missing output files for plots
-
-Run the primary pipeline first:
+Run the data pipeline first, then the visualization pass:
 
 ```bash
 python -m nfl_sos_ratings.main
 python -m nfl_sos_ratings.visualize
 ```
 
-### No QB opponent profile rows for some entries
+### Missing QB opponent rows
 
-QB opponent profile generation requires enough matching weekly/team context for each QB season row.
-Sparse or partial input data can produce fewer QB opponent rows than QB season rows.
+QBs with no reconstructable faced-opponent list are now skipped instead of receiving a fabricated
+schedule. If that happens, inspect the underlying PBP and snap-count rows for missing QB identity or
+participation context.
 
-## Data Source
+## Data Sources
 
-All data is loaded via nflreadpy from nflverse datasets:
+All data is loaded through nflreadpy from nflverse sources.
 
-- Weekly team stats
-- Schedules and game scores
-- Next Gen Stats passing data
+Current live inputs:
+
+- Play-by-play data
+- Weekly player stats
+- Snap counts
+- Schedules and scores
 
 nflverse: <https://github.com/nflverse> nflreadpy: <https://github.com/nflverse/nflreadpy>
