@@ -1,0 +1,3 @@
+.venv/
+ui/web/dist/
+ui/web/node_modules/
