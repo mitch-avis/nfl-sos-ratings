@@ -46,6 +46,10 @@ pyright .            # type-check (strict on nfl_sos_ratings/, standard on tests
 pytest               # tests plus branch coverage (config in pyproject.toml)
 ```
 
+When a change touches repository-owned Markdown, run `markdownlint` on the Markdown files you
+touched as part of the normal validation flow and fix issues as you go. Do not lint vendored or
+generated directories such as `.venv/`, `ui/web/node_modules/`, or build outputs.
+
 Run the pipeline and the visualizations:
 
 ```bash
@@ -59,9 +63,24 @@ the `.in` files and recompile; never hand-edit the pinned `.txt` files.
 ## Repository layout
 
 The package is `nfl_sos_ratings/`; tests mirror it under `tests/`. The team pipeline flows through
-`team_stats` → `opponent_stats` → `ratings`; the QB pipeline through `qb_stats` →
-`qb_opponent_stats` → `qb_ratings`. `data_loader` wraps nflreadpy and `main` orchestrates. Read the
-module you are changing rather than assuming its shape.
+`data_loader`/`team_stats` → `opponent_stats` → `ratings`; the QB pipeline through
+`data_loader`/`qb_stats` → `qb_opponent_stats` → `qb_ratings`. The simultaneous-adjustment path
+lives in `simultaneous_adjustment.py`. `main` orchestrates. Read the module you are changing rather
+than assuming its shape.
+
+## Active plan document
+
+The active implementation and handoff plan for the approved PBP overhaul lives at
+`.agents/pbp-overhaul-plan.md`.
+
+Agents working on that effort must:
+
+- Read the plan document before making substantive changes.
+- Update it in the same change set whenever progress, scope, decisions, blockers, validation status,
+  or next steps change.
+- Keep it accurate enough for a new agent to resume work without relying on chat history.
+
+Treat a stale plan document as a repo bug.
 
 ## Domain rules that are easy to get wrong
 
@@ -106,6 +125,8 @@ pass both rather than restating their rules here. Beyond that:
 
 - **Always:** run format, lint, type-check, and tests before finishing; add or update tests for the
   code you change; keep coverage above 90% on logic-bearing code.
+- **Always:** when you edit Markdown docs or plan files, run `markdownlint` on those repo-owned
+  Markdown files before finishing.
 - **Ask first:** before adding a new dependency, changing the rating outputs or CSV schemas, or
   altering the strict ruff, pyright, or coverage configuration.
 - **Never:** weaken lint or type settings to make a check pass; commit secrets or credentials; edit
