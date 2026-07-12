@@ -1,9 +1,7 @@
-"""Multi-season NFL Strength of Schedule pipeline.
+"""Multi-season data and visualization pipeline.
 
-Runs main.py data gathering for every season in the configured range, then
-runs visualize.py for each of those seasons. All data steps complete before
-any visualization is attempted so that calibration history is fully available
-for every season's plot pass.
+Runs the single-season pipeline for every configured season, then runs the
+visualization pass for those seasons after all data outputs are available.
 
 Usage:
     uv run nfl-sos-pipeline          # uses START_YEAR / END_YEAR from config

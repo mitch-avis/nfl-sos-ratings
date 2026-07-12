@@ -1,8 +1,8 @@
-"""NFL Strength of Schedule -- Main Pipeline.
+"""Single-season PBP-first pipeline for team and quarterback ratings.
 
-Loads team and QB data for a given season, computes per-game stats for each
-team, then builds opponent strength profiles by averaging each team's opponents'
-stats (excluding head-to-head matchups). Outputs CSVs for further analysis.
+The pipeline loads PBP-derived team and QB game data, builds one-hop opponent
+profiles, computes equal-weight diff-based ratings, and writes simultaneous-
+adjustment outputs for side-by-side comparison.
 """
 
 import io
@@ -20,14 +20,65 @@ from nfl_sos_ratings.config import OUTPUT_DIR, SEASON
 from nfl_sos_ratings.data_loader import load_qb_stats, load_schedule, load_weekly_team_stats
 from nfl_sos_ratings.opponent_stats import compute_all_opponent_profiles
 from nfl_sos_ratings.qb_opponent_stats import compute_qb_opponent_profiles
-from nfl_sos_ratings.qb_ratings import calibrate_qb_model, compute_qb_ratings
+from nfl_sos_ratings.qb_ratings import compute_qb_ratings
 from nfl_sos_ratings.qb_stats import compute_qb_season_stats
 from nfl_sos_ratings.ratings import compute_ratings
+from nfl_sos_ratings.simultaneous_adjustment import (
+    compute_qb_adjusted_stats,
+    compute_team_adjusted_stats,
+    solve_srs,
+)
 from nfl_sos_ratings.team_stats import (
     compute_all_teams_per_game,
     compute_all_teams_qb_per_game,
     compute_win_totals,
 )
+
+_TEAM_SIMULTANEOUS_COLS = [
+    "points_per_offensive_snap",
+    "total_yards_per_offensive_snap",
+    "passing_yards_per_offensive_snap",
+    "rushing_yards_per_offensive_snap",
+    "passing_epa_per_offensive_snap",
+    "rushing_epa_per_offensive_snap",
+    "passing_tds_per_offensive_snap",
+    "rushing_tds_per_offensive_snap",
+    "passing_first_downs_per_offensive_snap",
+    "rushing_first_downs_per_offensive_snap",
+    "passing_cpoe",
+    "sacks_suffered_per_offensive_snap",
+    "passing_interceptions_per_offensive_snap",
+    "sack_fumbles_lost_per_offensive_snap",
+    "rushing_fumbles_lost_per_offensive_snap",
+    "points_allowed_per_defensive_snap",
+    "total_yards_allowed_per_defensive_snap",
+    "passing_yards_allowed_per_defensive_snap",
+    "rushing_yards_allowed_per_defensive_snap",
+    "passing_epa_allowed_per_defensive_snap",
+    "rushing_epa_allowed_per_defensive_snap",
+    "passing_tds_allowed_per_defensive_snap",
+    "rushing_tds_allowed_per_defensive_snap",
+    "passing_first_downs_allowed_per_defensive_snap",
+    "rushing_first_downs_allowed_per_defensive_snap",
+    "passing_cpoe_allowed",
+    "def_sacks_per_defensive_snap",
+    "def_interceptions_per_defensive_snap",
+    "def_pass_defended_per_defensive_snap",
+    "def_tackles_for_loss_per_defensive_snap",
+    "def_qb_hits_per_defensive_snap",
+    "def_fumbles_forced_per_defensive_snap",
+    "def_safeties_per_defensive_snap",
+]
+
+_QB_SIMULTANEOUS_COLS = [
+    "qb_epa_per_dropback",
+    "qb_any_a",
+    "qb_completion_percentage_above_expectation",
+    "qb_td_int_margin_rate",
+    "qb_sack_rate",
+    "qb_pass_yards_per_dropback",
+    "qb_passer_rating",
+]
 
 
 def _matching_qb_join_keys(left: pl.DataFrame, right: pl.DataFrame) -> list[str]:
@@ -63,6 +114,70 @@ def _build_qb_combined(
     return _add_qb_differentials(qb_combined)
 
 
+def _build_team_game_logs(weekly_df: pl.DataFrame) -> pl.DataFrame:
+    """Return additive team game logs for the UI contract."""
+    ordered_columns = [
+        column
+        for column in ("game_id", "week", "team", "opponent_team")
+        if column in weekly_df.columns
+    ]
+    remaining_columns = [
+        column
+        for column in weekly_df.columns
+        if column not in set(ordered_columns) and column not in {"season", "season_type"}
+    ]
+    sort_columns = [column for column in ("team", "week", "game_id") if column in weekly_df.columns]
+    return weekly_df.select(ordered_columns + remaining_columns).sort(sort_columns)
+
+
+def _build_qb_game_logs(qb_df: pl.DataFrame, weekly_df: pl.DataFrame) -> pl.DataFrame:
+    """Return additive QB game logs enriched with opponent and game-result context."""
+    context_columns = [
+        column
+        for column in (
+            "team",
+            "week",
+            "opponent_team",
+            "points_for",
+            "points_allowed",
+            "point_margin",
+            "win_value",
+            "turnover_margin",
+        )
+        if column in weekly_df.columns
+    ]
+    weekly_context = weekly_df.select(context_columns)
+    if "team" in weekly_context.columns:
+        weekly_context = weekly_context.rename({"team": "team_abbr"})
+
+    join_keys = [
+        column
+        for column in ("team_abbr", "week")
+        if column in qb_df.columns and column in weekly_context.columns
+    ]
+    qb_game_logs = qb_df.join(weekly_context, on=join_keys, how="left") if join_keys else qb_df
+    if "team_abbr" in qb_game_logs.columns:
+        qb_game_logs = qb_game_logs.rename({"team_abbr": "team"})
+
+    ordered_columns = [
+        column
+        for column in ("game_id", "week", "team", "opponent_team", "qb_id", "qb_name")
+        if column in qb_game_logs.columns
+    ]
+    remaining_columns = [
+        column
+        for column in qb_game_logs.columns
+        if column not in set(ordered_columns)
+        and column not in {"season", "season_type", "snap_player_id"}
+    ]
+    sort_columns = [
+        column
+        for column in ("team", "week", "game_id", "qb_name")
+        if column in qb_game_logs.columns
+    ]
+    return qb_game_logs.select(ordered_columns + remaining_columns).sort(sort_columns)
+
+
 def run_season(season: int) -> None:
     """Run the full NFL strength-of-schedule analysis pipeline for one season."""
     print(f"=== NFL Strength of Schedule -- {season} Season ===\n")
@@ -76,7 +191,7 @@ def run_season(season: int) -> None:
     schedule_df = load_schedule(season)
     print(f"  {schedule_df.height} games loaded.")
 
-    print("Loading QB Next Gen Stats...")
+    print("Loading QB game stats...")
     qb_df = load_qb_stats(season)
     print(f"  {qb_df.height} QB-game rows loaded.\n")
 
@@ -107,7 +222,7 @@ def run_season(season: int) -> None:
     if qb_opp_profiles is None:
         print("  WARNING: No QB opponent profiles were computed.")
     else:
-        print(f"  {qb_opp_profiles.height} teams computed.")
+        print(f"  {qb_opp_profiles.height} QB profiles computed.")
     print()
 
     # --- Compute opponent profiles ---
@@ -119,6 +234,16 @@ def run_season(season: int) -> None:
 
     # --- Merge and save ---
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    team_game_logs = _build_team_game_logs(weekly_df)
+    team_game_logs_csv = os.path.join(OUTPUT_DIR, f"{season}_team_game_logs.csv")
+    team_game_logs.write_csv(team_game_logs_csv)
+    print(f"Saved team game logs to {team_game_logs_csv}")
+
+    qb_game_logs = _build_qb_game_logs(qb_df, weekly_df)
+    qb_game_logs_csv = os.path.join(OUTPUT_DIR, f"{season}_qb_game_logs.csv")
+    qb_game_logs.write_csv(qb_game_logs_csv)
+    print(f"Saved QB game logs to {qb_game_logs_csv}")
 
     # Team per-game stats (team + QB combined), with win totals
     team_combined = team_per_game.join(qb_per_game, on="team", how="left").join(
@@ -139,55 +264,34 @@ def run_season(season: int) -> None:
 
     qb_combined = _build_qb_combined(qb_season_stats, qb_opp_profiles)
 
-    calibration_years = [year for year in range(season - 5, season) if year >= 2006]
-    historical_qb_frames: list[pl.DataFrame] = []
-    for year in calibration_years:
-        try:
-            historical_weekly = load_weekly_team_stats(year)
-            historical_qb_raw = load_qb_stats(year)
-            historical_qb = compute_qb_season_stats(
-                historical_qb_raw,
-                weekly_df=historical_weekly,
-            )
-            historical_qb = historical_qb.join(
-                compute_win_totals(historical_weekly).select(
-                    ["team", "wins", "losses", "ties", "win_pct"]
-                ),
-                on="team",
-                how="left",
-            )
-            historical_opp_profiles, _ = compute_qb_opponent_profiles(
-                historical_weekly,
-                historical_qb_raw,
-                load_schedule(year),
-                historical_qb,
-            )
-            historical_qb_frames.append(_build_qb_combined(historical_qb, historical_opp_profiles))
-        except Exception as exc:
-            print(f"  WARNING: Skipping QB calibration season {year}: {exc}")
+    qb_adjustment_games = qb_df.join(
+        weekly_df.select(["team", "week", "opponent_team"]),
+        left_on=["team_abbr", "week"],
+        right_on=["team", "week"],
+        how="left",
+    )
+    qb_adjusted_df, _ = compute_qb_adjusted_stats(
+        qb_adjustment_games,
+        response_cols=_QB_SIMULTANEOUS_COLS,
+    )
+    qb_identity = qb_season_stats.select(
+        [col for col in ("qb_id", "qb_name", "team") if col in qb_season_stats.columns]
+    )
+    qb_adjusted_output = qb_adjusted_df.join(qb_identity, on="qb_id", how="left")
+    qb_adjusted_csv = os.path.join(OUTPUT_DIR, f"{season}_simultaneous_qb_adjustments.csv")
+    qb_adjusted_output.write_csv(qb_adjusted_csv)
+    print(f"Saved simultaneous QB adjustments to {qb_adjusted_csv}")
+    qb_combined = qb_combined.join(
+        qb_adjusted_output,
+        on=[
+            key
+            for key in ("qb_id", "qb_name", "team")
+            if key in qb_adjusted_output.columns and key in qb_combined.columns
+        ],
+        how="left",
+    )
 
-    if historical_qb_frames:
-        min_corr, sos_weight, outcome_weight = calibrate_qb_model(
-            pl.concat(historical_qb_frames, how="diagonal_relaxed")
-        )
-        print(
-            "Calibrated QB model constants: "
-            f"min_correlation={min_corr:.2f}, sos_weight={sos_weight:.2f}, "
-            f"outcome_weight={outcome_weight:.2f}"
-        )
-    else:
-        min_corr, sos_weight, outcome_weight = 0.1, 2.0, 0.75
-        print("  WARNING: No historical QB seasons available; using default QB constants.")
-
-    try:
-        qb_ratings_df = compute_qb_ratings(
-            qb_combined,
-            min_correlation=min_corr,
-            sos_weight=sos_weight,
-            outcome_weight=outcome_weight,
-        )
-    except TypeError:
-        qb_ratings_df = compute_qb_ratings(qb_combined)
+    qb_ratings_df = compute_qb_ratings(qb_combined)
 
     qb_ratings_join_keys = [
         key
@@ -259,6 +363,15 @@ def run_season(season: int) -> None:
     opp_renamed = opp_combined.rename({c: f"opp_{c}" for c in opp_combined.columns if c != "team"})
     combined = team_combined.join(opp_renamed, on="team", how="left")
 
+    team_adjusted_df = compute_team_adjusted_stats(
+        weekly_df,
+        response_cols=_TEAM_SIMULTANEOUS_COLS,
+    )
+    team_adjusted_csv = os.path.join(OUTPUT_DIR, f"{season}_simultaneous_team_adjustments.csv")
+    team_adjusted_df.write_csv(team_adjusted_csv)
+    print(f"Saved simultaneous team adjustments to {team_adjusted_csv}")
+    combined = combined.join(team_adjusted_df, on="team", how="left")
+
     # Add diff columns: for every paired (stat, opp_stat), compute diff = stat - opp_stat
     diff_exprs = [
         (pl.col(col) - pl.col(f"opp_{col}")).alias(f"diff_{col}")
@@ -272,14 +385,17 @@ def run_season(season: int) -> None:
     ratings_df = compute_ratings(combined)
     combined = combined.join(ratings_df, on="team", how="left")
 
+    srs_df = solve_srs(weekly_df, response_col="point_margin").rename({"srs_rating": "SRS"})
+    combined = combined.join(srs_df, on="team", how="left")
+
     combined_csv = os.path.join(OUTPUT_DIR, f"{season}_combined.csv")
     combined.write_csv(combined_csv)
     print(f"Saved combined stats to {combined_csv}")
 
     # Standalone ratings summary
     ratings_summary = ratings_df.join(
-        combined.select(["team", "games_played"]), on="team", how="left"
-    ).select(["team", "games_played", "SaCR", "SaOR", "SaDR"])
+        combined.select(["team", "games_played", "SRS"]), on="team", how="left"
+    ).select(["team", "games_played", "SaCR", "SaOR", "SaDR", "SaOvR", "SRS"])
     ratings_csv = os.path.join(OUTPUT_DIR, f"{season}_ratings.csv")
     ratings_summary.write_csv(ratings_csv)
     print(f"Saved schedule-adjusted ratings to {ratings_csv}")
@@ -313,7 +429,7 @@ def run_season(season: int) -> None:
     print(f"\n{'=' * 50}")
     print("SCHEDULE-ADJUSTED RATINGS (SaCR rank)")
     print(f"{'=' * 50}")
-    print("  SaCR = Composite  |  SaOR = Offense  |  SaDR = Defense")
+    print("  SaCR = Composite  |  SaOR = Offense  |  SaDR = Defense  |  SaOvR = Overall")
     print("  (z-scores: 0 = league avg, +1 = 1 SD above avg)\n")
     with pl.Config(tbl_cols=-1, tbl_rows=32, fmt_float="mixed", float_precision=3):
         print(ratings_summary.sort("SaCR", descending=True))
@@ -325,8 +441,20 @@ def run_season(season: int) -> None:
             print(f"  {d['opponent']}{div_marker}: {d['games_included']} games")
 
     print("\nQB opponent detail sample (DEN):")
-    if "DEN" in qb_opp_details:
-        for d in qb_opp_details["DEN"]:
+    qb_sample_key = None
+    if not qb_season_stats.is_empty() and "team" in qb_season_stats.columns:
+        den_qbs = qb_season_stats.filter(pl.col("team") == "DEN")
+        if not den_qbs.is_empty():
+            for qb_row in den_qbs.to_dicts():
+                for key in ("qb_id", "qb_name"):
+                    candidate = qb_row.get(key)
+                    if candidate in qb_opp_details:
+                        qb_sample_key = str(candidate)
+                        break
+                if qb_sample_key is not None:
+                    break
+    if qb_sample_key is not None:
+        for d in qb_opp_details[qb_sample_key]:
             div_marker = " (DIV)" if d["division"] else ""
             print(f"  {d['opponent']}{div_marker}: {d['games_included']} games")
 

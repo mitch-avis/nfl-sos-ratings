@@ -526,13 +526,15 @@ def plot_qb_adjusted_ratings(df: pl.DataFrame, filename: str) -> None:
         print(f"  Skipping {filename}: no QSaCR column found.")
         return
 
-    ranked = _filter_qb_plot_df(df).sort("QSaCR")
+    ranked = _filter_qb_plot_df(df).filter(pl.col("QSaCR").is_finite()).sort("QSaCR")
     if ranked.is_empty():
-        print(f"  Skipping {filename}: no qualified QB rows found.")
+        print(f"  Skipping {filename}: no qualified QB rows with finite QSaCR found.")
         return
 
     labels = _qb_display_labels(ranked)
-    values = ranked.select("QSaCR").to_series().cast(pl.Float64).fill_null(0.0).to_list()
+    values = (
+        ranked.select("QSaCR").to_series().cast(pl.Float64).fill_nan(None).fill_null(0.0).to_list()
+    )
     colors = ["#2ecc71" if v >= 0 else "#e74c3c" for v in values]
 
     fig, ax = plt.subplots(figsize=(8, max(8, len(labels) * 0.34)))

@@ -28,7 +28,7 @@ def test_rating_helpers_cover_edge_cases() -> None:
 def test_derive_weights_builds_weighted_composite_and_fallback(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Verify weight derivation and fallback weighting behavior."""
+    """Verify stat pools are weighted equally across the present columns."""
     df = pl.DataFrame(
         {
             "stat_a": [1.0, 2.0, 3.0, 4.0],
@@ -45,9 +45,9 @@ def test_derive_weights_builds_weighted_composite_and_fallback(
     )
     composite = ratings._build_composite(df, weighted)
 
-    assert len(weighted) == 2
+    assert weighted == [("stat_a", 0.5, True), ("stat_b", 0.5, False)]
     assert np.allclose(composite, np.array([-1.161895, -0.387298, 0.387298, 1.161895]))
-    assert "Offensive stat weights" in capsys.readouterr().out
+    assert capsys.readouterr().out == ""
 
     fallback = ratings._derive_weights(
         pl.DataFrame({"stat_c": [1.0, 2.0, 1.0]}),
@@ -57,55 +57,89 @@ def test_derive_weights_builds_weighted_composite_and_fallback(
     )
 
     assert fallback == [("stat_c", 1.0, True)]
-    assert "using equal weights" in capsys.readouterr().out
+    assert capsys.readouterr().out == ""
 
 
 def test_compute_ratings_with_real_inputs() -> None:
-    """Verify compute_ratings emits expected schema and sensible ranking direction."""
+    """Verify compute_ratings emits overall ratings and sensible ranking direction."""
     df = pl.DataFrame(
         {
             "team": ["A", "B", "C", "D"],
             "win_pct": [0.25, 0.5, 0.75, 1.0],
-            "passing_epa": [0.0, 0.1, 0.2, 0.3],
-            "rushing_epa": [0.0, 0.05, 0.1, 0.15],
-            "points_for": [14, 20, 26, 32],
-            "total_yards": [280, 320, 360, 400],
-            "passing_yards": [180, 210, 240, 270],
-            "rushing_yards": [100, 110, 120, 130],
-            "passing_tds": [1, 2, 3, 4],
-            "rushing_tds": [0, 1, 1, 2],
-            "passing_first_downs": [8, 10, 12, 14],
-            "rushing_first_downs": [4, 5, 6, 7],
+            "points_per_offensive_snap": [0.2, 0.3, 0.4, 0.5],
+            "total_yards_per_offensive_snap": [4.0, 4.5, 5.0, 5.5],
+            "passing_yards_per_offensive_snap": [2.5, 2.8, 3.1, 3.4],
+            "rushing_yards_per_offensive_snap": [1.5, 1.7, 1.9, 2.1],
+            "passing_epa_per_offensive_snap": [0.0, 0.1, 0.2, 0.3],
+            "rushing_epa_per_offensive_snap": [0.0, 0.05, 0.1, 0.15],
+            "passing_tds_per_offensive_snap": [0.01, 0.02, 0.03, 0.04],
+            "rushing_tds_per_offensive_snap": [0.0, 0.01, 0.01, 0.02],
+            "passing_first_downs_per_offensive_snap": [0.12, 0.15, 0.18, 0.21],
+            "rushing_first_downs_per_offensive_snap": [0.06, 0.07, 0.08, 0.09],
             "passing_cpoe": [-1.0, 0.0, 1.0, 2.0],
-            "sacks_suffered": [4, 3, 2, 1],
-            "passing_interceptions": [2, 1, 1, 0],
-            "sack_fumbles_lost": [1, 1, 0, 0],
-            "rushing_fumbles_lost": [1, 0, 0, 0],
-            "points_allowed": [30, 24, 18, 12],
-            "def_sacks": [1, 2, 3, 4],
-            "def_interceptions": [0, 1, 1, 2],
-            "def_pass_defended": [3, 4, 5, 6],
-            "def_tackles_for_loss": [4, 5, 6, 7],
-            "def_qb_hits": [5, 6, 7, 8],
-            "def_fumbles_forced": [0, 1, 1, 2],
-            "def_safeties": [0, 0, 0, 1],
+            "sacks_suffered_per_offensive_snap": [0.08, 0.06, 0.04, 0.02],
+            "passing_interceptions_per_offensive_snap": [0.04, 0.02, 0.02, 0.0],
+            "sack_fumbles_lost_per_offensive_snap": [0.02, 0.02, 0.0, 0.0],
+            "rushing_fumbles_lost_per_offensive_snap": [0.02, 0.0, 0.0, 0.0],
+            "points_allowed_per_defensive_snap": [0.5, 0.4, 0.3, 0.2],
+            "total_yards_allowed_per_defensive_snap": [5.5, 5.0, 4.5, 4.0],
+            "passing_yards_allowed_per_defensive_snap": [3.4, 3.1, 2.8, 2.5],
+            "rushing_yards_allowed_per_defensive_snap": [2.1, 1.9, 1.7, 1.5],
+            "passing_epa_allowed_per_defensive_snap": [0.3, 0.2, 0.1, 0.0],
+            "rushing_epa_allowed_per_defensive_snap": [0.15, 0.1, 0.05, 0.0],
+            "passing_tds_allowed_per_defensive_snap": [0.04, 0.03, 0.02, 0.01],
+            "rushing_tds_allowed_per_defensive_snap": [0.02, 0.01, 0.01, 0.0],
+            "passing_first_downs_allowed_per_defensive_snap": [0.21, 0.18, 0.15, 0.12],
+            "rushing_first_downs_allowed_per_defensive_snap": [0.09, 0.08, 0.07, 0.06],
+            "passing_cpoe_allowed": [2.0, 1.0, 0.0, -1.0],
+            "def_sacks_per_defensive_snap": [0.02, 0.04, 0.06, 0.08],
+            "def_interceptions_per_defensive_snap": [0.0, 0.02, 0.02, 0.04],
+            "def_pass_defended_per_defensive_snap": [0.06, 0.08, 0.10, 0.12],
+            "def_tackles_for_loss_per_defensive_snap": [0.08, 0.10, 0.12, 0.14],
+            "def_qb_hits_per_defensive_snap": [0.10, 0.12, 0.14, 0.16],
+            "def_fumbles_forced_per_defensive_snap": [0.0, 0.02, 0.02, 0.04],
+            "def_safeties_per_defensive_snap": [0.0, 0.0, 0.0, 0.01],
             "opp_points_allowed": [24, 22, 20, 18],
             "opp_points_for": [18, 21, 24, 27],
             "opp_passing_epa": [0.0, 0.05, 0.1, 0.15],
+            "opp_win_value": [0.3, 0.45, 0.6, 0.75],
+            "opp_turnover_margin": [-0.2, 0.0, 0.2, 0.4],
         }
     )
 
     result = ratings.compute_ratings(df)
 
-    assert result.columns == ["team", "SaOR", "SaDR", "SaCR"]
+    assert result.columns == ["team", "SaOR", "SaDR", "SaOvR", "SaCR"]
     assert result.select("team").to_series().to_list() == ["A", "B", "C", "D"]
     assert result.filter(pl.col("team") == "D").select("SaCR").item() > 0
+    assert result.filter(pl.col("team") == "D").select("SaOvR").item() > 0
+
+
+def test_compute_ratings_ignores_raw_total_only_columns() -> None:
+    """Verify raw totals alone do not move ratings when rate fields are absent."""
+    df = pl.DataFrame(
+        {
+            "team": ["A", "B"],
+            "points_for": [400.0, 100.0],
+            "points_allowed": [100.0, 400.0],
+            "total_yards": [6000.0, 3000.0],
+            "passing_yards": [4200.0, 1800.0],
+            "rushing_yards": [1800.0, 1200.0],
+        }
+    )
+
+    result = ratings.compute_ratings(df)
+
+    assert result.select("SaOR").to_series().to_list() == [0.0, 0.0]
+    assert result.select("SaDR").to_series().to_list() == [0.0, 0.0]
+    assert result.select("SaOvR").to_series().to_list() == [0.0, 0.0]
+    assert result.select("SaCR").to_series().to_list() == [0.0, 0.0]
 
 
 def test_compute_ratings_without_win_pct_and_without_sos_inputs(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Verify compute_ratings falls back cleanly without win_pct and SoS columns."""
+    """Verify compute_ratings falls back cleanly when no rating inputs are present."""
     df = pl.DataFrame(
         {
             "team": ["A", "B", "C"],
@@ -117,35 +151,41 @@ def test_compute_ratings_without_win_pct_and_without_sos_inputs(
 
     assert result.height == 3
     assert result.select("SaCR").to_series().to_list() == [0.0, 0.0, 0.0]
-    assert "falling back to equal weights" in capsys.readouterr().out
+    assert result.select("SaOvR").to_series().to_list() == [0.0, 0.0, 0.0]
+    assert capsys.readouterr().out == ""
 
 
-def test_compute_ratings_uses_neutral_blend_when_correlations_are_zero(
+def test_compute_ratings_makes_overall_secondary_to_offense_and_defense(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify compute_ratings uses neutral blend when offensive/defensive correlations are zero."""
+    """Verify compute_ratings treats SaOvR as secondary inside the final team composite."""
     df = pl.DataFrame(
         {
             "team": ["A", "B"],
-            "win_pct": [0.4, 0.6],
+            "win_pct": [6.0, -6.0],
             "points_for": [10, 20],
             "points_allowed": [20, 10],
+            "def_interceptions": [3.0, -3.0],
+            "def_fumbles_forced": [3.0, -3.0],
+            "passing_interceptions": [0.0, 0.0],
+            "sack_fumbles_lost": [0.0, 0.0],
+            "rushing_fumbles_lost": [0.0, 0.0],
         }
     )
+
+    composites = iter([np.array([2.0, -2.0]), np.array([4.0, -4.0])])
 
     monkeypatch.setattr(
         ratings,
         "_derive_weights",
         lambda *args, **kwargs: [("points_for", 1.0, True)],
     )
-    monkeypatch.setattr(ratings, "_build_composite", lambda *args, **kwargs: np.array([0.0, 0.0]))
+    monkeypatch.setattr(ratings, "_build_composite", lambda *args, **kwargs: next(composites))
     monkeypatch.setattr(ratings, "_zscore", lambda values: np.array(values, dtype=np.float64))
-    monkeypatch.setattr(
-        ratings.np,
-        "corrcoef",
-        lambda *args, **kwargs: np.array([[1.0, 0.0], [0.0, 0.0]], dtype=np.float64),
-    )
 
     result = ratings.compute_ratings(df)
 
-    assert result.select("SaCR").to_series().to_list() == [0.0, 0.0]
+    assert result.select("SaOR").to_series().to_list() == [2.0, -2.0]
+    assert result.select("SaDR").to_series().to_list() == [4.0, -4.0]
+    assert result.select("SaOvR").to_series().to_list() == [6.0, -6.0]
+    assert result.select("SaCR").to_series().to_list() == [3.333, -3.333]

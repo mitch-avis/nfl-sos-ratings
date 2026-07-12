@@ -1,7 +1,7 @@
 """Tests for QB opponent-profile and rating helpers."""
 
-import numpy as np
 import polars as pl
+import pytest
 
 from nfl_sos_ratings import qb_opponent_stats, qb_ratings
 
@@ -61,11 +61,11 @@ def test_compute_qb_opponent_profiles_excludes_head_to_head() -> None:
     assert "qopp_qb_passer_rating" in profiles.columns
     assert profiles.select("qopp_points_allowed").item() == 17.5
     assert profiles.select("qopp_qb_passer_rating").item() == 87.5
-    assert details["DEN"][0]["games_included"] == 1
+    assert details["QB_DEN"][0]["games_included"] == 1
 
 
 def test_compute_qb_opponent_profiles_counts_actual_games_faced() -> None:
-    """Verify repeated opponents are weighted by QB games actually faced."""
+    """Verify repeated opponents are deduplicated before QB opponent averaging."""
     weekly_df = pl.DataFrame(
         {
             "team": ["DEN", "DEN", "DEN", "MIA", "MIA", "KC", "BUF"],
@@ -110,12 +110,12 @@ def test_compute_qb_opponent_profiles_counts_actual_games_faced() -> None:
     )
 
     assert profiles is not None
-    assert profiles.select("qopp_qb_passer_rating").item() == 100.0
-    assert [row["opponent"] for row in details["DEN"]] == ["KC", "KC", "BUF"]
+    assert profiles.select("qopp_qb_passer_rating").item() == 90.0
+    assert [row["opponent"] for row in details["QB_DEN"]] == ["KC", "BUF"]
 
 
-def test_compute_qb_opponent_profiles_uses_unique_schedule_fallback_opponents() -> None:
-    """Verify fallback schedule context still avoids duplicate sparse schedule rows."""
+def test_compute_qb_opponent_profiles_skips_qb_without_reconstructable_opponents() -> None:
+    """Verify QB opponent profiles do not fabricate schedules from team schedules."""
     weekly_df = pl.DataFrame(
         {
             "team": ["DEN", "DEN", "DEN", "KC", "KC", "KC", "BUF", "BUF", "BUF"],
@@ -160,9 +160,8 @@ def test_compute_qb_opponent_profiles_uses_unique_schedule_fallback_opponents() 
         qb_season_df,
     )
 
-    assert profiles is not None
-    assert profiles.select("qopp_qb_passer_rating").item() == 77.5
-    assert [row["opponent"] for row in details["DEN"]] == ["BUF", "KC"]
+    assert profiles is None
+    assert details["QB_DEN"] == []
 
 
 def test_compute_qb_opponent_profiles_uses_each_qbs_actual_opponents() -> None:
@@ -213,7 +212,62 @@ def test_compute_qb_opponent_profiles_uses_each_qbs_actual_opponents() -> None:
     assert profiles is not None
     profile_values = profiles.sort("qb_id").select("qopp_qb_passer_rating").to_series().to_list()
     assert profile_values == [70.0, 110.0]
-    assert [row["opponent"] for row in details["DEN"]] == ["BUF"]
+    assert [row["opponent"] for row in details["QB_DEN_1"]] == ["KC"]
+    assert [row["opponent"] for row in details["QB_DEN_2"]] == ["BUF"]
+
+
+def test_compute_qb_opponent_profiles_uses_majority_snap_games_only() -> None:
+    """Verify QB opponent profiles use only the games each QB primarily played."""
+    weekly_df = pl.DataFrame(
+        {
+            "team": ["DEN", "DEN", "KC", "BUF", "LV", "MIA", "KC", "BUF"],
+            "opponent_team": ["KC", "BUF", "DEN", "DEN", "KC", "BUF", "LV", "MIA"],
+            "week": [1, 2, 1, 2, 3, 3, 3, 3],
+            "points_allowed": [20, 24, 21, 17, 14, 28, 14, 28],
+            "def_sacks": [2, 3, 1, 4, 5, 2, 5, 2],
+            "def_interceptions": [1, 1, 0, 2, 3, 1, 3, 1],
+            "def_pass_defended": [4, 5, 3, 7, 8, 5, 8, 5],
+            "def_tackles_for_loss": [5, 6, 4, 8, 9, 6, 9, 6],
+            "def_qb_hits": [6, 7, 5, 9, 10, 7, 10, 7],
+        }
+    )
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["DEN", "DEN", "DEN", "BUF", "LV", "MIA"],
+            "week": [1, 1, 2, 2, 3, 3],
+            "qb_id": ["QB_A", "QB_B", "QB_B", "QB_BUF", "QB_LV", "QB_MIA"],
+            "qb_name": ["QB A", "QB B", "QB B", "Buffalo QB", "Raiders QB", "Miami QB"],
+            "qb_offense_snaps": [45, 10, 55, 60, 60, 60],
+            "qb_dropbacks": [22, 5, 25, 30, 20, 18],
+            "qb_passer_rating": [100.0, 80.0, 95.0, 110.0, 70.0, 105.0],
+        }
+    )
+    schedule_df = pl.DataFrame(
+        {
+            "home_team": ["DEN", "DEN"],
+            "away_team": ["KC", "BUF"],
+        }
+    )
+    qb_season_df = pl.DataFrame(
+        {
+            "qb_id": ["QB_A", "QB_B"],
+            "qb_name": ["QB A", "QB B"],
+            "team": ["DEN", "DEN"],
+        }
+    )
+
+    profiles, details = qb_opponent_stats.compute_qb_opponent_profiles(
+        weekly_df,
+        qb_df,
+        schedule_df,
+        qb_season_df,
+    )
+
+    assert profiles is not None
+    profile_values = profiles.sort("qb_id").select("qopp_qb_passer_rating").to_series().to_list()
+    assert profile_values == [70.0, 105.0]
+    assert [row["opponent"] for row in details["QB_A"]] == ["KC"]
+    assert [row["opponent"] for row in details["QB_B"]] == ["BUF"]
 
 
 def test_compute_qb_opponent_profiles_handles_rams_alias_mismatch() -> None:
@@ -265,7 +319,7 @@ def test_compute_qb_opponent_profiles_handles_rams_alias_mismatch() -> None:
     assert profiles is not None
     assert profiles.select("team").item() == "LAR"
     assert profiles.select("qopp_qb_passer_rating").item() == 88.0
-    assert details["LAR"] == [{"opponent": "SEA", "division": True, "games_included": 1}]
+    assert details["QB_LAR"] == [{"opponent": "SEA", "division": True, "games_included": 1}]
 
 
 def test_compute_qb_opponent_profiles_derives_allowed_efficiency_rates() -> None:
@@ -290,9 +344,22 @@ def test_compute_qb_opponent_profiles_derives_allowed_efficiency_rates() -> None
             "qb_id": ["QB_DEN", "QB_LV", "QB_MIA"],
             "qb_name": ["Denver QB", "Raiders QB", "Miami QB"],
             "qb_attempts": [25, 40, 20],
+            "qb_dropbacks": [28, 45, 22],
             "qb_pass_yards": [200.0, 200.0, 160.0],
             "qb_pass_touchdowns": [1.0, 1.0, 2.0],
             "qb_interceptions": [0.0, 1.0, 0.0],
+            "qb_sacks": [1.0, 2.0, 1.0],
+            "qb_sack_yards_lost": [8.0, 12.0, 8.0],
+            "qb_passing_epa": [3.0, 10.0, 4.4],
+            "qb_epa_per_dropback": [3.0 / 28.0, 10.0 / 45.0, 4.4 / 22.0],
+            "qb_pass_yards_per_dropback": [200.0 / 28.0, 200.0 / 45.0, 160.0 / 22.0],
+            "qb_td_int_margin_rate": [1.0 / 28.0, 0.0, 2.0 / 22.0],
+            "qb_sack_rate": [1.0 / 28.0, 2.0 / 45.0, 1.0 / 22.0],
+            "qb_any_a": [
+                (200.0 + 20.0 - 0.0 - 8.0) / 26.0,
+                (200.0 + 20.0 - 45.0 - 12.0) / 42.0,
+                (160.0 + 40.0 - 0.0 - 8.0) / 21.0,
+            ],
         }
     )
     schedule_df = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})
@@ -309,10 +376,14 @@ def test_compute_qb_opponent_profiles_derives_allowed_efficiency_rates() -> None
     assert profiles.select("qopp_qb_yards_per_attempt").item() == 6.0
     assert profiles.select("qopp_qb_touchdown_rate").item() == 0.05
     assert profiles.select("qopp_qb_interception_rate").item() == 1 / 60
+    assert profiles.select("qopp_qb_epa_per_dropback").item() == pytest.approx(14.4 / 67.0)
+    assert profiles.select("qopp_qb_any_a").item() == pytest.approx(355.0 / 63.0)
+    assert profiles.select("qopp_qb_sack_rate").item() == pytest.approx(3.0 / 67.0)
+    assert profiles.select("qopp_qb_td_int_margin_rate").item() == pytest.approx(2.0 / 67.0)
 
 
-def test_derive_qb_weights_uses_correlation_and_fallback() -> None:
-    """Verify QB stat weights are correlation-driven with equal-weight fallback."""
+def test_derive_qb_weights_uses_equal_weights_for_present_stats() -> None:
+    """Verify QB stat weights are equal across the present stat pool columns."""
     df = pl.DataFrame(
         {
             "qb_passer_rating": [80.0, 90.0, 100.0, 110.0],
@@ -323,11 +394,10 @@ def test_derive_qb_weights_uses_correlation_and_fallback() -> None:
     )
 
     weights = qb_ratings._derive_qb_weights(df)
-    assert {stat for stat, _, _ in weights} >= {
-        "qb_passer_rating",
-        "qb_completion_percentage_above_expectation",
-    }
-    assert np.isclose(sum(weight for _, weight, _ in weights), 1.0)
+    assert weights == [
+        ("qb_completion_percentage_above_expectation", 0.5, True),
+        ("qb_passer_rating", 0.5, True),
+    ]
 
     fallback = qb_ratings._derive_qb_weights(
         pl.DataFrame(
@@ -339,6 +409,29 @@ def test_derive_qb_weights_uses_correlation_and_fallback() -> None:
     )
     assert fallback == [
         ("qb_passer_rating", 1.0, True),
+    ]
+
+
+def test_derive_qb_weights_supports_new_dropback_metric_pool() -> None:
+    """Verify QB stat weighting works when only the new primary metrics are present."""
+    df = pl.DataFrame(
+        {
+            "qb_epa_per_dropback": [0.1, 0.0, -0.1],
+            "qb_any_a": [7.5, 6.8, 5.9],
+            "qb_completion_percentage_above_expectation": [3.0, 1.0, -1.0],
+            "qb_td_int_margin_rate": [0.08, 0.03, -0.01],
+            "qb_sack_rate": [0.03, 0.05, 0.08],
+        }
+    )
+
+    weights = qb_ratings._derive_qb_weights(df)
+
+    assert weights == [
+        ("qb_epa_per_dropback", 0.2, True),
+        ("qb_any_a", 0.2, True),
+        ("qb_completion_percentage_above_expectation", 0.2, True),
+        ("qb_td_int_margin_rate", 0.2, True),
+        ("qb_sack_rate", 0.2, False),
     ]
 
 
@@ -505,6 +598,35 @@ def test_compute_qb_ratings_qsos_ignores_style_only_context() -> None:
     assert qsos_values[0] == qsos_values[1]
 
 
+def test_compute_qb_ratings_qsos_uses_new_allowed_dropback_metrics() -> None:
+    """Verify QSoS can be built from new allowed-rate metrics without legacy fields."""
+    qb_combined = pl.DataFrame(
+        {
+            "qb_id": ["EASY", "HARD"],
+            "qb_name": ["Easy Defense", "Hard Defense"],
+            "team": ["A", "B"],
+            "qb_is_eligible": [True, True],
+            "qb_epa_per_dropback": [0.1, 0.1],
+            "qb_any_a": [7.0, 7.0],
+            "qb_completion_percentage_above_expectation": [2.0, 2.0],
+            "qb_td_int_margin_rate": [0.05, 0.05],
+            "qb_sack_rate": [0.04, 0.04],
+            "qopp_qb_epa_per_dropback": [0.30, -0.10],
+            "qopp_qb_any_a": [7.8, 5.8],
+            "qopp_qb_completion_percentage_above_expectation": [3.0, -1.0],
+            "qopp_qb_td_int_margin_rate": [0.08, -0.02],
+            "qopp_qb_sack_rate": [0.02, 0.08],
+        }
+    )
+
+    ratings = qb_ratings.compute_qb_ratings(qb_combined)
+
+    assert (
+        ratings.filter(pl.col("qb_id") == "HARD").select("QSoS").item()
+        > ratings.filter(pl.col("qb_id") == "EASY").select("QSoS").item()
+    )
+
+
 def test_compute_qb_ratings_anchors_final_composite_to_qb_outcomes() -> None:
     """Verify QSaCR can reflect QB results while QSaOR remains passing-context based."""
     qb_combined = pl.DataFrame(
@@ -540,8 +662,83 @@ def test_compute_qb_ratings_anchors_final_composite_to_qb_outcomes() -> None:
     )
 
 
-def test_calibrate_qb_model_returns_candidate_constants() -> None:
-    """Verify calibration returns constants from provided candidate grids."""
+def test_compute_qb_ratings_outcome_signal_includes_4qc_and_gwd() -> None:
+    """Verify secondary late-game stats can move QOutcome and QSaCR."""
+    qb_combined = pl.DataFrame(
+        {
+            "qb_id": ["CLUTCH", "NEUTRAL"],
+            "qb_name": ["Clutch QB", "Neutral QB"],
+            "team": ["A", "B"],
+            "qb_is_eligible": [True, True],
+            "qb_win_pct": [0.5, 0.5],
+            "qb_wins": [8, 8],
+            "qb_fourth_quarter_comebacks": [3, 0],
+            "qb_game_winning_drives": [4, 0],
+            "qb_epa_per_dropback": [0.1, 0.1],
+            "qb_any_a": [7.0, 7.0],
+            "qb_completion_percentage_above_expectation": [2.0, 2.0],
+            "qb_td_int_margin_rate": [0.05, 0.05],
+            "qb_sack_rate": [0.04, 0.04],
+            "qopp_qb_epa_per_dropback": [0.0, 0.0],
+            "qopp_qb_any_a": [6.0, 6.0],
+            "qopp_qb_completion_percentage_above_expectation": [0.0, 0.0],
+            "qopp_qb_td_int_margin_rate": [0.0, 0.0],
+            "qopp_qb_sack_rate": [0.05, 0.05],
+        }
+    )
+
+    ratings = qb_ratings.compute_qb_ratings(qb_combined, sos_weight=0.0, outcome_weight=2.0)
+
+    assert (
+        ratings.filter(pl.col("qb_id") == "CLUTCH").select("QOutcome").item()
+        > ratings.filter(pl.col("qb_id") == "NEUTRAL").select("QOutcome").item()
+    )
+    assert (
+        ratings.filter(pl.col("qb_id") == "CLUTCH").select("QSaCR").item()
+        > ratings.filter(pl.col("qb_id") == "NEUTRAL").select("QSaCR").item()
+    )
+
+
+def test_compute_qb_ratings_outcome_signal_does_not_double_count_wins() -> None:
+    """Verify qb_win_pct remains the only win-based outcome input when present."""
+    qb_combined = pl.DataFrame(
+        {
+            "qb_id": ["PRIMARY_A", "PRIMARY_B"],
+            "qb_name": ["Primary A", "Primary B"],
+            "team": ["A", "B"],
+            "qb_is_eligible": [True, True],
+            "qb_win_pct": [0.5, 0.5],
+            "qb_wins": [11, 6],
+            "win_pct": [0.85, 0.15],
+            "qb_fourth_quarter_comebacks": [1, 1],
+            "qb_game_winning_drives": [2, 2],
+            "qb_epa_per_dropback": [0.1, 0.1],
+            "qb_any_a": [7.0, 7.0],
+            "qb_completion_percentage_above_expectation": [2.0, 2.0],
+            "qb_td_int_margin_rate": [0.05, 0.05],
+            "qb_sack_rate": [0.04, 0.04],
+            "qopp_qb_epa_per_dropback": [0.0, 0.0],
+            "qopp_qb_any_a": [6.0, 6.0],
+            "qopp_qb_completion_percentage_above_expectation": [0.0, 0.0],
+            "qopp_qb_td_int_margin_rate": [0.0, 0.0],
+            "qopp_qb_sack_rate": [0.05, 0.05],
+        }
+    )
+
+    ratings = qb_ratings.compute_qb_ratings(qb_combined, sos_weight=0.0, outcome_weight=2.0)
+
+    assert ratings.filter(pl.col("qb_id") == "PRIMARY_A").select(
+        "QOutcome"
+    ).item() == pytest.approx(
+        ratings.filter(pl.col("qb_id") == "PRIMARY_B").select("QOutcome").item()
+    )
+    assert ratings.filter(pl.col("qb_id") == "PRIMARY_A").select("QSaCR").item() == pytest.approx(
+        ratings.filter(pl.col("qb_id") == "PRIMARY_B").select("QSaCR").item()
+    )
+
+
+def test_calibrate_qb_model_returns_fixed_constants() -> None:
+    """Verify calibration no longer searches and instead returns fixed constants."""
     calibration_df = pl.DataFrame(
         {
             "qb_win_pct": [0.2, 0.4, 0.6, 0.8],
@@ -560,13 +757,15 @@ def test_calibrate_qb_model_returns_candidate_constants() -> None:
         outcome_weight_grid=[0.2, 0.4],
     )
 
-    assert min_corr in {0.05, 0.1}
-    assert sos_weight in {0.1, 0.2, 0.3}
-    assert outcome_weight in {0.2, 0.4}
+    assert (min_corr, sos_weight, outcome_weight) == (
+        qb_ratings._MIN_CORRELATION,
+        qb_ratings._SOS_WEIGHT,
+        qb_ratings._OUTCOME_WEIGHT,
+    )
 
 
-def test_calibrate_qb_model_keeps_material_schedule_weight_by_default() -> None:
-    """Verify calibration cannot wash out schedule context with a near-zero SOS weight."""
+def test_calibrate_qb_model_ignores_candidate_grids() -> None:
+    """Verify calibration ignores supplied search grids and keeps fixed defaults."""
     calibration_df = pl.DataFrame(
         {
             "qb_win_pct": [0.2, 0.4, 0.6, 0.8],
@@ -586,7 +785,122 @@ def test_calibrate_qb_model_keeps_material_schedule_weight_by_default() -> None:
         }
     )
 
-    _, sos_weight, outcome_weight = qb_ratings.calibrate_qb_model(calibration_df)
+    result = qb_ratings.calibrate_qb_model(
+        calibration_df,
+        correlation_grid=[0.3, 0.4],
+        sos_weight_grid=[9.0],
+        outcome_weight_grid=[9.0],
+    )
 
-    assert sos_weight >= 2.0
-    assert outcome_weight <= 0.75
+    assert result == (
+        qb_ratings._MIN_CORRELATION,
+        qb_ratings._SOS_WEIGHT,
+        qb_ratings._OUTCOME_WEIGHT,
+    )
+
+
+def test_compute_qb_ratings_handles_nan_outcome_without_poisoning_scores() -> None:
+    """Verify NaN in qb_win_pct does not propagate into all QSaCR/QOutcome values."""
+    qb_combined = pl.DataFrame(
+        {
+            "qb_id": ["A", "B", "C"],
+            "qb_name": ["QB A", "QB B", "QB C"],
+            "team": ["DEN", "KC", "BUF"],
+            "qb_is_eligible": [True, True, True],
+            "qb_games_played": [16, 16, 16],
+            "qb_win_pct": [0.75, float("nan"), 0.5],
+            "qb_passer_rating": [105.0, 95.0, 90.0],
+            "qb_completion_percentage_above_expectation": [3.0, 1.0, -1.0],
+            "qb_yards_per_attempt": [7.2, 6.8, 6.4],
+            "qb_touchdown_rate": [0.05, 0.04, 0.03],
+            "qb_interception_rate": [0.02, 0.03, 0.035],
+            "qopp_points_allowed": [22.0, 21.0, 20.0],
+            "qopp_def_sacks": [2.5, 2.0, 1.8],
+            "qopp_def_interceptions": [1.0, 0.9, 0.8],
+            "qopp_qb_passer_rating": [95.0, 94.0, 93.0],
+            "qopp_qb_completion_percentage_above_expectation": [1.0, 0.5, 0.0],
+            "qopp_qb_yards_per_attempt": [6.9, 6.7, 6.5],
+            "qopp_qb_touchdown_rate": [0.045, 0.042, 0.039],
+            "qopp_qb_interception_rate": [0.025, 0.023, 0.021],
+        }
+    )
+
+    ratings = qb_ratings.compute_qb_ratings(qb_combined)
+
+    assert ratings.filter(pl.col("QSaCR").is_nan()).height == 0
+    assert ratings.filter(pl.col("QOutcome").is_nan()).height == 0
+
+
+def test_compute_qb_ratings_downweights_partial_season_samples() -> None:
+    """Verify equally strong partial-season rows are shrunk toward league average."""
+    qb_combined = pl.DataFrame(
+        {
+            "qb_id": ["FULL", "PART", "MID"],
+            "qb_name": ["Full Season", "Partial Season", "Middle"],
+            "team": ["A", "B", "C"],
+            "qb_is_eligible": [True, True, True],
+            "qb_games_played": [16, 8, 16],
+            "qb_win_pct": [0.7, 0.7, 0.55],
+            "qb_passer_rating": [105.0, 105.0, 92.0],
+            "qb_completion_percentage_above_expectation": [3.0, 3.0, -0.5],
+            "qb_yards_per_attempt": [7.2, 7.2, 6.4],
+            "qb_touchdown_rate": [0.05, 0.05, 0.035],
+            "qb_interception_rate": [0.02, 0.02, 0.03],
+            "qopp_points_allowed": [21.0, 21.0, 21.0],
+            "qopp_def_sacks": [2.4, 2.4, 2.4],
+            "qopp_def_interceptions": [1.0, 1.0, 1.0],
+            "qopp_qb_passer_rating": [94.0, 94.0, 94.0],
+            "qopp_qb_completion_percentage_above_expectation": [0.5, 0.5, 0.5],
+            "qopp_qb_yards_per_attempt": [6.7, 6.7, 6.7],
+            "qopp_qb_touchdown_rate": [0.042, 0.042, 0.042],
+            "qopp_qb_interception_rate": [0.023, 0.023, 0.023],
+        }
+    )
+
+    ratings = qb_ratings.compute_qb_ratings(qb_combined, sos_weight=2.0, outcome_weight=0.25)
+    full = ratings.filter(pl.col("qb_id") == "FULL").select("QSaCR").item()
+    part = ratings.filter(pl.col("qb_id") == "PART").select("QSaCR").item()
+
+    assert full > part
+
+
+def test_compute_qb_ratings_keeps_schedule_from_overpowering_poor_raw_play() -> None:
+    """Verify a brutal schedule alone does not make a poor raw season outrank a strong one."""
+    qb_combined = pl.DataFrame(
+        {
+            "qb_id": ["POOR_HARD", "GOOD_AVG", "MID"],
+            "qb_name": ["Poor Hard", "Good Avg", "Mid"],
+            "team": ["A", "B", "C"],
+            "qb_is_eligible": [True, True, True],
+            "qb_games_played": [17, 17, 17],
+            "qb_win_pct": [0.35, 0.6, 0.5],
+            "qb_epa_per_dropback": [-0.15, 0.15, 0.02],
+            "qb_any_a": [5.8, 7.4, 6.6],
+            "qb_completion_percentage_above_expectation": [-2.0, 3.0, 0.5],
+            "qb_td_int_margin_rate": [0.01, 0.06, 0.03],
+            "qb_sack_rate": [0.09, 0.04, 0.06],
+            "qb_pass_yards_per_dropback": [5.6, 7.2, 6.4],
+            "qb_passer_rating": [82.0, 104.0, 93.0],
+            "qopp_points_allowed": [17.0, 22.0, 21.0],
+            "qopp_def_sacks": [3.7, 2.4, 2.8],
+            "qopp_def_interceptions": [1.5, 0.9, 1.0],
+            "qopp_qb_epa_per_dropback": [-0.18, 0.02, -0.01],
+            "qopp_qb_any_a": [5.7, 6.8, 6.5],
+            "qopp_qb_completion_percentage_above_expectation": [-2.1, 0.5, 0.0],
+            "qopp_qb_td_int_margin_rate": [-0.01, 0.03, 0.02],
+            "qopp_qb_sack_rate": [0.1, 0.05, 0.06],
+            "qopp_qb_pass_yards_per_dropback": [5.4, 6.5, 6.3],
+            "qopp_qb_passer_rating": [80.0, 92.0, 90.0],
+        }
+    )
+
+    ratings = qb_ratings.compute_qb_ratings(qb_combined)
+
+    assert (
+        ratings.filter(pl.col("qb_id") == "GOOD_AVG").select("QSaOR").item()
+        > ratings.filter(pl.col("qb_id") == "POOR_HARD").select("QSaOR").item()
+    )
+    assert (
+        ratings.filter(pl.col("qb_id") == "GOOD_AVG").select("QSaCR").item()
+        > ratings.filter(pl.col("qb_id") == "POOR_HARD").select("QSaCR").item()
+    )

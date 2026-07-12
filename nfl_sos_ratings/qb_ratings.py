@@ -3,32 +3,40 @@
 import numpy as np
 import polars as pl
 
-_SOS_WEIGHT: float = 2.0
+_SOS_WEIGHT: float = 0.0
 _OUTCOME_WEIGHT: float = 0.75
 _MIN_CORRELATION: float = 0.1
 
 _QB_STAT_POOL: list[tuple[str, bool]] = [
-    ("qb_passer_rating", True),
+    ("qb_epa_per_dropback", True),
+    ("qb_any_a", True),
     ("qb_completion_percentage_above_expectation", True),
-    ("qb_yards_per_attempt", True),
-    ("qb_touchdown_rate", True),
-    ("qb_interception_rate", False),
+    ("qb_td_int_margin_rate", True),
+    ("qb_sack_rate", False),
+    ("qb_pass_yards_per_dropback", True),
+    ("qb_sacks", False),
+    ("qb_passer_rating", True),
 ]
 
 _QB_DIFF_STAT_POOL: list[tuple[str, bool]] = [
-    ("diff_qb_passer_rating", True),
+    ("diff_qb_epa_per_dropback", True),
+    ("diff_qb_any_a", True),
     ("diff_qb_completion_percentage_above_expectation", True),
-    ("diff_qb_yards_per_attempt", True),
-    ("diff_qb_touchdown_rate", True),
-    ("diff_qb_interception_rate", False),
+    ("diff_qb_td_int_margin_rate", True),
+    ("diff_qb_sack_rate", False),
+    ("diff_qb_pass_yards_per_dropback", True),
+    ("diff_qb_sacks", False),
+    ("diff_qb_passer_rating", True),
 ]
 
 _QB_PAIRED_STAT_POOL: list[tuple[str, bool]] = [
-    ("qb_passer_rating", True),
+    ("qb_epa_per_dropback", True),
+    ("qb_any_a", True),
     ("qb_completion_percentage_above_expectation", True),
-    ("qb_yards_per_attempt", True),
-    ("qb_touchdown_rate", True),
-    ("qb_interception_rate", False),
+    ("qb_td_int_margin_rate", True),
+    ("qb_sack_rate", False),
+    ("qb_pass_yards_per_dropback", True),
+    ("qb_passer_rating", True),
 ]
 
 
@@ -45,10 +53,25 @@ def _col(df: pl.DataFrame, name: str) -> np.ndarray | None:
     """Return a float64 ndarray for a DataFrame column, or None when missing."""
     if name not in df.columns:
         return None
-    return np.array(
-        df.select(name).to_series().cast(pl.Float64).fill_null(0.0).to_list(),
+    values = np.array(
+        df.select(pl.col(name).cast(pl.Float64).fill_nan(None).fill_null(0.0))
+        .to_series()
+        .to_list(),
         dtype=np.float64,
     )
+    return np.nan_to_num(values, nan=0.0, posinf=0.0, neginf=0.0)
+
+
+def _reliability_weights(df: pl.DataFrame) -> np.ndarray:
+    """Return 0-1 reliability weights based on games played share of a full season."""
+    games = _col(df, "qb_games_played")
+    if games is None:
+        return np.ones(df.height, dtype=np.float64)
+
+    full_season_games = float(np.max(games)) if len(games) > 0 else 0.0
+    if full_season_games <= 0.0:
+        return np.ones(df.height, dtype=np.float64)
+    return np.clip(games / full_season_games, 0.0, 1.0)
 
 
 def _safe_corr(x: np.ndarray, y: np.ndarray) -> float:
@@ -78,7 +101,8 @@ def _derive_qb_weights(
     min_correlation: float = _MIN_CORRELATION,
     stat_pool: list[tuple[str, bool]] | None = None,
 ) -> list[tuple[str, float, bool]]:
-    """Derive QB stat weights from correlations with team win percentage."""
+    """Return equal weights for the present QB stat-pool columns."""
+    del min_correlation
     selected_pool = stat_pool or (
         _QB_DIFF_STAT_POOL
         if any(_col(df, stat) is not None for stat, _ in _QB_DIFF_STAT_POOL)
@@ -87,35 +111,11 @@ def _derive_qb_weights(
     if stat_pool is not None and not any(_col(df, stat) is not None for stat, _ in selected_pool):
         selected_pool = _QB_STAT_POOL
 
-    win_pct = _col(df, "qb_win_pct")
-    if win_pct is None:
-        win_pct = _col(df, "win_pct")
-    if win_pct is None:
-        present = [(stat, higher) for stat, higher in selected_pool if _col(df, stat) is not None]
-        if not present:
-            return []
-        weight = 1.0 / len(present)
-        return [(stat, weight, higher) for stat, higher in present]
-
-    weighted: list[tuple[str, float, bool]] = []
-    for stat, higher_is_better in selected_pool:
-        values = _col(df, stat)
-        if values is None:
-            continue
-        oriented = values if higher_is_better else -values
-        corr = _safe_corr(oriented, win_pct)
-        if corr >= min_correlation:
-            weighted.append((stat, corr, higher_is_better))
-
-    if not weighted:
-        present = [(stat, higher) for stat, higher in selected_pool if _col(df, stat) is not None]
-        if not present:
-            return []
-        weight = 1.0 / len(present)
-        return [(stat, weight, higher) for stat, higher in present]
-
-    total = sum(weight for _, weight, _ in weighted)
-    return [(stat, weight / total, higher) for stat, weight, higher in weighted]
+    present = [(stat, higher) for stat, higher in selected_pool if _col(df, stat) is not None]
+    if not present:
+        return []
+    weight = 1.0 / len(present)
+    return [(stat, weight, higher) for stat, higher in present]
 
 
 def _build_qb_raw_composite(df: pl.DataFrame, weights: list[tuple[str, float, bool]]) -> np.ndarray:
@@ -196,30 +196,51 @@ def _build_qsos(df: pl.DataFrame) -> np.ndarray:
             sos_parts.append(_zscore(values.tolist()))
 
     for col_name in (
-        "qopp_qb_yards_per_attempt",
-        "qopp_qb_touchdown_rate",
+        "qopp_qb_epa_per_dropback",
+        "qopp_qb_any_a",
         "qopp_qb_passer_rating",
         "qopp_qb_completion_percentage_above_expectation",
+        "qopp_qb_td_int_margin_rate",
+        "qopp_qb_pass_yards_per_dropback",
     ):
         values = _col(df, col_name)
         if values is not None:
             sos_parts.append(-_zscore(values.tolist()))
 
-    qopp_interceptions = _col(df, "qopp_qb_interception_rate")
-    if qopp_interceptions is not None:
-        sos_parts.append(_zscore(qopp_interceptions.tolist()))
+    qopp_sack_rate = _col(df, "qopp_qb_sack_rate")
+    if qopp_sack_rate is not None:
+        sos_parts.append(_zscore(qopp_sack_rate.tolist()))
 
     return np.mean(np.column_stack(sos_parts), axis=1) if sos_parts else np.zeros(n_teams)
 
 
 def _build_outcome_signal(df: pl.DataFrame) -> tuple[np.ndarray, bool]:
     """Build the QB outcome signal used only by the final composite."""
-    outcome = _col(df, "qb_win_pct")
-    if outcome is None:
-        outcome = _col(df, "win_pct")
-    if outcome is None:
+    outcome_parts: list[np.ndarray] = []
+
+    primary_win_column = None
+    for column in ("qb_win_pct", "qb_wins"):
+        values = _col(df, column)
+        if values is not None:
+            primary_win_column = column
+            outcome_parts.append(_zscore(values.tolist()))
+            break
+
+    del primary_win_column
+
+    for column in (
+        "qb_fourth_quarter_comebacks",
+        "qb_game_winning_drives",
+    ):
+        values = _col(df, column)
+        if values is not None:
+            outcome_parts.append(_zscore(values.tolist()))
+
+    if not outcome_parts:
         return np.zeros(df.height, dtype=np.float64), False
-    return _zscore(outcome.tolist()), True
+
+    outcome = np.mean(np.column_stack(outcome_parts), axis=1)
+    return outcome, True
 
 
 def _filter_rating_pool(df: pl.DataFrame) -> pl.DataFrame:
@@ -235,38 +256,9 @@ def calibrate_qb_model(
     sos_weight_grid: list[float] | None = None,
     outcome_weight_grid: list[float] | None = None,
 ) -> tuple[float, float, float]:
-    """Calibrate QB model constants against historical quarterback outcomes."""
-    if historical_df.is_empty():
-        return _MIN_CORRELATION, _SOS_WEIGHT, _OUTCOME_WEIGHT
-
-    target = _col(historical_df, "qb_win_pct")
-    if target is None:
-        target = _col(historical_df, "win_pct")
-    if target is None:
-        return _MIN_CORRELATION, _SOS_WEIGHT, _OUTCOME_WEIGHT
-
-    corr_candidates = correlation_grid or [0.05, 0.1, 0.15, 0.2]
-    sos_candidates = sos_weight_grid or [2.0, 2.5, 3.0, 3.5, 4.0]
-    outcome_candidates = outcome_weight_grid or [0.0, 0.25, 0.5, 0.75]
-
-    best_score = float("-inf")
-    best_tuple = (_MIN_CORRELATION, _SOS_WEIGHT, _OUTCOME_WEIGHT)
-
-    for min_corr in corr_candidates:
-        adjusted_base = _build_qb_adjusted_composite(historical_df, min_correlation=min_corr)
-        qsos = _build_qsos(historical_df)
-        outcome, _ = _build_outcome_signal(historical_df)
-        for sos_weight in sos_candidates:
-            for outcome_weight in outcome_candidates:
-                qsacr = _zscore(
-                    (adjusted_base + sos_weight * qsos + outcome_weight * outcome).tolist()
-                )
-                score = _safe_corr(qsacr, target)
-                if score > best_score:
-                    best_score = score
-                    best_tuple = (min_corr, sos_weight, outcome_weight)
-
-    return best_tuple
+    """Return fixed QB model constants; historical win-based calibration is disabled."""
+    del historical_df, correlation_grid, sos_weight_grid, outcome_weight_grid
+    return _MIN_CORRELATION, _SOS_WEIGHT, _OUTCOME_WEIGHT
 
 
 def compute_qb_ratings(
@@ -291,8 +283,11 @@ def compute_qb_ratings(
 
     qsos = _build_qsos(df)
     qoutcome, has_outcome = _build_outcome_signal(df)
-    qsaor = _zscore((adjusted_base + sos_weight * qsos).tolist())
-    qsacr = _zscore((adjusted_base + sos_weight * qsos + outcome_weight * qoutcome).tolist())
+    reliability = _reliability_weights(df)
+    qsaor = _zscore((reliability * (adjusted_base + sos_weight * qsos)).tolist())
+    qsacr = _zscore(
+        (reliability * (adjusted_base + sos_weight * qsos + outcome_weight * qoutcome)).tolist()
+    )
 
     payload: dict[str, list[float] | list[str]] = {}
     for col in id_cols:

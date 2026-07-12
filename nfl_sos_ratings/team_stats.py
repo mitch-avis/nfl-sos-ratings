@@ -2,6 +2,16 @@
 
 import polars as pl
 
+_DEFENSE_ONLY_PLAYER_STATS = [
+    "def_tackles_for_loss",
+    "def_fumbles_forced",
+    "def_sacks",
+    "def_qb_hits",
+    "def_interceptions",
+    "def_pass_defended",
+    "def_safeties",
+]
+
 
 def _get_numeric_stat_cols(df: pl.DataFrame) -> list[str]:
     """Return numeric column names excluding identifiers."""
@@ -11,6 +21,483 @@ def _get_numeric_stat_cols(df: pl.DataFrame) -> list[str]:
         for col, dtype in zip(df.columns, df.dtypes, strict=True)
         if dtype.is_numeric() and col not in exclude
     ]
+
+
+def _pbp_scrimmage_snap_expr(columns: list[str]) -> pl.Expr:
+    """Return an expression that flags offensive scrimmage snaps in PBP data."""
+
+    def _flag(column: str) -> pl.Expr:
+        if column in columns:
+            return pl.col(column).fill_null(0).cast(pl.Int8)
+        return pl.lit(0)
+
+    return (_flag("qb_dropback") + _flag("rush") + _flag("qb_kneel") + _flag("qb_spike")) > 0
+
+
+def _pbp_value_expr(columns: list[str], column: str, default: int | float = 0) -> pl.Expr:
+    """Return a null-safe column expression or a literal default when absent."""
+    if column in columns:
+        return pl.col(column).fill_null(default)
+    return pl.lit(default)
+
+
+def _rate_expr(numerator: str, denominator: str, output: str) -> pl.Expr:
+    """Return a null-safe rate expression for a numerator and denominator pair."""
+    return (
+        pl.when(pl.col(denominator) > 0)
+        .then(pl.col(numerator) / pl.col(denominator))
+        .otherwise(None)
+        .alias(output)
+    )
+
+
+def _extract_points_per_team_game(schedule_df: pl.DataFrame) -> pl.DataFrame:
+    """Pivot schedule scores into one row per team-game with points for and allowed."""
+    select_keys = [key for key in ("game_id", "week") if key in schedule_df.columns]
+    home = schedule_df.select(
+        [
+            *select_keys,
+            pl.col("home_team").alias("team"),
+            pl.col("away_team").alias("opponent_team"),
+        ]
+        + [
+            pl.col("home_score").alias("points_for"),
+            pl.col("away_score").alias("points_allowed"),
+        ]
+    )
+    away = schedule_df.select(
+        [
+            *select_keys,
+            pl.col("away_team").alias("team"),
+            pl.col("home_team").alias("opponent_team"),
+        ]
+        + [
+            pl.col("away_score").alias("points_for"),
+            pl.col("home_score").alias("points_allowed"),
+        ]
+    )
+    return pl.concat([home, away])
+
+
+def _aggregate_defense_only_player_stats(player_stats_df: pl.DataFrame) -> pl.DataFrame:
+    """Aggregate defense-only player stats to one row per team-week-opponent."""
+    if player_stats_df.is_empty():
+        return pl.DataFrame(
+            schema={"team": pl.String, "opponent_team": pl.String, "week": pl.Int64}
+        )
+
+    defense_cols = [
+        column for column in _DEFENSE_ONLY_PLAYER_STATS if column in player_stats_df.columns
+    ]
+    if not defense_cols:
+        return pl.DataFrame(
+            schema={"team": pl.String, "opponent_team": pl.String, "week": pl.Int64}
+        )
+
+    group_keys = [
+        key
+        for key in ("season", "season_type", "week", "team", "opponent_team")
+        if key in player_stats_df.columns
+    ]
+    return player_stats_df.group_by(group_keys).agg(
+        [pl.col(column).fill_null(0).sum().alias(column) for column in defense_cols]
+    )
+
+
+def compute_team_game_stats_from_pbp(
+    pbp_df: pl.DataFrame,
+    player_stats_df: pl.DataFrame,
+    schedule_df: pl.DataFrame,
+) -> pl.DataFrame:
+    """Derive one row per team-game from PBP, plus defense-only player-stat add-ons.
+
+    Per-snap rate fields are computed as the relevant game total divided by
+    offensive or defensive snaps for that team-game.
+    """
+    if pbp_df.is_empty():
+        return pl.DataFrame(
+            schema={
+                "game_id": pl.String,
+                "season": pl.Int64,
+                "season_type": pl.String,
+                "week": pl.Int64,
+                "team": pl.String,
+                "opponent_team": pl.String,
+                "games": pl.Int64,
+            }
+        )
+
+    group_keys = [
+        key for key in ("game_id", "season", "season_type", "week") if key in pbp_df.columns
+    ]
+    offense_stats = (
+        pbp_df.filter(
+            pl.col("posteam").is_not_null()
+            & pl.col("defteam").is_not_null()
+            & _pbp_scrimmage_snap_expr(pbp_df.columns)
+        )
+        .group_by(group_keys + ["posteam", "defteam"])
+        .agg(
+            [
+                _pbp_value_expr(pbp_df.columns, "passing_yards", 0.0).sum().alias("passing_yards"),
+                _pbp_value_expr(pbp_df.columns, "rushing_yards", 0.0).sum().alias("rushing_yards"),
+                pl.when(_pbp_value_expr(pbp_df.columns, "qb_dropback") > 0)
+                .then(_pbp_value_expr(pbp_df.columns, "epa", 0.0))
+                .otherwise(0.0)
+                .sum()
+                .alias("passing_epa"),
+                pl.when(_pbp_value_expr(pbp_df.columns, "rush") > 0)
+                .then(_pbp_value_expr(pbp_df.columns, "epa", 0.0))
+                .otherwise(0.0)
+                .sum()
+                .alias("rushing_epa"),
+                _pbp_value_expr(pbp_df.columns, "pass_touchdown")
+                .sum()
+                .cast(pl.Int64)
+                .alias("passing_tds"),
+                _pbp_value_expr(pbp_df.columns, "rush_touchdown")
+                .sum()
+                .cast(pl.Int64)
+                .alias("rushing_tds"),
+                pl.when(_pbp_value_expr(pbp_df.columns, "pass") > 0)
+                .then(_pbp_value_expr(pbp_df.columns, "first_down"))
+                .otherwise(0)
+                .sum()
+                .cast(pl.Int64)
+                .alias("passing_first_downs"),
+                pl.when(_pbp_value_expr(pbp_df.columns, "rush") > 0)
+                .then(_pbp_value_expr(pbp_df.columns, "first_down"))
+                .otherwise(0)
+                .sum()
+                .cast(pl.Int64)
+                .alias("rushing_first_downs"),
+                pl.when(_pbp_value_expr(pbp_df.columns, "pass") > 0)
+                .then(
+                    pl.col("cpoe") if "cpoe" in pbp_df.columns else pl.lit(None, dtype=pl.Float64)
+                )
+                .otherwise(None)
+                .mean()
+                .alias("passing_cpoe"),
+                _pbp_value_expr(pbp_df.columns, "sack")
+                .sum()
+                .cast(pl.Int64)
+                .alias("sacks_suffered"),
+                _pbp_value_expr(pbp_df.columns, "interception")
+                .sum()
+                .cast(pl.Int64)
+                .alias("passing_interceptions"),
+                pl.when(_pbp_value_expr(pbp_df.columns, "sack") > 0)
+                .then(_pbp_value_expr(pbp_df.columns, "fumble_lost"))
+                .otherwise(0)
+                .sum()
+                .cast(pl.Int64)
+                .alias("sack_fumbles_lost"),
+                pl.when(_pbp_value_expr(pbp_df.columns, "rush") > 0)
+                .then(_pbp_value_expr(pbp_df.columns, "fumble_lost"))
+                .otherwise(0)
+                .sum()
+                .cast(pl.Int64)
+                .alias("rushing_fumbles_lost"),
+            ]
+        )
+        .rename({"posteam": "team", "defteam": "opponent_team"})
+        .with_columns((pl.col("passing_yards") + pl.col("rushing_yards")).alias("total_yards"))
+    )
+
+    allowed_stats = (
+        pbp_df.filter(
+            pl.col("posteam").is_not_null()
+            & pl.col("defteam").is_not_null()
+            & _pbp_scrimmage_snap_expr(pbp_df.columns)
+        )
+        .group_by(group_keys + ["defteam", "posteam"])
+        .agg(
+            [
+                _pbp_value_expr(pbp_df.columns, "passing_yards", 0.0)
+                .sum()
+                .alias("passing_yards_allowed"),
+                _pbp_value_expr(pbp_df.columns, "rushing_yards", 0.0)
+                .sum()
+                .alias("rushing_yards_allowed"),
+                pl.when(_pbp_value_expr(pbp_df.columns, "qb_dropback") > 0)
+                .then(_pbp_value_expr(pbp_df.columns, "epa", 0.0))
+                .otherwise(0.0)
+                .sum()
+                .alias("passing_epa_allowed"),
+                pl.when(_pbp_value_expr(pbp_df.columns, "rush") > 0)
+                .then(_pbp_value_expr(pbp_df.columns, "epa", 0.0))
+                .otherwise(0.0)
+                .sum()
+                .alias("rushing_epa_allowed"),
+                _pbp_value_expr(pbp_df.columns, "pass_touchdown")
+                .sum()
+                .cast(pl.Int64)
+                .alias("passing_tds_allowed"),
+                _pbp_value_expr(pbp_df.columns, "rush_touchdown")
+                .sum()
+                .cast(pl.Int64)
+                .alias("rushing_tds_allowed"),
+                pl.when(_pbp_value_expr(pbp_df.columns, "pass") > 0)
+                .then(_pbp_value_expr(pbp_df.columns, "first_down"))
+                .otherwise(0)
+                .sum()
+                .cast(pl.Int64)
+                .alias("passing_first_downs_allowed"),
+                pl.when(_pbp_value_expr(pbp_df.columns, "rush") > 0)
+                .then(_pbp_value_expr(pbp_df.columns, "first_down"))
+                .otherwise(0)
+                .sum()
+                .cast(pl.Int64)
+                .alias("rushing_first_downs_allowed"),
+                pl.when(_pbp_value_expr(pbp_df.columns, "pass") > 0)
+                .then(
+                    pl.col("cpoe") if "cpoe" in pbp_df.columns else pl.lit(None, dtype=pl.Float64)
+                )
+                .otherwise(None)
+                .mean()
+                .alias("passing_cpoe_allowed"),
+            ]
+        )
+        .rename({"defteam": "team", "posteam": "opponent_team"})
+        .with_columns(
+            (pl.col("passing_yards_allowed") + pl.col("rushing_yards_allowed")).alias(
+                "total_yards_allowed"
+            )
+        )
+    )
+
+    snap_counts = compute_team_snap_counts_from_pbp(pbp_df)
+    points = _extract_points_per_team_game(schedule_df)
+    defense_only = _aggregate_defense_only_player_stats(player_stats_df)
+
+    join_keys = [key for key in group_keys if key in points.columns]
+    join_keys.extend(["team", "opponent_team"])
+
+    result = (
+        offense_stats.join(allowed_stats, on=group_keys + ["team", "opponent_team"], how="left")
+        .join(
+            snap_counts,
+            on=[key for key in ("game_id", "week", "team") if key in offense_stats.columns],
+            how="left",
+        )
+        .join(points, on=join_keys, how="left")
+        .join(
+            defense_only,
+            on=[
+                key for key in group_keys + ["team", "opponent_team"] if key in defense_only.columns
+            ],
+            how="left",
+        )
+        .with_columns(pl.lit(1).cast(pl.Int64).alias("games"))
+    )
+
+    fill_zero_exprs = [
+        pl.col(column).fill_null(0)
+        for column in [
+            "offensive_snaps",
+            "defensive_snaps",
+            "passing_yards_allowed",
+            "rushing_yards_allowed",
+            "total_yards_allowed",
+            "passing_epa_allowed",
+            "rushing_epa_allowed",
+            "passing_tds_allowed",
+            "rushing_tds_allowed",
+            "passing_first_downs_allowed",
+            "rushing_first_downs_allowed",
+            *_DEFENSE_ONLY_PLAYER_STATS,
+        ]
+        if column in result.columns
+    ]
+    if fill_zero_exprs:
+        result = result.with_columns(fill_zero_exprs)
+
+    if {"points_for", "points_allowed"}.issubset(set(result.columns)):
+        result = result.with_columns(
+            (pl.col("points_for") - pl.col("points_allowed")).alias("point_margin"),
+            pl.when(pl.col("points_for") > pl.col("points_allowed"))
+            .then(1.0)
+            .when(pl.col("points_for") < pl.col("points_allowed"))
+            .then(0.0)
+            .otherwise(0.5)
+            .alias("win_value"),
+        )
+
+    turnover_margin_inputs = {
+        "def_interceptions": "def_interceptions",
+        "def_fumbles_forced": "def_fumbles_forced",
+        "passing_interceptions": "passing_interceptions",
+        "sack_fumbles_lost": "sack_fumbles_lost",
+        "rushing_fumbles_lost": "rushing_fumbles_lost",
+    }
+    if turnover_margin_inputs.keys() <= set(result.columns):
+        result = result.with_columns(
+            (
+                pl.col("def_interceptions")
+                + pl.col("def_fumbles_forced")
+                - pl.col("passing_interceptions")
+                - pl.col("sack_fumbles_lost")
+                - pl.col("rushing_fumbles_lost")
+            ).alias("turnover_margin")
+        )
+
+    rate_specs = [
+        ("points_for", "offensive_snaps", "points_per_offensive_snap"),
+        ("total_yards", "offensive_snaps", "total_yards_per_offensive_snap"),
+        ("passing_yards", "offensive_snaps", "passing_yards_per_offensive_snap"),
+        ("rushing_yards", "offensive_snaps", "rushing_yards_per_offensive_snap"),
+        ("passing_epa", "offensive_snaps", "passing_epa_per_offensive_snap"),
+        ("rushing_epa", "offensive_snaps", "rushing_epa_per_offensive_snap"),
+        ("passing_tds", "offensive_snaps", "passing_tds_per_offensive_snap"),
+        ("rushing_tds", "offensive_snaps", "rushing_tds_per_offensive_snap"),
+        ("sacks_suffered", "offensive_snaps", "sacks_suffered_per_offensive_snap"),
+        (
+            "passing_interceptions",
+            "offensive_snaps",
+            "passing_interceptions_per_offensive_snap",
+        ),
+        ("sack_fumbles_lost", "offensive_snaps", "sack_fumbles_lost_per_offensive_snap"),
+        (
+            "rushing_fumbles_lost",
+            "offensive_snaps",
+            "rushing_fumbles_lost_per_offensive_snap",
+        ),
+        (
+            "passing_first_downs",
+            "offensive_snaps",
+            "passing_first_downs_per_offensive_snap",
+        ),
+        (
+            "rushing_first_downs",
+            "offensive_snaps",
+            "rushing_first_downs_per_offensive_snap",
+        ),
+        ("points_allowed", "defensive_snaps", "points_allowed_per_defensive_snap"),
+        (
+            "total_yards_allowed",
+            "defensive_snaps",
+            "total_yards_allowed_per_defensive_snap",
+        ),
+        (
+            "passing_yards_allowed",
+            "defensive_snaps",
+            "passing_yards_allowed_per_defensive_snap",
+        ),
+        (
+            "rushing_yards_allowed",
+            "defensive_snaps",
+            "rushing_yards_allowed_per_defensive_snap",
+        ),
+        (
+            "passing_epa_allowed",
+            "defensive_snaps",
+            "passing_epa_allowed_per_defensive_snap",
+        ),
+        (
+            "rushing_epa_allowed",
+            "defensive_snaps",
+            "rushing_epa_allowed_per_defensive_snap",
+        ),
+        (
+            "passing_tds_allowed",
+            "defensive_snaps",
+            "passing_tds_allowed_per_defensive_snap",
+        ),
+        (
+            "rushing_tds_allowed",
+            "defensive_snaps",
+            "rushing_tds_allowed_per_defensive_snap",
+        ),
+        (
+            "passing_first_downs_allowed",
+            "defensive_snaps",
+            "passing_first_downs_allowed_per_defensive_snap",
+        ),
+        (
+            "rushing_first_downs_allowed",
+            "defensive_snaps",
+            "rushing_first_downs_allowed_per_defensive_snap",
+        ),
+        ("def_sacks", "defensive_snaps", "def_sacks_per_defensive_snap"),
+        (
+            "def_interceptions",
+            "defensive_snaps",
+            "def_interceptions_per_defensive_snap",
+        ),
+        (
+            "def_pass_defended",
+            "defensive_snaps",
+            "def_pass_defended_per_defensive_snap",
+        ),
+        (
+            "def_tackles_for_loss",
+            "defensive_snaps",
+            "def_tackles_for_loss_per_defensive_snap",
+        ),
+        ("def_qb_hits", "defensive_snaps", "def_qb_hits_per_defensive_snap"),
+        (
+            "def_fumbles_forced",
+            "defensive_snaps",
+            "def_fumbles_forced_per_defensive_snap",
+        ),
+        ("def_safeties", "defensive_snaps", "def_safeties_per_defensive_snap"),
+    ]
+    result = result.with_columns(
+        [
+            _rate_expr(numerator, denominator, output)
+            for numerator, denominator, output in rate_specs
+            if {numerator, denominator}.issubset(set(result.columns))
+        ]
+    )
+
+    return result.sort([key for key in ("team", "week", "game_id") if key in result.columns])
+
+
+def compute_team_snap_counts_from_pbp(pbp_df: pl.DataFrame) -> pl.DataFrame:
+    """Compute team offensive and defensive snap counts from play-by-play data."""
+    if pbp_df.is_empty():
+        return pl.DataFrame(
+            schema={
+                "game_id": pl.String,
+                "week": pl.Int64,
+                "team": pl.String,
+                "offensive_snaps": pl.Int64,
+                "defensive_snaps": pl.Int64,
+            }
+        )
+
+    scrimmage_plays = pbp_df.filter(
+        pl.col("posteam").is_not_null()
+        & pl.col("defteam").is_not_null()
+        & _pbp_scrimmage_snap_expr(pbp_df.columns)
+    )
+
+    offense = scrimmage_plays.select(
+        "game_id",
+        "week",
+        pl.col("posteam").alias("team"),
+        pl.lit(1).alias("offensive_snaps"),
+        pl.lit(0).alias("defensive_snaps"),
+    )
+    defense = scrimmage_plays.select(
+        "game_id",
+        "week",
+        pl.col("defteam").alias("team"),
+        pl.lit(0).alias("offensive_snaps"),
+        pl.lit(1).alias("defensive_snaps"),
+    )
+
+    return (
+        pl.concat([offense, defense])
+        .group_by(["game_id", "week", "team"])
+        .agg(
+            [
+                pl.col("offensive_snaps").sum().cast(pl.Int64).alias("offensive_snaps"),
+                pl.col("defensive_snaps").sum().cast(pl.Int64).alias("defensive_snaps"),
+            ]
+        )
+        .sort(["team", "week", "game_id"])
+    )
 
 
 def compute_all_teams_per_game(weekly_df: pl.DataFrame) -> pl.DataFrame:
@@ -33,15 +520,24 @@ def compute_all_teams_per_game(weekly_df: pl.DataFrame) -> pl.DataFrame:
 
 
 def compute_all_teams_qb_per_game(qb_df: pl.DataFrame) -> pl.DataFrame:
-    """Compute per-game QB averages for all teams from NGS passing data.
+    """Compute per-game QB averages for all teams from game-level QB data.
 
     Returns a DataFrame with one row per team and per-game averages for every
     QB stat column.
     """
     source = qb_df
-    if "qb_attempts" in qb_df.columns:
-        # For team summaries, use primary QB per team-week by most attempts.
-        source = qb_df.sort("qb_attempts", descending=True).group_by(["team_abbr", "week"]).first()
+    if {"team_abbr", "week"}.issubset(set(qb_df.columns)):
+        sort_keys = [
+            column
+            for column in ("qb_offense_snaps", "qb_dropbacks", "qb_attempts")
+            if column in qb_df.columns
+        ]
+        if sort_keys:
+            source = (
+                qb_df.sort(sort_keys, descending=[True] * len(sort_keys))
+                .group_by(["team_abbr", "week"])
+                .first()
+            )
 
     qb_stat_cols = [
         col

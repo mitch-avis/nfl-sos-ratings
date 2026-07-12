@@ -18,6 +18,7 @@ def _weekly_df() -> pl.DataFrame:
             "week": [1, 1],
             "points_for": [24, 17],
             "points_allowed": [17, 24],
+            "point_margin": [7, -7],
         }
     )
 
@@ -56,7 +57,30 @@ def _win_totals() -> pl.DataFrame:
 
 
 def _ratings_df() -> pl.DataFrame:
-    return pl.DataFrame({"team": ["DEN"], "SaCR": [1.0], "SaOR": [0.8], "SaDR": [0.6]})
+    return pl.DataFrame(
+        {"team": ["DEN"], "SaCR": [1.0], "SaOR": [0.8], "SaDR": [0.6], "SaOvR": [0.7]}
+    )
+
+
+def _srs_df() -> pl.DataFrame:
+    return pl.DataFrame({"team": ["DEN"], "srs_rating": [1.2]})
+
+
+def _team_adjustments_df() -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "team": ["DEN"],
+            "adj_off_points_per_offensive_snap": [0.15],
+            "adj_def_points_allowed_per_defensive_snap": [0.20],
+        }
+    )
+
+
+def _qb_adjustments_df() -> tuple[pl.DataFrame, pl.DataFrame]:
+    return (
+        pl.DataFrame({"team": ["DEN"], "qb_id": ["DEN"], "adj_qb_epa_per_dropback": [0.12]}),
+        pl.DataFrame({"team": ["KC"], "adj_def_qb_epa_per_dropback": [-0.05]}),
+    )
 
 
 def _qb_opp_profiles() -> pl.DataFrame:
@@ -97,6 +121,17 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(main, "compute_all_teams_per_game", lambda weekly_df: _team_per_game())
     monkeypatch.setattr(main, "compute_win_totals", lambda weekly_df: _win_totals())
     monkeypatch.setattr(main, "compute_ratings", lambda combined: _ratings_df())
+    monkeypatch.setattr(main, "solve_srs", lambda weekly_df, response_col: _srs_df())
+    monkeypatch.setattr(
+        main,
+        "compute_team_adjusted_stats",
+        lambda weekly_df, response_cols, ridge_lambda=1.0: _team_adjustments_df(),
+    )
+    monkeypatch.setattr(
+        main,
+        "compute_qb_adjusted_stats",
+        lambda qb_games, response_cols, ridge_lambda=1.0: _qb_adjustments_df(),
+    )
     monkeypatch.setattr(
         main,
         "compute_qb_opponent_profiles",
@@ -121,6 +156,8 @@ def test_main_returns_when_no_opponent_profiles(
 
     assert (tmp_path / f"{main.SEASON}_team_per_game_stats.csv").exists()
     assert (tmp_path / f"{main.SEASON}_qb_per_game_stats.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_team_game_logs.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_game_logs.csv").exists()
     assert (tmp_path / f"{main.SEASON}_qb_opponent_profiles.csv").exists()
     assert (tmp_path / f"{main.SEASON}_qb_combined.csv").exists()
     assert (tmp_path / f"{main.SEASON}_qb_ratings.csv").exists()
@@ -150,27 +187,36 @@ def test_main_handles_both_team_and_qb_profiles(
     qb_combined = pl.read_csv(tmp_path / f"{main.SEASON}_qb_combined.csv")
     assert combined.select("diff_points_for").item() == 4.0
     assert combined.select("diff_qb_passer_rating").item() == 10.0
+    assert combined.select("SaOvR").item() == 0.7
+    assert combined.select("SRS").item() == 1.2
+    assert combined.select("adj_off_points_per_offensive_snap").item() == 0.15
+    assert combined.select("adj_def_points_allowed_per_defensive_snap").item() == 0.2
     assert qb_combined.select("qopp_points_allowed").item() == 19.0
     assert qb_combined.select("diff_qb_passer_rating").item() == 9.0
     assert qb_combined.select("QSaCR_pct").item() == 75.0
+    assert qb_combined.select("adj_qb_epa_per_dropback").item() == 0.12
+    team_game_logs = pl.read_csv(tmp_path / f"{main.SEASON}_team_game_logs.csv")
+    qb_game_logs = pl.read_csv(tmp_path / f"{main.SEASON}_qb_game_logs.csv")
+    assert team_game_logs.filter(pl.col("team") == "DEN").select("opponent_team").item() == "KC"
+    assert qb_game_logs.filter(pl.col("team") == "DEN").select("opponent_team").item() == "KC"
     assert (tmp_path / f"{main.SEASON}_ratings.csv").exists()
     assert (tmp_path / f"{main.SEASON}_qb_ratings.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_simultaneous_team_adjustments.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_simultaneous_qb_adjustments.csv").exists()
+
+    ratings_summary = pl.read_csv(tmp_path / f"{main.SEASON}_ratings.csv")
+    assert ratings_summary.select("SRS").item() == 1.2
     assert "KC (DIV): 1 games" in capsys.readouterr().out
 
 
-def test_main_calibrates_qb_model_with_opponent_context(
+def test_main_skips_historical_qb_calibration(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Verify QB calibration receives opponent context and differential columns."""
+    """Verify main no longer runs historical QB calibration."""
     _patch_common(monkeypatch, tmp_path)
-    captured: dict[str, list[str]] = {}
-
-    def capture_calibration(historical_df: pl.DataFrame) -> tuple[float, float, float]:
-        captured["columns"] = historical_df.columns
-        return 0.1, 0.25, 0.5
 
     monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
-    monkeypatch.setattr(main, "calibrate_qb_model", capture_calibration)
+    assert not hasattr(main, "calibrate_qb_model")
     monkeypatch.setattr(
         main,
         "compute_all_opponent_profiles",
@@ -182,9 +228,7 @@ def test_main_calibrates_qb_model_with_opponent_context(
     )
 
     main.main()
-
-    assert "qopp_qb_passer_rating" in captured["columns"]
-    assert "diff_qb_passer_rating" in captured["columns"]
+    assert (tmp_path / f"{main.SEASON}_qb_ratings.csv").exists()
 
 
 def test_main_handles_team_only_profiles(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

@@ -78,6 +78,329 @@ def test_team_stats_aggregations_and_win_totals() -> None:
     assert win_totals.filter(pl.col("team") == "DEN").select("wins").item() == 2
 
 
+def test_compute_all_teams_qb_per_game_prefers_majority_snaps_then_dropbacks() -> None:
+    """Verify primary team QB selection uses snaps and dropbacks before attempts."""
+    qb = pl.DataFrame(
+        {
+            "team_abbr": ["DEN", "DEN", "DEN"],
+            "week": [1, 1, 1],
+            "qb_name": ["Snap Leader", "Attempt Leader", "Dropback Leader"],
+            "qb_attempts": [20, 30, 18],
+            "qb_dropbacks": [22, 21, 24],
+            "qb_offense_snaps": [45, 40, 40],
+            "qb_passer_rating": [101.0, 95.0, 98.0],
+        }
+    )
+
+    result = team_stats.compute_all_teams_qb_per_game(qb)
+
+    assert result.select("team").item() == "DEN"
+    assert result.select("qb_offense_snaps").item() == 45.0
+    assert result.select("qb_dropbacks").item() == 22.0
+    assert result.select("qb_passer_rating").item() == 101.0
+
+
+def test_compute_team_snap_counts_from_pbp_counts_scrimmage_snaps() -> None:
+    """Verify PBP-derived team snap counts include scrimmage snaps and exclude noise rows."""
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"] * 6,
+            "week": [1] * 6,
+            "posteam": ["DEN", "DEN", "KC", "KC", "DEN", "DEN"],
+            "defteam": ["KC", "KC", "DEN", "DEN", "KC", "KC"],
+            "qb_dropback": [1, 0, 1, 1, 0, 0],
+            "rush": [0, 1, 0, 0, 0, 0],
+            "qb_kneel": [0, 0, 0, 0, 1, 0],
+            "qb_spike": [0, 0, 0, 0, 0, 0],
+            "play_type": ["pass", "run", "pass", "pass", "qb_kneel", "no_play"],
+        }
+    )
+
+    result = team_stats.compute_team_snap_counts_from_pbp(pbp).sort("team")
+
+    assert result.to_dicts() == [
+        {
+            "game_id": "2025_01_DEN_KC",
+            "week": 1,
+            "team": "DEN",
+            "offensive_snaps": 3,
+            "defensive_snaps": 2,
+        },
+        {
+            "game_id": "2025_01_DEN_KC",
+            "week": 1,
+            "team": "KC",
+            "offensive_snaps": 2,
+            "defensive_snaps": 3,
+        },
+    ]
+
+
+def test_compute_team_game_stats_from_pbp_aggregates_core_team_metrics() -> None:
+    """Verify team game stats combine PBP offense with player-stats defense add-ons."""
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"] * 5,
+            "season": [2025] * 5,
+            "season_type": ["REG"] * 5,
+            "week": [1] * 5,
+            "posteam": ["DEN", "DEN", "DEN", "KC", "KC"],
+            "defteam": ["KC", "KC", "KC", "DEN", "DEN"],
+            "pass": [1, 0, 0, 1, 0],
+            "rush": [0, 1, 0, 0, 1],
+            "qb_dropback": [1, 0, 1, 1, 0],
+            "qb_kneel": [0, 0, 0, 0, 0],
+            "qb_spike": [0, 0, 0, 0, 0],
+            "passing_yards": [20.0, 0.0, 0.0, 15.0, 0.0],
+            "rushing_yards": [0.0, 10.0, 0.0, 0.0, 5.0],
+            "epa": [3.0, 0.5, -1.0, -0.5, 0.2],
+            "pass_touchdown": [1, 0, 0, 0, 0],
+            "rush_touchdown": [0, 0, 0, 0, 0],
+            "first_down": [1, 1, 0, 1, 0],
+            "cpoe": [5.0, None, None, -4.0, None],
+            "sack": [0, 0, 1, 0, 0],
+            "interception": [0, 0, 0, 1, 0],
+            "fumble_lost": [0, 0, 1, 0, 0],
+        }
+    )
+    player_stats = pl.DataFrame(
+        {
+            "season": [2025, 2025],
+            "season_type": ["REG", "REG"],
+            "week": [1, 1],
+            "team": ["DEN", "KC"],
+            "opponent_team": ["KC", "DEN"],
+            "def_tackles_for_loss": [6, 3],
+            "def_fumbles_forced": [1, 0],
+            "def_sacks": [1, 1],
+            "def_qb_hits": [4, 2],
+            "def_interceptions": [1, 0],
+            "def_pass_defended": [5, 2],
+            "def_safeties": [0, 0],
+        }
+    )
+    schedule = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"],
+            "week": [1],
+            "home_team": ["DEN"],
+            "away_team": ["KC"],
+            "home_score": [24],
+            "away_score": [17],
+        }
+    )
+
+    result = team_stats.compute_team_game_stats_from_pbp(pbp, player_stats, schedule).sort("team")
+
+    expected_columns = [
+        "game_id",
+        "season",
+        "season_type",
+        "week",
+        "team",
+        "opponent_team",
+        "games",
+        "offensive_snaps",
+        "defensive_snaps",
+        "passing_yards",
+        "rushing_yards",
+        "total_yards",
+        "passing_epa",
+        "rushing_epa",
+        "passing_tds",
+        "rushing_tds",
+        "passing_first_downs",
+        "rushing_first_downs",
+        "passing_cpoe",
+        "sacks_suffered",
+        "passing_interceptions",
+        "sack_fumbles_lost",
+        "rushing_fumbles_lost",
+        "points_for",
+        "points_allowed",
+        "point_margin",
+        "win_value",
+        "turnover_margin",
+        "passing_yards_allowed",
+        "rushing_yards_allowed",
+        "total_yards_allowed",
+        "passing_epa_allowed",
+        "rushing_epa_allowed",
+        "passing_tds_allowed",
+        "rushing_tds_allowed",
+        "passing_first_downs_allowed",
+        "rushing_first_downs_allowed",
+        "passing_cpoe_allowed",
+        "def_tackles_for_loss",
+        "def_fumbles_forced",
+        "def_sacks",
+        "def_qb_hits",
+        "def_interceptions",
+        "def_pass_defended",
+        "def_safeties",
+    ]
+
+    assert result.select(expected_columns).to_dicts() == [
+        {
+            "game_id": "2025_01_DEN_KC",
+            "season": 2025,
+            "season_type": "REG",
+            "week": 1,
+            "team": "DEN",
+            "opponent_team": "KC",
+            "games": 1,
+            "offensive_snaps": 3,
+            "defensive_snaps": 2,
+            "passing_yards": 20.0,
+            "rushing_yards": 10.0,
+            "total_yards": 30.0,
+            "passing_epa": 2.0,
+            "rushing_epa": 0.5,
+            "passing_tds": 1,
+            "rushing_tds": 0,
+            "passing_first_downs": 1,
+            "rushing_first_downs": 1,
+            "passing_cpoe": 5.0,
+            "sacks_suffered": 1,
+            "passing_interceptions": 0,
+            "sack_fumbles_lost": 1,
+            "rushing_fumbles_lost": 0,
+            "points_for": 24,
+            "points_allowed": 17,
+            "point_margin": 7,
+            "win_value": 1.0,
+            "turnover_margin": 1,
+            "passing_yards_allowed": 15.0,
+            "rushing_yards_allowed": 5.0,
+            "total_yards_allowed": 20.0,
+            "passing_epa_allowed": -0.5,
+            "rushing_epa_allowed": 0.2,
+            "passing_tds_allowed": 0,
+            "rushing_tds_allowed": 0,
+            "passing_first_downs_allowed": 1,
+            "rushing_first_downs_allowed": 0,
+            "passing_cpoe_allowed": -4.0,
+            "def_tackles_for_loss": 6,
+            "def_fumbles_forced": 1,
+            "def_sacks": 1,
+            "def_qb_hits": 4,
+            "def_interceptions": 1,
+            "def_pass_defended": 5,
+            "def_safeties": 0,
+        },
+        {
+            "game_id": "2025_01_DEN_KC",
+            "season": 2025,
+            "season_type": "REG",
+            "week": 1,
+            "team": "KC",
+            "opponent_team": "DEN",
+            "games": 1,
+            "offensive_snaps": 2,
+            "defensive_snaps": 3,
+            "passing_yards": 15.0,
+            "rushing_yards": 5.0,
+            "total_yards": 20.0,
+            "passing_epa": -0.5,
+            "rushing_epa": 0.2,
+            "passing_tds": 0,
+            "rushing_tds": 0,
+            "passing_first_downs": 1,
+            "rushing_first_downs": 0,
+            "passing_cpoe": -4.0,
+            "sacks_suffered": 0,
+            "passing_interceptions": 1,
+            "sack_fumbles_lost": 0,
+            "rushing_fumbles_lost": 0,
+            "points_for": 17,
+            "points_allowed": 24,
+            "point_margin": -7,
+            "win_value": 0.0,
+            "turnover_margin": -1,
+            "passing_yards_allowed": 20.0,
+            "rushing_yards_allowed": 10.0,
+            "total_yards_allowed": 30.0,
+            "passing_epa_allowed": 2.0,
+            "rushing_epa_allowed": 0.5,
+            "passing_tds_allowed": 1,
+            "rushing_tds_allowed": 0,
+            "passing_first_downs_allowed": 1,
+            "rushing_first_downs_allowed": 1,
+            "passing_cpoe_allowed": 5.0,
+            "def_tackles_for_loss": 3,
+            "def_fumbles_forced": 0,
+            "def_sacks": 1,
+            "def_qb_hits": 2,
+            "def_interceptions": 0,
+            "def_pass_defended": 2,
+            "def_safeties": 0,
+        },
+    ]
+
+
+def test_compute_team_game_stats_from_pbp_derives_per_snap_rates() -> None:
+    """Verify team game rows expose offensive and defensive per-snap rate fields."""
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"] * 5,
+            "season": [2025] * 5,
+            "season_type": ["REG"] * 5,
+            "week": [1] * 5,
+            "posteam": ["DEN", "DEN", "DEN", "KC", "KC"],
+            "defteam": ["KC", "KC", "KC", "DEN", "DEN"],
+            "pass": [1, 0, 0, 1, 0],
+            "rush": [0, 1, 0, 0, 1],
+            "qb_dropback": [1, 0, 1, 1, 0],
+            "qb_kneel": [0, 0, 0, 0, 0],
+            "qb_spike": [0, 0, 0, 0, 0],
+            "passing_yards": [20.0, 0.0, 0.0, 15.0, 0.0],
+            "rushing_yards": [0.0, 10.0, 0.0, 0.0, 5.0],
+            "epa": [3.0, 0.5, -1.0, -0.5, 0.2],
+            "pass_touchdown": [1, 0, 0, 0, 0],
+            "rush_touchdown": [0, 0, 0, 0, 0],
+            "first_down": [1, 1, 0, 1, 0],
+            "cpoe": [5.0, None, None, -4.0, None],
+            "sack": [0, 0, 1, 0, 0],
+            "interception": [0, 0, 0, 1, 0],
+            "fumble_lost": [0, 0, 1, 0, 0],
+        }
+    )
+    player_stats = pl.DataFrame(
+        {
+            "season": [2025, 2025],
+            "season_type": ["REG", "REG"],
+            "week": [1, 1],
+            "team": ["DEN", "KC"],
+            "opponent_team": ["KC", "DEN"],
+            "def_sacks": [1, 1],
+            "def_fumbles_forced": [1, 0],
+        }
+    )
+    schedule = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"],
+            "week": [1],
+            "home_team": ["DEN"],
+            "away_team": ["KC"],
+            "home_score": [24],
+            "away_score": [17],
+        }
+    )
+
+    result = team_stats.compute_team_game_stats_from_pbp(pbp, player_stats, schedule).sort("team")
+
+    den = result.filter(pl.col("team") == "DEN")
+    assert den.select("points_per_offensive_snap").item() == 8.0
+    assert den.select("total_yards_per_offensive_snap").item() == 10.0
+    assert den.select("passing_epa_per_offensive_snap").item() == pytest.approx(2.0 / 3.0)
+    assert den.select("sacks_suffered_per_offensive_snap").item() == pytest.approx(1.0 / 3.0)
+    assert den.select("points_allowed_per_defensive_snap").item() == 8.5
+    assert den.select("total_yards_allowed_per_defensive_snap").item() == 10.0
+    assert den.select("passing_epa_allowed_per_defensive_snap").item() == -0.25
+    assert den.select("def_sacks_per_defensive_snap").item() == 0.5
+    assert den.select("def_fumbles_forced_per_defensive_snap").item() == 0.5
+
+
 def test_compute_stats_excluding_opponent() -> None:
     """Verify exclusion helpers remove targeted opponent games for team and QB stats."""
     weekly = _weekly_df()
