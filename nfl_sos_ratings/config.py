@@ -34,7 +34,13 @@ ALL_TEAMS = sorted(TEAM_TO_DIVISION.keys())
 
 # Canonicalize nflverse source differences. Schedules/team stats use LA for the Rams in some
 # datasets, while Next Gen Stats and this project use LAR.
-TEAM_ABBR_ALIASES = {"LA": "LAR"}
+TEAM_ABBR_ALIASES = {
+    "JAC": "JAX",
+    "LA": "LAR",
+    "OAK": "LV",
+    "SD": "LAC",
+    "STL": "LAR",
+}
 
 # QB Next Gen Stats columns to extract (from load_nextgen_stats passing data)
 QB_NGS_COLS = [
