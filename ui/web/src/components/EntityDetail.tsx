@@ -1,10 +1,23 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 
+import {
+  buildGameLogGroups,
+  buildOpponentBreakdown,
+  buildWeeklyHighlights,
+  enrichGameLogsWithOpponentRatings,
+  orderedExisting,
+} from '../detailAnalytics';
+import {
+  buildGameOverviewUrl,
+  compareDetailCellValues,
+  formatDetailCellValue,
+} from '../detailUi';
 import { formatValue, humanizeGroup } from '../format';
 import { getGroupDescription, getMetricMetadata, getMetricTooltip } from '../metricMetadata';
+import { buildColumnStats, getHeatCellStyle } from '../tableState';
 import { TooltipLabel } from './TooltipLabel';
-import type { EntityConfig, RowValue, TablePayload } from '../types';
+import type { EntityConfig, PaletteMode, RowValue, TablePayload, ThemeMode } from '../types';
 
 interface EntityDetailProps {
   activeGroup?: string;
@@ -15,97 +28,21 @@ interface EntityDetailProps {
   gameLogsLoading?: boolean;
   onActiveGroupChange?: (group: string) => void;
   opponentRatingsTable: TablePayload;
+  palette: PaletteMode;
   row: Record<string, RowValue>;
   season: number;
   table: TablePayload;
-}
-
-interface GameLogGroup {
-  id: string;
-  label: string;
-  description: string;
-  columns: string[];
+  theme: ThemeMode;
 }
 
 const TEAM_RATING_ORDER = ['SaCR', 'SRS', 'SaOvR', 'SaOR', 'SaDR'];
 const QB_RATING_ORDER = ['QSaCR', 'QSaOR', 'QOutcome', 'QRaw', 'QSoS'];
-const OPPONENT_RATING_COLUMNS = ['opp_SaCR', 'opp_SRS', 'opp_SaOvR', 'opp_SaOR', 'opp_SaDR'];
-const TEAM_RESULT_COLUMNS = ['points_for', 'points_allowed', 'point_margin', 'win_value', 'turnover_margin'];
-const QB_RESULT_COLUMNS = [
-  'points_for',
-  'points_allowed',
-  'point_margin',
-  'win_value',
-  'turnover_margin',
-  'qb_fourth_quarter_comeback',
-  'qb_game_winning_drive',
-];
-const QB_EFFICIENCY_COLUMNS = [
-  'qb_completion_percentage_above_expectation',
-  'qb_passer_rating',
-  'qb_any_a',
-];
-
-function orderedExisting(columns: string[], preferredColumns: string[]): string[] {
-  const available = new Set(columns);
-  return preferredColumns.filter((column) => available.has(column));
-}
-
-function compareValues(left: RowValue, right: RowValue): number {
-  if (left === right) {
-    return 0;
-  }
-  if (left === null) {
-    return 1;
-  }
-  if (right === null) {
-    return -1;
-  }
-  if (typeof left === 'number' && typeof right === 'number') {
-    return left - right;
-  }
-  if (typeof left === 'boolean' && typeof right === 'boolean') {
-    return Number(left) - Number(right);
-  }
-  return String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: 'base' });
-}
 
 function buildRatingsColumns(kind: EntityConfig['kind'], columns: string[]): string[] {
   const preferredOrder = kind === 'teams' ? TEAM_RATING_ORDER : QB_RATING_ORDER;
   const orderedColumns = orderedExisting(columns, preferredOrder);
   const remainingColumns = columns.filter((column) => !orderedColumns.includes(column));
   return [...orderedColumns, ...remainingColumns];
-}
-
-function enrichGameLogsWithOpponentRatings(
-  gameLogs: TablePayload,
-  opponentRatingsTable: TablePayload,
-): TablePayload {
-  const ratingColumns = OPPONENT_RATING_COLUMNS.map((column) => column.replace(/^opp_/, '')).filter(
-    (column) => opponentRatingsTable.visible_columns.includes(column),
-  );
-  if (ratingColumns.length === 0) {
-    return gameLogs;
-  }
-
-  const ratingsByTeam = new Map(
-    opponentRatingsTable.rows.map((ratingRow) => [String(ratingRow.team ?? ''), ratingRow]),
-  );
-  const rows = gameLogs.rows.map((gameRow) => {
-    const opponentTeam = String(gameRow.opponent_team ?? '');
-    const ratingRow = ratingsByTeam.get(opponentTeam);
-    if (!ratingRow) {
-      return gameRow;
-    }
-    return {
-      ...gameRow,
-      ...Object.fromEntries(
-        ratingColumns.map((column) => [`opp_${column}`, ratingRow[column] ?? null]),
-      ),
-    };
-  });
-  const visibleColumns = [...new Set([...gameLogs.visible_columns, ...ratingColumns.map((column) => `opp_${column}`)])];
-  return { ...gameLogs, rows, visible_columns: visibleColumns };
 }
 
 function isTeamDefenseMetric(column: string): boolean {
@@ -119,180 +56,6 @@ function isTeamDefenseMetric(column: string): boolean {
 
 function isTeamOutcomeMetric(column: string): boolean {
   return ['games_played', 'games', 'point_margin', 'win_value', 'turnover_margin'].includes(column);
-}
-
-function buildGameLogGroups(kind: EntityConfig['kind'], gameLogs: TablePayload): GameLogGroup[] {
-  const identityColumns = orderedExisting(gameLogs.visible_columns, ['week', 'opponent_team', 'game_id']);
-  const nonIdentityColumns = gameLogs.visible_columns.filter(
-    (column) => !identityColumns.includes(column) && column !== 'qb_id' && column !== 'team' && column !== 'qb_name',
-  );
-  const opponentRatings = orderedExisting(nonIdentityColumns, OPPONENT_RATING_COLUMNS);
-
-  if (kind === 'teams') {
-    const resultColumns = orderedExisting(nonIdentityColumns, TEAM_RESULT_COLUMNS);
-    const perSnapRates = nonIdentityColumns.filter(
-      (column) => column.endsWith('_per_offensive_snap') || column.endsWith('_per_defensive_snap'),
-    );
-    const defenseColumns = nonIdentityColumns.filter(
-      (column) =>
-        !resultColumns.includes(column)
-        && !perSnapRates.includes(column)
-        && !opponentRatings.includes(column)
-        && isTeamDefenseMetric(column),
-    );
-    const offenseColumns = nonIdentityColumns.filter(
-      (column) =>
-        !resultColumns.includes(column)
-        && !perSnapRates.includes(column)
-        && !opponentRatings.includes(column)
-        && !defenseColumns.includes(column)
-        && !isTeamOutcomeMetric(column),
-    );
-
-    return [
-      {
-        id: 'results',
-        label: 'Results',
-        description: 'Single-game outcomes and scoreboard context for each opponent.',
-        columns: resultColumns,
-      },
-      {
-        id: 'offense',
-        label: 'Offense',
-        description: 'Single-game team offensive production and efficiency stats.',
-        columns: offenseColumns,
-      },
-      {
-        id: 'defense',
-        label: 'Defense',
-        description: 'Single-game team defensive production and allowed-stat surface.',
-        columns: defenseColumns,
-      },
-      {
-        id: 'per_snap_rates',
-        label: 'Per-Snap Rates',
-        description: 'Single-game snap-normalized rates for faster cross-game comparisons.',
-        columns: perSnapRates,
-      },
-      {
-        id: 'opponent_ratings',
-        label: 'Opponent Ratings',
-        description: 'Season-long opponent rating context joined onto each weekly row.',
-        columns: opponentRatings,
-      },
-      {
-        id: 'all',
-        label: 'All Stats',
-        description: 'Full game-log row with every available single-game stat and rating context column.',
-        columns: nonIdentityColumns,
-      },
-    ].filter((group) => group.columns.length > 0);
-  }
-
-  const resultColumns = orderedExisting(nonIdentityColumns, QB_RESULT_COLUMNS);
-  const perDropbackRates = nonIdentityColumns.filter(
-    (column) => column.endsWith('_per_dropback') || column === 'qb_td_int_margin_rate' || column === 'qb_sack_rate',
-  );
-  const efficiencyColumns = orderedExisting(nonIdentityColumns, QB_EFFICIENCY_COLUMNS).filter(
-    (column) => !perDropbackRates.includes(column),
-  );
-  const volumeColumns = nonIdentityColumns.filter(
-    (column) =>
-      !resultColumns.includes(column)
-      && !perDropbackRates.includes(column)
-      && !efficiencyColumns.includes(column)
-      && !opponentRatings.includes(column),
-  );
-
-  return [
-    {
-      id: 'results',
-      label: 'Results',
-      description: 'Single-game outcomes, late-game events, and scoreboard context.',
-      columns: resultColumns,
-    },
-    {
-      id: 'volume',
-      label: 'Volume',
-      description: 'Single-game QB volume, dropback, and raw passing totals.',
-      columns: volumeColumns,
-    },
-    {
-      id: 'efficiency',
-      label: 'Efficiency',
-      description: 'Single-game passing efficiency metrics that are not already dropback-normalized.',
-      columns: efficiencyColumns,
-    },
-    {
-      id: 'per_dropback_rates',
-      label: 'Per-Dropback Rates',
-      description: 'Single-game dropback-normalized passing rates.',
-      columns: perDropbackRates,
-    },
-    {
-      id: 'opponent_ratings',
-      label: 'Opponent Ratings',
-      description: 'Season-long opponent rating context joined onto each weekly QB row.',
-      columns: opponentRatings,
-    },
-    {
-      id: 'all',
-      label: 'All Stats',
-      description: 'Full game-log row with every available single-game stat and rating context column.',
-      columns: nonIdentityColumns,
-    },
-  ].filter((group) => group.columns.length > 0);
-}
-
-function buildOpponentBreakdown(
-  gameLogs: TablePayload,
-  gameLogColumns: string[],
-): { columns: string[]; rows: Array<Record<string, RowValue>> } {
-  const summaryColumns = gameLogColumns.filter(
-    (column) => !['week', 'game_id', 'opponent_team', 'games', 'weeks'].includes(column),
-  );
-  const groupedRows = new Map<string, Array<Record<string, RowValue>>>();
-
-  for (const row of gameLogs.rows) {
-    const opponentTeam = String(row.opponent_team ?? 'Unknown');
-    const currentRows = groupedRows.get(opponentTeam) ?? [];
-    currentRows.push(row);
-    groupedRows.set(opponentTeam, currentRows);
-  }
-
-  const rows = Array.from(groupedRows.entries()).map(([opponentTeam, rowsForOpponent]) => {
-    const numericSummary = Object.fromEntries(
-      summaryColumns.map((column) => {
-        const numericValues = rowsForOpponent
-          .map((row) => row[column])
-          .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
-
-        if (numericValues.length === rowsForOpponent.length && numericValues.length > 0) {
-          return [column, numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length];
-        }
-
-        const firstValue = rowsForOpponent.find((row) => row[column] !== null)?.[column] ?? null;
-        return [column, firstValue];
-      }),
-    );
-
-    return {
-      games: rowsForOpponent.length,
-      opponent_team: opponentTeam,
-      weeks: rowsForOpponent
-        .map((row) => row.week)
-        .filter((week): week is number => typeof week === 'number')
-        .sort((left, right) => left - right)
-        .join(', '),
-      ...numericSummary,
-    };
-  });
-
-  rows.sort((left, right) => String(left.opponent_team).localeCompare(String(right.opponent_team)));
-  return {
-    columns: ['opponent_team', 'games', 'weeks', ...summaryColumns],
-    rows,
-  };
 }
 
 function bucketColumns(kind: EntityConfig['kind'], group: string, columns: string[]): Array<{ title: string; columns: string[] }> {
@@ -390,9 +153,11 @@ export function EntityDetail({
   gameLogsLoading,
   onActiveGroupChange,
   opponentRatingsTable,
+  palette,
   row,
   season,
   table,
+  theme,
 }: EntityDetailProps): ReactElement {
   const label = String(row[config.labelKey] ?? row[config.identityKey] ?? '');
   const availableGroups = config.detailGroups.filter((group) => (table.column_groups[group] ?? []).length > 0);
@@ -416,6 +181,10 @@ export function EntityDetail({
     () => (enrichedGameLogs ? buildGameLogGroups(config.kind, enrichedGameLogs) : []),
     [config.kind, enrichedGameLogs],
   );
+  const weeklyHighlights = useMemo(
+    () => (enrichedGameLogs ? buildWeeklyHighlights(config.kind, row, enrichedGameLogs) : []),
+    [config.kind, enrichedGameLogs, row],
+  );
   const resolvedGameLogGroup = gameLogGroups.find((group) => group.id === activeGameLogGroup) ?? gameLogGroups[0] ?? null;
   const gameLogIdentityColumns = useMemo(
     () => (enrichedGameLogs ? orderedExisting(enrichedGameLogs.visible_columns, ['week', 'opponent_team', 'game_id']) : []),
@@ -426,9 +195,22 @@ export function EntityDetail({
     [gameLogIdentityColumns, resolvedGameLogGroup],
   );
   const opponentBreakdown = useMemo(
-    () => (enrichedGameLogs && gameLogColumns.length > 0 ? buildOpponentBreakdown(enrichedGameLogs, gameLogColumns) : null),
-    [enrichedGameLogs, gameLogColumns],
+    () =>
+      enrichedGameLogs && resolvedGameLogGroup
+        ? buildOpponentBreakdown(config.kind, row, enrichedGameLogs, resolvedGameLogGroup.id)
+        : null,
+    [config.kind, enrichedGameLogs, resolvedGameLogGroup, row],
   );
+  const resolvedOpponentBreakdownSort = useMemo(() => {
+    if (!opponentBreakdown) {
+      return opponentBreakdownSort;
+    }
+
+    const availableColumns = new Set(opponentBreakdown.columns.map((column) => column.id));
+    return availableColumns.has(opponentBreakdownSort.column)
+      ? opponentBreakdownSort
+      : { column: 'opponent_team', desc: false };
+  }, [opponentBreakdown, opponentBreakdownSort]);
   const sortedOpponentBreakdownRows = useMemo(() => {
     if (!opponentBreakdown) {
       return [];
@@ -436,14 +218,26 @@ export function EntityDetail({
 
     const rows = [...opponentBreakdown.rows];
     rows.sort((left, right) => {
-      const comparison = compareValues(
-        left[opponentBreakdownSort.column] ?? null,
-        right[opponentBreakdownSort.column] ?? null,
+      const comparison = compareDetailCellValues(
+        resolvedOpponentBreakdownSort.column,
+        left[resolvedOpponentBreakdownSort.column] ?? null,
+        right[resolvedOpponentBreakdownSort.column] ?? null,
       );
-      return opponentBreakdownSort.desc ? -comparison : comparison;
+      return resolvedOpponentBreakdownSort.desc ? -comparison : comparison;
     });
     return rows;
-  }, [opponentBreakdown, opponentBreakdownSort]);
+  }, [opponentBreakdown, resolvedOpponentBreakdownSort]);
+  const opponentBreakdownColumnStats = useMemo(
+    () =>
+      opponentBreakdown
+        ? buildColumnStats(sortedOpponentBreakdownRows, opponentBreakdown.columns.map((column) => column.id))
+        : {},
+    [opponentBreakdown, sortedOpponentBreakdownRows],
+  );
+  const weeklyHasOpponentContext = useMemo(
+    () => gameLogColumns.some((column) => column.startsWith('opp_')),
+    [gameLogColumns],
+  );
 
   return (
     <>
@@ -533,10 +327,10 @@ export function EntityDetail({
         <div className="panel-header">
           <div>
             <p className="eyebrow">Weekly Log</p>
-            <h2>Game-by-Game Surface</h2>
+            <h2>Game-by-Game Details</h2>
             <p className="group-description">
-              Additive game-log contract rows for the current {season} season, intended as the
-              first detail-page enrichment layer before charts and grouped opponent breakdowns.
+              See every game for this {season} season in one place, with the selected stat family,
+              result context, and season-long opponent ratings kept side by side.
             </p>
           </div>
           {gameLogs ? (
@@ -553,6 +347,18 @@ export function EntityDetail({
         ) : null}
         {!gameLogsLoading && !gameLogError && enrichedGameLogs && resolvedGameLogGroup ? (
           <>
+            {weeklyHighlights.length > 0 ? (
+              <div className="weekly-highlight-grid overview-grid">
+                {weeklyHighlights.map((highlight) => (
+                  <article key={highlight.eyebrow} className="panel stat-card weekly-highlight-card">
+                    <p className="eyebrow">{highlight.eyebrow}</p>
+                    <h3>{highlight.value}</h3>
+                    <strong>{highlight.title}</strong>
+                    <p>{highlight.context}</p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
             <div className="compare-selected-wrap weekly-log-controls">
               <div className="group-toggle-wrap detail-group-toggle-wrap">
                 {gameLogGroups.map((group) => (
@@ -568,6 +374,12 @@ export function EntityDetail({
                 ))}
               </div>
               <p className="group-description">{resolvedGameLogGroup.description}</p>
+              {weeklyHasOpponentContext ? (
+                <p className="group-description">
+                  Opponent rating columns here describe the full-season strength of that opponent.
+                  They add schedule context to each row, but they are not single-game grades.
+                </p>
+              ) : null}
             </div>
             <div className="table-shell">
               <table>
@@ -586,9 +398,25 @@ export function EntityDetail({
                 <tbody>
                   {enrichedGameLogs.rows.map((gameRow, index) => (
                     <tr key={`${String(gameRow.game_id ?? index)}-${index}`}>
-                      {gameLogColumns.map((column) => (
-                        <td key={column}>{formatValue(gameRow[column] ?? null)}</td>
-                      ))}
+                      {gameLogColumns.map((column) => {
+                        const value = gameRow[column] ?? null;
+                        return (
+                          <td key={column}>
+                            {column === 'game_id' && typeof value === 'string' ? (
+                              <a
+                                className="detail-link"
+                                href={buildGameOverviewUrl(value)}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                {value}
+                              </a>
+                            ) : (
+                              formatDetailCellValue(column, value)
+                            )}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
@@ -603,15 +431,27 @@ export function EntityDetail({
           <div className="panel-header">
             <div>
               <p className="eyebrow">Opponent Breakdown</p>
-              <h2>Grouped Opponents</h2>
-              <p className="group-description">
-                Repeat opponents are grouped into one summary row so division rivals do not clutter
-                the detail page with duplicated weekly context.
-              </p>
+              <h2>Unique Opponents</h2>
+              <p className="group-description">{opponentBreakdown.description}</p>
             </div>
             <div className="panel-stats">
               <span>{opponentBreakdown.rows.length} opponents</span>
               <span>{opponentBreakdown.columns.length} columns</span>
+            </div>
+          </div>
+          <div className="compare-selected-wrap weekly-log-controls">
+            <div className="group-toggle-wrap detail-group-toggle-wrap">
+              {gameLogGroups.map((group) => (
+                <button
+                  key={`breakdown-${group.id}`}
+                  type="button"
+                  className={resolvedGameLogGroup.id === group.id ? 'group-toggle active' : 'group-toggle'}
+                  onClick={() => setActiveGameLogGroup(group.id)}
+                >
+                  <span>{group.label}</span>
+                  <strong>{group.columns.length}</strong>
+                </button>
+              ))}
             </div>
           </div>
           <div className="table-shell">
@@ -619,31 +459,33 @@ export function EntityDetail({
               <thead>
                 <tr>
                   {opponentBreakdown.columns.map((column) => (
-                    <th key={column}>
+                    <th key={column.id}>
                       <button
                         type="button"
                         className="sort-button"
                         onClick={() =>
                           setOpponentBreakdownSort((current) =>
-                            current.column === column
-                              ? { column, desc: !current.desc }
+                            current.column === column.id
+                              ? { column: column.id, desc: !current.desc }
+                              : column.id === 'opp_schedule_bucket'
+                                ? { column: column.id, desc: true }
                               : {
-                                  column,
+                                  column: column.id,
                                   desc:
-                                    typeof sortedOpponentBreakdownRows[0]?.[column] === 'string'
+                                    typeof sortedOpponentBreakdownRows[0]?.[column.id] === 'string'
                                       ? false
-                                      : getMetricMetadata(column).polarity !== 'lower',
+                                      : getMetricMetadata(column.id).polarity !== 'lower',
                                 },
                           )
                         }
                       >
                         <TooltipLabel
-                          label={getMetricMetadata(column).label}
-                          tooltip={getMetricTooltip(column)}
+                          label={column.label ?? getMetricMetadata(column.id).label}
+                          tooltip={column.tooltip ?? getMetricTooltip(column.id)}
                         />
                         <span className="sort-indicator">
-                          {opponentBreakdownSort.column === column
-                            ? opponentBreakdownSort.desc
+                          {resolvedOpponentBreakdownSort.column === column.id
+                            ? resolvedOpponentBreakdownSort.desc
                               ? '↓'
                               : '↑'
                             : '·'}
@@ -656,9 +498,22 @@ export function EntityDetail({
               <tbody>
                 {sortedOpponentBreakdownRows.map((breakdownRow) => (
                   <tr key={String(breakdownRow.opponent_team ?? 'unknown-opponent')}>
-                    {opponentBreakdown.columns.map((column) => (
-                      <td key={column}>{formatValue(breakdownRow[column] ?? null)}</td>
-                    ))}
+                    {opponentBreakdown.columns.map((column) => {
+                      const value = breakdownRow[column.id] ?? null;
+                      const heatStyle = getHeatCellStyle(
+                        column.id,
+                        value,
+                        opponentBreakdownColumnStats,
+                        theme,
+                        palette,
+                      );
+
+                      return (
+                        <td key={column.id} style={heatStyle}>
+                          {formatDetailCellValue(column.id, value)}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>

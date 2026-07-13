@@ -173,6 +173,41 @@ a {
   padding: 1.35rem;
 }
 
+.page-jump-controls {
+  position: fixed;
+  right: 1.35rem;
+  bottom: 1.35rem;
+  z-index: 20;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.page-jump-button {
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--paper-strong) 88%, transparent);
+  box-shadow: 0 12px 24px rgba(15, 27, 36, 0.16);
+  backdrop-filter: blur(10px);
+}
+
+.page-jump-button.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.page-jump-button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.page-jump-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .segmented-control {
   display: grid;
   grid-template-columns: 1fr;
@@ -340,6 +375,29 @@ a {
   display: grid;
   gap: 0.75rem;
   padding: 0 1.4rem 1.2rem;
+}
+
+.weekly-highlight-grid {
+  padding: 0 1.4rem 1.2rem;
+}
+
+.weekly-highlight-card {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.weekly-highlight-card h3 {
+  font-size: clamp(1.75rem, 2vw, 2.2rem);
+}
+
+.weekly-highlight-card strong {
+  font-family: 'Fraunces', serif;
+  font-size: 1rem;
+}
+
+.weekly-highlight-card p:last-child {
+  margin: 0;
+  color: var(--ink-soft);
 }
 
 .compare-pill-row {
@@ -563,6 +621,7 @@ tbody tr:hover {
   position: fixed;
   z-index: 999;
   padding: 0.8rem 0.95rem;
+  min-width: min(18rem, calc(100vw - 24px));
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--rule));
   border-radius: 14px;
   background: color-mix(in srgb, var(--paper-strong) 96%, var(--paper));

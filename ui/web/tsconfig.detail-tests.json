@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "skipLibCheck": true,
+    "outDir": ".detail-test-dist",
+    "rootDir": "."
+  },
+  "include": [
+    "src/detailAnalytics.ts",
+    "src/detailUi.ts",
+    "src/format.ts",
+    "src/metricMetadata.ts",
+    "src/types.ts"
+  ]
+}

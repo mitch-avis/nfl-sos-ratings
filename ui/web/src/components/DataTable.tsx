@@ -25,6 +25,7 @@ interface DataTableProps {
   entityKind: EntityKind;
   identityColumns: string[];
   identityKey: string;
+  onEnableAllGroups: () => void;
   onQueryChange: (query: string) => void;
   onResetView: () => void;
   onSortingChange: (sorting: SortingState) => void;
@@ -50,6 +51,7 @@ export function DataTable({
   entityKind,
   identityColumns,
   identityKey,
+  onEnableAllGroups,
   onQueryChange,
   onResetView,
   onSortingChange,
@@ -92,6 +94,76 @@ export function DataTable({
     () => buildColumnStats(filteredRows, selectedColumns),
     [filteredRows, selectedColumns],
   );
+  const groupEntries = useMemo(
+    () => Object.entries(table.column_groups).filter(([group]) => group !== 'identity'),
+    [table.column_groups],
+  );
+  const allStatsActive = useMemo(
+    () => groupEntries.every(([group]) => enabledGroups[group]),
+    [enabledGroups, groupEntries],
+  );
+  const allStatsColumnCount = useMemo(
+    () => groupEntries.reduce((count, [, columns]) => count + columns.length, 0),
+    [groupEntries],
+  );
+  const groupButtons = useMemo(() => {
+    const buttons: ReactElement[] = [];
+
+    for (const [group, columnsForGroup] of groupEntries) {
+      buttons.push(
+        <button
+          key={group}
+          type="button"
+          className={enabledGroups[group] ? 'group-toggle active' : 'group-toggle'}
+          onClick={() => onToggleGroup(group)}
+          title={getGroupDescription(entityKind, group)}
+        >
+          <span>{humanizeGroup(group)}</span>
+          <strong>{columnsForGroup.length}</strong>
+        </button>,
+      );
+
+      if (group === 'opponent_context') {
+        buttons.push(
+          <button
+            key="all-stats"
+            type="button"
+            className={allStatsActive ? 'group-toggle active' : 'group-toggle'}
+            onClick={onEnableAllGroups}
+            title="Enable every metric family in the current index view."
+          >
+            <span>All Stats</span>
+            <strong>{allStatsColumnCount}</strong>
+          </button>,
+        );
+      }
+    }
+
+    if (!groupEntries.some(([group]) => group === 'opponent_context')) {
+      buttons.push(
+        <button
+          key="all-stats"
+          type="button"
+          className={allStatsActive ? 'group-toggle active' : 'group-toggle'}
+          onClick={onEnableAllGroups}
+          title="Enable every metric family in the current index view."
+        >
+          <span>All Stats</span>
+          <strong>{allStatsColumnCount}</strong>
+        </button>,
+      );
+    }
+
+    return buttons;
+  }, [
+    allStatsActive,
+    allStatsColumnCount,
+    enabledGroups,
+    entityKind,
+    groupEntries,
+    onEnableAllGroups,
+    onToggleGroup,
+  ]);
   const columnWidths = useMemo(
     () => buildColumnWidths(table.rows, selectedColumns, identityColumns),
     [identityColumns, selectedColumns, table.rows],
@@ -222,20 +294,7 @@ export function DataTable({
         </label>
 
         <div className="group-toggle-wrap">
-          {Object.entries(table.column_groups)
-            .filter(([group]) => group !== 'identity')
-            .map(([group, columnsForGroup]) => (
-              <button
-                key={group}
-                type="button"
-                className={enabledGroups[group] ? 'group-toggle active' : 'group-toggle'}
-                onClick={() => onToggleGroup(group)}
-                title={getGroupDescription(entityKind, group)}
-              >
-                <span>{humanizeGroup(group)}</span>
-                <strong>{columnsForGroup.length}</strong>
-              </button>
-            ))}
+          {groupButtons}
           <button
             type="button"
             className="group-toggle reset-toggle"

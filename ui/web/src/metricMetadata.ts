@@ -1,5 +1,5 @@
-import { humanizeColumn } from './format';
-import type { EntityKind } from './types';
+import { humanizeColumn } from './format.js';
+import type { EntityKind } from './types.js';
 
 export type MetricPolarity = 'higher' | 'lower' | 'neutral';
 
@@ -35,6 +35,24 @@ interface SuffixContext {
 
 const CORE_METRIC_TEMPLATES: Record<string, MetricTemplate> = {
   team: { label: 'Team', fullName: 'Team' },
+  game_id: {
+    label: 'Game ID',
+    fullName: 'Game ID',
+    shortDescription: 'Unique identifier for one game.',
+    detail: 'Use this to open the NFL Savant game overview for the full play-by-play context.',
+  },
+  week: {
+    label: 'Week',
+    fullName: 'Week',
+    shortDescription: 'Regular-season week number.',
+    detail: 'The regular-season week in which this game was played.',
+  },
+  opponent_team: {
+    label: 'Opponent',
+    fullName: 'Opponent Team',
+    shortDescription: 'The opponent in this game or summary row.',
+    detail: 'The opponent on that weekly row, or the opponent being summarized in a unique-opponent row.',
+  },
   qb_id: { label: 'QB ID', fullName: 'Quarterback ID' },
   qb_name: { label: 'QB', fullName: 'Quarterback' },
   player_id: { label: 'Player ID', fullName: 'Player ID' },
@@ -52,8 +70,21 @@ const CORE_METRIC_TEMPLATES: Record<string, MetricTemplate> = {
   points_for: { label: 'Points For', fullName: 'Points For' },
   points_allowed: { label: 'Points Allowed', fullName: 'Points Allowed' },
   point_margin: { label: 'Point Margin', fullName: 'Point Margin' },
-  win_value: { label: 'Win Value', fullName: 'Win Value' },
+  win_value: {
+    label: 'Win Value',
+    fullName: 'Win Value',
+    shortDescription: 'Result marker for the game or opponent set.',
+    detail:
+      'Win value uses 1 for a win, 0 for a loss, and 0.5 for a tie. In unique-opponent rows it is averaged across meetings.',
+  },
   turnover_margin: { label: 'TO Margin', fullName: 'Turnover Margin' },
+  opp_schedule_bucket: {
+    label: 'Sched Tier',
+    fullName: 'Schedule Tier',
+    shortDescription: 'Quick label for how tough this opponent was on the selected surface.',
+    detail:
+      'This groups opponents as Tougher, Middle, or Softer based on the selected opponent rating column for the current table view.',
+  },
   passing_yards: { label: 'Pass Yds', fullName: 'Passing Yards' },
   rushing_yards: { label: 'Rush Yds', fullName: 'Rushing Yards' },
   total_yards: { label: 'Total Yds', fullName: 'Total Yards' },
@@ -218,8 +249,8 @@ const PREFIX_CONTEXTS: PrefixContext[] = [
     prefix: 'qopp_',
     contextual: true,
     detailPrefix:
-      'Opponent-context metric based on the defenses this QB faced; QB stat stems describe what '
-      + 'those defenses allowed to opposing passers.',
+      'This is season-long opponent context for the selected quarterback. QB stat names here '
+      + 'describe what those defenses allowed to opposing passers across the season.',
     apply: (template) => ({
       label: `Opp ${template.label}`,
       fullName: `Opponent ${template.fullName}`,
@@ -230,7 +261,9 @@ const PREFIX_CONTEXTS: PrefixContext[] = [
   {
     prefix: 'opp_',
     contextual: true,
-    detailPrefix: 'Opponent-context metric built from the teams this subject faced.',
+    detailPrefix:
+      'This is season-long opponent context for the selected team or quarterback, not a '
+      + 'single-game grade.',
     apply: (template) => ({
       label: `Opp ${template.label}`,
       fullName: `Opponent ${template.fullName}`,
@@ -241,7 +274,8 @@ const PREFIX_CONTEXTS: PrefixContext[] = [
   {
     prefix: 'diff_',
     contextual: false,
-    detailPrefix: 'Subject minus opponent-context differential.',
+    detailPrefix:
+      'This compares the selected team or quarterback with the opponent context on the same metric.',
     apply: (template) => ({
       label: `${template.label} Diff`,
       fullName: `${template.fullName} Differential`,
@@ -256,6 +290,19 @@ const PREFIX_CONTEXTS: PrefixContext[] = [
     apply: (template) => ({
       label: `Adj ${template.label}`,
       fullName: `Simultaneous-adjusted ${template.fullName}`,
+      shortDescription: template.shortDescription,
+      detail: template.detail,
+    }),
+  },
+  {
+    prefix: 'season_delta_',
+    contextual: false,
+    detailPrefix:
+      'This is the average in these matchups compared with the selected team or quarterback\'s '
+      + 'full-season average on the same metric.',
+    apply: (template) => ({
+      label: `${template.label} vs Season`,
+      fullName: `${template.fullName} vs Season Baseline`,
       shortDescription: template.shortDescription,
       detail: template.detail,
     }),

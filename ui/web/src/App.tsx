@@ -80,6 +80,10 @@ function buildResolvedEnabledGroups(
   );
 }
 
+function buildAllEnabledGroups(table: TablePayload): Record<string, boolean> {
+  return Object.fromEntries(Object.keys(table.column_groups).map((group) => [group, true]));
+}
+
 function buildResolvedPageViewState(
   kind: EntityKind,
   table: TablePayload,
@@ -199,6 +203,7 @@ function EntityPage({
   dataset,
   enabledGroups,
   kind,
+  onEnableAllGroups,
   onQueryChange,
   onResetView,
   onShowUnratedRowsChange,
@@ -217,6 +222,7 @@ function EntityPage({
   dataset: SeasonDataset;
   enabledGroups: Record<string, boolean>;
   kind: EntityKind;
+  onEnableAllGroups: () => void;
   onQueryChange: (query: string) => void;
   onResetView: () => void;
   onShowUnratedRowsChange?: (showUnratedRows: boolean) => void;
@@ -335,6 +341,7 @@ function EntityPage({
         entityKind={kind}
         identityKey={config.identityKey}
         identityColumns={identityColumns}
+        onEnableAllGroups={onEnableAllGroups}
         onQueryChange={onQueryChange}
         onResetView={onResetView}
         onSortingChange={onSortingChange}
@@ -359,13 +366,17 @@ function EntityDetailPage({
   dataset,
   kind,
   onActiveGroupChange,
+  palette,
   season,
+  theme,
 }: {
   activeGroup?: string;
   dataset: SeasonDataset;
   kind: EntityKind;
   onActiveGroupChange: (group: string) => void;
+  palette: PaletteMode;
   season: number;
+  theme: ThemeMode;
 }): ReactElement {
   const navigate = useNavigate();
   const params = useParams();
@@ -434,9 +445,11 @@ function EntityDetailPage({
       gameLogsLoading={gameLogsLoading}
       onActiveGroupChange={onActiveGroupChange}
       opponentRatingsTable={dataset.teams}
+      palette={palette}
       row={row}
       season={season}
       table={table}
+      theme={theme}
     />
   );
 }
@@ -739,6 +752,11 @@ export function App(): ReactElement {
                 dataset={dataset}
                 enabledGroups={resolvedViewStates.teams.enabledGroups}
                 kind="teams"
+                onEnableAllGroups={() =>
+                  updatePageViewState('teams', {
+                    enabledGroups: buildAllEnabledGroups(dataset.teams),
+                  })
+                }
                 onQueryChange={(query) => updatePageViewState('teams', { query })}
                 onResetView={() => resetPageViewState('teams')}
                 onSortingChange={(sorting) => updatePageViewState('teams', { sorting })}
@@ -770,7 +788,9 @@ export function App(): ReactElement {
                 dataset={dataset}
                 kind="teams"
                 onActiveGroupChange={(group) => updatePageViewState('teams', { activeDetailGroup: group })}
+                palette={palette}
                 season={selectedSeason || dataset.season}
+                theme={theme}
               />
             }
           />
@@ -788,6 +808,11 @@ export function App(): ReactElement {
                 dataset={dataset}
                 enabledGroups={resolvedViewStates.qbs.enabledGroups}
                 kind="qbs"
+                onEnableAllGroups={() =>
+                  updatePageViewState('qbs', {
+                    enabledGroups: buildAllEnabledGroups(dataset.qbs),
+                  })
+                }
                 onQueryChange={(query) => updatePageViewState('qbs', { query })}
                 onResetView={() => resetPageViewState('qbs')}
                 onShowUnratedRowsChange={(showUnratedRows) =>
@@ -822,7 +847,9 @@ export function App(): ReactElement {
                 dataset={dataset}
                 kind="qbs"
                 onActiveGroupChange={(group) => updatePageViewState('qbs', { activeDetailGroup: group })}
+                palette={palette}
                 season={selectedSeason || dataset.season}
+                theme={theme}
               />
             }
           />

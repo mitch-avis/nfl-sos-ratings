@@ -9,6 +9,8 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
+import { computeTooltipBubbleLayout } from '../detailUi';
+
 interface TooltipLabelProps {
   label: string;
   tooltip: string;
@@ -40,22 +42,25 @@ export function TooltipLabel({ label, tooltip }: TooltipLabelProps): ReactElemen
     }
 
     const rect = anchor.getBoundingClientRect();
-    const { clientX, clientY } = pointerRef.current;
-    const maxWidth = Math.min(360, window.innerWidth - 24);
     const bubbleRect = bubble.getBoundingClientRect();
-    const preferredLeft = clientX !== undefined ? clientX + 14 : rect.left + 12;
-    const left = Math.max(12, Math.min(preferredLeft, window.innerWidth - bubbleRect.width - 12));
-    const preferredTop = clientY !== undefined ? clientY + 18 : rect.bottom + 10;
-    const aboveTop = (clientY !== undefined ? clientY : rect.top) - bubbleRect.height - 12;
-    const showAbove = preferredTop + bubbleRect.height > window.innerHeight - 12 && aboveTop >= 12;
-    const top = showAbove
-      ? aboveTop
-      : Math.max(12, Math.min(preferredTop, window.innerHeight - bubbleRect.height - 12));
+    const layout = computeTooltipBubbleLayout({
+      anchorRect: rect,
+      bubbleRect: {
+        height: bubbleRect.height,
+        width: bubbleRect.width,
+      },
+      pointer: pointerRef.current,
+      viewport: {
+        height: window.innerHeight,
+        width: window.innerWidth,
+      },
+    });
 
     setStyle({
-      left: `${left}px`,
-      top: `${top}px`,
-      maxWidth: `${maxWidth}px`,
+      left: `${layout.left}px`,
+      top: `${layout.top}px`,
+      maxWidth: `${layout.maxWidth}px`,
+      minWidth: `${layout.minWidth}px`,
     });
   }, [isOpen, positionTick]);
 

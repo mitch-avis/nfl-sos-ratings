@@ -19,7 +19,7 @@ export function OverviewCards({
   kind,
   totalCount,
 }: OverviewCardsProps): ReactElement {
-  const groups = Object.entries(table.column_groups);
+  const groups = Object.entries(table.column_groups).filter(([group]) => group !== 'identity');
 
   return (
     <section className="overview-grid">
