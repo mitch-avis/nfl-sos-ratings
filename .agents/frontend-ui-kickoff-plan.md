@@ -17,7 +17,9 @@ way that is much easier to interpret than the current static plots.
 - Last updated: 2026-07-12.
 - No new methodology blocker was found in `.agents/pbp-overhaul-plan.md`; late-game QB outcome work
   remains green for UI purposes.
-- Implemented this session:
+- Implemented in the most recent session:
+  - bottom-right page-jump controls now keep fixed vertical slots, with the up arrow always above
+    the down arrow when both are visible and each button staying in a stable position when hidden
   - a tested CSV-backed backend contract in `nfl_sos_ratings.ui_data`
   - a thin FastAPI app in `nfl_sos_ratings.ui_api`
   - a first-pass React + Vite shell in `ui/web/` with season-aware Teams and QBs index routes,
@@ -33,6 +35,9 @@ way that is much easier to interpret than the current static plots.
   - sticky identity columns and integer rank columns for both team and QB tables
   - viewport-clamped tooltip portals that now stay anchored near the hovered header or metric label,
     including on sticky tables and detail pages
+  - tooltip overlays now keep a readable minimum width and deliberately shift left when the hover
+    point is too close to the right edge of the viewport, which avoids the narrow hard-to-read
+    header-tooltip cases on sticky tables and detail pages
   - shared metric-direction metadata that now drives both first-click sort direction and numeric
     heatmap polarity
   - restored content-driven table sizing so sticky identity columns keep explicit widths while the
@@ -83,7 +88,56 @@ way that is much easier to interpret than the current static plots.
     data is present, which fixes pre-2021 16-game seasons such as 2017 where the previous static
     238-attempt threshold incorrectly excluded borderline qualifiers like C.J. Beathard
   - regenerated 2016-2020 output CSVs so the UI now reflects the corrected pre-2021 QB qualifier
+  - the sidebar brand-card description under `NFL SOS Ratings` now reads as a broader analyst-facing
+    explanation instead of a narrow project-local note
+  - the low-value `Identity` summary box was removed from the Teams and QBs index overview grids
+  - Teams and QBs index controls now include an `All Stats` button between `Opponent Context` and
+    `Reset`, which enables every metric-family toggle in one click
+  - fixed bottom-right page navigation arrows now appear across routes as `Home`/`End` shortcuts,
+    with only down shown at the top, only up shown at the bottom, and both shown in the middle of
+    the page
+  - Team and QB detail pages now include a compact weekly summary strip that surfaces peak-week
+    performance, opening-versus-closing form on a core metric, and the toughest opponent draw from
+    the joined season-rating context
+  - Team and QB detail pages now add a recent-three-game form card to that weekly summary strip,
+    with the current core metric averaged over the latest window and compared back to the subject's
+    full-season baseline on the same metric
+  - grouped opponent-breakdown tables now read as compact opponent ledgers keyed to the active
+    weekly surface instead of mirroring the current visible weekly columns one-for-one
+  - the new grouped opponent ledgers keep identity first, favor one overall difficulty column plus
+    one matched opponent-context column where appropriate, add a same-metric season-baseline delta,
+    and label opponent difficulty with a simple schedule-tier bucket
+  - weekly and grouped-opponent surfaces now explicitly describe repeated `opp_*` ratings as season
+    opponent context rather than game-specific grades
+  - extracted weekly/detail analytics into a small pure frontend helper surface, with focused
+    zero-dependency Node coverage around the recent-form card and curated opponent-ledger logic
+  - Team/QB detail weekly sections now read as `Game-by-Game Details` and `Unique Opponents`, with
+    more analyst-facing copy, less contract jargon, and a clearer note that unique-opponent rows
+    collapse repeat opponents such as division rivals into one averaged line
+  - Team/QB detail weekly and unique-opponent tables now render `Win Value` as `W`, `L`, or `T`
+    for exact 1.0, 0.0, and 0.5 values instead of raw decimals
+  - Team/QB detail weekly game IDs now link out to the matching NFL Savant game overview pages
+  - the `Unique Opponents` section now mirrors the same category-toggle row used by the weekly
+    table so both surfaces switch together without extra page scanning
+  - `Unique Opponents` now keeps the selected surface's full stat set instead of a heavily curated
+    mini-ledger, while still pinning the chosen opponent rating plus `Sched Tier` first
+  - Team detail `Sched Tier` now switches by active category: `Opp SaDR` for offense,
+    `Opp SaOR` for defense, and `Opp SaCR` for results, per-snap, opponent-ratings, and all-stats
+    views
+  - `Sched Tier` now uses opponent-rating z-score thresholds instead of rank thirds, with
+    `Tougher` at `z >= 0.5`, `Softer` at `z <= -0.5`, and `Middle` in between, plus custom sort
+    ordering so it no longer sorts alphabetically
+  - numeric heatmaps now extend into the `Unique Opponents` tables so repeated-opponent summaries
+    are as scannable as the main index tables
+  - team and QB z-score rating outputs now standardize against the current raw season plus any
+    available historical `*_combined.csv` / `*_qb_combined.csv` reference outputs, rather than
+    normalizing only within the current season frame
 - Validation completed this session:
+  - focused pure-frontend helper coverage for the new tooltip, page-jump, game-link, win-value,
+    and unique-opponent behavior via `npm exec -- tsc -p tsconfig.detail-tests.json && node --test
+    src/detailAnalytics.test.mjs src/detailUi.test.mjs`
+  - focused pytest coverage for the historical-reference rating path in `ratings`, `qb_ratings`,
+    and `main`
   - focused pytest coverage for the backend loader and API
   - live contract sanity check against real `output/2025_*` files
   - `npm run build` for the frontend shell
@@ -99,6 +153,10 @@ way that is much easier to interpret than the current static plots.
     gradient styling and that the 2017 QB filter note uses the corrected 224-attempt qualifier
   - focused pytest regression coverage for the pre-2021 QB qualifier and regenerated 2016-2020
     output CSVs
+  - `npm run build` after the shell/index cleanup and weekly-summary-strip changes
+  - focused zero-dependency frontend helper coverage via `npm exec -- tsc -p
+    tsconfig.detail-tests.json && node --test src/detailAnalytics.test.mjs`
+  - `npm run build` after the recent-form and grouped-opponent-ledger changes
 
 Notes from live verification:
 
@@ -118,15 +176,15 @@ Phase status summary:
 
 Outstanding follow-ups explicitly queued for the next agent session:
 
-1. Revise the left-sidebar description under `NFL SOS Ratings` so it reads as a clearer,
-   more useful explanation for any analyst user rather than a narrow project-local blurb.
-2. Remove the `Identity` summary box from the Teams and QBs index pages; it is currently low-value
-   compared with the stat/rating group boxes.
-3. Add an `All Stats` category button to both Teams and QBs index pages, matching the newer
-   weekly-log detail-page pattern. Place it between `Opponent Context` and `Reset`.
-4. Add fixed bottom-right navigation arrows on all pages as shortcuts for `Home` and `End`:
-   only the down arrow at the very top, only the up arrow at the very bottom, and both arrows
-   while the user is between those extremes.
+1. Keep strengthening the weekly-log detail pages now that the shell/index cleanup is complete,
+  especially if another compact trend primitive still feels justified after the new recent-form
+  card, but keep it table-first and dependency-light.
+2. Refine the new grouped opponent ledgers after live use, especially if one team or QB weekly
+  surface wants a different primary performance metric or a tighter default column mix.
+3. Add opponent-strength or rating-delta context to the weekly views carefully, without implying
+   that a repeated season-long opponent rating is a true single-game rating.
+4. Revisit the compare workflow only after the weekly/detail surfaces settle, with the next step
+   being a pinned side-by-side layout rather than more compact-strip patching.
 
 ## Hard prerequisite
 
@@ -315,6 +373,8 @@ Delivered so far:
    as near-duplicate weekly rows.
 8. Compact the detail-page ratings view and split Team opponent context into more readable offense
    and defense sections.
+9. Add a compact weekly summary strip that highlights peak performance, closing-form deltas, and
+   the toughest opponent draw from the season-rating context.
 
 Required backend additions:
 
@@ -330,6 +390,47 @@ Recommended frontend additions:
 4. Add a rank-or-rating trend view that shows how the subject moved through the season.
 5. Add an opponent-strength overlay or per-game rating delta surface so weekly performance can be
    read against defensive or offensive difficulty.
+
+Execution notes for the next detail-page slice:
+
+1. Keep the next weekly enhancement table-first and dependency-light.
+2. A good next compact trend primitive would be one of:
+   - a rolling three-game average card for the current core metric
+   - a week-over-week change callout for the current core metric
+   - a best-stretch / worst-stretch summary over a fixed recent window
+3. Keep those summaries grounded in real game-log columns that already exist in the additive
+   contract. Do not invent pseudo-expected values just to make the summaries look richer.
+4. The grouped opponent-breakdown table should graduate from "sortable summary" into
+   "analytical opponent ledger" without becoming another wide uncurated dump.
+5. Default grouped-opponent columns should stay compact and high-signal.
+6. For teams, the default grouped view should keep identity first (`opponent_team`, `games`,
+   `weeks`) and then prefer one overall difficulty column (`opp_SaCR` or `opp_SRS`), one
+   opponent-side context column (`opp_SaDR` for offense reading or `opp_SaOR` for defense
+   reading), and one or two subject-performance columns such as `point_margin` or a core
+   efficiency rate when those columns exist for the active surface.
+7. For QBs, the default grouped view should keep identity first and then prefer `opp_SaDR`,
+   `opp_SaCR`, `point_margin`, and one or two core QB performance columns such as
+   `qb_epa_per_dropback`, `qb_any_a`, or `qb_passer_rating` when available.
+8. Derived grouped-opponent columns should be additive summaries that are easy to defend from the
+   current trustworthy inputs.
+9. Good examples are:
+   - subject average performance against that opponent on a core metric
+   - subject season-baseline delta on the same metric
+   - a simple opponent-difficulty bucket derived from season-long ratings
+10. Avoid derived columns that pretend the opponent season rating was a true single-game forecast
+    or a directly comparable game-level stat.
+11. Weekly opponent-strength overlays should be treated as season-context labels, not as
+    single-game ratings.
+12. Match the context column to the surface being read: team offense views should emphasize
+    `opp_SaDR`; team defense views should emphasize `opp_SaOR`; team overall/result views should
+    emphasize `opp_SaCR` or `opp_SRS`; QB passing views should emphasize `opp_SaDR`, with
+    `opp_SaCR` only as broader team context.
+13. If a weekly delta surface is added, the safest default is subject-week versus subject-season
+    baseline on the same metric.
+14. Do not subtract unlike units or imply that a season rating is the expected output of one game
+    unless that methodology has been explicitly defined and approved elsewhere.
+15. Any tooltip or label for these columns should say `season opponent context` or similarly clear
+    wording so analysts do not read the value as a game-specific rating.
 
 Design direction inspired by the nfelo screenshots, but not copied:
 
@@ -384,10 +485,17 @@ Design principles:
 
 Remaining polish tasks already requested by the user:
 
-1. Rework the left-sidebar descriptive copy so it better explains the app to a general analyst.
-2. Remove the `Identity` summary card from the Teams and QBs index overviews.
-3. Add `All Stats` index-page category buttons for Teams and QBs.
-4. Add page navigation arrows in the bottom-right corner with top/middle/bottom visibility rules.
+1. Carry the same clarity and utility standard from the cleaned-up shell into the grouped weekly
+   and opponent-breakdown surfaces.
+2. Only revisit the compare panel once the richer detail-page workflows have settled.
+
+Current recommended polish target inside Phase 5:
+
+1. Make the grouped weekly surfaces feel intentionally edited rather than merely sortable.
+2. Prefer a small number of clearly named summary cards and default columns over another broad wall
+   of stats.
+3. Use copy and tooltips to make the difference between weekly performance, season baseline, and
+   season-long opponent context explicit everywhere those surfaces intersect.
 
 ## Suggested repository shape for the first UI session
 
@@ -441,21 +549,24 @@ Reasoning:
 5. Do not treat aggregated opponent profiles as if they were game logs; weekly detail views need
    their own contract surface.
 6. Do not double-count repeat opponents in detail-page opponent tables.
+7. Do not let a season-long opponent rating read like a game-specific expectation, forecast, or
+   single-game grade.
+8. Do not add derived delta columns that subtract unlike units just because the result looks
+   visually convenient.
 
 ## What the next agent should do first
 
 1. Read `.agents/pbp-overhaul-plan.md` and confirm no new methodology blocker has appeared.
-2. Address the queued shell/index follow-ups first.
-   Rewrite the left-sidebar descriptive copy for a broader analyst audience.
-   Remove the `Identity` summary box from Teams and QBs.
-   Add `All Stats` category buttons to the Teams and QBs index pages.
-   Add bottom-right `Home`/`End` navigation arrows with the requested visibility behavior.
-3. After that shell/index cleanup, continue building on the shipped game-log contract by turning
-   the current weekly log tables into stronger weekly trend surfaces and more analytical grouped-
-   opponent views.
-4. Add opponent-strength overlays or rank/rating movement summaries only after the grouped opponent
-   view is in place.
-5. Choose the first charting library only when the next detail-page chart is ready to implement,
+2. Inspect the current detail-page weekly surfaces first and pick one compact trend primitive to
+   land cleanly without adding a charting dependency.
+3. In the same session, upgrade the grouped opponent-breakdown tables so their default columns are
+   more analytical and less dump-like.
+4. If there is room after that, add opponent-strength or rating-delta context to the weekly views,
+   but only with labels and tooltips that make the season-context nature of those values obvious.
+5. Prefer subject-season baseline deltas over any cross-unit subtraction, and prefer
+   offense-versus-defense matched context (`opp_SaDR`, `opp_SaOR`) over generic overall context
+   when the view is reading a specific side of the ball.
+6. Choose the first charting library only when the next detail-page chart is ready to implement,
    and ask before adding that new dependency.
-6. Revisit the compare panel after the richer detail pages settle, with a pinned side-by-side
+7. Revisit the compare panel after the richer detail pages settle, with a pinned side-by-side
    workflow as the next comparison upgrade rather than more patching on the compact strip.
