@@ -2,7 +2,7 @@
 
 # Season range for the full pipeline run (nfl-sos-pipeline command).
 # 2016 is the first season with available Next Gen Stats data.
-START_YEAR: int = 2016
+START_YEAR: int = 2012
 END_YEAR: int = 2025
 
 # Single-season target — used by main.py and visualize.py when invoked directly.

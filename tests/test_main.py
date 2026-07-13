@@ -120,7 +120,7 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(main, "load_qb_stats", lambda season: _qb_df())
     monkeypatch.setattr(main, "compute_all_teams_per_game", lambda weekly_df: _team_per_game())
     monkeypatch.setattr(main, "compute_win_totals", lambda weekly_df: _win_totals())
-    monkeypatch.setattr(main, "compute_ratings", lambda combined: _ratings_df())
+    monkeypatch.setattr(main, "compute_ratings", lambda combined, **kwargs: _ratings_df())
     monkeypatch.setattr(main, "solve_srs", lambda weekly_df, response_col: _srs_df())
     monkeypatch.setattr(
         main,
@@ -137,7 +137,58 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "compute_qb_opponent_profiles",
         lambda weekly_df, qb_df, schedule_df, qb_season_df: (_qb_opp_profiles(), {"DEN": []}),
     )
-    monkeypatch.setattr(main, "compute_qb_ratings", lambda qb_combined: _qb_ratings_df())
+    monkeypatch.setattr(main, "compute_qb_ratings", lambda qb_combined, **kwargs: _qb_ratings_df())
+
+
+def test_main_builds_historical_reference_frames_for_team_and_qb_ratings(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Verify current-season ratings are standardized against available historical outputs."""
+    _patch_common(monkeypatch, tmp_path)
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(
+        main,
+        "compute_all_opponent_profiles",
+        lambda weekly_df, qb_df, schedule_df: (
+            pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
+            pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
+            {},
+        ),
+    )
+
+    (tmp_path / "2024_combined.csv").write_text(
+        "team,points_for,points_per_offensive_snap\nKC,30,0.41\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "2024_qb_combined.csv").write_text(
+        (
+            "team,qb_id,qb_name,qb_epa_per_dropback,qb_any_a,qb_completion_percentage_above_expectation,"
+            "qb_td_int_margin_rate,qb_sack_rate,qb_pass_yards_per_dropback,qb_passer_rating\n"
+            "KC,qb-kc,Patrick Mahomes,0.22,7.6,3.1,0.06,0.04,7.1,103.0\n"
+        ),
+        encoding="utf-8",
+    )
+
+    captured: dict[str, int] = {}
+
+    def capture_team_reference(combined: pl.DataFrame, **kwargs: object) -> pl.DataFrame:
+        reference_df = kwargs.get("reference_df")
+        assert isinstance(reference_df, pl.DataFrame)
+        captured["team_reference_height"] = reference_df.height
+        return _ratings_df()
+
+    def capture_qb_reference(qb_combined: pl.DataFrame, **kwargs: object) -> pl.DataFrame:
+        reference_df = kwargs.get("reference_df")
+        assert isinstance(reference_df, pl.DataFrame)
+        captured["qb_reference_height"] = reference_df.height
+        return _qb_ratings_df()
+
+    monkeypatch.setattr(main, "compute_ratings", capture_team_reference)
+    monkeypatch.setattr(main, "compute_qb_ratings", capture_qb_reference)
+
+    main.main()
+
+    assert captured == {"team_reference_height": 2, "qb_reference_height": 2}
 
 
 def test_main_returns_when_no_opponent_profiles(

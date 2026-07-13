@@ -173,15 +173,31 @@ def test_compute_ratings_makes_overall_secondary_to_offense_and_defense(
         }
     )
 
-    composites = iter([np.array([2.0, -2.0]), np.array([4.0, -4.0])])
+    composites = iter(
+        [
+            np.array([2.0, -2.0]),
+            np.array([4.0, -4.0]),
+            np.array([2.0, -2.0]),
+            np.array([4.0, -4.0]),
+        ]
+    )
 
     monkeypatch.setattr(
         ratings,
         "_derive_weights",
         lambda *args, **kwargs: [("points_for", 1.0, True)],
     )
-    monkeypatch.setattr(ratings, "_build_composite", lambda *args, **kwargs: next(composites))
+    monkeypatch.setattr(
+        ratings,
+        "_build_composite",
+        lambda *args, **kwargs: next(composites),
+    )
     monkeypatch.setattr(ratings, "_zscore", lambda values: np.array(values, dtype=np.float64))
+    monkeypatch.setattr(
+        ratings,
+        "_zscore_against",
+        lambda values, reference_values: np.array(values, dtype=np.float64),
+    )
 
     result = ratings.compute_ratings(df)
 
@@ -189,3 +205,28 @@ def test_compute_ratings_makes_overall_secondary_to_offense_and_defense(
     assert result.select("SaDR").to_series().to_list() == [4.0, -4.0]
     assert result.select("SaOvR").to_series().to_list() == [6.0, -6.0]
     assert result.select("SaCR").to_series().to_list() == [3.333, -3.333]
+
+
+def test_compute_ratings_can_standardize_against_historical_reference() -> None:
+    """Verify team z-scores can be scaled against a wider historical reference frame."""
+    current_df = pl.DataFrame(
+        {
+            "team": ["A", "B"],
+            "points_per_offensive_snap": [0.60, 0.40],
+        }
+    )
+    historical_reference_df = pl.DataFrame(
+        {
+            "team": ["H1", "H2", "H3", "H4", "H5", "H6"],
+            "points_per_offensive_snap": [0.20, 0.30, 0.40, 0.60, 0.70, 0.80],
+        }
+    )
+
+    season_scaled = ratings.compute_ratings(current_df)
+    historical_scaled = ratings.compute_ratings(current_df, reference_df=historical_reference_df)
+
+    assert season_scaled.filter(pl.col("team") == "A").select("SaOR").item() > 0
+    assert historical_scaled.filter(pl.col("team") == "A").select("SaOR").item() > 0
+    assert abs(historical_scaled.filter(pl.col("team") == "A").select("SaOR").item()) < abs(
+        season_scaled.filter(pl.col("team") == "A").select("SaOR").item()
+    )

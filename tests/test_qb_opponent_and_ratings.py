@@ -1,5 +1,6 @@
 """Tests for QB opponent-profile and rating helpers."""
 
+import numpy as np
 import polars as pl
 import pytest
 
@@ -903,4 +904,86 @@ def test_compute_qb_ratings_keeps_schedule_from_overpowering_poor_raw_play() -> 
     assert (
         ratings.filter(pl.col("qb_id") == "GOOD_AVG").select("QSaCR").item()
         > ratings.filter(pl.col("qb_id") == "POOR_HARD").select("QSaCR").item()
+    )
+
+
+def test_compute_qb_ratings_can_standardize_against_historical_reference() -> None:
+    """Verify QB z-scores can be scaled against a wider historical reference frame."""
+    current_df = pl.DataFrame(
+        {
+            "qb_id": ["A", "B"],
+            "qb_name": ["A QB", "B QB"],
+            "team": ["A", "B"],
+            "qb_is_eligible": [True, True],
+            "qb_games_played": [17, 17],
+            "qb_epa_per_dropback": [0.30, 0.10],
+            "qb_any_a": [8.0, 6.4],
+            "qb_completion_percentage_above_expectation": [4.0, 1.0],
+            "qb_td_int_margin_rate": [0.08, 0.03],
+            "qb_sack_rate": [0.03, 0.06],
+            "qb_pass_yards_per_dropback": [7.8, 6.2],
+            "qb_passer_rating": [110.0, 92.0],
+            "qopp_qb_epa_per_dropback": [0.05, 0.05],
+            "qopp_qb_any_a": [6.5, 6.5],
+            "qopp_qb_completion_percentage_above_expectation": [0.5, 0.5],
+            "qopp_qb_td_int_margin_rate": [0.02, 0.02],
+            "qopp_qb_sack_rate": [0.05, 0.05],
+            "qopp_qb_pass_yards_per_dropback": [6.6, 6.6],
+            "qopp_qb_passer_rating": [92.0, 92.0],
+        }
+    )
+    historical_reference_df = pl.DataFrame(
+        {
+            "qb_id": ["H1", "H2", "H3", "H4", "H5", "H6"],
+            "qb_name": ["H1", "H2", "H3", "H4", "H5", "H6"],
+            "team": ["T1", "T2", "T3", "T4", "T5", "T6"],
+            "qb_is_eligible": [True, True, True, True, True, True],
+            "qb_games_played": [17, 17, 17, 17, 17, 17],
+            "qb_epa_per_dropback": [-0.10, 0.00, 0.08, 0.16, 0.24, 0.34],
+            "qb_any_a": [5.6, 6.0, 6.5, 7.0, 7.6, 8.2],
+            "qb_completion_percentage_above_expectation": [-3.0, -1.0, 0.5, 2.0, 3.5, 5.0],
+            "qb_td_int_margin_rate": [0.00, 0.01, 0.03, 0.04, 0.06, 0.09],
+            "qb_sack_rate": [0.08, 0.07, 0.06, 0.05, 0.04, 0.03],
+            "qb_pass_yards_per_dropback": [5.4, 5.9, 6.3, 6.7, 7.1, 7.9],
+            "qb_passer_rating": [78.0, 84.0, 90.0, 96.0, 103.0, 111.0],
+            "qopp_qb_epa_per_dropback": [0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
+            "qopp_qb_any_a": [6.5, 6.5, 6.5, 6.5, 6.5, 6.5],
+            "qopp_qb_completion_percentage_above_expectation": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+            "qopp_qb_td_int_margin_rate": [0.02, 0.02, 0.02, 0.02, 0.02, 0.02],
+            "qopp_qb_sack_rate": [0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
+            "qopp_qb_pass_yards_per_dropback": [6.6, 6.6, 6.6, 6.6, 6.6, 6.6],
+            "qopp_qb_passer_rating": [92.0, 92.0, 92.0, 92.0, 92.0, 92.0],
+        }
+    )
+
+    season_scaled = qb_ratings.compute_qb_ratings(current_df, sos_weight=0.0)
+    historical_scaled = qb_ratings.compute_qb_ratings(
+        current_df,
+        reference_df=historical_reference_df,
+        sos_weight=0.0,
+    )
+
+    weights = qb_ratings._derive_qb_weights(
+        current_df,
+        stat_pool=qb_ratings._QB_STAT_POOL,
+    )
+    expected_raw = qb_ratings._build_qb_raw_composite(
+        current_df,
+        weights,
+        historical_reference_df,
+    )
+    expected_reference_raw = qb_ratings._build_qb_raw_composite(
+        historical_reference_df,
+        weights,
+        historical_reference_df,
+    )
+    expected_qraw = qb_ratings._zscore_against(
+        expected_raw.tolist(),
+        expected_reference_raw.tolist(),
+    )
+
+    assert season_scaled.filter(pl.col("qb_id") == "A").select("QRaw").item() > 0
+    assert historical_scaled.filter(pl.col("qb_id") == "A").select("QRaw").item() > 0
+    assert historical_scaled.sort("qb_id").select("QRaw").to_series().to_list() == pytest.approx(
+        np.round(expected_qraw, 3).tolist()
     )

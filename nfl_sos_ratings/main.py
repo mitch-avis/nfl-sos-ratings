@@ -114,6 +114,24 @@ def _build_qb_combined(
     return _add_qb_differentials(qb_combined)
 
 
+def _build_historical_reference_frame(
+    output_dir: str,
+    season: int,
+    suffix: str,
+    current_frame: pl.DataFrame,
+) -> pl.DataFrame:
+    """Return the current frame plus any available historical outputs for the same surface."""
+    output_path = Path(output_dir)
+    frames = [current_frame]
+
+    for file_path in sorted(output_path.glob(f"[0-9][0-9][0-9][0-9]_{suffix}.csv")):
+        if file_path.name.startswith(f"{season}_"):
+            continue
+        frames.append(pl.read_csv(file_path))
+
+    return pl.concat(frames, how="diagonal_relaxed") if len(frames) > 1 else current_frame
+
+
 def _build_team_game_logs(weekly_df: pl.DataFrame) -> pl.DataFrame:
     """Return additive team game logs for the UI contract."""
     ordered_columns = [
@@ -291,7 +309,13 @@ def run_season(season: int) -> None:
         how="left",
     )
 
-    qb_ratings_df = compute_qb_ratings(qb_combined)
+    qb_reference_df = _build_historical_reference_frame(
+        OUTPUT_DIR,
+        season,
+        "qb_combined",
+        qb_combined,
+    )
+    qb_ratings_df = compute_qb_ratings(qb_combined, reference_df=qb_reference_df)
 
     qb_ratings_join_keys = [
         key
@@ -382,7 +406,13 @@ def run_season(season: int) -> None:
         combined = combined.with_columns(diff_exprs)
 
     # Schedule-adjusted ratings (SaOR, SaDR, SaCR)
-    ratings_df = compute_ratings(combined)
+    team_reference_df = _build_historical_reference_frame(
+        OUTPUT_DIR,
+        season,
+        "combined",
+        combined,
+    )
+    ratings_df = compute_ratings(combined, reference_df=team_reference_df)
     combined = combined.join(ratings_df, on="team", how="left")
 
     srs_df = solve_srs(weekly_df, response_col="point_margin").rename({"srs_rating": "SRS"})
