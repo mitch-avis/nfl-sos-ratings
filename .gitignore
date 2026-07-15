@@ -129,8 +129,8 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
-# Output data
-output/
+# Generated data artifacts
+data/
 
 # Frontend UI
 ui/web/node_modules/
