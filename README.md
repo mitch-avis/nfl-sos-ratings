@@ -377,7 +377,7 @@ participation context.
 
 ## Data Sources
 
-All data is loaded through nflreadpy from nflverse sources.
+All data is loaded through [nflreadpy] from [nflverse] sources.
 
 Current live inputs:
 
@@ -386,5 +386,5 @@ Current live inputs:
 - Snap counts
 - Schedules and scores
 
-nflverse: <https://github.com/nflverse>
-nflreadpy: <https://github.com/nflverse/nflreadpy>
+[nflverse]: https://github.com/nflverse
+[nflreadpy]: https://github.com/nflverse/nflreadpy
