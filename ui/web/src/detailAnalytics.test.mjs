@@ -6,6 +6,161 @@ import {
   buildOpponentBreakdown,
   buildWeeklyHighlights,
 } from '../.detail-test-dist/src/detailAnalytics.js';
+import {
+  buildGameLogColumnSelection,
+  buildSeasonViewTable,
+  resolveEntityViewState,
+} from '../.detail-test-dist/src/viewModel.js';
+
+test('resolveEntityViewState defaults to Ratings, Offense, and all subcategories enabled', () => {
+  const teamState = resolveEntityViewState('teams');
+  const qbState = resolveEntityViewState('qbs');
+
+  assert.equal(teamState.primaryView, 'ratings');
+  assert.equal(teamState.teamCategory, 'Offense');
+  assert.ok(Object.values(teamState.teamSubcategories.Offense).every(Boolean));
+  assert.equal(qbState.primaryView, 'ratings');
+  assert.ok(Object.values(qbState.qbSubcategories).every(Boolean));
+});
+
+test('buildSeasonViewTable expands team per-game counts into raw totals', () => {
+  const viewState = resolveEntityViewState('teams', {
+    primaryView: 'raw_total_stats',
+    teamCategory: 'Overall',
+  });
+  const table = {
+    column_groups: {
+      identity: ['team'],
+      ratings: ['SaCR'],
+    },
+    column_metadata: {
+      points_for: {
+        base_name: 'points_for',
+        category: 'Overall',
+        contextual: false,
+        denominator: null,
+        description: 'Points scored.',
+        full_name: 'Points For',
+        label: 'Pts',
+        polarity: 'higher',
+        shape: 'count',
+        source: 'SCH',
+        subcategory: null,
+      },
+      games_played: {
+        base_name: 'games_played',
+        category: 'Overall',
+        contextual: false,
+        denominator: null,
+        description: 'Games played.',
+        full_name: 'Games Played',
+        label: 'G',
+        polarity: 'neutral',
+        shape: 'count',
+        source: 'SCH',
+        subcategory: null,
+      },
+      SaCR: {
+        base_name: 'SaCR',
+        category: 'Schedule-Adjusted Ratings',
+        contextual: false,
+        denominator: null,
+        description: 'Rating.',
+        full_name: 'SaCR',
+        label: 'SaCR',
+        polarity: 'higher',
+        shape: 'score',
+        source: 'D',
+        subcategory: null,
+      },
+    },
+    rows: [{ team: 'DET', points_for: 28, games_played: 17, SaCR: 1.2 }],
+    visible_columns: ['team', 'SaCR', 'points_for', 'games_played'],
+  };
+
+  const derived = buildSeasonViewTable('teams', table, viewState);
+
+  assert.deepEqual(derived.selectedColumns, ['team', 'points_for', 'games_played']);
+  assert.equal(derived.table.rows[0].points_for, 476);
+  assert.equal(derived.table.rows[0].games_played, 17);
+});
+
+test('buildGameLogColumnSelection folds results into the weekly base columns', () => {
+  const viewState = resolveEntityViewState('qbs', {
+    primaryView: 'per_game_rates',
+    qbSubcategories: {
+      'Identity & Availability': false,
+      'Passing Volume': true,
+      'Passing Efficiency': false,
+      'Advanced & Expected': false,
+      'Pressure, Sacks & Pocket': false,
+      Rushing: false,
+      'Scoring, Clutch & Outcomes': false,
+      'Turnovers & Ball Security': false,
+    },
+  });
+  const gameLogs = {
+    column_groups: {},
+    column_metadata: {
+      qb_pass_yards: {
+        base_name: 'qb_pass_yards',
+        category: 'Passing Volume',
+        contextual: false,
+        denominator: null,
+        description: 'Passing yards.',
+        full_name: 'QB Passing Yards',
+        label: 'Pass Yds',
+        polarity: 'higher',
+        shape: 'count',
+        source: 'PLS',
+        subcategory: null,
+      },
+      qb_game_winning_drive: {
+        base_name: 'qb_game_winning_drive',
+        category: 'Scoring, Clutch & Outcomes',
+        contextual: false,
+        denominator: null,
+        description: 'Game-winning drives.',
+        full_name: 'GWD',
+        label: 'GWD',
+        polarity: 'higher',
+        shape: 'count',
+        source: 'D',
+        subcategory: null,
+      },
+    },
+    rows: [],
+    visible_columns: [
+      'week',
+      'opponent_team',
+      'game_id',
+      'points_for',
+      'points_allowed',
+      'point_margin',
+      'win_value',
+      'turnover_margin',
+      'opp_SaDR',
+      'qb_pass_yards',
+      'qb_game_winning_drive',
+    ],
+  };
+
+  const selection = buildGameLogColumnSelection('qbs', gameLogs, viewState);
+
+  assert.deepEqual(selection.columns.slice(0, 8), [
+    'week',
+    'opponent_team',
+    'game_id',
+    'points_for',
+    'points_allowed',
+    'point_margin',
+    'win_value',
+    'turnover_margin',
+  ]);
+  assert.ok(selection.columns.includes('opp_SaDR'));
+  assert.ok(selection.columns.includes('qb_pass_yards'));
+  assert.ok(!selection.columns.includes('qb_game_winning_drive'));
+});
 
 test('buildWeeklyHighlights adds a recent three-game card with season-baseline context', () => {
   const seasonRow = {
@@ -138,13 +293,15 @@ test('buildOpponentBreakdown curates a team offense ledger with season-delta con
   assert.equal(sea.passing_epa, 9);
   assert.equal(sea.season_delta_passing_epa, 5);
   assert.equal(sea.opp_schedule_bucket, 'Tougher');
+  // Buckets apply the fixed thresholds to the raw league z-score:
+  // +0.5 or higher is Tougher, -0.5 or lower is Softer.
   assert.equal(
     breakdown.rows.find((row) => row.opponent_team === 'SF').opp_schedule_bucket,
-    'Middle',
+    'Tougher',
   );
   assert.equal(
     breakdown.rows.find((row) => row.opponent_team === 'ARI').opp_schedule_bucket,
-    'Softer',
+    'Middle',
   );
   assert.match(breakdown.description, /unique opponents/i);
   assert.match(breakdown.description, /division opponents are averaged together/i);

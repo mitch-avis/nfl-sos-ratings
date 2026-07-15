@@ -7,7 +7,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from nfl_sos_ratings.config import OUTPUT_DIR
+from nfl_sos_ratings.config import DATA_DIR
+from nfl_sos_ratings.metrics import get_registry
 from nfl_sos_ratings.ui_data import (
     MissingEntityGameLogError,
     MissingSeasonContractError,
@@ -20,12 +21,12 @@ from nfl_sos_ratings.ui_data import (
 )
 
 
-def create_app(output_dir: Path | None = None) -> FastAPI:
+def create_app(data_dir: Path | None = None) -> FastAPI:
     """Create the local analyst UI API application."""
-    resolved_output_dir = output_dir or Path(OUTPUT_DIR)
+    resolved_data_dir = data_dir or Path(DATA_DIR)
     app = FastAPI(
         title="NFL SOS Ratings UI API",
-        summary="CSV-backed data service for the analyst-facing local UI.",
+        summary="Parquet-backed data service for the analyst-facing local UI.",
     )
     app.add_middleware(
         CORSMiddleware,
@@ -42,16 +43,21 @@ def create_app(output_dir: Path | None = None) -> FastAPI:
         """Return a basic health payload for local development."""
         return {"status": "ok"}
 
+    @app.get("/api/metadata")
+    def get_metadata() -> dict[str, object]:
+        """Return the metric registry: categories, metrics, and rating pools."""
+        return get_registry().payload()
+
     @app.get("/api/seasons")
     def list_seasons() -> dict[str, list[int]]:
         """List seasons with a complete first-pass UI contract."""
-        return {"seasons": discover_available_seasons(resolved_output_dir)}
+        return {"seasons": discover_available_seasons(resolved_data_dir)}
 
     @app.get("/api/seasons/{season}")
     def get_season(season: int) -> SeasonDataset:
         """Return the normalized analyst UI dataset for one season."""
         try:
-            return load_season_ui_dataset(resolved_output_dir, season)
+            return load_season_ui_dataset(resolved_data_dir, season)
         except MissingSeasonContractError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -59,7 +65,7 @@ def create_app(output_dir: Path | None = None) -> FastAPI:
     def get_team_game_logs(season: int, team: str) -> TablePayload:
         """Return additive team game logs for one team and season."""
         try:
-            return load_team_game_log_payload(resolved_output_dir, season, team)
+            return load_team_game_log_payload(resolved_data_dir, season, team)
         except (MissingSeasonContractError, MissingEntityGameLogError) as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -67,7 +73,7 @@ def create_app(output_dir: Path | None = None) -> FastAPI:
     def get_qb_game_logs(season: int, qb_id: str) -> TablePayload:
         """Return additive QB game logs for one quarterback and season."""
         try:
-            return load_qb_game_log_payload(resolved_output_dir, season, qb_id)
+            return load_qb_game_log_payload(resolved_data_dir, season, qb_id)
         except (MissingSeasonContractError, MissingEntityGameLogError) as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 

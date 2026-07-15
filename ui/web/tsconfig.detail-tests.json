@@ -12,6 +12,7 @@
     "src/detailUi.ts",
     "src/format.ts",
     "src/metricMetadata.ts",
-    "src/types.ts"
+    "src/types.ts",
+    "src/viewModel.ts"
   ]
 }

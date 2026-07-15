@@ -3,7 +3,7 @@
 ## Purpose
 
 This frontend is the first analyst-facing interface for `nfl-sos-ratings`. It is not a public
-marketing site. It is a local exploration console for the generated season outputs under `output/`.
+marketing site. It is a local exploration console for the generated season outputs under `data/`.
 
 The UI is meant to answer questions like:
 
@@ -11,14 +11,18 @@ The UI is meant to answer questions like:
 - Which QBs look strongest after separating raw performance from schedule strength?
 - How do the rating outputs sit next to the raw totals, rate metrics, and opponent context that
   produced them?
-- How can I quickly compare a few teams or QBs without dropping back to CSV inspection?
+- How can I quickly compare a few teams or QBs without dropping back to raw data inspection?
 
 ## What It Includes Today
 
 - Season-aware Teams index route
 - Season-aware QBs index route
 - Sortable and filterable TanStack tables
-- Column-group toggles for identity, ratings, raw totals, rate groups, and opponent context
+- A single-select six-view control row on Teams and QBs pages:
+  `Ratings`, `Raw Total Stats`, `Per-Game Rates`, `Per-Play Rates`,
+  `Opponent Per-Game Rates`, `Opponent Per-Play Rates`
+- Teams category and team/QB subcategory rows that appear for non-`Ratings` views while keeping
+  their vertical space reserved when hidden
 - Built-in light/dark theme toggle
 - Built-in classic/Broncos palette toggle for cleaner color-blind-friendly viewing
 - In-table heatmap styling for numeric metrics
@@ -26,21 +30,21 @@ The UI is meant to answer questions like:
 - Deep-linkable detail routes for individual teams and QBs
 - A compare workflow driven by URL query state and current visible columns
 - A glossary route for rating meanings and reading guidance
-- A thin FastAPI backend that serves normalized JSON from the generated CSV contract
+- A thin FastAPI backend that serves normalized JSON from the generated Parquet contract
 
 ## Data Contract
 
-The UI does **not** rebuild the methodology from pipeline internals. It reads the generated CSV
+The UI does **not** rebuild the methodology from pipeline internals. It reads the generated Parquet
 outputs through the backend contract in `nfl_sos_ratings.ui_data`.
 
 Current required files per season:
 
-- `{season}_team_per_game_stats.csv`
-- `{season}_qb_per_game_stats.csv`
-- `{season}_combined.csv`
-- `{season}_qb_combined.csv`
-- `{season}_ratings.csv`
-- `{season}_qb_ratings.csv`
+- `{season}_team_per_game_stats.parquet`
+- `{season}_qb_per_game_stats.parquet`
+- `{season}_combined.parquet`
+- `{season}_qb_combined.parquet`
+- `{season}_ratings.parquet`
+- `{season}_qb_ratings.parquet`
 
 If one of those files is missing, the backend will not advertise that season as available.
 
@@ -121,7 +125,12 @@ This runs TypeScript project builds and then a Vite production build.
   color-blind-friendly view.
 - Search filters only the currently visible columns.
 - Identity columns are always visible and remain pinned while side-scrolling.
-- Group toggles let you turn non-identity metric families on and off without losing sort state.
+- The primary view row is single-select. Exactly one of the six views is active at a time.
+- On Teams pages, non-`Ratings` views reveal a single-select category row (`Overall`, `Offense`,
+  `Defense`, `Special Teams`) plus a multi-select subcategory row for the selected category.
+- On QB pages, non-`Ratings` views reveal a single multi-select subcategory row.
+- `Reset` restores the default state: `Ratings`, Teams category `Offense`, all subcategories
+  enabled, default sorting, empty compare state, and cleared search.
 - Team index defaults are intentionally narrower now so the first view emphasizes rankings before
   you expand additional stat families.
 - QB index hides unrated rows by default; use the row-filter toggle to reveal all QB rows.
@@ -131,8 +140,10 @@ This runs TypeScript project builds and then a Vite production build.
 ### Detail views
 
 - Click a team code or QB name from the table to open that entity's detail route.
-- Detail pages group fields by metric family so ratings, raw totals, and opponent context stay
-  adjacent.
+- Detail pages use the same top-of-page six-view row and category/subcategory rows as the index.
+- The detail header pane is pinned while the page scrolls.
+- Weekly and unique-opponent tables now follow the top-of-page selection state instead of
+  maintaining their own local metric-family toggle row.
 
 ### Compare mode
 
@@ -165,7 +176,7 @@ newer TypeScript versions can fail on the CSS side-effect import in `src/main.ts
 ### The season selector is empty
 
 The backend only exposes seasons that have the complete six-file UI contract. Re-run the Python
-pipeline and confirm the expected CSV files exist under `output/`.
+pipeline and confirm the expected Parquet files exist under `data/`.
 
 ### The frontend loads but API calls fail
 
@@ -201,7 +212,7 @@ or the compare query references stale IDs, navigate back to the index and resele
   tests/test_ui_api.py`.
 - If the UI looks wrong for a specific metric, inspect the backend payload before editing the
   frontend assumptions.
-- The UI should never silently redefine an output column's meaning.
+- The UI should never silently redefine a data column's meaning.
 
 ## Validation Commands
 

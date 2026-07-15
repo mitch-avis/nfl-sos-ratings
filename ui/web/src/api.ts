@@ -1,4 +1,11 @@
-import type { EntityKind, SeasonDataset, SeasonsResponse, TablePayload } from './types';
+import { hydrateColumnMetadata, hydrateMetricRegistry } from './metricMetadata';
+import type {
+  EntityKind,
+  MetricRegistryPayload,
+  SeasonDataset,
+  SeasonsResponse,
+  TablePayload,
+} from './types';
 
 async function readJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
@@ -12,14 +19,27 @@ export function fetchSeasons(): Promise<SeasonsResponse> {
   return readJson<SeasonsResponse>('/api/seasons');
 }
 
-export function fetchSeasonDataset(season: number): Promise<SeasonDataset> {
-  return readJson<SeasonDataset>(`/api/seasons/${season}`);
+export async function fetchMetricRegistry(): Promise<MetricRegistryPayload> {
+  const registry = await readJson<MetricRegistryPayload>('/api/metadata');
+  hydrateMetricRegistry(registry);
+  return registry;
 }
 
-export function fetchEntityGameLogs(
+export async function fetchSeasonDataset(season: number): Promise<SeasonDataset> {
+  const dataset = await readJson<SeasonDataset>(`/api/seasons/${season}`);
+  hydrateColumnMetadata(dataset.teams.column_metadata);
+  hydrateColumnMetadata(dataset.qbs.column_metadata);
+  return dataset;
+}
+
+export async function fetchEntityGameLogs(
   kind: EntityKind,
   season: number,
   entityId: string,
 ): Promise<TablePayload> {
-  return readJson<TablePayload>(`/api/seasons/${season}/${kind}/${entityId}/game-logs`);
+  const payload = await readJson<TablePayload>(
+    `/api/seasons/${season}/${kind}/${entityId}/game-logs`,
+  );
+  hydrateColumnMetadata(payload.column_metadata);
+  return payload;
 }

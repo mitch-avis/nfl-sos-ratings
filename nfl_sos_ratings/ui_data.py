@@ -1,4 +1,4 @@
-"""CSV-backed data contract helpers for the local analyst UI."""
+"""Parquet-backed data contract helpers for the local analyst UI."""
 
 from __future__ import annotations
 
@@ -9,7 +9,10 @@ from typing import TypedDict
 
 import polars as pl
 
-SEASON_FILE_RE = re.compile(r"^(?P<season>\d{4})_(?P<suffix>[a-z0-9_]+)\.csv$")
+from nfl_sos_ratings.metrics import get_registry
+from nfl_sos_ratings.metrics.schema import Entity
+
+SEASON_FILE_RE = re.compile(r"^(?P<season>\d{4})_(?P<suffix>[a-z0-9_]+)\.parquet$")
 REQUIRED_CONTRACT_SUFFIXES = (
     "team_per_game_stats",
     "qb_per_game_stats",
@@ -46,6 +49,7 @@ class TablePayload(TypedDict):
     rows: list[dict[str, object]]
     visible_columns: list[str]
     column_groups: dict[str, list[str]]
+    column_metadata: dict[str, dict[str, object]]
 
 
 class SeasonDataset(TypedDict):
@@ -56,10 +60,10 @@ class SeasonDataset(TypedDict):
     qbs: TablePayload
 
 
-def discover_available_seasons(output_dir: Path) -> list[int]:
-    """Return seasons that have the complete first-pass UI CSV contract."""
+def discover_available_seasons(data_dir: Path) -> list[int]:
+    """Return seasons that have the complete first-pass UI Parquet contract."""
     discovered: dict[int, set[str]] = {}
-    for file_path in output_dir.glob("*.csv"):
+    for file_path in data_dir.glob("*.parquet"):
         match = SEASON_FILE_RE.match(file_path.name)
         if match is None:
             continue
@@ -74,13 +78,13 @@ def discover_available_seasons(output_dir: Path) -> list[int]:
     return sorted(available, reverse=True)
 
 
-def load_season_ui_dataset(output_dir: Path, season: int) -> SeasonDataset:
+def load_season_ui_dataset(data_dir: Path, season: int) -> SeasonDataset:
     """Load one season of normalized index data for the local analyst UI."""
-    contract_paths = _build_contract_paths(output_dir, season)
+    contract_paths = _build_contract_paths(data_dir, season)
     _validate_contract_paths(contract_paths, season)
 
-    team_frame = pl.read_csv(contract_paths["combined"])
-    qb_frame = pl.read_csv(contract_paths["qb_combined"])
+    team_frame = pl.read_parquet(contract_paths["combined"])
+    qb_frame = pl.read_parquet(contract_paths["qb_combined"])
 
     return {
         "season": season,
@@ -89,23 +93,25 @@ def load_season_ui_dataset(output_dir: Path, season: int) -> SeasonDataset:
     }
 
 
-def load_team_game_log_payload(output_dir: Path, season: int, team: str) -> TablePayload:
+def load_team_game_log_payload(data_dir: Path, season: int, team: str) -> TablePayload:
     """Load additive team game logs for one team and season."""
-    frame = _load_game_log_frame(output_dir, season, TEAM_GAME_LOG_SUFFIX)
+    frame = _load_game_log_frame(data_dir, season, TEAM_GAME_LOG_SUFFIX)
     filtered = _filter_entity_game_logs(frame, "team", team, season, "team")
     return _build_team_game_log_payload(filtered)
 
 
-def load_qb_game_log_payload(output_dir: Path, season: int, qb_id: str) -> TablePayload:
+def load_qb_game_log_payload(data_dir: Path, season: int, qb_id: str) -> TablePayload:
     """Load additive quarterback game logs for one QB and season."""
-    frame = _load_game_log_frame(output_dir, season, QB_GAME_LOG_SUFFIX)
+    frame = _load_game_log_frame(data_dir, season, QB_GAME_LOG_SUFFIX)
     filtered = _filter_entity_game_logs(frame, "qb_id", qb_id, season, "QB")
     return _build_qb_game_log_payload(filtered)
 
 
-def _build_contract_paths(output_dir: Path, season: int) -> dict[str, Path]:
+def _build_contract_paths(data_dir: Path, season: int) -> dict[str, Path]:
     """Return the required contract file paths for one season."""
-    return {suffix: output_dir / f"{season}_{suffix}.csv" for suffix in REQUIRED_CONTRACT_SUFFIXES}
+    return {
+        suffix: data_dir / f"{season}_{suffix}.parquet" for suffix in REQUIRED_CONTRACT_SUFFIXES
+    }
 
 
 def _validate_contract_paths(contract_paths: dict[str, Path], season: int) -> None:
@@ -118,8 +124,33 @@ def _validate_contract_paths(contract_paths: dict[str, Path], season: int) -> No
         )
 
 
+def _order_columns_by_category(columns: list[str], entity: Entity) -> list[str]:
+    """Order columns by the registry's category/subcategory display taxonomy."""
+    registry = get_registry()
+    categories = registry.categories(entity)
+    category_rank = {category.name: index for index, category in enumerate(categories)}
+    subcategory_rank = {
+        (category.name, subcategory): index
+        for category in categories
+        for index, subcategory in enumerate(category.subcategories)
+    }
+
+    def sort_key(item: tuple[int, str]) -> tuple[int, int, int]:
+        original_index, column = item
+        resolved = registry.resolve_column(column)
+        if resolved is None:
+            return (len(category_rank), 0, original_index)
+        category_index = category_rank.get(resolved.category, len(category_rank))
+        subcategory_index = subcategory_rank.get(
+            (resolved.category, resolved.subcategory or ""), -1
+        )
+        return (category_index, subcategory_index, original_index)
+
+    return [column for _, column in sorted(enumerate(columns), key=sort_key)]
+
+
 def _build_team_payload(frame: pl.DataFrame) -> TablePayload:
-    """Return a grouped team index payload from the season combined output."""
+    """Return a grouped team index payload from the season combined data."""
     identity_columns = [column for column in ("team",) if column in frame.columns]
     rating_columns = _ordered_existing_columns(frame.columns, TEAM_RATING_COLUMNS)
     opponent_context = [
@@ -133,11 +164,16 @@ def _build_team_payload(frame: pl.DataFrame) -> TablePayload:
         if _is_team_per_snap_column(column) and not column.startswith("opp_")
     ]
     excluded_columns = set(identity_columns + rating_columns + opponent_context + per_snap_rates)
-    per_game_rates = [
-        column
-        for column in frame.columns
-        if column not in excluded_columns and not _starts_with_any(column, TEAM_EXCLUDED_PREFIXES)
-    ]
+    per_game_rates = _order_columns_by_category(
+        [
+            column
+            for column in frame.columns
+            if column not in excluded_columns
+            and not _starts_with_any(column, TEAM_EXCLUDED_PREFIXES)
+        ],
+        "team",
+    )
+    per_snap_rates = _order_columns_by_category(per_snap_rates, "team")
     visible_columns = (
         identity_columns + rating_columns + per_game_rates + per_snap_rates + opponent_context
     )
@@ -151,11 +187,12 @@ def _build_team_payload(frame: pl.DataFrame) -> TablePayload:
             "per_snap_rates": per_snap_rates,
             "opponent_context": opponent_context,
         },
+        "column_metadata": get_registry().column_metadata(visible_columns),
     }
 
 
 def _build_qb_payload(frame: pl.DataFrame) -> TablePayload:
-    """Return a grouped QB index payload from the season QB combined output."""
+    """Return a grouped QB index payload from the season QB combined data."""
     identity_columns = [
         column
         for column in ("qb_id", "qb_name", "player_id", "player_display_name", "team")
@@ -177,11 +214,16 @@ def _build_qb_payload(frame: pl.DataFrame) -> TablePayload:
     excluded_columns = set(
         identity_columns + rating_columns + opponent_context + per_game_rates + per_dropback_rates
     )
-    raw_totals = [
-        column
-        for column in frame.columns
-        if column not in excluded_columns and not _starts_with_any(column, QB_EXCLUDED_PREFIXES)
-    ]
+    raw_totals = _order_columns_by_category(
+        [
+            column
+            for column in frame.columns
+            if column not in excluded_columns and not _starts_with_any(column, QB_EXCLUDED_PREFIXES)
+        ],
+        "qb",
+    )
+    per_game_rates = _order_columns_by_category(per_game_rates, "qb")
+    per_dropback_rates = _order_columns_by_category(per_dropback_rates, "qb")
     visible_columns = (
         identity_columns
         + rating_columns
@@ -201,17 +243,18 @@ def _build_qb_payload(frame: pl.DataFrame) -> TablePayload:
             "per_dropback_rates": per_dropback_rates,
             "opponent_context": opponent_context,
         },
+        "column_metadata": get_registry().column_metadata(visible_columns),
     }
 
 
-def _load_game_log_frame(output_dir: Path, season: int, suffix: str) -> pl.DataFrame:
-    """Read one additive game-log CSV for the requested season."""
-    file_path = output_dir / f"{season}_{suffix}.csv"
+def _load_game_log_frame(data_dir: Path, season: int, suffix: str) -> pl.DataFrame:
+    """Read one additive game-log Parquet file for the requested season."""
+    file_path = data_dir / f"{season}_{suffix}.parquet"
     if not file_path.exists():
         raise MissingSeasonContractError(
             f"Season {season} is missing UI contract files: {file_path.name}"
         )
-    return pl.read_csv(file_path)
+    return pl.read_parquet(file_path)
 
 
 def _filter_entity_game_logs(
@@ -264,6 +307,7 @@ def _build_team_game_log_payload(frame: pl.DataFrame) -> TablePayload:
             "raw_totals": raw_totals,
             "per_snap_rates": per_snap_rates,
         },
+        "column_metadata": get_registry().column_metadata(visible_columns),
     }
 
 
@@ -296,6 +340,7 @@ def _build_qb_game_log_payload(frame: pl.DataFrame) -> TablePayload:
             "raw_totals": raw_totals,
             "per_dropback_rates": per_dropback_rates,
         },
+        "column_metadata": get_registry().column_metadata(visible_columns),
     }
 
 

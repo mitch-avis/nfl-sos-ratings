@@ -304,6 +304,25 @@ a {
   justify-content: flex-end;
 }
 
+.view-control-stack {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: end;
+}
+
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  min-height: 2.75rem;
+  justify-content: flex-end;
+}
+
+.reserved-control-row {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .group-toggle,
 .sort-button {
   border: 0;
@@ -512,6 +531,25 @@ tbody tr:hover {
 .detail-hero {
   display: grid;
   gap: 0.75rem;
+}
+
+.detail-header-pane {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  display: grid;
+  gap: 1rem;
+  padding: 1.2rem 1.4rem;
+  background: color-mix(in srgb, var(--paper-strong) 94%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.detail-header-pane .view-control-stack {
+  justify-items: start;
+}
+
+.detail-header-pane .control-row {
+  justify-content: flex-start;
 }
 
 .hero-actions {

@@ -613,43 +613,24 @@ function summarizeGroupValue(rowsForOpponent: DataRow[], column: string): RowVal
 }
 
 function buildScheduleBuckets(rows: DataRow[], difficultyMetric: string): Map<string, string> {
-  const rankedRows = rows
-    .map((row) => ({
-      opponentTeam: String(row.opponent_team ?? ''),
-      value: row[difficultyMetric],
-    }))
-    .filter(
-      (entry): entry is { opponentTeam: string; value: number } =>
-        typeof entry.value === 'number' && Number.isFinite(entry.value),
-    );
-
+  // The difficulty metric is already a league-wide z-score (opp_SaCR / opp_SaDR /
+  // opp_SaOR), so the thresholds apply to the raw value directly: +0.5 or higher
+  // is Tougher, -0.5 or lower is Softer, everything between is Middle.
   const bucketByOpponent = new Map<string, string>();
-  if (rankedRows.length < 2) {
-    rankedRows.forEach((entry) => {
-      bucketByOpponent.set(entry.opponentTeam, 'Middle');
-    });
-    return bucketByOpponent;
-  }
-
-  const values = rankedRows.map((entry) => entry.value);
-  const mean = average(values);
-  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1);
-  const std = Math.sqrt(variance);
-
-  rankedRows.forEach((entry) => {
-    let bucket = 'Middle';
-    if (std > 0) {
-      const zScore = (entry.value - mean) / std;
-      if (zScore >= 0.5) {
-        bucket = 'Tougher';
-      } else if (zScore <= -0.5) {
-        bucket = 'Softer';
-      }
+  rows.forEach((row) => {
+    const opponentTeam = String(row.opponent_team ?? '');
+    const value = row[difficultyMetric];
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return;
     }
-
-    bucketByOpponent.set(entry.opponentTeam, bucket);
+    let bucket = 'Middle';
+    if (value >= 0.5) {
+      bucket = 'Tougher';
+    } else if (value <= -0.5) {
+      bucket = 'Softer';
+    }
+    bucketByOpponent.set(opponentTeam, bucket);
   });
-
   return bucketByOpponent;
 }
 
@@ -715,6 +696,11 @@ export function buildOpponentBreakdown(
     String(left.opponent_team).localeCompare(String(right.opponent_team)),
   );
 
+  const reservedIds = new Set(
+    ['opponent_team', 'games', 'weeks', 'opp_schedule_bucket', spec.difficultyMetric].filter(
+      (id): id is string => Boolean(id),
+    ),
+  );
   const columns: OpponentBreakdownColumn[] = [
     { id: 'opponent_team' },
     { id: 'games' },
@@ -727,14 +713,14 @@ export function buildOpponentBreakdown(
             label: 'Sched Tier',
             tooltip:
               'Quick difficulty label based on the selected opponent rating column for this view. '
-              + 'Tougher means at least half a standard deviation above the rest of the schedule, '
-              + 'Softer means at least half a standard deviation below it.',
+              + 'The rating is a league-wide z-score: +0.5 or higher reads Tougher, -0.5 or lower '
+              + 'reads Softer, and everything between reads Middle.',
           },
         ]
       : []),
-    ...spec.groupColumns
-      .filter((column) => column !== spec.difficultyMetric)
-      .map((column) => ({ id: column })),
+    ...uniqueColumns(spec.groupColumns.filter((column) => !reservedIds.has(column))).map(
+      (column) => ({ id: column }),
+    ),
     ...(deltaColumn ? [{ id: deltaColumn }] : []),
   ];
 

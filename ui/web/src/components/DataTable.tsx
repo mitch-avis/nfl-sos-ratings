@@ -10,26 +10,35 @@ import {
 import { useMemo, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 
-import { formatValue, humanizeGroup } from '../format';
-import { getGroupDescription, getMetricMetadata, getMetricTooltip } from '../metricMetadata';
+import { formatValue } from '../format';
+import { getMetricMetadata, getMetricTooltip } from '../metricMetadata';
 import { TooltipLabel } from './TooltipLabel';
 import { buildColumnStats, buildColumnWidths, getHeatCellStyle, sanitizeSorting } from '../tableState';
-import type { EntityKind, PaletteMode, RowValue, TablePayload, ThemeMode } from '../types';
+import type {
+  EntityKind,
+  PaletteMode,
+  PrimaryView,
+  RowValue,
+  TablePayload,
+  ThemeMode,
+} from '../types';
+import type { ResolvedEntityViewState } from '../viewModel';
+import { ViewControls } from './ViewControls';
 
 interface DataTableProps {
   basePath: string;
   compareIds: string[];
   defaultSortColumn: string;
   detailColumn: string;
-  enabledGroups: Record<string, boolean>;
   entityKind: EntityKind;
   identityColumns: string[];
   identityKey: string;
-  onEnableAllGroups: () => void;
   onQueryChange: (query: string) => void;
   onResetView: () => void;
+  onSelectTeamCategory: (category: string) => void;
+  onSelectView: (view: PrimaryView) => void;
   onSortingChange: (sorting: SortingState) => void;
-  onToggleGroup: (group: string) => void;
+  onToggleSubcategory: (subcategory: string) => void;
   onToggleCompare: (entityId: string) => void;
   palette: PaletteMode;
   query: string;
@@ -40,6 +49,7 @@ interface DataTableProps {
   theme: ThemeMode;
   title: string;
   table: TablePayload;
+  viewState: ResolvedEntityViewState;
 }
 
 export function DataTable({
@@ -47,15 +57,15 @@ export function DataTable({
   compareIds,
   defaultSortColumn,
   detailColumn,
-  enabledGroups,
   entityKind,
   identityColumns,
   identityKey,
-  onEnableAllGroups,
   onQueryChange,
   onResetView,
+  onSelectTeamCategory,
+  onSelectView,
   onSortingChange,
-  onToggleGroup,
+  onToggleSubcategory,
   onToggleCompare,
   palette,
   query,
@@ -66,6 +76,7 @@ export function DataTable({
   theme,
   title,
   table,
+  viewState,
 }: DataTableProps): ReactElement {
   const availableColumnIds = useMemo(() => ['compare', 'rank', ...selectedColumns], [selectedColumns]);
   const defaultSortDescending = useMemo(
@@ -94,76 +105,6 @@ export function DataTable({
     () => buildColumnStats(filteredRows, selectedColumns),
     [filteredRows, selectedColumns],
   );
-  const groupEntries = useMemo(
-    () => Object.entries(table.column_groups).filter(([group]) => group !== 'identity'),
-    [table.column_groups],
-  );
-  const allStatsActive = useMemo(
-    () => groupEntries.every(([group]) => enabledGroups[group]),
-    [enabledGroups, groupEntries],
-  );
-  const allStatsColumnCount = useMemo(
-    () => groupEntries.reduce((count, [, columns]) => count + columns.length, 0),
-    [groupEntries],
-  );
-  const groupButtons = useMemo(() => {
-    const buttons: ReactElement[] = [];
-
-    for (const [group, columnsForGroup] of groupEntries) {
-      buttons.push(
-        <button
-          key={group}
-          type="button"
-          className={enabledGroups[group] ? 'group-toggle active' : 'group-toggle'}
-          onClick={() => onToggleGroup(group)}
-          title={getGroupDescription(entityKind, group)}
-        >
-          <span>{humanizeGroup(group)}</span>
-          <strong>{columnsForGroup.length}</strong>
-        </button>,
-      );
-
-      if (group === 'opponent_context') {
-        buttons.push(
-          <button
-            key="all-stats"
-            type="button"
-            className={allStatsActive ? 'group-toggle active' : 'group-toggle'}
-            onClick={onEnableAllGroups}
-            title="Enable every metric family in the current index view."
-          >
-            <span>All Stats</span>
-            <strong>{allStatsColumnCount}</strong>
-          </button>,
-        );
-      }
-    }
-
-    if (!groupEntries.some(([group]) => group === 'opponent_context')) {
-      buttons.push(
-        <button
-          key="all-stats"
-          type="button"
-          className={allStatsActive ? 'group-toggle active' : 'group-toggle'}
-          onClick={onEnableAllGroups}
-          title="Enable every metric family in the current index view."
-        >
-          <span>All Stats</span>
-          <strong>{allStatsColumnCount}</strong>
-        </button>,
-      );
-    }
-
-    return buttons;
-  }, [
-    allStatsActive,
-    allStatsColumnCount,
-    enabledGroups,
-    entityKind,
-    groupEntries,
-    onEnableAllGroups,
-    onToggleGroup,
-  ]);
   const columnWidths = useMemo(
     () => buildColumnWidths(table.rows, selectedColumns, identityColumns),
     [identityColumns, selectedColumns, table.rows],
@@ -289,21 +230,19 @@ export function DataTable({
             type="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="Team, QB, rating, opponent context..."
+            placeholder="Search visible columns"
           />
         </label>
 
-        <div className="group-toggle-wrap">
-          {groupButtons}
-          <button
-            type="button"
-            className="group-toggle reset-toggle"
-            disabled={!canReset}
-            onClick={onResetView}
-          >
-            <span>Reset</span>
-          </button>
-        </div>
+        <ViewControls
+          canReset={canReset}
+          kind={entityKind}
+          onReset={onResetView}
+          onSelectTeamCategory={onSelectTeamCategory}
+          onSelectView={onSelectView}
+          onToggleSubcategory={onToggleSubcategory}
+          state={viewState}
+        />
       </div>
 
       <div className="table-shell">

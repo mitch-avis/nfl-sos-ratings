@@ -1,26 +1,26 @@
-import { getGroupDescription } from '../metricMetadata';
 import type { ReactElement } from 'react';
 
-import { humanizeGroup } from '../format';
-import type { EntityKind, TablePayload } from '../types';
+import type { EntityKind } from '../types';
 
 interface OverviewCardsProps {
   displayCount: number;
-  table: TablePayload;
   entityLabel: string;
+  metricCount: number;
   kind: EntityKind;
+  selectedSlice: string;
+  selectedView: string;
   totalCount: number;
 }
 
 export function OverviewCards({
   displayCount,
-  table,
   entityLabel,
+  metricCount,
   kind,
+  selectedSlice,
+  selectedView,
   totalCount,
 }: OverviewCardsProps): ReactElement {
-  const groups = Object.entries(table.column_groups).filter(([group]) => group !== 'identity');
-
   return (
     <section className="overview-grid">
       <article className="panel stat-card feature-card">
@@ -32,13 +32,20 @@ export function OverviewCards({
             : `${displayCount} displayed out of ${totalCount} ${entityLabel.toLowerCase()} rows.`}
         </p>
       </article>
-      {groups.map(([group, columns]) => (
-        <article key={group} className="panel stat-card">
-          <p className="eyebrow">{humanizeGroup(group)}</p>
-          <h3>{columns.length}</h3>
-          <p>{getGroupDescription(kind, group)}</p>
-        </article>
-      ))}
+      <article className="panel stat-card">
+        <p className="eyebrow">Current View</p>
+        <h3>{selectedView}</h3>
+        <p>
+          {kind === 'teams'
+            ? 'Single active stat view for the current team table.'
+            : 'Single active stat view for the current QB table.'}
+        </p>
+      </article>
+      <article className="panel stat-card">
+        <p className="eyebrow">Current Slice</p>
+        <h3>{metricCount}</h3>
+        <p>{selectedSlice}</p>
+      </article>
     </section>
   );
 }

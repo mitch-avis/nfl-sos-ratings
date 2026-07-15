@@ -37,10 +37,14 @@ export function humanizeGroup(group: string): string {
   const overrides: Record<string, string> = {
     identity: 'Identity',
     ratings: 'Ratings',
+    raw_total_stats: 'Raw Total Stats',
     raw_totals: 'Raw Totals',
+    per_play_rates: 'Per-Play Rates',
     per_snap_rates: 'Per-Snap Rates',
     per_game_rates: 'Per-Game Rates',
     per_dropback_rates: 'Per-Dropback Rates',
+    opponent_per_game_rates: 'Opponent Per-Game Rates',
+    opponent_per_play_rates: 'Opponent Per-Play Rates',
     opponent_context: 'Opponent Context',
   };
   return overrides[group] ?? humanizeColumn(group);

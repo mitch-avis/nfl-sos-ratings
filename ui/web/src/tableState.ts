@@ -124,6 +124,19 @@ export function getHeatCellStyle(
   theme: ThemeMode,
   palette: PaletteMode,
 ): CSSProperties | undefined {
+  if (column === 'opp_schedule_bucket') {
+    // Tougher opponents read as the "better" end of the gradient, Softer as the
+    // "worse" end, and Middle stays uncolored.
+    const paletteSet = HEAT_PALETTES[palette][theme];
+    if (value === 'Tougher') {
+      return { backgroundColor: colorToCss([...paletteSet.good]) };
+    }
+    if (value === 'Softer') {
+      return { backgroundColor: colorToCss([...paletteSet.bad]) };
+    }
+    return undefined;
+  }
+
   if (typeof value !== 'number' || !Number.isFinite(value) || !(column in stats)) {
     return undefined;
   }

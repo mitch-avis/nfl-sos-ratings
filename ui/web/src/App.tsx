@@ -10,7 +10,7 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 
-import { fetchEntityGameLogs, fetchSeasonDataset, fetchSeasons } from './api';
+import { fetchEntityGameLogs, fetchMetricRegistry, fetchSeasonDataset, fetchSeasons } from './api';
 import { ComparisonPanel } from './components/ComparisonPanel';
 import { AppShell } from './components/AppShell';
 import { DataTable } from './components/DataTable';
@@ -18,9 +18,11 @@ import { EntityDetail } from './components/EntityDetail';
 import { GlossaryPage } from './components/GlossaryPage';
 import { OverviewCards } from './components/OverviewCards';
 import { getEntityConfig, getEntityLabel, getEntityRow } from './entityConfig';
+import { humanizeGroup } from './format';
 import { getMetricMetadata } from './metricMetadata';
-import { buildEnabledGroups, getSelectedColumns } from './tableState';
+import { buildSeasonViewTable, resolveEntityViewState } from './viewModel';
 import type { EntityKind, PaletteMode, SeasonDataset, TablePayload, ThemeMode } from './types';
+import type { EntityViewState, ResolvedEntityViewState } from './viewModel';
 
 function readStoredTheme(): ThemeMode {
   if (typeof window === 'undefined') {
@@ -36,13 +38,19 @@ function readStoredPalette(): PaletteMode {
   return window.localStorage.getItem('nfl-sos-palette') === 'broncos' ? 'broncos' : 'classic';
 }
 
-interface EntityPageViewState {
-  activeDetailGroup?: string;
+interface EntityPageViewState extends EntityViewState {
   compareIds?: string[];
-  enabledGroups?: Record<string, boolean>;
   query?: string;
   showUnratedRows?: boolean;
   sorting?: SortingState;
+}
+
+interface ResolvedPageViewState {
+  compareIds: string[];
+  query: string;
+  showUnratedRows: boolean;
+  sorting: SortingState;
+  viewState: ResolvedEntityViewState;
 }
 
 function getRouteEntityKind(pathname: string): EntityKind | null {
@@ -69,46 +77,16 @@ function buildDefaultSorting(kind: EntityKind): SortingState {
   ];
 }
 
-function buildResolvedEnabledGroups(
-  kind: EntityKind,
-  table: TablePayload,
-  enabledGroups?: Record<string, boolean>,
-): Record<string, boolean> {
-  const defaults = buildEnabledGroups(table.column_groups, getEntityConfig(kind).defaultGroups);
-  return Object.fromEntries(
-    Object.keys(defaults).map((group) => [group, enabledGroups?.[group] ?? defaults[group]]),
-  );
-}
-
-function buildAllEnabledGroups(table: TablePayload): Record<string, boolean> {
-  return Object.fromEntries(Object.keys(table.column_groups).map((group) => [group, true]));
-}
-
 function buildResolvedPageViewState(
   kind: EntityKind,
-  table: TablePayload,
   current?: EntityPageViewState,
-): {
-  activeDetailGroup?: string;
-  compareIds: string[];
-  enabledGroups: Record<string, boolean>;
-  query: string;
-  showUnratedRows: boolean;
-  sorting: SortingState;
-} {
-  const config = getEntityConfig(kind);
-  const availableDetailGroups = config.detailGroups.filter(
-    (group) => (table.column_groups[group] ?? []).length > 0,
-  );
+): ResolvedPageViewState {
   return {
-    activeDetailGroup: availableDetailGroups.includes(current?.activeDetailGroup ?? '')
-      ? current?.activeDetailGroup
-      : availableDetailGroups[0],
     compareIds: current?.compareIds ?? [],
-    enabledGroups: buildResolvedEnabledGroups(kind, table, current?.enabledGroups),
     query: current?.query ?? '',
     showUnratedRows: current?.showUnratedRows ?? false,
     sorting: current?.sorting?.length ? current.sorting : buildDefaultSorting(kind),
+    viewState: resolveEntityViewState(kind, current),
   };
 }
 
@@ -118,12 +96,36 @@ function reconcileCompareIds(kind: EntityKind, table: TablePayload, compareIds: 
   return compareIds.filter((entityId) => availableIds.has(entityId));
 }
 
-function enabledGroupsEqual(
+function nestedBooleanMapsEqual(
+  left: Record<string, Record<string, boolean>>,
+  right: Record<string, Record<string, boolean>>,
+): boolean {
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  return Array.from(keys).every((key) => {
+    const leftMap = left[key] ?? {};
+    const rightMap = right[key] ?? {};
+    const nestedKeys = new Set([...Object.keys(leftMap), ...Object.keys(rightMap)]);
+    return Array.from(nestedKeys).every(
+      (nestedKey) => Boolean(leftMap[nestedKey]) === Boolean(rightMap[nestedKey]),
+    );
+  });
+}
+
+function flatBooleanMapsEqual(
   left: Record<string, boolean>,
   right: Record<string, boolean>,
 ): boolean {
   const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
   return Array.from(keys).every((key) => Boolean(left[key]) === Boolean(right[key]));
+}
+
+function viewStatesEqual(left: ResolvedEntityViewState, right: ResolvedEntityViewState): boolean {
+  return (
+    left.primaryView === right.primaryView
+    && left.teamCategory === right.teamCategory
+    && nestedBooleanMapsEqual(left.teamSubcategories, right.teamSubcategories)
+    && flatBooleanMapsEqual(left.qbSubcategories, right.qbSubcategories)
+  );
 }
 
 function sortingStatesEqual(left: SortingState, right: SortingState): boolean {
@@ -183,13 +185,12 @@ function buildDocumentTitle(
 
 function canResetPageView(
   kind: EntityKind,
-  table: TablePayload,
-  viewState: ReturnType<typeof buildResolvedPageViewState>,
+  viewState: ResolvedPageViewState,
   compareIds: string[],
 ): boolean {
-  const defaults = buildResolvedPageViewState(kind, table);
+  const defaults = buildResolvedPageViewState(kind);
   return (
-    !enabledGroupsEqual(viewState.enabledGroups, defaults.enabledGroups)
+    !viewStatesEqual(viewState.viewState, defaults.viewState)
     || !sortingStatesEqual(viewState.sorting, defaults.sorting)
     || compareIds.length > 0
     || viewState.query.trim().length > 0
@@ -201,72 +202,78 @@ function EntityPage({
   canReset,
   compareIds,
   dataset,
-  enabledGroups,
   kind,
-  onEnableAllGroups,
   onQueryChange,
   onResetView,
+  onSelectTeamCategory,
+  onSelectView,
   onShowUnratedRowsChange,
   onSortingChange,
   onToggleCompare,
-  onToggleGroup,
+  onToggleSubcategory,
   palette,
   query,
   season,
   showUnratedRows,
   sorting,
   theme,
+  viewState,
 }: {
   canReset: boolean;
   compareIds: string[];
   dataset: SeasonDataset;
-  enabledGroups: Record<string, boolean>;
   kind: EntityKind;
-  onEnableAllGroups: () => void;
   onQueryChange: (query: string) => void;
   onResetView: () => void;
+  onSelectTeamCategory: (category: string) => void;
+  onSelectView: (view: import('./types').PrimaryView) => void;
   onShowUnratedRowsChange?: (showUnratedRows: boolean) => void;
   onSortingChange: (sorting: SortingState) => void;
   onToggleCompare: (entityId: string) => void;
-  onToggleGroup: (group: string) => void;
+  onToggleSubcategory: (subcategory: string) => void;
   palette: PaletteMode;
   query: string;
   season: number;
   showUnratedRows: boolean;
   sorting: SortingState;
   theme: ThemeMode;
+  viewState: ResolvedEntityViewState;
 }): ReactElement {
   const config = getEntityConfig(kind);
   const table = dataset[kind];
   const basePath = `/${kind}`;
   const identityColumns = config.identityColumns;
   const showUnratedQbs = showUnratedRows;
-
-  const selectedColumns = useMemo(
-    () => getSelectedColumns(table.column_groups, enabledGroups, table.visible_columns),
-    [enabledGroups, table.column_groups, table.visible_columns],
+  const seasonView = useMemo(
+    () => buildSeasonViewTable(kind, table, viewState),
+    [kind, table, viewState],
   );
-
+  const selectedColumns = seasonView.selectedColumns;
   const displayedRows = useMemo(() => {
     if (kind !== 'qbs' || showUnratedQbs) {
-      return table.rows;
+      return seasonView.table.rows;
     }
-    return table.rows.filter(
+    return seasonView.table.rows.filter(
       (row) => row.QSaCR !== null || row.QSaOR !== null || row.QRaw !== null,
     );
-  }, [kind, showUnratedQbs, table.rows]);
-
+  }, [kind, seasonView.table.rows, showUnratedQbs]);
   const displayTable = useMemo(
-    () => ({ ...table, rows: displayedRows }),
-    [displayedRows, table],
+    () => ({ ...seasonView.table, rows: displayedRows }),
+    [displayedRows, seasonView.table],
   );
-
   const compareColumns = useMemo(() => {
     const requested = selectedColumns.filter((column) => column !== config.identityKey);
     return requested.length > 0 ? requested : config.compareColumns;
   }, [config.compareColumns, config.identityKey, selectedColumns]);
   const regularSeasonGames = getRegularSeasonGameCount(season);
   const qualifierAttempts = getQuarterbackQualifierAttempts(season);
+  const selectedSlice =
+    kind === 'teams'
+      ? `${viewState.teamCategory}${viewState.primaryView === 'ratings' ? '' : ' view'}`
+      : Object.entries(viewState.activeSubcategories)
+          .filter(([, enabled]) => enabled)
+          .map(([label]) => label)
+          .join(', ') || 'Ratings';
 
   return (
     <>
@@ -315,10 +322,12 @@ function EntityPage({
       </section>
       <OverviewCards
         displayCount={displayTable.rows.length}
-        table={table}
         entityLabel={config.singularLabel}
+        metricCount={seasonView.metricColumns.length}
         kind={kind}
-        totalCount={table.rows.length}
+        selectedSlice={selectedSlice}
+        selectedView={humanizeGroup(viewState.primaryView)}
+        totalCount={seasonView.table.rows.length}
       />
       <ComparisonPanel
         basePath={basePath}
@@ -337,15 +346,15 @@ function EntityPage({
         compareIds={compareIds}
         defaultSortColumn={config.defaultSortColumn}
         detailColumn={config.labelKey}
-        enabledGroups={enabledGroups}
         entityKind={kind}
         identityKey={config.identityKey}
         identityColumns={identityColumns}
-        onEnableAllGroups={onEnableAllGroups}
         onQueryChange={onQueryChange}
         onResetView={onResetView}
+        onSelectTeamCategory={onSelectTeamCategory}
+        onSelectView={onSelectView}
         onSortingChange={onSortingChange}
-        onToggleGroup={onToggleGroup}
+        onToggleSubcategory={onToggleSubcategory}
         onToggleCompare={onToggleCompare}
         palette={palette}
         query={query}
@@ -356,32 +365,45 @@ function EntityPage({
         theme={theme}
         title={config.title}
         table={displayTable}
+        viewState={viewState}
       />
     </>
   );
 }
 
 function EntityDetailPage({
-  activeGroup,
+  canReset,
   dataset,
   kind,
-  onActiveGroupChange,
+  onResetView,
+  onSelectTeamCategory,
+  onSelectView,
+  onToggleSubcategory,
   palette,
   season,
   theme,
+  viewState,
 }: {
-  activeGroup?: string;
+  canReset: boolean;
   dataset: SeasonDataset;
   kind: EntityKind;
-  onActiveGroupChange: (group: string) => void;
+  onResetView: () => void;
+  onSelectTeamCategory: (category: string) => void;
+  onSelectView: (view: import('./types').PrimaryView) => void;
+  onToggleSubcategory: (subcategory: string) => void;
   palette: PaletteMode;
   season: number;
   theme: ThemeMode;
+  viewState: ResolvedEntityViewState;
 }): ReactElement {
   const navigate = useNavigate();
   const params = useParams();
   const config = getEntityConfig(kind);
-  const table = dataset[kind];
+  const seasonView = useMemo(
+    () => buildSeasonViewTable(kind, dataset[kind], viewState),
+    [dataset, kind, viewState],
+  );
+  const table = seasonView.table;
   const entityId = params.entityId ?? '';
   const row = getEntityRow(table, kind, entityId);
   const [gameLogs, setGameLogs] = useState<TablePayload | null>(null);
@@ -437,19 +459,22 @@ function EntityDetailPage({
 
   return (
     <EntityDetail
-      activeGroup={activeGroup}
-      basePath={`/${kind}`}
+      canReset={canReset}
       config={config}
       gameLogError={gameLogError}
       gameLogs={gameLogs}
       gameLogsLoading={gameLogsLoading}
-      onActiveGroupChange={onActiveGroupChange}
+      onResetView={onResetView}
+      onSelectTeamCategory={onSelectTeamCategory}
+      onSelectView={onSelectView}
+      onToggleSubcategory={onToggleSubcategory}
       opponentRatingsTable={dataset.teams}
       palette={palette}
       row={row}
       season={season}
       table={table}
       theme={theme}
+      viewState={viewState}
     />
   );
 }
@@ -482,8 +507,8 @@ export function App(): ReactElement {
     () =>
       dataset
         ? {
-            teams: buildResolvedPageViewState('teams', dataset.teams, pageViewStates.teams),
-            qbs: buildResolvedPageViewState('qbs', dataset.qbs, pageViewStates.qbs),
+            teams: buildResolvedPageViewState('teams', pageViewStates.teams),
+            qbs: buildResolvedPageViewState('qbs', pageViewStates.qbs),
           }
         : null,
     [dataset, pageViewStates],
@@ -513,6 +538,13 @@ export function App(): ReactElement {
       kind: routeKind,
     };
   }, [compareIdsFromQuery, dataset, location.pathname, resolvedViewStates, routeKind, selectedSeason]);
+
+  useEffect(() => {
+    // Hydrate metric labels/tooltips/polarity from the backend registry (the
+    // single source of truth); failures are tolerable because table payloads
+    // also carry their own column metadata.
+    void fetchMetricRegistry().catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -704,7 +736,10 @@ export function App(): ReactElement {
       [kind]: {
         ...current[kind],
         compareIds: [],
-        enabledGroups: undefined,
+        primaryView: undefined,
+        teamCategory: undefined,
+        teamSubcategories: undefined,
+        qbSubcategories: undefined,
         query: '',
         showUnratedRows: false,
         sorting: undefined,
@@ -742,32 +777,32 @@ export function App(): ReactElement {
             path="/teams"
             element={
               <EntityPage
-                canReset={canResetPageView(
-                  'teams',
-                  dataset.teams,
-                  resolvedViewStates.teams,
-                  compareIdsByKind.teams,
-                )}
+                canReset={canResetPageView('teams', resolvedViewStates.teams, compareIdsByKind.teams)}
                 compareIds={compareIdsByKind.teams}
                 dataset={dataset}
-                enabledGroups={resolvedViewStates.teams.enabledGroups}
                 kind="teams"
-                onEnableAllGroups={() =>
-                  updatePageViewState('teams', {
-                    enabledGroups: buildAllEnabledGroups(dataset.teams),
-                  })
-                }
                 onQueryChange={(query) => updatePageViewState('teams', { query })}
                 onResetView={() => resetPageViewState('teams')}
+                onSelectTeamCategory={(teamCategory) =>
+                  updatePageViewState('teams', { teamCategory })
+                }
+                onSelectView={(primaryView) => updatePageViewState('teams', { primaryView })}
                 onSortingChange={(sorting) => updatePageViewState('teams', { sorting })}
                 onToggleCompare={(entityId) =>
                   handleToggleCompare('teams', compareIdsByKind.teams, entityId)
                 }
-                onToggleGroup={(group) =>
+                onToggleSubcategory={(subcategory) =>
                   updatePageViewState('teams', {
-                    enabledGroups: {
-                      ...resolvedViewStates.teams.enabledGroups,
-                      [group]: !resolvedViewStates.teams.enabledGroups[group],
+                    teamSubcategories: {
+                      ...resolvedViewStates.teams.viewState.teamSubcategories,
+                      [resolvedViewStates.teams.viewState.teamCategory]: {
+                        ...resolvedViewStates.teams.viewState.teamSubcategories[
+                          resolvedViewStates.teams.viewState.teamCategory
+                        ],
+                        [subcategory]: !resolvedViewStates.teams.viewState.activeSubcategories[
+                          subcategory
+                        ],
+                      },
                     },
                   })
                 }
@@ -777,6 +812,7 @@ export function App(): ReactElement {
                 showUnratedRows={resolvedViewStates.teams.showUnratedRows}
                 sorting={resolvedViewStates.teams.sorting}
                 theme={theme}
+                viewState={resolvedViewStates.teams.viewState}
               />
             }
           />
@@ -784,13 +820,33 @@ export function App(): ReactElement {
             path="/teams/:entityId"
             element={
               <EntityDetailPage
-                activeGroup={resolvedViewStates.teams.activeDetailGroup}
+                canReset={canResetPageView('teams', resolvedViewStates.teams, compareIdsByKind.teams)}
                 dataset={dataset}
                 kind="teams"
-                onActiveGroupChange={(group) => updatePageViewState('teams', { activeDetailGroup: group })}
+                onResetView={() => resetPageViewState('teams')}
+                onSelectTeamCategory={(teamCategory) =>
+                  updatePageViewState('teams', { teamCategory })
+                }
+                onSelectView={(primaryView) => updatePageViewState('teams', { primaryView })}
+                onToggleSubcategory={(subcategory) =>
+                  updatePageViewState('teams', {
+                    teamSubcategories: {
+                      ...resolvedViewStates.teams.viewState.teamSubcategories,
+                      [resolvedViewStates.teams.viewState.teamCategory]: {
+                        ...resolvedViewStates.teams.viewState.teamSubcategories[
+                          resolvedViewStates.teams.viewState.teamCategory
+                        ],
+                        [subcategory]: !resolvedViewStates.teams.viewState.activeSubcategories[
+                          subcategory
+                        ],
+                      },
+                    },
+                  })
+                }
                 palette={palette}
                 season={selectedSeason || dataset.season}
                 theme={theme}
+                viewState={resolvedViewStates.teams.viewState}
               />
             }
           />
@@ -798,23 +854,14 @@ export function App(): ReactElement {
             path="/qbs"
             element={
               <EntityPage
-                canReset={canResetPageView(
-                  'qbs',
-                  dataset.qbs,
-                  resolvedViewStates.qbs,
-                  compareIdsByKind.qbs,
-                )}
+                canReset={canResetPageView('qbs', resolvedViewStates.qbs, compareIdsByKind.qbs)}
                 compareIds={compareIdsByKind.qbs}
                 dataset={dataset}
-                enabledGroups={resolvedViewStates.qbs.enabledGroups}
                 kind="qbs"
-                onEnableAllGroups={() =>
-                  updatePageViewState('qbs', {
-                    enabledGroups: buildAllEnabledGroups(dataset.qbs),
-                  })
-                }
                 onQueryChange={(query) => updatePageViewState('qbs', { query })}
                 onResetView={() => resetPageViewState('qbs')}
+                onSelectTeamCategory={() => undefined}
+                onSelectView={(primaryView) => updatePageViewState('qbs', { primaryView })}
                 onShowUnratedRowsChange={(showUnratedRows) =>
                   updatePageViewState('qbs', { showUnratedRows })
                 }
@@ -822,11 +869,13 @@ export function App(): ReactElement {
                 onToggleCompare={(entityId) =>
                   handleToggleCompare('qbs', compareIdsByKind.qbs, entityId)
                 }
-                onToggleGroup={(group) =>
+                onToggleSubcategory={(subcategory) =>
                   updatePageViewState('qbs', {
-                    enabledGroups: {
-                      ...resolvedViewStates.qbs.enabledGroups,
-                      [group]: !resolvedViewStates.qbs.enabledGroups[group],
+                    qbSubcategories: {
+                      ...resolvedViewStates.qbs.viewState.qbSubcategories,
+                      [subcategory]: !resolvedViewStates.qbs.viewState.activeSubcategories[
+                        subcategory
+                      ],
                     },
                   })
                 }
@@ -836,6 +885,7 @@ export function App(): ReactElement {
                 showUnratedRows={resolvedViewStates.qbs.showUnratedRows}
                 sorting={resolvedViewStates.qbs.sorting}
                 theme={theme}
+                viewState={resolvedViewStates.qbs.viewState}
               />
             }
           />
@@ -843,13 +893,26 @@ export function App(): ReactElement {
             path="/qbs/:entityId"
             element={
               <EntityDetailPage
-                activeGroup={resolvedViewStates.qbs.activeDetailGroup}
+                canReset={canResetPageView('qbs', resolvedViewStates.qbs, compareIdsByKind.qbs)}
                 dataset={dataset}
                 kind="qbs"
-                onActiveGroupChange={(group) => updatePageViewState('qbs', { activeDetailGroup: group })}
+                onResetView={() => resetPageViewState('qbs')}
+                onSelectTeamCategory={() => undefined}
+                onSelectView={(primaryView) => updatePageViewState('qbs', { primaryView })}
+                onToggleSubcategory={(subcategory) =>
+                  updatePageViewState('qbs', {
+                    qbSubcategories: {
+                      ...resolvedViewStates.qbs.viewState.qbSubcategories,
+                      [subcategory]: !resolvedViewStates.qbs.viewState.activeSubcategories[
+                        subcategory
+                      ],
+                    },
+                  })
+                }
                 palette={palette}
                 season={selectedSeason || dataset.season}
                 theme={theme}
+                viewState={resolvedViewStates.qbs.viewState}
               />
             }
           />

@@ -1,5 +1,40 @@
 import type { EntityConfig, EntityKind, RowValue, TablePayload } from './types';
 
+const TEAM_FULL_NAMES: Record<string, string> = {
+  ARI: 'Arizona Cardinals',
+  ATL: 'Atlanta Falcons',
+  BAL: 'Baltimore Ravens',
+  BUF: 'Buffalo Bills',
+  CAR: 'Carolina Panthers',
+  CHI: 'Chicago Bears',
+  CIN: 'Cincinnati Bengals',
+  CLE: 'Cleveland Browns',
+  DAL: 'Dallas Cowboys',
+  DEN: 'Denver Broncos',
+  DET: 'Detroit Lions',
+  GB: 'Green Bay Packers',
+  HOU: 'Houston Texans',
+  IND: 'Indianapolis Colts',
+  JAX: 'Jacksonville Jaguars',
+  KC: 'Kansas City Chiefs',
+  LA: 'Los Angeles Rams',
+  LAC: 'Los Angeles Chargers',
+  LV: 'Las Vegas Raiders',
+  MIA: 'Miami Dolphins',
+  MIN: 'Minnesota Vikings',
+  NE: 'New England Patriots',
+  NO: 'New Orleans Saints',
+  NYG: 'New York Giants',
+  NYJ: 'New York Jets',
+  PHI: 'Philadelphia Eagles',
+  PIT: 'Pittsburgh Steelers',
+  SEA: 'Seattle Seahawks',
+  SF: 'San Francisco 49ers',
+  TB: 'Tampa Bay Buccaneers',
+  TEN: 'Tennessee Titans',
+  WAS: 'Washington Commanders',
+};
+
 const ENTITY_CONFIG: Record<EntityKind, EntityConfig> = {
   teams: {
     kind: 'teams',
@@ -70,4 +105,8 @@ export function getEntityRow(
   entityId: string,
 ): Record<string, RowValue> | undefined {
   return table.rows.find((row) => getEntityId(kind, row) === entityId);
+}
+
+export function getFullTeamName(teamAbbreviation: string): string {
+  return TEAM_FULL_NAMES[teamAbbreviation] ?? teamAbbreviation;
 }
