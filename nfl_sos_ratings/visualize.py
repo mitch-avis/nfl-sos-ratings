@@ -1,10 +1,10 @@
-"""Generate visualizations from the NFL Strength of Schedule combined.csv output.
+"""Generate visualizations from the NFL Strength of Schedule combined data.
 
-Run this script after main.py has produced output/combined.csv:
+Run this script after main.py has produced the combined Parquet data:
 
     python visualize.py
 
-Plots are saved to output/plots/.
+Plots are saved to data/plots/.
 """
 
 import os
@@ -23,9 +23,9 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
-from nfl_sos_ratings.config import OUTPUT_DIR, SEASON
+from nfl_sos_ratings.config import DATA_DIR, SEASON
 
-PLOTS_DIR = os.path.join(OUTPUT_DIR, "plots")
+PLOTS_DIR = os.path.join(DATA_DIR, "plots")
 
 sns.set_theme(style="whitegrid", font_scale=0.85)
 
@@ -520,7 +520,7 @@ def plot_adjusted_rating_single(
 def plot_qb_adjusted_ratings(df: pl.DataFrame, filename: str) -> None:
     """Single-panel QB schedule-adjusted composite ranking chart.
 
-    Expects `team` and `QSaCR` columns from `{SEASON}_qb_combined.csv`.
+    Expects `team` and `QSaCR` columns from `{SEASON}_qb_combined.parquet`.
     """
     if "QSaCR" not in df.columns:
         print(f"  Skipping {filename}: no QSaCR column found.")
@@ -715,12 +715,12 @@ def main(season: int | None = None) -> None:
     if season is not None:
         SEASON = season
 
-    combined_path = os.path.join(OUTPUT_DIR, f"{SEASON}_combined.csv")
+    combined_path = os.path.join(DATA_DIR, f"{SEASON}_combined.parquet")
     if not os.path.exists(combined_path):
         print(f"ERROR: {combined_path} not found. Run main.py first.")
         return
 
-    df = pl.read_csv(combined_path)
+    df = pl.read_parquet(combined_path)
 
     os.makedirs(PLOTS_DIR, exist_ok=True)
 
@@ -756,9 +756,9 @@ def main(season: int | None = None) -> None:
         filename=f"{SEASON}_adjusted_ratings_overall.png",
     )
 
-    qb_combined_path = os.path.join(OUTPUT_DIR, f"{SEASON}_qb_combined.csv")
+    qb_combined_path = os.path.join(DATA_DIR, f"{SEASON}_qb_combined.parquet")
     if os.path.exists(qb_combined_path):
-        qb_df = pl.read_csv(qb_combined_path)
+        qb_df = pl.read_parquet(qb_combined_path)
         plot_qb_adjusted_ratings(qb_df, f"{SEASON}_qb_adjusted_ratings.png")
         plot_qb_raw_vs_schedule(qb_df, f"{SEASON}_qb_raw_vs_schedule.png")
 

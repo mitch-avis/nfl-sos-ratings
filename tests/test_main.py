@@ -78,7 +78,7 @@ def _team_adjustments_df() -> pl.DataFrame:
 
 def _qb_adjustments_df() -> tuple[pl.DataFrame, pl.DataFrame]:
     return (
-        pl.DataFrame({"team": ["DEN"], "qb_id": ["DEN"], "adj_qb_epa_per_dropback": [0.12]}),
+        pl.DataFrame({"qb_id": ["DEN"], "adj_qb_epa_per_dropback": [0.12]}),
         pl.DataFrame({"team": ["KC"], "adj_def_qb_epa_per_dropback": [-0.05]}),
     )
 
@@ -113,7 +113,7 @@ def _qb_ratings_df() -> pl.DataFrame:
 
 
 def _patch_common(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(main, "OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
     monkeypatch.setattr(main, "SEASON", 2025)
     monkeypatch.setattr(main, "load_weekly_team_stats", lambda season: _weekly_df())
     monkeypatch.setattr(main, "load_schedule", lambda season: _schedule_df())
@@ -156,18 +156,17 @@ def test_main_builds_historical_reference_frames_for_team_and_qb_ratings(
         ),
     )
 
-    (tmp_path / "2024_combined.csv").write_text(
-        "team,points_for,points_per_offensive_snap\nKC,30,0.41\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "2024_qb_combined.csv").write_text(
-        (
-            "team,qb_id,qb_name,qb_epa_per_dropback,qb_any_a,qb_completion_percentage_above_expectation,"
-            "qb_td_int_margin_rate,qb_sack_rate,qb_pass_yards_per_dropback,qb_passer_rating\n"
-            "KC,qb-kc,Patrick Mahomes,0.22,7.6,3.1,0.06,0.04,7.1,103.0\n"
-        ),
-        encoding="utf-8",
-    )
+    pl.read_csv(
+        io.BytesIO(b"team,points_for,points_per_offensive_snap\nKC,30,0.41\n")
+    ).write_parquet(tmp_path / "2024_combined.parquet")
+    pl.read_csv(
+        io.BytesIO(
+            b"team,qb_id,qb_name,qb_epa_per_dropback,qb_any_a,"
+            b"qb_completion_percentage_above_expectation,"
+            b"qb_td_int_margin_rate,qb_sack_rate,qb_pass_yards_per_dropback,qb_passer_rating\n"
+            b"KC,qb-kc,Patrick Mahomes,0.22,7.6,3.1,0.06,0.04,7.1,103.0\n"
+        )
+    ).write_parquet(tmp_path / "2024_qb_combined.parquet")
 
     captured: dict[str, int] = {}
 
@@ -205,14 +204,14 @@ def test_main_returns_when_no_opponent_profiles(
 
     main.main()
 
-    assert (tmp_path / f"{main.SEASON}_team_per_game_stats.csv").exists()
-    assert (tmp_path / f"{main.SEASON}_qb_per_game_stats.csv").exists()
-    assert (tmp_path / f"{main.SEASON}_team_game_logs.csv").exists()
-    assert (tmp_path / f"{main.SEASON}_qb_game_logs.csv").exists()
-    assert (tmp_path / f"{main.SEASON}_qb_opponent_profiles.csv").exists()
-    assert (tmp_path / f"{main.SEASON}_qb_combined.csv").exists()
-    assert (tmp_path / f"{main.SEASON}_qb_ratings.csv").exists()
-    assert not (tmp_path / f"{main.SEASON}_combined.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_team_per_game_stats.parquet").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_per_game_stats.parquet").exists()
+    assert (tmp_path / f"{main.SEASON}_team_game_logs.parquet").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_game_logs.parquet").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_opponent_profiles.parquet").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_combined.parquet").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_ratings.parquet").exists()
+    assert not (tmp_path / f"{main.SEASON}_combined.parquet").exists()
     assert "No opponent profile data was computed" in capsys.readouterr().out
 
 
@@ -234,8 +233,8 @@ def test_main_handles_both_team_and_qb_profiles(
 
     main.main()
 
-    combined = pl.read_csv(tmp_path / f"{main.SEASON}_combined.csv")
-    qb_combined = pl.read_csv(tmp_path / f"{main.SEASON}_qb_combined.csv")
+    combined = pl.read_parquet(tmp_path / f"{main.SEASON}_combined.parquet")
+    qb_combined = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_combined.parquet")
     assert combined.select("diff_points_for").item() == 4.0
     assert combined.select("diff_qb_passer_rating").item() == 10.0
     assert combined.select("SaOvR").item() == 0.7
@@ -246,18 +245,75 @@ def test_main_handles_both_team_and_qb_profiles(
     assert qb_combined.select("diff_qb_passer_rating").item() == 9.0
     assert qb_combined.select("QSaCR_pct").item() == 75.0
     assert qb_combined.select("adj_qb_epa_per_dropback").item() == 0.12
-    team_game_logs = pl.read_csv(tmp_path / f"{main.SEASON}_team_game_logs.csv")
-    qb_game_logs = pl.read_csv(tmp_path / f"{main.SEASON}_qb_game_logs.csv")
+    team_game_logs = pl.read_parquet(tmp_path / f"{main.SEASON}_team_game_logs.parquet")
+    qb_game_logs = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_game_logs.parquet")
     assert team_game_logs.filter(pl.col("team") == "DEN").select("opponent_team").item() == "KC"
     assert qb_game_logs.filter(pl.col("team") == "DEN").select("opponent_team").item() == "KC"
-    assert (tmp_path / f"{main.SEASON}_ratings.csv").exists()
-    assert (tmp_path / f"{main.SEASON}_qb_ratings.csv").exists()
-    assert (tmp_path / f"{main.SEASON}_simultaneous_team_adjustments.csv").exists()
-    assert (tmp_path / f"{main.SEASON}_simultaneous_qb_adjustments.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_ratings.parquet").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_ratings.parquet").exists()
+    assert (tmp_path / f"{main.SEASON}_simultaneous_team_adjustments.parquet").exists()
+    assert (tmp_path / f"{main.SEASON}_simultaneous_qb_adjustments.parquet").exists()
 
-    ratings_summary = pl.read_csv(tmp_path / f"{main.SEASON}_ratings.csv")
+    ratings_summary = pl.read_parquet(tmp_path / f"{main.SEASON}_ratings.parquet")
     assert ratings_summary.select("SRS").item() == 1.2
     assert "KC (DIV): 1 games" in capsys.readouterr().out
+
+
+def test_main_preserves_distinct_opponent_per_game_and_per_play_series(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Team and QB opponent outputs keep per-game-like and per-play-like series distinct."""
+    _patch_common(monkeypatch, tmp_path)
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(
+        main,
+        "compute_all_opponent_profiles",
+        lambda weekly_df, qb_df, schedule_df: (
+            pl.DataFrame(
+                {
+                    "team": ["DEN"],
+                    "points_for": [20.0],
+                    "points_per_offensive_snap": [0.33],
+                }
+            ),
+            None,
+            {},
+        ),
+    )
+    monkeypatch.setattr(
+        main,
+        "compute_qb_opponent_profiles",
+        lambda weekly_df, qb_df, schedule_df, qb_season_df: (
+            pl.DataFrame(
+                {
+                    "team": ["DEN"],
+                    "qopp_points_allowed": [19.0],
+                    "qopp_qb_pass_yards": [240.0],
+                    "qopp_qb_pass_yards_per_dropback": [5.9],
+                }
+            ),
+            {"DEN": []},
+        ),
+    )
+
+    main.main()
+
+    team_combined = pl.read_parquet(tmp_path / f"{main.SEASON}_combined.parquet")
+    qb_combined = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_combined.parquet")
+
+    assert team_combined.select("opp_points_for").item() == 20.0
+    assert team_combined.select("opp_points_per_offensive_snap").item() == 0.33
+    assert (
+        team_combined.select("opp_points_for").item()
+        != team_combined.select("opp_points_per_offensive_snap").item()
+    )
+
+    assert qb_combined.select("qopp_qb_pass_yards").item() == 240.0
+    assert qb_combined.select("qopp_qb_pass_yards_per_dropback").item() == 5.9
+    assert (
+        qb_combined.select("qopp_qb_pass_yards").item()
+        != qb_combined.select("qopp_qb_pass_yards_per_dropback").item()
+    )
 
 
 def test_main_skips_historical_qb_calibration(
@@ -279,7 +335,7 @@ def test_main_skips_historical_qb_calibration(
     )
 
     main.main()
-    assert (tmp_path / f"{main.SEASON}_qb_ratings.csv").exists()
+    assert (tmp_path / f"{main.SEASON}_qb_ratings.parquet").exists()
 
 
 def test_main_handles_team_only_profiles(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -298,7 +354,7 @@ def test_main_handles_team_only_profiles(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
     main.main()
 
-    opponents = pl.read_csv(tmp_path / f"{main.SEASON}_opponent_profiles.csv")
+    opponents = pl.read_parquet(tmp_path / f"{main.SEASON}_opponent_profiles.parquet")
     assert opponents.columns == ["team", "points_for"]
 
 
@@ -323,5 +379,5 @@ def test_main_handles_qb_only_profiles_and_windows_stdout(
 
     main.main()
 
-    combined = pl.read_csv(tmp_path / f"{main.SEASON}_combined.csv")
+    combined = pl.read_parquet(tmp_path / f"{main.SEASON}_combined.parquet")
     assert "diff_qb_passer_rating" not in combined.columns

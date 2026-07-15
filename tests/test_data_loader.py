@@ -323,6 +323,65 @@ def test_load_schedule_normalizes_rams_alias(monkeypatch: pytest.MonkeyPatch) ->
     assert result.select("home_team").item() == "LAR"
 
 
+def test_load_snap_counts_data_returns_typed_empty_before_source_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify pre-2012 snap-count loads short-circuit to an empty typed frame."""
+
+    def _unexpected_snap_counts_call(seasons: int) -> pl.DataFrame:
+        raise AssertionError(f"snap counts loader should not run for season {seasons}")
+
+    monkeypatch.setattr(data_loader.nfl, "load_snap_counts", _unexpected_snap_counts_call)
+
+    result = data_loader.load_snap_counts_data(2000)
+
+    assert result.is_empty()
+    assert result.schema == {
+        "game_id": pl.String,
+        "week": pl.Int64,
+        "team": pl.String,
+        "player": pl.String,
+        "pfr_player_id": pl.String,
+        "position": pl.String,
+        "offense_snaps": pl.Float64,
+    }
+
+
+def test_load_qb_identity_crosswalk_skips_weekly_rosters_before_source_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify pre-2002 QB identity loading falls back to players data only."""
+    players = pl.DataFrame(
+        {
+            "gsis_id": ["00-0031234"],
+            "display_name": ["John Doe"],
+            "position": ["QB"],
+            "pfr_id": ["DoeJo00"],
+        }
+    )
+
+    def _unexpected_rosters_weekly_call(seasons: int) -> pl.DataFrame:
+        raise AssertionError(f"weekly rosters loader should not run for season {seasons}")
+
+    monkeypatch.setattr(data_loader.nfl, "load_players", lambda: players)
+    monkeypatch.setattr(
+        data_loader.nfl,
+        "load_rosters_weekly",
+        _unexpected_rosters_weekly_call,
+    )
+
+    result = data_loader.load_qb_identity_crosswalk(2001)
+
+    assert result.to_dicts() == [
+        {
+            "qb_id": "00-0031234",
+            "snap_player_id": "DoeJo00",
+            "qb_name": "John Doe",
+            "qb_position": "QB",
+        }
+    ]
+
+
 def test_load_qb_stats_merges_pbp_and_snap_counts_by_canonical_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -699,6 +758,17 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
         "qb_game_winning_drive",
         "qb_completion_percentage_above_expectation",
         "qb_passer_rating",
+        "qb_completion_pct",
+        "qb_carries",
+        "qb_rushing_yards",
+        "qb_rushing_tds",
+        "qb_rushing_first_downs",
+        "qb_rushing_epa",
+        "qb_rushing_fumbles",
+        "qb_rushing_fumbles_lost",
+        "qb_rushing_2pt_conversions",
+        "qb_yards_per_carry",
+        "qb_epa_per_carry",
     ]
     assert result.to_dicts() == [
         {
@@ -728,6 +798,17 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": -6.0,
             "qb_passer_rating": 0.0,
+            "qb_completion_pct": 0.0,
+            "qb_carries": 0,
+            "qb_rushing_yards": 0.0,
+            "qb_rushing_tds": 0,
+            "qb_rushing_first_downs": 0,
+            "qb_rushing_epa": 0.0,
+            "qb_rushing_fumbles": 0,
+            "qb_rushing_fumbles_lost": 0,
+            "qb_rushing_2pt_conversions": 0,
+            "qb_yards_per_carry": None,
+            "qb_epa_per_carry": None,
         },
         {
             "game_id": "2025_01_DEN_KC",
@@ -756,6 +837,17 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": None,
             "qb_passer_rating": None,
+            "qb_completion_pct": None,
+            "qb_carries": 0,
+            "qb_rushing_yards": 0.0,
+            "qb_rushing_tds": 0,
+            "qb_rushing_first_downs": 0,
+            "qb_rushing_epa": 0.0,
+            "qb_rushing_fumbles": 0,
+            "qb_rushing_fumbles_lost": 0,
+            "qb_rushing_2pt_conversions": 0,
+            "qb_yards_per_carry": None,
+            "qb_epa_per_carry": None,
         },
         {
             "game_id": "2025_01_DEN_KC",
@@ -784,6 +876,17 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": 1.0,
             "qb_passer_rating": 125.0,
+            "qb_completion_pct": 0.5,
+            "qb_carries": 0,
+            "qb_rushing_yards": 0.0,
+            "qb_rushing_tds": 0,
+            "qb_rushing_first_downs": 0,
+            "qb_rushing_epa": 0.0,
+            "qb_rushing_fumbles": 0,
+            "qb_rushing_fumbles_lost": 0,
+            "qb_rushing_2pt_conversions": 0,
+            "qb_yards_per_carry": None,
+            "qb_epa_per_carry": None,
         },
         {
             "game_id": "2025_01_DEN_KC",
@@ -812,6 +915,17 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": 1.5,
             "qb_passer_rating": 118.8,
+            "qb_completion_pct": 1.0,
+            "qb_carries": 0,
+            "qb_rushing_yards": 0.0,
+            "qb_rushing_tds": 0,
+            "qb_rushing_first_downs": 0,
+            "qb_rushing_epa": 0.0,
+            "qb_rushing_fumbles": 0,
+            "qb_rushing_fumbles_lost": 0,
+            "qb_rushing_2pt_conversions": 0,
+            "qb_yards_per_carry": None,
+            "qb_epa_per_carry": None,
         },
     ]
 
@@ -963,3 +1077,208 @@ def test_load_snap_counts_data_normalizes_team_when_season_type_is_absent(
     assert result.height == 1
     assert result.select("team").item() == "LAR"
     assert result.select("offense_snaps").item() == 58.0
+
+
+def test_load_espn_qbr_filters_regular_season_and_normalizes_teams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify QBR loading keeps regular season only and canonicalizes team codes."""
+    qbr = pl.DataFrame(
+        {
+            "season": [2025, 2025, 2024],
+            "season_type": ["Regular", "Playoffs", "Regular"],
+            "team_abb": ["WSH", "KC", "LA"],
+            "player_id": ["10", "11", "12"],
+            "qbr_total": [55.0, 60.0, 70.0],
+            "qbr_raw": [54.0, 61.0, 69.0],
+        }
+    )
+    requested: list[str] = []
+
+    def fake_fetch(url: str) -> pl.DataFrame:
+        requested.append(url)
+        return qbr
+
+    monkeypatch.setattr(data_loader, "_fetch_release_parquet", fake_fetch)
+
+    result = data_loader.load_espn_qbr("season", seasons=[2025])
+
+    assert requested == [data_loader.ESPN_QBR_RELEASE_URLS["season"]]
+    assert result.height == 1
+    assert result.select("team_abb").item() == "WAS"
+    assert result.select("qbr_raw").item() == 54.0
+
+
+def test_load_espn_qbr_week_level_keeps_all_seasons_and_normalizes_opponents(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify week-level QBR uses the week asset and normalizes opponent codes too."""
+    qbr = pl.DataFrame(
+        {
+            "season": [2024, 2025],
+            "season_type": ["Regular", "Regular"],
+            "team_abb": ["KC", "DET"],
+            "opp_abb": ["OAK", "WSH"],
+            "qbr_total": [61.0, 66.0],
+        }
+    )
+    requested: list[str] = []
+
+    def fake_fetch(url: str) -> pl.DataFrame:
+        requested.append(url)
+        return qbr
+
+    monkeypatch.setattr(data_loader, "_fetch_release_parquet", fake_fetch)
+
+    result = data_loader.load_espn_qbr("week")
+
+    assert requested == [data_loader.ESPN_QBR_RELEASE_URLS["week"]]
+    assert result.height == 2
+    assert result.select("opp_abb").to_series().to_list() == ["LV", "WAS"]
+
+
+def test_load_espn_qbr_rejects_unknown_level() -> None:
+    """Verify an unknown QBR level fails fast with a clear error."""
+    from typing import Literal, cast
+
+    bad_level = cast("Literal['season', 'week']", "quarter")
+    with pytest.raises(ValueError, match="season"):
+        data_loader.load_espn_qbr(bad_level)
+
+
+def test_fetch_release_parquet_reads_downloaded_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify the release download helper parses Parquet bytes from the response."""
+    import io
+    import urllib.request
+    from contextlib import contextmanager
+
+    buffer = io.BytesIO()
+    pl.DataFrame({"season": [2025]}).write_parquet(buffer)
+    payload = buffer.getvalue()
+
+    @contextmanager
+    def fake_urlopen(url: str):  # noqa: ANN202
+        yield io.BytesIO(payload)
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    result = data_loader._fetch_release_parquet("https://example.invalid/x.parquet")  # noqa: SLF001
+
+    assert result.select("season").item() == 2025
+
+
+def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify official rushing fields and derived QB rates flow into game rows."""
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"],
+            "season_type": ["REG"],
+            "week": [1],
+            "posteam": ["DEN"],
+            "passer_player_id": ["00-0031234"],
+            "passer_player_name": ["John Doe"],
+            "qb_dropback": [1],
+            "pass": [1],
+            "complete_pass": [1],
+            "passing_yards": [18.0],
+            "pass_touchdown": [0],
+            "interception": [0],
+            "sack": [0],
+            "fumble_lost": [0],
+            "qb_epa": [1.2],
+            "cpoe": [4.0],
+        }
+    )
+    snap_counts = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"],
+            "week": [1],
+            "team": ["DEN"],
+            "player": ["John Doe"],
+            "pfr_player_id": ["DoeJo00"],
+            "position": ["QB"],
+            "offense_snaps": [60.0],
+        }
+    )
+    player_stats = pl.DataFrame(
+        {
+            "season": [2025],
+            "week": [1],
+            "season_type": ["REG"],
+            "game_id": ["2025_01_DEN_KC"],
+            "team": ["DEN"],
+            "opponent_team": ["KC"],
+            "player_id": ["00-0031234"],
+            "player_display_name": ["John Doe"],
+            "position": ["QB"],
+            "attempts": [8],
+            "completions": [6],
+            "passing_yards": [80.0],
+            "passing_tds": [1],
+            "passing_interceptions": [0],
+            "sacks_suffered": [1],
+            "sack_yards_lost": [6.0],
+            "passing_epa": [3.0],
+            "passing_cpoe": [2.5],
+            "carries": [5],
+            "rushing_yards": [35.0],
+            "rushing_tds": [1],
+            "rushing_first_downs": [2],
+            "rushing_epa": [1.5],
+            "rushing_fumbles": [1],
+            "rushing_fumbles_lost": [0],
+            "rushing_2pt_conversions": [0],
+        }
+    )
+    players = pl.DataFrame(
+        {
+            "gsis_id": ["00-0031234"],
+            "display_name": ["John Doe"],
+            "position": ["QB"],
+            "pfr_id": ["DoeJo00"],
+        }
+    )
+    rosters_weekly = pl.DataFrame(
+        {
+            "season": [2025],
+            "week": [1],
+            "team": ["DEN"],
+            "full_name": ["John Doe"],
+            "gsis_id": ["00-0031234"],
+            "pfr_id": ["DoeJo00"],
+            "position": ["QB"],
+            "game_type": ["REG"],
+        }
+    )
+
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", lambda seasons: pbp)
+    monkeypatch.setattr(data_loader.nfl, "load_snap_counts", lambda seasons: snap_counts)
+    monkeypatch.setattr(
+        data_loader.nfl,
+        "load_player_stats",
+        lambda seasons, summary_level: player_stats,
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_players", lambda: players)
+    monkeypatch.setattr(
+        data_loader.nfl,
+        "load_rosters_weekly",
+        lambda seasons: rosters_weekly,
+    )
+
+    result = data_loader.load_qb_stats(2025)
+
+    row = result.to_dicts()[0]
+    assert row["qb_carries"] == 5
+    assert row["qb_rushing_yards"] == 35.0
+    assert row["qb_rushing_tds"] == 1
+    assert row["qb_rushing_first_downs"] == 2
+    assert row["qb_rushing_epa"] == 1.5
+    assert row["qb_rushing_fumbles"] == 1
+    assert row["qb_rushing_fumbles_lost"] == 0
+    assert row["qb_completion_pct"] == 0.75
+    assert row["qb_yards_per_carry"] == 7.0
+    assert abs(row["qb_epa_per_carry"] - 0.3) < 1e-9

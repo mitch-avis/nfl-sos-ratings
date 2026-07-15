@@ -16,8 +16,9 @@ if __package__ in {None, ""}:
 
 import polars as pl
 
-from nfl_sos_ratings.config import OUTPUT_DIR, SEASON
+from nfl_sos_ratings.config import DATA_DIR, SEASON
 from nfl_sos_ratings.data_loader import load_qb_stats, load_schedule, load_weekly_team_stats
+from nfl_sos_ratings.metrics import get_registry
 from nfl_sos_ratings.opponent_stats import compute_all_opponent_profiles
 from nfl_sos_ratings.qb_opponent_stats import compute_qb_opponent_profiles
 from nfl_sos_ratings.qb_ratings import compute_qb_ratings
@@ -34,51 +35,10 @@ from nfl_sos_ratings.team_stats import (
     compute_win_totals,
 )
 
-_TEAM_SIMULTANEOUS_COLS = [
-    "points_per_offensive_snap",
-    "total_yards_per_offensive_snap",
-    "passing_yards_per_offensive_snap",
-    "rushing_yards_per_offensive_snap",
-    "passing_epa_per_offensive_snap",
-    "rushing_epa_per_offensive_snap",
-    "passing_tds_per_offensive_snap",
-    "rushing_tds_per_offensive_snap",
-    "passing_first_downs_per_offensive_snap",
-    "rushing_first_downs_per_offensive_snap",
-    "passing_cpoe",
-    "sacks_suffered_per_offensive_snap",
-    "passing_interceptions_per_offensive_snap",
-    "sack_fumbles_lost_per_offensive_snap",
-    "rushing_fumbles_lost_per_offensive_snap",
-    "points_allowed_per_defensive_snap",
-    "total_yards_allowed_per_defensive_snap",
-    "passing_yards_allowed_per_defensive_snap",
-    "rushing_yards_allowed_per_defensive_snap",
-    "passing_epa_allowed_per_defensive_snap",
-    "rushing_epa_allowed_per_defensive_snap",
-    "passing_tds_allowed_per_defensive_snap",
-    "rushing_tds_allowed_per_defensive_snap",
-    "passing_first_downs_allowed_per_defensive_snap",
-    "rushing_first_downs_allowed_per_defensive_snap",
-    "passing_cpoe_allowed",
-    "def_sacks_per_defensive_snap",
-    "def_interceptions_per_defensive_snap",
-    "def_pass_defended_per_defensive_snap",
-    "def_tackles_for_loss_per_defensive_snap",
-    "def_qb_hits_per_defensive_snap",
-    "def_fumbles_forced_per_defensive_snap",
-    "def_safeties_per_defensive_snap",
-]
+# Response-column membership lives in the metric registry (the SSOT).
+_TEAM_SIMULTANEOUS_COLS = get_registry().pool_columns("team_simultaneous")
 
-_QB_SIMULTANEOUS_COLS = [
-    "qb_epa_per_dropback",
-    "qb_any_a",
-    "qb_completion_percentage_above_expectation",
-    "qb_td_int_margin_rate",
-    "qb_sack_rate",
-    "qb_pass_yards_per_dropback",
-    "qb_passer_rating",
-]
+_QB_SIMULTANEOUS_COLS = get_registry().pool_columns("qb_simultaneous")
 
 
 def _matching_qb_join_keys(left: pl.DataFrame, right: pl.DataFrame) -> list[str]:
@@ -115,19 +75,19 @@ def _build_qb_combined(
 
 
 def _build_historical_reference_frame(
-    output_dir: str,
+    data_dir: str,
     season: int,
     suffix: str,
     current_frame: pl.DataFrame,
 ) -> pl.DataFrame:
     """Return the current frame plus any available historical outputs for the same surface."""
-    output_path = Path(output_dir)
+    data_path = Path(data_dir)
     frames = [current_frame]
 
-    for file_path in sorted(output_path.glob(f"[0-9][0-9][0-9][0-9]_{suffix}.csv")):
+    for file_path in sorted(data_path.glob(f"[0-9][0-9][0-9][0-9]_{suffix}.parquet")):
         if file_path.name.startswith(f"{season}_"):
             continue
-        frames.append(pl.read_csv(file_path))
+        frames.append(pl.read_parquet(file_path))
 
     return pl.concat(frames, how="diagonal_relaxed") if len(frames) > 1 else current_frame
 
@@ -196,6 +156,20 @@ def _build_qb_game_logs(qb_df: pl.DataFrame, weekly_df: pl.DataFrame) -> pl.Data
     return qb_game_logs.select(ordered_columns + remaining_columns).sort(sort_columns)
 
 
+def _write_data_file(frame: pl.DataFrame, season: int, suffix: str) -> Path:
+    """Validate columns against the metric registry and write one Parquet data file."""
+    unknown = get_registry().validate_columns(frame.columns)
+    if unknown:
+        raise ValueError(
+            f"Output {season}_{suffix} contains columns missing from the metric registry: "
+            + ", ".join(unknown)
+        )
+    data_path = Path(DATA_DIR) / f"{season}_{suffix}.parquet"
+    frame.write_parquet(data_path)
+    print(f"Saved {suffix} to {data_path}")
+    return data_path
+
+
 def run_season(season: int) -> None:
     """Run the full NFL strength-of-schedule analysis pipeline for one season."""
     print(f"=== NFL Strength of Schedule -- {season} Season ===\n")
@@ -251,34 +225,24 @@ def run_season(season: int) -> None:
     print()
 
     # --- Merge and save ---
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(DATA_DIR, exist_ok=True)
 
     team_game_logs = _build_team_game_logs(weekly_df)
-    team_game_logs_csv = os.path.join(OUTPUT_DIR, f"{season}_team_game_logs.csv")
-    team_game_logs.write_csv(team_game_logs_csv)
-    print(f"Saved team game logs to {team_game_logs_csv}")
+    _write_data_file(team_game_logs, season, "team_game_logs")
 
     qb_game_logs = _build_qb_game_logs(qb_df, weekly_df)
-    qb_game_logs_csv = os.path.join(OUTPUT_DIR, f"{season}_qb_game_logs.csv")
-    qb_game_logs.write_csv(qb_game_logs_csv)
-    print(f"Saved QB game logs to {qb_game_logs_csv}")
+    _write_data_file(qb_game_logs, season, "qb_game_logs")
 
     # Team per-game stats (team + QB combined), with win totals
     team_combined = team_per_game.join(qb_per_game, on="team", how="left").join(
         win_totals, on="team", how="left"
     )
-    team_csv = os.path.join(OUTPUT_DIR, f"{season}_team_per_game_stats.csv")
-    team_combined.write_csv(team_csv)
-    print(f"Saved team per-game stats to {team_csv}")
+    _write_data_file(team_combined, season, "team_per_game_stats")
 
-    qb_csv = os.path.join(OUTPUT_DIR, f"{season}_qb_per_game_stats.csv")
-    qb_season_stats.write_csv(qb_csv)
-    print(f"Saved QB per-game stats to {qb_csv}")
+    _write_data_file(qb_season_stats, season, "qb_per_game_stats")
 
     if qb_opp_profiles is not None:
-        qb_opp_csv = os.path.join(OUTPUT_DIR, f"{season}_qb_opponent_profiles.csv")
-        qb_opp_profiles.write_csv(qb_opp_csv)
-        print(f"Saved QB opponent profiles to {qb_opp_csv}")
+        _write_data_file(qb_opp_profiles, season, "qb_opponent_profiles")
 
     qb_combined = _build_qb_combined(qb_season_stats, qb_opp_profiles)
 
@@ -296,9 +260,7 @@ def run_season(season: int) -> None:
         [col for col in ("qb_id", "qb_name", "team") if col in qb_season_stats.columns]
     )
     qb_adjusted_output = qb_adjusted_df.join(qb_identity, on="qb_id", how="left")
-    qb_adjusted_csv = os.path.join(OUTPUT_DIR, f"{season}_simultaneous_qb_adjustments.csv")
-    qb_adjusted_output.write_csv(qb_adjusted_csv)
-    print(f"Saved simultaneous QB adjustments to {qb_adjusted_csv}")
+    _write_data_file(qb_adjusted_output, season, "simultaneous_qb_adjustments")
     qb_combined = qb_combined.join(
         qb_adjusted_output,
         on=[
@@ -310,7 +272,7 @@ def run_season(season: int) -> None:
     )
 
     qb_reference_df = _build_historical_reference_frame(
-        OUTPUT_DIR,
+        DATA_DIR,
         season,
         "qb_combined",
         qb_combined,
@@ -330,11 +292,8 @@ def run_season(season: int) -> None:
         qb_ratings_join_keys = ["team"]
     qb_combined = qb_combined.join(qb_ratings_df, on=qb_ratings_join_keys, how="left")
 
-    qb_combined_csv = os.path.join(OUTPUT_DIR, f"{season}_qb_combined.csv")
-    qb_combined.write_csv(qb_combined_csv)
-    print(f"Saved QB combined stats to {qb_combined_csv}")
+    _write_data_file(qb_combined, season, "qb_combined")
 
-    qb_ratings_csv = os.path.join(OUTPUT_DIR, f"{season}_qb_ratings.csv")
     qb_summary_cols = [
         col
         for col in [
@@ -361,8 +320,7 @@ def run_season(season: int) -> None:
         on=qb_summary_join_keys,
         how="left",
     )
-    qb_ratings_summary.write_csv(qb_ratings_csv)
-    print(f"Saved QB schedule-adjusted ratings to {qb_ratings_csv}")
+    _write_data_file(qb_ratings_summary, season, "qb_ratings")
 
     # Opponent profiles (team + QB combined)
     if opp_team_df is None and opp_qb_df is None:
@@ -379,9 +337,7 @@ def run_season(season: int) -> None:
             return
         opp_combined = opp_qb_df
 
-    opp_csv = os.path.join(OUTPUT_DIR, f"{season}_opponent_profiles.csv")
-    opp_combined.write_csv(opp_csv)
-    print(f"Saved opponent profiles to {opp_csv}")
+    _write_data_file(opp_combined, season, "opponent_profiles")
 
     # Combined: team stats + opponent stats side by side
     opp_renamed = opp_combined.rename({c: f"opp_{c}" for c in opp_combined.columns if c != "team"})
@@ -391,9 +347,7 @@ def run_season(season: int) -> None:
         weekly_df,
         response_cols=_TEAM_SIMULTANEOUS_COLS,
     )
-    team_adjusted_csv = os.path.join(OUTPUT_DIR, f"{season}_simultaneous_team_adjustments.csv")
-    team_adjusted_df.write_csv(team_adjusted_csv)
-    print(f"Saved simultaneous team adjustments to {team_adjusted_csv}")
+    _write_data_file(team_adjusted_df, season, "simultaneous_team_adjustments")
     combined = combined.join(team_adjusted_df, on="team", how="left")
 
     # Add diff columns: for every paired (stat, opp_stat), compute diff = stat - opp_stat
@@ -407,7 +361,7 @@ def run_season(season: int) -> None:
 
     # Schedule-adjusted ratings (SaOR, SaDR, SaCR)
     team_reference_df = _build_historical_reference_frame(
-        OUTPUT_DIR,
+        DATA_DIR,
         season,
         "combined",
         combined,
@@ -418,17 +372,13 @@ def run_season(season: int) -> None:
     srs_df = solve_srs(weekly_df, response_col="point_margin").rename({"srs_rating": "SRS"})
     combined = combined.join(srs_df, on="team", how="left")
 
-    combined_csv = os.path.join(OUTPUT_DIR, f"{season}_combined.csv")
-    combined.write_csv(combined_csv)
-    print(f"Saved combined stats to {combined_csv}")
+    _write_data_file(combined, season, "combined")
 
     # Standalone ratings summary
     ratings_summary = ratings_df.join(
         combined.select(["team", "games_played", "SRS"]), on="team", how="left"
     ).select(["team", "games_played", "SaCR", "SaOR", "SaDR", "SaOvR", "SRS"])
-    ratings_csv = os.path.join(OUTPUT_DIR, f"{season}_ratings.csv")
-    ratings_summary.write_csv(ratings_csv)
-    print(f"Saved schedule-adjusted ratings to {ratings_csv}")
+    _write_data_file(ratings_summary, season, "ratings")
 
     # --- Print summary ---
     print(f"\n{'=' * 70}")
@@ -488,7 +438,7 @@ def run_season(season: int) -> None:
             div_marker = " (DIV)" if d["division"] else ""
             print(f"  {d['opponent']}{div_marker}: {d['games_included']} games")
 
-    print(f"\nDone! CSV files saved to {OUTPUT_DIR}/")
+    print(f"\nDone! Parquet files saved to {DATA_DIR}/")
 
 
 def main() -> None:

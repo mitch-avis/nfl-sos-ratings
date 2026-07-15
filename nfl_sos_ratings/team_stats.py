@@ -2,6 +2,9 @@
 
 import polars as pl
 
+from nfl_sos_ratings.pbp_expressions import rate_expr, scrimmage_snap_expr, value_expr
+from nfl_sos_ratings.team_stats_expanded import compute_expanded_team_game_stats
+
 _DEFENSE_ONLY_PLAYER_STATS = [
     "def_tackles_for_loss",
     "def_fumbles_forced",
@@ -21,34 +24,6 @@ def _get_numeric_stat_cols(df: pl.DataFrame) -> list[str]:
         for col, dtype in zip(df.columns, df.dtypes, strict=True)
         if dtype.is_numeric() and col not in exclude
     ]
-
-
-def _pbp_scrimmage_snap_expr(columns: list[str]) -> pl.Expr:
-    """Return an expression that flags offensive scrimmage snaps in PBP data."""
-
-    def _flag(column: str) -> pl.Expr:
-        if column in columns:
-            return pl.col(column).fill_null(0).cast(pl.Int8)
-        return pl.lit(0)
-
-    return (_flag("qb_dropback") + _flag("rush") + _flag("qb_kneel") + _flag("qb_spike")) > 0
-
-
-def _pbp_value_expr(columns: list[str], column: str, default: int | float = 0) -> pl.Expr:
-    """Return a null-safe column expression or a literal default when absent."""
-    if column in columns:
-        return pl.col(column).fill_null(default)
-    return pl.lit(default)
-
-
-def _rate_expr(numerator: str, denominator: str, output: str) -> pl.Expr:
-    """Return a null-safe rate expression for a numerator and denominator pair."""
-    return (
-        pl.when(pl.col(denominator) > 0)
-        .then(pl.col(numerator) / pl.col(denominator))
-        .otherwise(None)
-        .alias(output)
-    )
 
 
 def _extract_points_per_team_game(schedule_df: pl.DataFrame) -> pl.DataFrame:
@@ -134,66 +109,63 @@ def compute_team_game_stats_from_pbp(
         pbp_df.filter(
             pl.col("posteam").is_not_null()
             & pl.col("defteam").is_not_null()
-            & _pbp_scrimmage_snap_expr(pbp_df.columns)
+            & scrimmage_snap_expr(pbp_df.columns)
         )
         .group_by(group_keys + ["posteam", "defteam"])
         .agg(
             [
-                _pbp_value_expr(pbp_df.columns, "passing_yards", 0.0).sum().alias("passing_yards"),
-                _pbp_value_expr(pbp_df.columns, "rushing_yards", 0.0).sum().alias("rushing_yards"),
-                pl.when(_pbp_value_expr(pbp_df.columns, "qb_dropback") > 0)
-                .then(_pbp_value_expr(pbp_df.columns, "epa", 0.0))
+                value_expr(pbp_df.columns, "passing_yards", 0.0).sum().alias("passing_yards"),
+                value_expr(pbp_df.columns, "rushing_yards", 0.0).sum().alias("rushing_yards"),
+                pl.when(value_expr(pbp_df.columns, "qb_dropback") > 0)
+                .then(value_expr(pbp_df.columns, "epa", 0.0))
                 .otherwise(0.0)
                 .sum()
                 .alias("passing_epa"),
-                pl.when(_pbp_value_expr(pbp_df.columns, "rush") > 0)
-                .then(_pbp_value_expr(pbp_df.columns, "epa", 0.0))
+                pl.when(value_expr(pbp_df.columns, "rush") > 0)
+                .then(value_expr(pbp_df.columns, "epa", 0.0))
                 .otherwise(0.0)
                 .sum()
                 .alias("rushing_epa"),
-                _pbp_value_expr(pbp_df.columns, "pass_touchdown")
+                value_expr(pbp_df.columns, "pass_touchdown")
                 .sum()
                 .cast(pl.Int64)
                 .alias("passing_tds"),
-                _pbp_value_expr(pbp_df.columns, "rush_touchdown")
+                value_expr(pbp_df.columns, "rush_touchdown")
                 .sum()
                 .cast(pl.Int64)
                 .alias("rushing_tds"),
-                pl.when(_pbp_value_expr(pbp_df.columns, "pass") > 0)
-                .then(_pbp_value_expr(pbp_df.columns, "first_down"))
+                pl.when(value_expr(pbp_df.columns, "pass") > 0)
+                .then(value_expr(pbp_df.columns, "first_down"))
                 .otherwise(0)
                 .sum()
                 .cast(pl.Int64)
                 .alias("passing_first_downs"),
-                pl.when(_pbp_value_expr(pbp_df.columns, "rush") > 0)
-                .then(_pbp_value_expr(pbp_df.columns, "first_down"))
+                pl.when(value_expr(pbp_df.columns, "rush") > 0)
+                .then(value_expr(pbp_df.columns, "first_down"))
                 .otherwise(0)
                 .sum()
                 .cast(pl.Int64)
                 .alias("rushing_first_downs"),
-                pl.when(_pbp_value_expr(pbp_df.columns, "pass") > 0)
+                pl.when(value_expr(pbp_df.columns, "pass") > 0)
                 .then(
                     pl.col("cpoe") if "cpoe" in pbp_df.columns else pl.lit(None, dtype=pl.Float64)
                 )
                 .otherwise(None)
                 .mean()
                 .alias("passing_cpoe"),
-                _pbp_value_expr(pbp_df.columns, "sack")
-                .sum()
-                .cast(pl.Int64)
-                .alias("sacks_suffered"),
-                _pbp_value_expr(pbp_df.columns, "interception")
+                value_expr(pbp_df.columns, "sack").sum().cast(pl.Int64).alias("sacks_suffered"),
+                value_expr(pbp_df.columns, "interception")
                 .sum()
                 .cast(pl.Int64)
                 .alias("passing_interceptions"),
-                pl.when(_pbp_value_expr(pbp_df.columns, "sack") > 0)
-                .then(_pbp_value_expr(pbp_df.columns, "fumble_lost"))
+                pl.when(value_expr(pbp_df.columns, "sack") > 0)
+                .then(value_expr(pbp_df.columns, "fumble_lost"))
                 .otherwise(0)
                 .sum()
                 .cast(pl.Int64)
                 .alias("sack_fumbles_lost"),
-                pl.when(_pbp_value_expr(pbp_df.columns, "rush") > 0)
-                .then(_pbp_value_expr(pbp_df.columns, "fumble_lost"))
+                pl.when(value_expr(pbp_df.columns, "rush") > 0)
+                .then(value_expr(pbp_df.columns, "fumble_lost"))
                 .otherwise(0)
                 .sum()
                 .cast(pl.Int64)
@@ -208,48 +180,48 @@ def compute_team_game_stats_from_pbp(
         pbp_df.filter(
             pl.col("posteam").is_not_null()
             & pl.col("defteam").is_not_null()
-            & _pbp_scrimmage_snap_expr(pbp_df.columns)
+            & scrimmage_snap_expr(pbp_df.columns)
         )
         .group_by(group_keys + ["defteam", "posteam"])
         .agg(
             [
-                _pbp_value_expr(pbp_df.columns, "passing_yards", 0.0)
+                value_expr(pbp_df.columns, "passing_yards", 0.0)
                 .sum()
                 .alias("passing_yards_allowed"),
-                _pbp_value_expr(pbp_df.columns, "rushing_yards", 0.0)
+                value_expr(pbp_df.columns, "rushing_yards", 0.0)
                 .sum()
                 .alias("rushing_yards_allowed"),
-                pl.when(_pbp_value_expr(pbp_df.columns, "qb_dropback") > 0)
-                .then(_pbp_value_expr(pbp_df.columns, "epa", 0.0))
+                pl.when(value_expr(pbp_df.columns, "qb_dropback") > 0)
+                .then(value_expr(pbp_df.columns, "epa", 0.0))
                 .otherwise(0.0)
                 .sum()
                 .alias("passing_epa_allowed"),
-                pl.when(_pbp_value_expr(pbp_df.columns, "rush") > 0)
-                .then(_pbp_value_expr(pbp_df.columns, "epa", 0.0))
+                pl.when(value_expr(pbp_df.columns, "rush") > 0)
+                .then(value_expr(pbp_df.columns, "epa", 0.0))
                 .otherwise(0.0)
                 .sum()
                 .alias("rushing_epa_allowed"),
-                _pbp_value_expr(pbp_df.columns, "pass_touchdown")
+                value_expr(pbp_df.columns, "pass_touchdown")
                 .sum()
                 .cast(pl.Int64)
                 .alias("passing_tds_allowed"),
-                _pbp_value_expr(pbp_df.columns, "rush_touchdown")
+                value_expr(pbp_df.columns, "rush_touchdown")
                 .sum()
                 .cast(pl.Int64)
                 .alias("rushing_tds_allowed"),
-                pl.when(_pbp_value_expr(pbp_df.columns, "pass") > 0)
-                .then(_pbp_value_expr(pbp_df.columns, "first_down"))
+                pl.when(value_expr(pbp_df.columns, "pass") > 0)
+                .then(value_expr(pbp_df.columns, "first_down"))
                 .otherwise(0)
                 .sum()
                 .cast(pl.Int64)
                 .alias("passing_first_downs_allowed"),
-                pl.when(_pbp_value_expr(pbp_df.columns, "rush") > 0)
-                .then(_pbp_value_expr(pbp_df.columns, "first_down"))
+                pl.when(value_expr(pbp_df.columns, "rush") > 0)
+                .then(value_expr(pbp_df.columns, "first_down"))
                 .otherwise(0)
                 .sum()
                 .cast(pl.Int64)
                 .alias("rushing_first_downs_allowed"),
-                pl.when(_pbp_value_expr(pbp_df.columns, "pass") > 0)
+                pl.when(value_expr(pbp_df.columns, "pass") > 0)
                 .then(
                     pl.col("cpoe") if "cpoe" in pbp_df.columns else pl.lit(None, dtype=pl.Float64)
                 )
@@ -444,13 +416,54 @@ def compute_team_game_stats_from_pbp(
     ]
     result = result.with_columns(
         [
-            _rate_expr(numerator, denominator, output)
+            rate_expr(numerator, denominator, output)
             for numerator, denominator, output in rate_specs
             if {numerator, denominator}.issubset(set(result.columns))
         ]
     )
 
+    expanded = compute_expanded_team_game_stats(pbp_df)
+    if "team" in expanded.columns and not expanded.is_empty():
+        expansion_keys = [
+            key
+            for key in [*group_keys, "team", "opponent_team"]
+            if key in expanded.columns and key in result.columns
+        ]
+        result = result.join(expanded, on=expansion_keys, how="left")
+
+    result = _add_receiving_display_mirrors(result)
+
     return result.sort([key for key in ("team", "week", "game_id") if key in result.columns])
+
+
+# Receiving display mirrors: at team level the receiving surface restates the
+# passing surface exactly (verified: team receiving yards equal gross passing
+# yards). Kept for display only; every alias is duplicate_of its source in the
+# metric registry and is never ratings-eligible.
+_RECEIVING_ALIAS_SOURCES = {
+    "targets": "attempts",
+    "receptions": "completions",
+    "receiving_yards": "passing_yards",
+    "receiving_tds": "passing_tds",
+    "receiving_air_yards": "passing_air_yards",
+    "receiving_yards_after_catch": "passing_yards_after_catch",
+    "receiving_first_downs": "passing_first_downs",
+    "catch_rate": "completion_pct",
+    "targets_faced": "attempts_faced",
+    "receptions_allowed": "completions_allowed",
+    "receiving_yards_allowed": "passing_yards_allowed",
+    "catch_rate_allowed": "completion_pct_allowed",
+}
+
+
+def _add_receiving_display_mirrors(result: pl.DataFrame) -> pl.DataFrame:
+    """Add display-only receiving aliases of the passing surface."""
+    aliases = [
+        pl.col(source).alias(alias)
+        for alias, source in _RECEIVING_ALIAS_SOURCES.items()
+        if source in result.columns
+    ]
+    return result.with_columns(aliases) if aliases else result
 
 
 def compute_team_snap_counts_from_pbp(pbp_df: pl.DataFrame) -> pl.DataFrame:
@@ -469,7 +482,7 @@ def compute_team_snap_counts_from_pbp(pbp_df: pl.DataFrame) -> pl.DataFrame:
     scrimmage_plays = pbp_df.filter(
         pl.col("posteam").is_not_null()
         & pl.col("defteam").is_not_null()
-        & _pbp_scrimmage_snap_expr(pbp_df.columns)
+        & scrimmage_snap_expr(pbp_df.columns)
     )
 
     offense = scrimmage_plays.select(
@@ -511,7 +524,10 @@ def compute_all_teams_per_game(weekly_df: pl.DataFrame) -> pl.DataFrame:
     per_game = (
         weekly_df.group_by("team")
         .agg(
-            [pl.col(c).mean().alias(c) for c in stat_cols]
+            [
+                (pl.col(c).max() if c.startswith("longest_") else pl.col(c).mean()).alias(c)
+                for c in stat_cols
+            ]
             + [pl.col("team").count().alias("games_played")]
         )
         .sort("team")

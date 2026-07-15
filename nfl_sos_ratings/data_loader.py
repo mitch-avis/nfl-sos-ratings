@@ -1,4 +1,8 @@
-"""Data loading functions wrapping nflreadpy."""
+"""Data loading functions wrapping nflreadpy plus direct nflverse release assets."""
+
+import io
+import urllib.request
+from typing import Literal
 
 import nflreadpy as nfl
 import polars as pl
@@ -6,6 +10,42 @@ import polars as pl
 from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
 from nfl_sos_ratings.qb_stats import compute_qb_game_stats_from_pbp
 from nfl_sos_ratings.team_stats import compute_team_game_stats_from_pbp
+
+# ESPN QBR has no nflreadpy load function yet; these are the official nflverse
+# release assets (Parquet, the smallest published format).
+ESPN_QBR_RELEASE_URLS: dict[str, str] = {
+    "season": (
+        "https://github.com/nflverse/nflverse-data/releases/download/espn_data/"
+        "qbr_season_level.parquet"
+    ),
+    "week": (
+        "https://github.com/nflverse/nflverse-data/releases/download/espn_data/"
+        "qbr_week_level.parquet"
+    ),
+}
+
+SNAP_COUNTS_START_SEASON = 2012
+ROSTERS_WEEKLY_START_SEASON = 2002
+
+
+def _season_is_before_source_floor(season: int, *, start_season: int) -> bool:
+    """Return whether a season predates an upstream dataset's first available year."""
+    return season < start_season
+
+
+def _empty_snap_counts_data() -> pl.DataFrame:
+    """Return the standard empty snap-count schema used by QB loading."""
+    return pl.DataFrame(
+        schema={
+            "game_id": pl.String,
+            "week": pl.Int64,
+            "team": pl.String,
+            "player": pl.String,
+            "pfr_player_id": pl.String,
+            "position": pl.String,
+            "offense_snaps": pl.Float64,
+        }
+    )
 
 
 def _empty_qb_identity_crosswalk() -> pl.DataFrame:
@@ -72,8 +112,12 @@ def load_qb_identity_crosswalk(season: int) -> pl.DataFrame:
         name_column="display_name",
         source_priority=0,
     )
+    rosters_weekly_source = _empty_qb_identity_crosswalk()
+    if not _season_is_before_source_floor(season, start_season=ROSTERS_WEEKLY_START_SEASON):
+        rosters_weekly_source = _filter_regular_season(nfl.load_rosters_weekly(seasons=season))
+
     rosters_weekly = _standardize_qb_identity_source(
-        _filter_regular_season(nfl.load_rosters_weekly(seasons=season)),
+        rosters_weekly_source,
         name_column="full_name",
         source_priority=1,
     )
@@ -92,6 +136,28 @@ def load_qb_identity_crosswalk(season: int) -> pl.DataFrame:
             pl.col("qb_position").drop_nulls().first().alias("qb_position"),
         )
     )
+
+
+_OFFICIAL_QB_RUSHING_FIELDS: dict[str, tuple[str, type[pl.Int64] | type[pl.Float64]]] = {
+    "carries": ("official_qb_carries", pl.Int64),
+    "rushing_yards": ("official_qb_rushing_yards", pl.Float64),
+    "rushing_tds": ("official_qb_rushing_tds", pl.Int64),
+    "rushing_first_downs": ("official_qb_rushing_first_downs", pl.Int64),
+    "rushing_epa": ("official_qb_rushing_epa", pl.Float64),
+    "rushing_fumbles": ("official_qb_rushing_fumbles", pl.Int64),
+    "rushing_fumbles_lost": ("official_qb_rushing_fumbles_lost", pl.Int64),
+    "rushing_2pt_conversions": ("official_qb_rushing_2pt_conversions", pl.Int64),
+}
+
+
+def _official_rushing_selection(columns: list[str]) -> list[pl.Expr]:
+    """Return the official QB rushing selection, tolerating absent columns."""
+    return [
+        (pl.col(source).cast(dtype) if source in columns else pl.lit(None, dtype=dtype)).alias(
+            target
+        )
+        for source, (target, dtype) in _OFFICIAL_QB_RUSHING_FIELDS.items()
+    ]
 
 
 def _load_official_weekly_qb_stats(
@@ -115,6 +181,14 @@ def _load_official_weekly_qb_stats(
                 "official_qb_sack_yards_lost": pl.Float64,
                 "official_qb_passing_epa": pl.Float64,
                 "official_qb_completion_percentage_above_expectation": pl.Float64,
+                "official_qb_carries": pl.Int64,
+                "official_qb_rushing_yards": pl.Float64,
+                "official_qb_rushing_tds": pl.Int64,
+                "official_qb_rushing_first_downs": pl.Int64,
+                "official_qb_rushing_epa": pl.Float64,
+                "official_qb_rushing_fumbles": pl.Int64,
+                "official_qb_rushing_fumbles_lost": pl.Int64,
+                "official_qb_rushing_2pt_conversions": pl.Int64,
             }
         )
 
@@ -184,6 +258,7 @@ def _load_official_weekly_qb_stats(
             if "passing_cpoe" in weekly_player_stats_df.columns
             else pl.lit(None, dtype=pl.Float64)
         ).alias("official_qb_completion_percentage_above_expectation"),
+        *_official_rushing_selection(weekly_player_stats_df.columns),
     )
     if official_qb_stats.is_empty() or qb_identity_df.is_empty():
         return official_qb_stats.drop("qb_name")
@@ -248,6 +323,26 @@ def _override_qb_game_stats_with_official_weekly(
                     pl.col("qb_completion_percentage_above_expectation"),
                 ]
             ).alias("qb_completion_percentage_above_expectation"),
+            pl.col("official_qb_carries").fill_null(0).cast(pl.Int64).alias("qb_carries"),
+            pl.col("official_qb_rushing_yards").fill_null(0.0).alias("qb_rushing_yards"),
+            pl.col("official_qb_rushing_tds").fill_null(0).cast(pl.Int64).alias("qb_rushing_tds"),
+            pl.col("official_qb_rushing_first_downs")
+            .fill_null(0)
+            .cast(pl.Int64)
+            .alias("qb_rushing_first_downs"),
+            pl.col("official_qb_rushing_epa").fill_null(0.0).alias("qb_rushing_epa"),
+            pl.col("official_qb_rushing_fumbles")
+            .fill_null(0)
+            .cast(pl.Int64)
+            .alias("qb_rushing_fumbles"),
+            pl.col("official_qb_rushing_fumbles_lost")
+            .fill_null(0)
+            .cast(pl.Int64)
+            .alias("qb_rushing_fumbles_lost"),
+            pl.col("official_qb_rushing_2pt_conversions")
+            .fill_null(0)
+            .cast(pl.Int64)
+            .alias("qb_rushing_2pt_conversions"),
         )
         .with_columns(
             pl.when(pl.col("qb_dropbacks") > 0)
@@ -281,6 +376,20 @@ def _override_qb_game_stats_with_official_weekly(
             .otherwise(None)
             .alias("qb_any_a"),
         )
+        .with_columns(
+            pl.when(pl.col("qb_attempts") > 0)
+            .then(pl.col("qb_completions") / pl.col("qb_attempts"))
+            .otherwise(None)
+            .alias("qb_completion_pct"),
+            pl.when(pl.col("qb_carries") > 0)
+            .then(pl.col("qb_rushing_yards") / pl.col("qb_carries"))
+            .otherwise(None)
+            .alias("qb_yards_per_carry"),
+            pl.when(pl.col("qb_carries") > 0)
+            .then(pl.col("qb_rushing_epa") / pl.col("qb_carries"))
+            .otherwise(None)
+            .alias("qb_epa_per_carry"),
+        )
         .drop(
             [
                 "official_qb_attempts",
@@ -292,6 +401,7 @@ def _override_qb_game_stats_with_official_weekly(
                 "official_qb_sack_yards_lost",
                 "official_qb_passing_epa",
                 "official_qb_completion_percentage_above_expectation",
+                *[target for target, _ in _OFFICIAL_QB_RUSHING_FIELDS.values()],
             ]
         )
     )
@@ -333,6 +443,37 @@ def _extract_points_per_team_week(schedule: pl.DataFrame) -> pl.DataFrame:
     return pl.concat([home, away])
 
 
+def _fetch_release_parquet(url: str) -> pl.DataFrame:
+    """Download one nflverse release Parquet asset into a dataframe."""
+    with urllib.request.urlopen(url) as response:  # noqa: S310 - fixed https URLs above
+        return pl.read_parquet(io.BytesIO(response.read()))
+
+
+def load_espn_qbr(
+    level: Literal["season", "week"] = "season",
+    seasons: list[int] | None = None,
+) -> pl.DataFrame:
+    """Load ESPN QBR from the nflverse release assets.
+
+    nflreadpy has no QBR load function yet, so this downloads the published
+    Parquet directly. Rows are filtered to the regular season, and team codes
+    (ESPN's WSH/LA plus historical OAK/SD/STL) are normalized to this
+    project's abbreviations.
+    """
+    if level not in ESPN_QBR_RELEASE_URLS:
+        valid_levels = ", ".join(sorted(ESPN_QBR_RELEASE_URLS))
+        raise ValueError(f"Unknown QBR level {level!r}; expected one of: {valid_levels}")
+
+    qbr_df = _fetch_release_parquet(ESPN_QBR_RELEASE_URLS[level])
+    if "season_type" in qbr_df.columns:
+        qbr_df = qbr_df.filter(pl.col("season_type") == "Regular")
+    if seasons is not None and "season" in qbr_df.columns:
+        qbr_df = qbr_df.filter(pl.col("season").is_in(seasons))
+
+    team_columns = [column for column in ("team_abb", "opp_abb") if column in qbr_df.columns]
+    return _normalize_team_abbreviations(qbr_df, team_columns)
+
+
 def load_pbp_data(season: int) -> pl.DataFrame:
     """Load regular-season play-by-play data with normalized team abbreviations."""
     df = nfl.load_pbp(seasons=season)
@@ -349,6 +490,9 @@ def load_weekly_player_stats(season: int) -> pl.DataFrame:
 
 def load_snap_counts_data(season: int) -> pl.DataFrame:
     """Load snap-count data with normalized team abbreviations."""
+    if _season_is_before_source_floor(season, start_season=SNAP_COUNTS_START_SEASON):
+        return _empty_snap_counts_data()
+
     df = nfl.load_snap_counts(seasons=season)
     df = _filter_regular_season(df)
     return _normalize_team_abbreviations(df, ["team"])
@@ -785,5 +929,22 @@ def load_qb_stats(season: int) -> pl.DataFrame:
             "qb_game_winning_drive",
             "qb_completion_percentage_above_expectation",
             "qb_passer_rating",
+        ]
+        + [
+            column
+            for column in (
+                "qb_completion_pct",
+                "qb_carries",
+                "qb_rushing_yards",
+                "qb_rushing_tds",
+                "qb_rushing_first_downs",
+                "qb_rushing_epa",
+                "qb_rushing_fumbles",
+                "qb_rushing_fumbles_lost",
+                "qb_rushing_2pt_conversions",
+                "qb_yards_per_carry",
+                "qb_epa_per_carry",
+            )
+            if column in qb_df.columns
         ]
     )

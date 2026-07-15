@@ -25,15 +25,15 @@ def test_plot_functions_skip_when_inputs_are_missing(
     visualize.plot_qb_schedule_vs_performance(df, "qb_schedule_vs_performance.png")
     visualize.plot_qb_raw_vs_schedule(df, "qb_raw_vs_schedule.png")
 
-    output = capsys.readouterr().out
-    assert "Skipping diffs.png" in output
-    assert "Skipping overview.png" in output
-    assert "Skipping heatmap.png" in output
-    assert "Skipping composite.png" in output
-    assert "Skipping ratings.png" in output
-    assert "Skipping qb_raw_vs_adjusted.png" in output
-    assert "Skipping qb_schedule_vs_performance.png" in output
-    assert "Skipping qb_raw_vs_schedule.png" in output
+    data = capsys.readouterr().out
+    assert "Skipping diffs.png" in data
+    assert "Skipping overview.png" in data
+    assert "Skipping heatmap.png" in data
+    assert "Skipping composite.png" in data
+    assert "Skipping ratings.png" in data
+    assert "Skipping qb_raw_vs_adjusted.png" in data
+    assert "Skipping qb_schedule_vs_performance.png" in data
+    assert "Skipping qb_raw_vs_schedule.png" in data
 
 
 def test_qb_plot_helpers_use_player_labels_and_filter_ineligible() -> None:
@@ -69,7 +69,7 @@ def test_sorted_rating_rows_orders_descending() -> None:
 
 
 def test_plot_functions_create_expected_files(tmp_path: Path, visualize_df: pl.DataFrame) -> None:
-    """Verify plotting helpers create expected output image files."""
+    """Verify plotting helpers create expected plot image files."""
     visualize.PLOTS_DIR = str(tmp_path)
 
     visualize.plot_diff_grid(visualize_df, visualize.OFFENSE_SPECS, "Offense", "diffs_offense.png")
@@ -127,15 +127,15 @@ def test_visualize_main_handles_missing_and_invalid_combined_file(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Verify visualize.main handles missing combined file and sparse combined columns."""
-    visualize.OUTPUT_DIR = str(tmp_path)
+    visualize.DATA_DIR = str(tmp_path)
     visualize.PLOTS_DIR = os.path.join(str(tmp_path), "plots")
 
     visualize.main()
     missing_output = capsys.readouterr().out
     assert "not found" in missing_output
 
-    combined_path = tmp_path / f"{visualize.SEASON}_combined.csv"
-    pl.DataFrame({"team": ["DEN"]}).write_csv(combined_path)
+    combined_path = tmp_path / f"{visualize.SEASON}_combined.parquet"
+    pl.DataFrame({"team": ["DEN"]}).write_parquet(combined_path)
     visualize.main()
 
     output = capsys.readouterr().out
@@ -144,9 +144,9 @@ def test_visualize_main_handles_missing_and_invalid_combined_file(
 
 def test_visualize_main_generates_all_plots(tmp_path: Path, visualize_df: pl.DataFrame) -> None:
     """Verify visualize.main generates only the selected team plots."""
-    visualize.OUTPUT_DIR = str(tmp_path)
+    visualize.DATA_DIR = str(tmp_path)
     visualize.PLOTS_DIR = os.path.join(str(tmp_path), "plots")
-    pl.DataFrame(visualize_df).write_csv(tmp_path / f"{visualize.SEASON}_combined.csv")
+    pl.DataFrame(visualize_df).write_parquet(tmp_path / f"{visualize.SEASON}_combined.parquet")
 
     visualize.main()
 
@@ -161,12 +161,12 @@ def test_visualize_main_generates_all_plots(tmp_path: Path, visualize_df: pl.Dat
 def test_visualize_main_generates_qb_plot_when_qb_combined_exists(
     tmp_path: Path, visualize_df: pl.DataFrame
 ) -> None:
-    """Verify visualize.main adds selected QB plots when qb_combined output exists."""
-    visualize.OUTPUT_DIR = str(tmp_path)
+    """Verify visualize.main adds selected QB plots when qb_combined data exists."""
+    visualize.DATA_DIR = str(tmp_path)
     visualize.PLOTS_DIR = os.path.join(str(tmp_path), "plots")
-    visualize_df.write_csv(tmp_path / f"{visualize.SEASON}_combined.csv")
-    pl.DataFrame({"team": ["DEN", "KC"], "QSaCR": [0.4, -0.2]}).write_csv(
-        tmp_path / f"{visualize.SEASON}_qb_combined.csv"
+    visualize_df.write_parquet(tmp_path / f"{visualize.SEASON}_combined.parquet")
+    pl.DataFrame({"team": ["DEN", "KC"], "QSaCR": [0.4, -0.2]}).write_parquet(
+        tmp_path / f"{visualize.SEASON}_qb_combined.parquet"
     )
 
     pl.DataFrame(
@@ -177,7 +177,7 @@ def test_visualize_main_generates_qb_plot_when_qb_combined_exists(
             "QSoS": [0.3, -0.1],
             "QSaCR": [0.4, -0.2],
         }
-    ).write_csv(tmp_path / f"{visualize.SEASON}_qb_combined.csv")
+    ).write_parquet(tmp_path / f"{visualize.SEASON}_qb_combined.parquet")
 
     visualize.main()
 

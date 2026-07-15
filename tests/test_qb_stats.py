@@ -615,3 +615,45 @@ def test_compute_qb_game_stats_from_pbp_does_not_assign_4qc_or_gwd_in_loss() -> 
 
     assert tyrod_row.select("qb_fourth_quarter_comeback").item() == 0
     assert tyrod_row.select("qb_game_winning_drive").item() == 0
+
+
+def test_compute_qb_season_stats_aggregates_rushing_and_completion_rates() -> None:
+    """Verify season totals, per-game fields, and rates for the rushing family."""
+    qb_df = pl.DataFrame(
+        {
+            "game_id": ["g1", "g2"],
+            "week": [1, 2],
+            "team_abbr": ["DEN", "DEN"],
+            "qb_id": ["qb-1", "qb-1"],
+            "qb_name": ["John Doe", "John Doe"],
+            "qb_dropbacks": [30, 34],
+            "qb_attempts": [28, 32],
+            "qb_completions": [20, 25],
+            "qb_pass_yards": [220.0, 260.0],
+            "qb_pass_touchdowns": [2, 1],
+            "qb_interceptions": [0, 1],
+            "qb_sacks": [1, 1],
+            "qb_sack_yards_lost": [7.0, 6.0],
+            "qb_passing_epa": [5.0, 4.0],
+            "qb_carries": [6, 4],
+            "qb_rushing_yards": [42.0, 18.0],
+            "qb_rushing_tds": [1, 0],
+            "qb_rushing_first_downs": [3, 1],
+            "qb_rushing_epa": [2.0, 0.5],
+            "qb_rushing_fumbles": [0, 1],
+            "qb_rushing_fumbles_lost": [0, 1],
+            "qb_rushing_2pt_conversions": [0, 0],
+        }
+    )
+
+    season = qb_stats.compute_qb_season_stats(qb_df)
+    row = season.to_dicts()[0]
+
+    assert row["qb_carries_total"] == 10
+    assert row["qb_rushing_yards_total"] == 60.0
+    assert row["qb_rushing_tds_total"] == 1
+    assert row["qb_carries_per_game"] == 5.0
+    assert row["qb_rushing_yards_per_game"] == 30.0
+    assert row["qb_completion_pct"] == 45.0 / 60.0
+    assert row["qb_yards_per_carry"] == 6.0
+    assert row["qb_epa_per_carry"] == 0.25

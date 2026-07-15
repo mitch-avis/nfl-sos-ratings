@@ -3,52 +3,20 @@
 import numpy as np
 import polars as pl
 
+from nfl_sos_ratings.metrics import get_registry
+
 # ---------------------------------------------------------------------------
-# Stat pools: (column_name, True if higher value = better for the team)
+# Stat pools: (column_name, True if higher value = better for the team).
 #
-# Include all plausibly relevant stats; correlation-threshold filtering removes
-# anything that doesn't actually predict winning.  Don't pre-select — let the
-# data decide.
+# Membership lives in the metric registry (nfl_sos_ratings/metrics/catalog.py),
+# the single source of truth; higher-is-better derives from each metric's
+# polarity. Correlation-threshold filtering still removes anything that does
+# not actually predict winning.
 # ---------------------------------------------------------------------------
 
-_OFF_STAT_POOL: list[tuple[str, bool]] = [
-    ("points_per_offensive_snap", True),
-    ("total_yards_per_offensive_snap", True),
-    ("passing_yards_per_offensive_snap", True),
-    ("rushing_yards_per_offensive_snap", True),
-    ("passing_epa_per_offensive_snap", True),
-    ("rushing_epa_per_offensive_snap", True),
-    ("passing_tds_per_offensive_snap", True),
-    ("rushing_tds_per_offensive_snap", True),
-    ("passing_first_downs_per_offensive_snap", True),
-    ("rushing_first_downs_per_offensive_snap", True),
-    ("passing_cpoe", True),  # completion % over expectation
-    ("sacks_suffered_per_offensive_snap", False),
-    ("passing_interceptions_per_offensive_snap", False),
-    ("sack_fumbles_lost_per_offensive_snap", False),
-    ("rushing_fumbles_lost_per_offensive_snap", False),
-]
+_OFF_STAT_POOL: list[tuple[str, bool]] = get_registry().pool_stats("team_offense")
 
-_DEF_STAT_POOL: list[tuple[str, bool]] = [
-    ("points_allowed_per_defensive_snap", False),
-    ("total_yards_allowed_per_defensive_snap", False),
-    ("passing_yards_allowed_per_defensive_snap", False),
-    ("rushing_yards_allowed_per_defensive_snap", False),
-    ("passing_epa_allowed_per_defensive_snap", False),
-    ("rushing_epa_allowed_per_defensive_snap", False),
-    ("passing_tds_allowed_per_defensive_snap", False),
-    ("rushing_tds_allowed_per_defensive_snap", False),
-    ("passing_first_downs_allowed_per_defensive_snap", False),
-    ("rushing_first_downs_allowed_per_defensive_snap", False),
-    ("passing_cpoe_allowed", False),
-    ("def_sacks_per_defensive_snap", True),
-    ("def_interceptions_per_defensive_snap", True),
-    ("def_pass_defended_per_defensive_snap", True),
-    ("def_tackles_for_loss_per_defensive_snap", True),
-    ("def_qb_hits_per_defensive_snap", True),
-    ("def_fumbles_forced_per_defensive_snap", True),
-    ("def_safeties_per_defensive_snap", True),
-]
+_DEF_STAT_POOL: list[tuple[str, bool]] = get_registry().pool_stats("team_defense")
 
 # How strongly schedule difficulty shifts the raw composite.
 # 0 = ignore schedule; 1 = equal weight to raw performance.

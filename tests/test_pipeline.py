@@ -39,12 +39,12 @@ def test_pipeline_runs_data_then_visualizations_and_continues_on_errors(
         ("viz", 2024),
         ("viz", 2025),
     ]
-    output = capsys.readouterr().out
-    assert "Phase 1 of 2: Data gathering" in output
-    assert "ERROR: season 2024 data step failed — boom" in output
-    assert "Phase 2 of 2: Visualizations" in output
-    assert "ERROR: season 2025 visualization failed — plot boom" in output
-    assert "Pipeline complete — 2 seasons processed." in output
+    data = capsys.readouterr().out
+    assert "Phase 1 of 2: Data gathering" in data
+    assert "ERROR: season 2024 data step failed — boom" in data
+    assert "Phase 2 of 2: Visualizations" in data
+    assert "ERROR: season 2025 visualization failed — plot boom" in data
+    assert "Pipeline complete — 2 seasons processed." in data
 
 
 def test_pipeline_main_handles_windows_stdout(

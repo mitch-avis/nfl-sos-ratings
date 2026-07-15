@@ -3,41 +3,21 @@
 import numpy as np
 import polars as pl
 
+from nfl_sos_ratings.metrics import get_registry
+
 _SOS_WEIGHT: float = 0.0
 _OUTCOME_WEIGHT: float = 0.75
 _MIN_CORRELATION: float = 0.1
 
-_QB_STAT_POOL: list[tuple[str, bool]] = [
-    ("qb_epa_per_dropback", True),
-    ("qb_any_a", True),
-    ("qb_completion_percentage_above_expectation", True),
-    ("qb_td_int_margin_rate", True),
-    ("qb_sack_rate", False),
-    ("qb_pass_yards_per_dropback", True),
-    ("qb_sacks", False),
-    ("qb_passer_rating", True),
-]
+# Pool membership lives in the metric registry (the single source of truth);
+# higher-is-better derives from each metric's polarity.
+_QB_STAT_POOL: list[tuple[str, bool]] = get_registry().pool_stats("qb_primary")
 
 _QB_DIFF_STAT_POOL: list[tuple[str, bool]] = [
-    ("diff_qb_epa_per_dropback", True),
-    ("diff_qb_any_a", True),
-    ("diff_qb_completion_percentage_above_expectation", True),
-    ("diff_qb_td_int_margin_rate", True),
-    ("diff_qb_sack_rate", False),
-    ("diff_qb_pass_yards_per_dropback", True),
-    ("diff_qb_sacks", False),
-    ("diff_qb_passer_rating", True),
+    (f"diff_{stat}", higher_is_better) for stat, higher_is_better in _QB_STAT_POOL
 ]
 
-_QB_PAIRED_STAT_POOL: list[tuple[str, bool]] = [
-    ("qb_epa_per_dropback", True),
-    ("qb_any_a", True),
-    ("qb_completion_percentage_above_expectation", True),
-    ("qb_td_int_margin_rate", True),
-    ("qb_sack_rate", False),
-    ("qb_pass_yards_per_dropback", True),
-    ("qb_passer_rating", True),
-]
+_QB_PAIRED_STAT_POOL: list[tuple[str, bool]] = get_registry().pool_stats("qb_paired")
 
 
 def _zscore(values: list[float]) -> np.ndarray:

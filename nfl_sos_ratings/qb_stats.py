@@ -18,6 +18,14 @@ _QB_TOTAL_COLUMNS: dict[str, tuple[str, PolarsCastType]] = {
     "qb_sack_yards_lost": ("qb_sack_yards_lost_total", pl.Float64),
     "qb_sack_fumbles_lost": ("qb_sack_fumbles_lost_total", pl.Float64),
     "qb_passing_epa": ("qb_passing_epa_total", pl.Float64),
+    "qb_carries": ("qb_carries_total", pl.Int64),
+    "qb_rushing_yards": ("qb_rushing_yards_total", pl.Float64),
+    "qb_rushing_tds": ("qb_rushing_tds_total", pl.Int64),
+    "qb_rushing_first_downs": ("qb_rushing_first_downs_total", pl.Int64),
+    "qb_rushing_epa": ("qb_rushing_epa_total", pl.Float64),
+    "qb_rushing_fumbles": ("qb_rushing_fumbles_total", pl.Int64),
+    "qb_rushing_fumbles_lost": ("qb_rushing_fumbles_lost_total", pl.Int64),
+    "qb_rushing_2pt_conversions": ("qb_rushing_2pt_conversions_total", pl.Int64),
 }
 
 _QB_PER_GAME_COLUMNS: dict[str, str] = {
@@ -34,6 +42,14 @@ _QB_PER_GAME_COLUMNS: dict[str, str] = {
     "qb_sack_yards_lost": "qb_sack_yards_lost_per_game",
     "qb_sack_fumbles_lost": "qb_sack_fumbles_lost_per_game",
     "qb_passing_epa": "qb_passing_epa_per_game",
+    "qb_carries": "qb_carries_per_game",
+    "qb_rushing_yards": "qb_rushing_yards_per_game",
+    "qb_rushing_tds": "qb_rushing_tds_per_game",
+    "qb_rushing_first_downs": "qb_rushing_first_downs_per_game",
+    "qb_rushing_epa": "qb_rushing_epa_per_game",
+    "qb_rushing_fumbles": "qb_rushing_fumbles_per_game",
+    "qb_rushing_fumbles_lost": "qb_rushing_fumbles_lost_per_game",
+    "qb_rushing_2pt_conversions": "qb_rushing_2pt_conversions_per_game",
 }
 
 
@@ -651,12 +667,25 @@ def compute_qb_season_stats(
         ("qb_pass_yards_total", "qb_yards_per_attempt"),
         ("qb_pass_touchdowns_total", "qb_touchdown_rate"),
         ("qb_interceptions_total", "qb_interception_rate"),
+        ("qb_completions_total", "qb_completion_pct"),
     ]
     for numerator_col, output_col in rate_inputs:
         if numerator_col in season_stats.columns:
             rate_exprs.append(
                 pl.when(pl.col("qb_attempts_total") > 0)
                 .then(pl.col(numerator_col) / pl.col("qb_attempts_total"))
+                .otherwise(None)
+                .alias(output_col)
+            )
+    carry_rate_inputs = [
+        ("qb_rushing_yards_total", "qb_yards_per_carry"),
+        ("qb_rushing_epa_total", "qb_epa_per_carry"),
+    ]
+    for numerator_col, output_col in carry_rate_inputs:
+        if {numerator_col, "qb_carries_total"}.issubset(set(season_stats.columns)):
+            rate_exprs.append(
+                pl.when(pl.col("qb_carries_total") > 0)
+                .then(pl.col(numerator_col) / pl.col("qb_carries_total"))
                 .otherwise(None)
                 .alias(output_col)
             )

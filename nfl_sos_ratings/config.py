@@ -2,14 +2,14 @@
 
 # Season range for the full pipeline run (nfl-sos-pipeline command).
 # 2016 is the first season with available Next Gen Stats data.
-START_YEAR: int = 2012
+START_YEAR: int = 1999
 END_YEAR: int = 2025
 
 # Single-season target — used by main.py and visualize.py when invoked directly.
 SEASON: int = END_YEAR
 
-# Output directory for CSVs
-OUTPUT_DIR: str = "output"
+# Data directory for generated Parquet files and plots
+DATA_DIR: str = "data"
 
 # NFL division mapping
 DIVISIONS = {
@@ -40,6 +40,7 @@ TEAM_ABBR_ALIASES = {
     "OAK": "LV",
     "SD": "LAC",
     "STL": "LAR",
+    "WSH": "WAS",  # ESPN QBR uses WSH for Washington
 }
 
 # QB Next Gen Stats columns to extract (from load_nextgen_stats passing data)
