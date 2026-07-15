@@ -9,8 +9,9 @@ It currently produces:
 
 - Team ratings: `SaOR`, `SaDR`, `SaOvR`, `SaCR`, and `SRS`
 - QB ratings: `QRaw`, `QSoS`, `QSaOR`, `QOutcome`, and `QSaCR`
-- One-hop diff-based comparison outputs
-- Simultaneous-adjustment outputs for teams and QBs
+- Ridge-backed published ratings for teams and QBs, plus one-hop diff-based comparison outputs for
+  descriptive context
+- Simultaneous-adjustment audit outputs for teams and QBs
 - A machine-readable metric registry (`nfl_sos_ratings/metrics/`) — the single source of truth
   for every published stat's label, layman description, polarity, category, source, and
   rating-pool eligibility, served to the web UI at `/api/metadata`
@@ -100,17 +101,28 @@ The live pipeline is PBP-first.
 The team path is:
 
 1. Build one PBP-derived row per team-game.
-2. Derive both per-game totals and per-snap rates.
-3. Build opponent profiles from each unique opponent's non-head-to-head games.
-4. Join team and opponent profiles and emit `diff_*` columns.
-5. Produce equal-weight team ratings:
-   - `SaOR`: offense
-   - `SaDR`: defense
-   - `SaOvR`: overall, built from `win_value` and `turnover_margin`
-   - `SaCR`: equal blend of offense, defense, and overall
-6. Produce `SRS` from point margin as a simultaneous-adjustment reference.
+2. Stamp each team-game row with `is_home` so the simultaneous solve can estimate home-field
+   advantage.
+3. Derive both per-game totals and per-snap rates.
+4. Build opponent profiles from each unique opponent's non-head-to-head games.
+5. Join team and opponent profiles and emit `diff_*` columns for descriptive comparison surfaces.
+6. Solve the simultaneous ridge backbone across team offense, team defense, and home field.
+7. Publish ridge-backed team ratings:
+   - `SaOR`: the equal-weight ridge offense composite over passing and rushing EPA per snap
+   - `SaDR`: the equal-weight ridge defense composite over the same EPA responses, oriented so
+     higher = better defense
+   - `SaOvR`: the standardized sum of `SaOR` and `SaDR`
+   - `SaCR`: the frozen Stage 2 blend of standardized ridge-adjusted offensive passing EPA,
+     offensive rushing EPA, defensive passing EPA, and defensive rushing EPA, with published
+     weights `0.4046 / 0.2016 / 0.2946 / 0.0992`
+8. Produce `SRS` from point margin as a simultaneous-adjustment reference.
 
-Team rating pools now use per-snap and rate-like fields rather than raw season totals.
+Team outcome fields such as wins, win value, and turnover margin remain published for context,
+but they no longer feed the published team quality ratings.
+The opponent-profile and `diff_*` outputs remain in the pipeline for the UI's descriptive views,
+but they are no longer the published rating backbone.
+A tested adjusted takeaway-creation candidate (defensive interceptions plus forced fumbles per
+snap) produced a small negative fitted weight and stays out of the frozen composite.
 
 ### QB Pipeline
 
@@ -131,9 +143,18 @@ The QB path is:
    dropbacks, then attempts.
 7. Build QB opponent profiles from only the primary-QB games each QB actually played.
 8. Deduplicate faced defenses before profiling and remove the old scheduled-opponent fallback.
-9. Produce equal-weight QB ratings with a fixed outcome blend.
+9. Solve the tuned, dropback-weighted simultaneous ridge QB backbone on `qb_epa_per_dropback`.
+10. Publish QB ratings from that ridge backbone: `QRaw` is the unadjusted raw-performance
+    composite from the primary QB stat pool; `QSaOR` is the standardized ridge-adjusted
+    `adj_qb_epa_per_dropback` signal; `QSoS` is the standardized mean faced-defense coefficient
+  from the ridge solve, kept as descriptive schedule context; `QSaCR` is the frozen Stage 2
+  blend of standardized `adj_qb_epa_per_dropback`,
+  `adj_qb_completion_percentage_above_expectation`, `adj_qb_sack_rate`, and
+  `adj_qb_td_int_margin_rate`, with published weights
+  `0.6688 / 0.2146 / 0.0673 / 0.0493`; and `QOutcome` remains a descriptive-only outcome
+  context column.
 
-The primary QB stat pool is now centered on:
+The primary QB raw-performance pool for `QRaw` is centered on:
 
 - `qb_epa_per_dropback`
 - `qb_any_a`
@@ -142,7 +163,8 @@ The primary QB stat pool is now centered on:
 - `qb_sack_rate`
 
 Secondary QB context remains available through fields such as passer rating, pass yards per
-dropback, wins, fourth-quarter comebacks, and game-winning drives.
+dropback, wins, fourth-quarter comebacks, and game-winning drives. Those outcome stats remain
+published for context, but they do not feed `QRaw`, `QSaOR`, or `QSaCR` in Stage 2.
 
 ### Opponent Profiling Rules
 
@@ -163,24 +185,46 @@ The repo now includes `nfl_sos_ratings/simultaneous_adjustment.py`.
 It currently provides:
 
 - `solve_srs()` for point-differential SRS
-- `solve_team_stat_ridge()` for team offense/defense latent ratings
-- `solve_qb_stat_ridge()` for QB offense vs defense-allowed latent ratings
+- `solve_team_stat_ridge()` for team offense/defense latent ratings plus home-field advantage
+- `solve_qb_stat_ridge()` for tuned, dropback-weighted QB offense vs defense-allowed latent ratings
 - wrapper helpers that emit multi-stat adjusted tables for teams and QBs
 
-The main pipeline writes these simultaneous-adjustment outputs alongside the existing diff-based
-outputs so the two approaches can be compared directly.
+The main pipeline now uses the ridge-adjusted team and QB outputs as the published rating
+backbone, while still writing the one-hop opponent and `diff_*` surfaces for descriptive
+comparison in the UI.
+The team simultaneous-response pool keeps offensive rate responses plus direct defensive
+playmaking rates, excludes redundant defensive `*_allowed` mirrors, and estimates home field as
+part of the team solve.
 
 ### Derived Formulas
 
 Key self-computed metrics use the following formulas:
 
 - Team per-snap rates: game total divided by offensive or defensive snaps
+- `SaOR`: the average of the ridge offense coefficients for
+  `passing_epa_per_offensive_snap` and `rushing_epa_per_offensive_snap`, then standardized
+- `SaDR`: the average of the ridge defense coefficients for the same EPA responses, then
+  standardized so higher = better defense
+- `SaOvR`: standardized `SaOR + SaDR`
+- `SaCR`: the standardized Stage 2 frozen-weight blend of standardized
+  `adj_off_passing_epa_per_offensive_snap`, `adj_off_rushing_epa_per_offensive_snap`,
+  `adj_def_passing_epa_per_offensive_snap`, and `adj_def_rushing_epa_per_offensive_snap`, with
+  weights `0.4046 / 0.2016 / 0.2946 / 0.0992`
 - QB EPA per dropback: `qb_passing_epa / qb_dropbacks`
 - QB pass yards per dropback: `qb_pass_yards / qb_dropbacks`
 - QB TD-INT margin rate: `(qb_pass_touchdowns - qb_interceptions) / qb_dropbacks`
 - QB sack rate: `qb_sacks / qb_dropbacks`
 - QB ANY/A: `(qb_pass_yards + 20 * qb_pass_touchdowns - 45 * qb_interceptions - qb_sack_yards_lost)
 / (qb_attempts + qb_sacks)`
+- `QSaOR`: the standardized ridge-adjusted `adj_qb_epa_per_dropback` coefficient
+- `QSoS`: the standardized mean faced-defense coefficient from the QB ridge solve
+- `QSaCR`: the standardized Stage 2 frozen-weight blend of standardized
+  `adj_qb_epa_per_dropback`, `adj_qb_completion_percentage_above_expectation`,
+  `adj_qb_sack_rate`, and `adj_qb_td_int_margin_rate`, with weights
+  `0.6688 / 0.2146 / 0.0673 / 0.0493`
+- `QOutcome`: a standardized descriptive blend of QB win rate or wins, fourth-quarter comebacks,
+  and game-winning drives; it is published separately and does not feed `QRaw`, `QSaOR`, or
+  `QSaCR`
 - Fourth-quarter comeback: primary QB on the eventual game winner, where the offense had at least
   one quarter-4-or-later snap while trailing and the team's final score exceeded the opponent's
   final score
@@ -285,10 +329,10 @@ All files are written under `DATA_DIR` with a `{SEASON}_` prefix.
 - `{SEASON}_qb_opponent_profiles.parquet` QB opponent context built from only the primary-QB games each
   QB actually played, with unique faced defenses and no fabricated schedule fallback.
 - `{SEASON}_qb_combined.parquet` QB season rows joined to opponent context, `diff_qb_*` columns,
-  simultaneous QB adjustment columns, and final QB ratings.
+  simultaneous QB adjustment columns, the faced-defense ridge schedule column, and final QB ratings.
 - `{SEASON}_qb_ratings.parquet` Compact QB ratings summary for qualified passers.
 - `{SEASON}_simultaneous_qb_adjustments.parquet` Multi-stat simultaneous-adjustment QB output with
-  `adj_*` columns.
+  `adj_*` columns plus `adj_def_qb_epa_per_dropback_faced`.
 
 ### Plot outputs
 
@@ -341,6 +385,7 @@ ruff check .
 ty check .
 pyright .
 pytest
+python -m nfl_sos_ratings.composite_weights
 ```
 
 Frontend build check:

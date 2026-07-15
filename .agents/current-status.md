@@ -18,13 +18,20 @@ current-status summary changes.
 - Status: release-gate green, with the PBP-first pipeline, Parquet contract, metrics registry, and
   analyst UI shell all implemented.
 - Active correctness blocker: none currently known in the published team/QB pipeline.
+- Ratings methodology overhaul: Stage 2 principled composite weights are complete in the current
+  worktree; Stage 3 validation is the next active slice.
 - Primary source of truth for metrics: `nfl_sos_ratings/metrics/`.
 - Human-readable metric companions: `docs/stats-catalog.md` and `docs/qb-stats-catalog.md`.
-- Active workstreams: remaining metric expansion work and UI/detail-page follow-up.
+- Active workstreams: ratings-methodology Stage 3, remaining metric expansion work, and
+  UI/detail-page follow-up.
 
 ## Recent work summary
 
 The current uncommitted diff reflects five major work themes.
+
+The latest methodology work added a sixth theme.
+
+The current methodology work adds a seventh theme.
 
 1. Metrics registry SSOT:
    - added the typed registry package in `nfl_sos_ratings/metrics/`
@@ -57,6 +64,45 @@ The current uncommitted diff reflects five major work themes.
    - added registry, ETL-expansion, and expanded-metric tests
    - refreshed README, UI docs, and plan docs for the Parquet/registry transition
    - built and installed the local wheel successfully with `uv build` and `uv pip install`
+6. Ratings methodology Stage 0:
+   - neutralized `SaOvR` as a Stage 0 placeholder so team outcome fields no longer feed published
+     team quality ratings
+   - made `QOutcome` descriptive-only in the published QB quality path by setting the default
+     outcome weight to zero
+   - removed redundant `*_allowed` mirror responses from the `team_simultaneous` pool
+   - removed dead `min_correlation` parameters from the live QB helper signatures
+   - added methodology contract tests asserting published quality ratings are invariant to banned
+     outcome-only inputs
+   - applied the default turnover treatment decision: turnover margin remains descriptive-only and
+     out of published quality ratings until a future split/redefinition is approved
+7. Ratings methodology Stage 1:
+   - added `is_home` to the team game rows and fit home-field advantage directly in the team ridge
+     solve
+   - added deterministic ridge-lambda tuning and dropback-weighted QB WLS in
+     `simultaneous_adjustment.py`
+   - promoted the ridge backbone into the published team ratings (`SaOR`, `SaDR`, `SaOvR`,
+     `SaCR`), with SaDR explicitly oriented so higher = better defense
+   - promoted the ridge backbone into the published QB ratings (`QSaOR`, `QSaCR`) and redefined
+     `QSoS` as the mean faced-defense coefficient from the QB ridge solve
+   - removed the live games-played reliability multiplier from the published QB quality path
+   - threaded the faced-defense ridge schedule column through `main.py` as
+     `adj_def_qb_epa_per_dropback_faced`
+   - refreshed registry metadata, methodology docs, and Stage 1 contract tests for the new
+     backbone
+8. Ratings methodology Stage 2:
+   - added `nfl_sos_ratings/composite_weights.py` with season-pair builders, dropback-weighted QB
+     WLS fitting, leave-one-season-out diagnostics, frozen-weight snapshots, and a reproducible
+     `python -m nfl_sos_ratings.composite_weights` report command
+   - replaced the interim `SaCR` equal blend with the frozen Stage 2 team composite over
+     ridge-adjusted offensive passing EPA, offensive rushing EPA, defensive passing EPA, and
+     defensive rushing EPA using published weights `0.4046 / 0.2016 / 0.2946 / 0.0992`
+   - replaced the interim `QSaCR` passthrough with the frozen Stage 2 QB composite over adjusted
+     EPA/dropback, adjusted CPOE, adjusted sack rate, and adjusted TD-INT margin rate using
+     published weights `0.6688 / 0.2146 / 0.0673 / 0.0493`
+   - tested the approved takeaway-creation candidate and excluded it from the frozen team
+     composite after a small negative fitted weight (`-0.04081182634425329`)
+   - recorded frozen-weight provenance, holdout diagnostics, and refit policy in the registry,
+     README, and Stage 2 plan docs
 
 ## Validation snapshot
 
@@ -67,11 +113,8 @@ Latest recorded green state across the current worktree:
 - `ty check .`
 - `pyright .`
 - `pytest`
-- `markdownlint .`
-- `uv build && uv pip install dist/nfl_sos_ratings-0.1.0-py3-none-any.whl`
-- `cd ui/web && npm exec -- tsc -p tsconfig.detail-tests.json && node --test`
-  `src/detailAnalytics.test.mjs src/detailUi.test.mjs`
-- `cd ui/web && npm run build`
+- `markdownlint README.md docs/stats-catalog.md docs/qb-stats-catalog.md .agents/current-status.md .agents/ratings-methodology-overhaul-plan.md`
+- `python -m nfl_sos_ratings.composite_weights`
 
 ## Completed workstreams
 
@@ -100,6 +143,24 @@ Latest recorded green state across the current worktree:
 - Registry-backed category ordering and metric metadata are wired through the API and frontend.
 
 ## Active backlog
+
+### 0. Ratings methodology overhaul
+
+Tracked in `.agents/ratings-methodology-overhaul-plan.md`.
+
+Current state:
+
+- Stage 0 is complete.
+- Stage 1 is complete in the current worktree.
+- Stage 2 is complete in the current worktree.
+- Stage 3 is next: build the walk-forward validation harness and Elo baseline.
+- Stage 1b play-level ridge fitting is re-sequenced until after Stage 3, where the validation
+  harness will compare game-level and play-level backbones on held-out margin MAE and
+  year-over-year stability.
+- Turnover margin remains descriptive-only and is intentionally out of published quality ratings
+  unless a maintainer approves a later split into more causal sub-signals.
+- The approved team takeaway-creation candidate was tested in Stage 2 and excluded after a small
+  negative fitted weight, so the frozen SaCR blend stays EPA-only for now.
 
 ### A. Metric expansion still open
 
@@ -166,10 +227,14 @@ These are not active workstreams, but they are still useful context.
 
 ## What the next agent should do first
 
-1. Read this file and confirm whether the task belongs to the metric-expansion or frontend plan.
-2. If the task touches planned metrics, continue from `.agents/metric-expansion-plan.md`.
-3. If the task touches the analyst UI, continue from `.agents/frontend-ui-kickoff-plan.md`.
-4. Keep `docs/stats-catalog.md` and `docs/qb-stats-catalog.md` synchronized with the registry when
+1. Read this file and confirm whether the task belongs to the ratings-methodology, metric-expansion,
+  or frontend plan.
+2. If the task touches published rating methodology, continue from
+  `.agents/ratings-methodology-overhaul-plan.md` and start at Stage 3 unless a maintainer directs
+  otherwise.
+3. If the task touches planned metrics, continue from `.agents/metric-expansion-plan.md`.
+4. If the task touches the analyst UI, continue from `.agents/frontend-ui-kickoff-plan.md`.
+5. Keep `docs/stats-catalog.md` and `docs/qb-stats-catalog.md` synchronized with the registry when
    metric taxonomy or implementation status changes.
 
 ## File-keeping rule
