@@ -1,5 +1,7 @@
 """Tests for QB opponent-profile and rating helpers."""
 
+import inspect
+
 import numpy as np
 import polars as pl
 import pytest
@@ -444,15 +446,14 @@ def test_compute_qb_ratings_returns_rankable_outputs() -> None:
             "qb_name": ["A QB", "B QB", "C QB"],
             "team": ["DEN", "KC", "BUF"],
             "qb_win_pct": [0.8, 0.3, 0.5],
-            "qb_passer_rating": [105.0, 95.0, 100.0],
+            "qb_epa_per_dropback": [0.22, 0.05, 0.12],
+            "qb_any_a": [7.8, 6.4, 7.0],
             "qb_completion_percentage_above_expectation": [3.0, 0.0, 1.5],
-            "qb_aggressiveness": [11.0, 9.5, 10.2],
-            "qb_avg_time_to_throw": [2.6, 2.9, 2.75],
-            "qopp_qb_passer_rating": [88.0, 98.0, 93.0],
-            "qopp_qb_completion_percentage_above_expectation": [0.5, 2.0, 1.1],
-            "qopp_points_allowed": [18.0, 24.0, 21.0],
-            "qopp_def_sacks": [3.0, 2.0, 2.5],
-            "qopp_def_interceptions": [1.2, 0.8, 1.0],
+            "qb_td_int_margin_rate": [0.08, 0.02, 0.04],
+            "qb_sack_rate": [0.03, 0.06, 0.04],
+            "qb_passer_rating": [105.0, 95.0, 100.0],
+            "adj_qb_epa_per_dropback": [0.18, 0.02, 0.10],
+            "adj_def_qb_epa_per_dropback_faced": [0.20, -0.05, 0.08],
         }
     )
 
@@ -474,65 +475,59 @@ def test_compute_qb_ratings_returns_rankable_outputs() -> None:
         "QOutcome_pct",
     ]
     assert ratings.height == 3
-    assert ratings.filter(pl.col("qb_id") == "A").select("QSaCR").item() > 0
+    assert ratings.filter(pl.col("qb_id") == "A").select("QSaOR").item() > 0
+    assert ratings.filter(pl.col("qb_id") == "A").select("QSoS").item() > 0
     assert ratings.filter(pl.col("qb_id") == "A").select("QSaCR_pct").item() > 50.0
 
 
 def test_compute_qb_ratings_filters_to_eligible_and_uses_differentials() -> None:
-    """Verify final QB ratings rank qualified passers by QB-vs-opponent differentials."""
+    """Verify final QB ratings filter to eligible QBs and use adjusted EPA for QSaCR."""
     qb_combined = pl.DataFrame(
         {
-            "qb_id": ["RAW", "DIFF", "BACKUP"],
-            "qb_name": ["Raw Star", "Diff Star", "Backup Star"],
+            "qb_id": ["RAW", "ADJ", "BACKUP"],
+            "qb_name": ["Raw Star", "Adjusted Star", "Backup Star"],
             "team": ["DEN", "KC", "BUF"],
             "qb_is_eligible": [True, True, False],
             "qb_attempts_total": [300, 320, 20],
             "qb_win_pct": [0.5, 0.5, 1.0],
+            "qb_epa_per_dropback": [0.22, 0.12, 0.40],
+            "qb_any_a": [7.9, 7.0, 9.0],
+            "qb_completion_percentage_above_expectation": [4.0, 2.0, 8.0],
+            "qb_td_int_margin_rate": [0.08, 0.04, 0.12],
+            "qb_sack_rate": [0.03, 0.04, 0.01],
             "qb_passer_rating": [120.0, 95.0, 150.0],
-            "diff_qb_passer_rating": [-10.0, 15.0, 50.0],
-            "diff_qb_pass_yards": [-20.0, 40.0, 100.0],
-            "diff_qb_pass_touchdowns": [-0.5, 1.0, 3.0],
-            "diff_qb_interceptions": [0.5, -0.3, -2.0],
-            "qopp_points_allowed": [20.0, 20.0, 20.0],
+            "adj_qb_epa_per_dropback": [0.05, 0.18, 0.40],
         }
     )
 
     ratings = qb_ratings.compute_qb_ratings(qb_combined, sos_weight=0.0)
 
-    assert ratings.select("qb_id").to_series().to_list() == ["RAW", "DIFF"]
+    assert ratings.select("qb_id").to_series().to_list() == ["ADJ", "RAW"]
     assert (
         ratings.filter(pl.col("qb_id") == "RAW").select("QRaw").item()
-        > ratings.filter(pl.col("qb_id") == "DIFF").select("QRaw").item()
+        > ratings.filter(pl.col("qb_id") == "ADJ").select("QRaw").item()
     )
     assert (
-        ratings.filter(pl.col("qb_id") == "DIFF").select("QSaCR").item()
+        ratings.filter(pl.col("qb_id") == "ADJ").select("QSaCR").item()
         > ratings.filter(pl.col("qb_id") == "RAW").select("QSaCR").item()
     )
 
 
 def test_compute_qb_ratings_standardizes_paired_context_before_adjusting() -> None:
-    """Verify raw-unit differentials do not wash out paired schedule context."""
+    """Verify published QB quality follows the ridge-adjusted EPA column."""
     qb_combined = pl.DataFrame(
         {
             "qb_id": ["EASY", "HARD", "AVG"],
             "qb_name": ["Easy Raw", "Hard Context", "Average"],
             "team": ["NE", "LAR", "DEN"],
             "qb_is_eligible": [True, True, True],
-            "qb_passer_rating": [120.0, 117.0, 80.0],
-            "qopp_qb_passer_rating": [96.0, 94.0, 95.0],
+            "qb_epa_per_dropback": [0.24, 0.18, -0.04],
+            "qb_any_a": [8.0, 7.4, 5.9],
             "qb_completion_percentage_above_expectation": [8.0, 5.8, -5.0],
-            "qopp_qb_completion_percentage_above_expectation": [1.0, -1.0, 0.0],
-            "qb_pass_yards": [300.0, 297.0, 180.0],
-            "qopp_qb_pass_yards": [221.0, 219.0, 220.0],
-            "qb_pass_touchdowns": [3.0, 2.7, 0.5],
-            "qopp_qb_pass_touchdowns": [1.6, 1.4, 1.5],
-            "qb_interceptions": [0.2, 0.4, 1.5],
-            "qopp_qb_interceptions": [0.9, 1.0, 0.95],
-            "diff_qb_passer_rating": [24.0, 23.0, -15.0],
-            "diff_qb_completion_percentage_above_expectation": [7.0, 6.8, -5.0],
-            "diff_qb_pass_yards": [79.0, 78.0, -40.0],
-            "diff_qb_pass_touchdowns": [1.4, 1.3, -1.0],
-            "diff_qb_interceptions": [-0.7, -0.6, 0.55],
+            "qb_td_int_margin_rate": [0.09, 0.07, 0.01],
+            "qb_sack_rate": [0.03, 0.04, 0.08],
+            "qb_passer_rating": [120.0, 117.0, 80.0],
+            "adj_qb_epa_per_dropback": [0.08, 0.16, -0.02],
         }
     )
 
@@ -542,6 +537,55 @@ def test_compute_qb_ratings_standardizes_paired_context_before_adjusting() -> No
         ratings.filter(pl.col("qb_id") == "HARD").select("QSaCR").item()
         > ratings.filter(pl.col("qb_id") == "EASY").select("QSaCR").item()
     )
+
+
+def test_compute_qb_ratings_uses_frozen_stage_two_component_weights(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """QSaCR should use the frozen Stage 2 weighted blend, not a QSaOR passthrough."""
+    qb_combined = pl.DataFrame(
+        {
+            "qb_id": ["A", "B"],
+            "qb_name": ["QB A", "QB B"],
+            "team": ["A", "B"],
+            "qb_is_eligible": [True, True],
+            "adj_qb_epa_per_dropback": [0.30, 0.10],
+            "adj_qb_completion_percentage_above_expectation": [3.0, 1.0],
+            "adj_qb_sack_rate": [0.02, 0.05],
+            "adj_qb_td_int_margin_rate": [0.08, 0.03],
+        }
+    )
+
+    monkeypatch.setattr(
+        qb_ratings,
+        "_zscore_against",
+        lambda values, reference_values: np.array(values, dtype=np.float64),
+    )
+    monkeypatch.setattr(
+        qb_ratings.composite_weights,
+        "_zscore_against",
+        lambda values, reference_values: np.array(values, dtype=np.float64),
+    )
+
+    ratings = qb_ratings.compute_qb_ratings(qb_combined).sort("qb_id")
+    weights = qb_ratings.composite_weights.QB_QSACR_FROZEN_SPEC.weight_map()
+    expected = [
+        (
+            weights["adj_qb_epa_per_dropback"] * 0.30
+            + weights["adj_qb_completion_percentage_above_expectation"] * 3.0
+            - weights["adj_qb_sack_rate"] * 0.02
+            + weights["adj_qb_td_int_margin_rate"] * 0.08
+        ),
+        (
+            weights["adj_qb_epa_per_dropback"] * 0.10
+            + weights["adj_qb_completion_percentage_above_expectation"] * 1.0
+            - weights["adj_qb_sack_rate"] * 0.05
+            + weights["adj_qb_td_int_margin_rate"] * 0.03
+        ),
+    ]
+    expected = [round(value, 3) for value in expected]
+
+    assert ratings.select("QSaCR").to_series().to_list() == pytest.approx(expected)
 
 
 def test_compute_qb_ratings_raw_composite_prioritizes_production() -> None:
@@ -600,7 +644,7 @@ def test_compute_qb_ratings_qsos_ignores_style_only_context() -> None:
 
 
 def test_compute_qb_ratings_qsos_uses_new_allowed_dropback_metrics() -> None:
-    """Verify QSoS can be built from new allowed-rate metrics without legacy fields."""
+    """Verify QSoS comes from the faced-defense ridge coefficient."""
     qb_combined = pl.DataFrame(
         {
             "qb_id": ["EASY", "HARD"],
@@ -612,11 +656,8 @@ def test_compute_qb_ratings_qsos_uses_new_allowed_dropback_metrics() -> None:
             "qb_completion_percentage_above_expectation": [2.0, 2.0],
             "qb_td_int_margin_rate": [0.05, 0.05],
             "qb_sack_rate": [0.04, 0.04],
-            "qopp_qb_epa_per_dropback": [0.30, -0.10],
-            "qopp_qb_any_a": [7.8, 5.8],
-            "qopp_qb_completion_percentage_above_expectation": [3.0, -1.0],
-            "qopp_qb_td_int_margin_rate": [0.08, -0.02],
-            "qopp_qb_sack_rate": [0.02, 0.08],
+            "adj_qb_epa_per_dropback": [0.1, 0.1],
+            "adj_def_qb_epa_per_dropback_faced": [-0.15, 0.20],
         }
     )
 
@@ -628,8 +669,47 @@ def test_compute_qb_ratings_qsos_uses_new_allowed_dropback_metrics() -> None:
     )
 
 
+def test_compute_qb_ratings_keeps_outcome_context_out_of_quality_ratings() -> None:
+    """Verify Stage 0 keeps wins and late-game outcomes descriptive-only."""
+    qb_combined = pl.DataFrame(
+        {
+            "qb_id": ["CLUTCH", "NEUTRAL"],
+            "qb_name": ["Clutch QB", "Neutral QB"],
+            "team": ["A", "B"],
+            "qb_is_eligible": [True, True],
+            "qb_win_pct": [0.8, 0.2],
+            "qb_wins": [13, 3],
+            "qb_fourth_quarter_comebacks": [4, 0],
+            "qb_game_winning_drives": [5, 0],
+            "qb_epa_per_dropback": [0.1, 0.1],
+            "qb_any_a": [7.0, 7.0],
+            "qb_completion_percentage_above_expectation": [2.0, 2.0],
+            "qb_td_int_margin_rate": [0.05, 0.05],
+            "qb_sack_rate": [0.04, 0.04],
+            "qopp_qb_epa_per_dropback": [0.0, 0.0],
+            "qopp_qb_any_a": [6.0, 6.0],
+            "qopp_qb_completion_percentage_above_expectation": [0.0, 0.0],
+            "qopp_qb_td_int_margin_rate": [0.0, 0.0],
+            "qopp_qb_sack_rate": [0.05, 0.05],
+        }
+    )
+
+    ratings = qb_ratings.compute_qb_ratings(qb_combined, sos_weight=0.0)
+
+    assert (
+        ratings.filter(pl.col("qb_id") == "CLUTCH").select("QOutcome").item()
+        > ratings.filter(pl.col("qb_id") == "NEUTRAL").select("QOutcome").item()
+    )
+    assert ratings.filter(pl.col("qb_id") == "CLUTCH").select("QSaOR").item() == pytest.approx(
+        ratings.filter(pl.col("qb_id") == "NEUTRAL").select("QSaOR").item()
+    )
+    assert ratings.filter(pl.col("qb_id") == "CLUTCH").select("QSaCR").item() == pytest.approx(
+        ratings.filter(pl.col("qb_id") == "NEUTRAL").select("QSaCR").item()
+    )
+
+
 def test_compute_qb_ratings_anchors_final_composite_to_qb_outcomes() -> None:
-    """Verify QSaCR can reflect QB results while QSaOR remains passing-context based."""
+    """Verify nonzero outcome weights do not re-enter published QB quality ratings."""
     qb_combined = pl.DataFrame(
         {
             "qb_id": ["LOW_RESULT", "HIGH_RESULT", "AVG"],
@@ -637,17 +717,13 @@ def test_compute_qb_ratings_anchors_final_composite_to_qb_outcomes() -> None:
             "team": ["A", "B", "C"],
             "qb_is_eligible": [True, True, True],
             "qb_win_pct": [0.083, 0.824, 0.5],
+            "qb_epa_per_dropback": [0.16, 0.10, 0.12],
+            "qb_any_a": [7.6, 6.8, 7.0],
+            "qb_completion_percentage_above_expectation": [1.5, 0.0, 0.5],
+            "qb_td_int_margin_rate": [0.06, 0.03, 0.04],
+            "qb_sack_rate": [0.03, 0.05, 0.04],
             "qb_passer_rating": [92.0, 91.0, 91.0],
-            "qopp_qb_passer_rating": [91.0, 91.0, 91.0],
-            "qb_completion_percentage_above_expectation": [0.5, 0.0, 0.0],
-            "qopp_qb_completion_percentage_above_expectation": [0.0, 0.0, 0.0],
-            "qb_yards_per_attempt": [6.6, 6.5, 6.5],
-            "qopp_qb_yards_per_attempt": [6.5, 6.5, 6.5],
-            "qb_touchdown_rate": [0.041, 0.04, 0.04],
-            "qopp_qb_touchdown_rate": [0.04, 0.04, 0.04],
-            "qb_interception_rate": [0.019, 0.019, 0.019],
-            "qopp_qb_interception_rate": [0.02, 0.02, 0.02],
-            "qopp_points_allowed": [22.0, 22.0, 22.0],
+            "adj_qb_epa_per_dropback": [0.14, 0.06, 0.10],
         }
     )
 
@@ -657,14 +733,16 @@ def test_compute_qb_ratings_anchors_final_composite_to_qb_outcomes() -> None:
         ratings.filter(pl.col("qb_id") == "LOW_RESULT").select("QSaOR").item()
         > ratings.filter(pl.col("qb_id") == "HIGH_RESULT").select("QSaOR").item()
     )
-    assert (
-        ratings.filter(pl.col("qb_id") == "HIGH_RESULT").select("QSaCR").item()
-        > ratings.filter(pl.col("qb_id") == "LOW_RESULT").select("QSaCR").item()
+    assert ratings.filter(pl.col("qb_id") == "LOW_RESULT").select("QSaCR").item() == pytest.approx(
+        ratings.filter(pl.col("qb_id") == "LOW_RESULT").select("QSaOR").item()
+    )
+    assert ratings.filter(pl.col("qb_id") == "HIGH_RESULT").select("QSaCR").item() == pytest.approx(
+        ratings.filter(pl.col("qb_id") == "HIGH_RESULT").select("QSaOR").item()
     )
 
 
 def test_compute_qb_ratings_outcome_signal_includes_4qc_and_gwd() -> None:
-    """Verify secondary late-game stats can move QOutcome and QSaCR."""
+    """Verify secondary late-game stats move QOutcome without moving QSaCR."""
     qb_combined = pl.DataFrame(
         {
             "qb_id": ["CLUTCH", "NEUTRAL"],
@@ -680,11 +758,7 @@ def test_compute_qb_ratings_outcome_signal_includes_4qc_and_gwd() -> None:
             "qb_completion_percentage_above_expectation": [2.0, 2.0],
             "qb_td_int_margin_rate": [0.05, 0.05],
             "qb_sack_rate": [0.04, 0.04],
-            "qopp_qb_epa_per_dropback": [0.0, 0.0],
-            "qopp_qb_any_a": [6.0, 6.0],
-            "qopp_qb_completion_percentage_above_expectation": [0.0, 0.0],
-            "qopp_qb_td_int_margin_rate": [0.0, 0.0],
-            "qopp_qb_sack_rate": [0.05, 0.05],
+            "adj_qb_epa_per_dropback": [0.08, 0.08],
         }
     )
 
@@ -694,9 +768,8 @@ def test_compute_qb_ratings_outcome_signal_includes_4qc_and_gwd() -> None:
         ratings.filter(pl.col("qb_id") == "CLUTCH").select("QOutcome").item()
         > ratings.filter(pl.col("qb_id") == "NEUTRAL").select("QOutcome").item()
     )
-    assert (
-        ratings.filter(pl.col("qb_id") == "CLUTCH").select("QSaCR").item()
-        > ratings.filter(pl.col("qb_id") == "NEUTRAL").select("QSaCR").item()
+    assert ratings.filter(pl.col("qb_id") == "CLUTCH").select("QSaCR").item() == pytest.approx(
+        ratings.filter(pl.col("qb_id") == "NEUTRAL").select("QSaCR").item()
     )
 
 
@@ -760,7 +833,7 @@ def test_calibrate_qb_model_returns_fixed_constants() -> None:
 
     assert (min_corr, sos_weight, outcome_weight) == (
         qb_ratings._MIN_CORRELATION,
-        qb_ratings._SOS_WEIGHT,
+        0.0,
         qb_ratings._OUTCOME_WEIGHT,
     )
 
@@ -795,9 +868,19 @@ def test_calibrate_qb_model_ignores_candidate_grids() -> None:
 
     assert result == (
         qb_ratings._MIN_CORRELATION,
-        qb_ratings._SOS_WEIGHT,
+        0.0,
         qb_ratings._OUTCOME_WEIGHT,
     )
+
+
+def test_qb_rating_helpers_do_not_expose_dead_min_correlation_knobs() -> None:
+    """Verify dead min-correlation parameters are removed from live QB helpers."""
+    assert "min_correlation" not in inspect.signature(qb_ratings._derive_qb_weights).parameters
+    assert (
+        "min_correlation"
+        not in inspect.signature(qb_ratings._build_qb_adjusted_composite).parameters
+    )
+    assert "min_correlation" not in inspect.signature(qb_ratings.compute_qb_ratings).parameters
 
 
 def test_compute_qb_ratings_handles_nan_outcome_without_poisoning_scores() -> None:
@@ -833,7 +916,7 @@ def test_compute_qb_ratings_handles_nan_outcome_without_poisoning_scores() -> No
 
 
 def test_compute_qb_ratings_downweights_partial_season_samples() -> None:
-    """Verify equally strong partial-season rows are shrunk toward league average."""
+    """Verify Stage 1 does not apply an extra games-played shrinkage multiplier."""
     qb_combined = pl.DataFrame(
         {
             "qb_id": ["FULL", "PART", "MID"],
@@ -842,19 +925,13 @@ def test_compute_qb_ratings_downweights_partial_season_samples() -> None:
             "qb_is_eligible": [True, True, True],
             "qb_games_played": [16, 8, 16],
             "qb_win_pct": [0.7, 0.7, 0.55],
-            "qb_passer_rating": [105.0, 105.0, 92.0],
+            "qb_epa_per_dropback": [0.18, 0.18, 0.05],
+            "qb_any_a": [7.4, 7.4, 6.4],
             "qb_completion_percentage_above_expectation": [3.0, 3.0, -0.5],
-            "qb_yards_per_attempt": [7.2, 7.2, 6.4],
-            "qb_touchdown_rate": [0.05, 0.05, 0.035],
-            "qb_interception_rate": [0.02, 0.02, 0.03],
-            "qopp_points_allowed": [21.0, 21.0, 21.0],
-            "qopp_def_sacks": [2.4, 2.4, 2.4],
-            "qopp_def_interceptions": [1.0, 1.0, 1.0],
-            "qopp_qb_passer_rating": [94.0, 94.0, 94.0],
-            "qopp_qb_completion_percentage_above_expectation": [0.5, 0.5, 0.5],
-            "qopp_qb_yards_per_attempt": [6.7, 6.7, 6.7],
-            "qopp_qb_touchdown_rate": [0.042, 0.042, 0.042],
-            "qopp_qb_interception_rate": [0.023, 0.023, 0.023],
+            "qb_td_int_margin_rate": [0.05, 0.05, 0.035],
+            "qb_sack_rate": [0.03, 0.03, 0.05],
+            "qb_passer_rating": [105.0, 105.0, 92.0],
+            "adj_qb_epa_per_dropback": [0.14, 0.14, 0.02],
         }
     )
 
@@ -862,7 +939,7 @@ def test_compute_qb_ratings_downweights_partial_season_samples() -> None:
     full = ratings.filter(pl.col("qb_id") == "FULL").select("QSaCR").item()
     part = ratings.filter(pl.col("qb_id") == "PART").select("QSaCR").item()
 
-    assert full > part
+    assert full == pytest.approx(part)
 
 
 def test_compute_qb_ratings_keeps_schedule_from_overpowering_poor_raw_play() -> None:
@@ -882,16 +959,8 @@ def test_compute_qb_ratings_keeps_schedule_from_overpowering_poor_raw_play() -> 
             "qb_sack_rate": [0.09, 0.04, 0.06],
             "qb_pass_yards_per_dropback": [5.6, 7.2, 6.4],
             "qb_passer_rating": [82.0, 104.0, 93.0],
-            "qopp_points_allowed": [17.0, 22.0, 21.0],
-            "qopp_def_sacks": [3.7, 2.4, 2.8],
-            "qopp_def_interceptions": [1.5, 0.9, 1.0],
-            "qopp_qb_epa_per_dropback": [-0.18, 0.02, -0.01],
-            "qopp_qb_any_a": [5.7, 6.8, 6.5],
-            "qopp_qb_completion_percentage_above_expectation": [-2.1, 0.5, 0.0],
-            "qopp_qb_td_int_margin_rate": [-0.01, 0.03, 0.02],
-            "qopp_qb_sack_rate": [0.1, 0.05, 0.06],
-            "qopp_qb_pass_yards_per_dropback": [5.4, 6.5, 6.3],
-            "qopp_qb_passer_rating": [80.0, 92.0, 90.0],
+            "adj_qb_epa_per_dropback": [-0.08, 0.14, 0.03],
+            "adj_def_qb_epa_per_dropback_faced": [0.22, 0.02, 0.08],
         }
     )
 
@@ -904,6 +973,10 @@ def test_compute_qb_ratings_keeps_schedule_from_overpowering_poor_raw_play() -> 
     assert (
         ratings.filter(pl.col("qb_id") == "GOOD_AVG").select("QSaCR").item()
         > ratings.filter(pl.col("qb_id") == "POOR_HARD").select("QSaCR").item()
+    )
+    assert (
+        ratings.filter(pl.col("qb_id") == "POOR_HARD").select("QSoS").item()
+        > ratings.filter(pl.col("qb_id") == "GOOD_AVG").select("QSoS").item()
     )
 
 

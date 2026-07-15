@@ -34,6 +34,7 @@ def _extract_points_per_team_game(schedule_df: pl.DataFrame) -> pl.DataFrame:
             *select_keys,
             pl.col("home_team").alias("team"),
             pl.col("away_team").alias("opponent_team"),
+            pl.lit(True).alias("is_home"),
         ]
         + [
             pl.col("home_score").alias("points_for"),
@@ -45,6 +46,7 @@ def _extract_points_per_team_game(schedule_df: pl.DataFrame) -> pl.DataFrame:
             *select_keys,
             pl.col("away_team").alias("team"),
             pl.col("home_team").alias("opponent_team"),
+            pl.lit(False).alias("is_home"),
         ]
         + [
             pl.col("away_score").alias("points_for"),
@@ -98,6 +100,7 @@ def compute_team_game_stats_from_pbp(
                 "week": pl.Int64,
                 "team": pl.String,
                 "opponent_team": pl.String,
+                "is_home": pl.Boolean,
                 "games": pl.Int64,
             }
         )

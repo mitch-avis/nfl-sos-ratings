@@ -1,13 +1,19 @@
 """Quarterback schedule-adjusted rating helpers."""
 
 import numpy as np
+import numpy.typing as npt
 import polars as pl
 
+from nfl_sos_ratings import composite_weights
 from nfl_sos_ratings.metrics import get_registry
 
-_SOS_WEIGHT: float = 0.0
-_OUTCOME_WEIGHT: float = 0.75
+_OUTCOME_WEIGHT: float = 0.0
 _MIN_CORRELATION: float = 0.1
+
+FloatArray = npt.NDArray[np.float64]
+
+_QB_RIDGE_ADJUSTED_COLUMN = "adj_qb_epa_per_dropback"
+_QB_RIDGE_SOS_COLUMN = "adj_def_qb_epa_per_dropback_faced"
 
 # Pool membership lives in the metric registry (the single source of truth);
 # higher-is-better derives from each metric's polarity.
@@ -20,31 +26,33 @@ _QB_DIFF_STAT_POOL: list[tuple[str, bool]] = [
 _QB_PAIRED_STAT_POOL: list[tuple[str, bool]] = get_registry().pool_stats("qb_paired")
 
 
-def _zscore(values: list[float]) -> np.ndarray:
+def _zscore(values: list[float]) -> FloatArray:
     """Return a z-scored array using sample standard deviation."""
-    arr = np.array(values, dtype=np.float64)
+    arr: FloatArray = np.asarray(values, dtype=np.float64)
     if len(arr) <= 1:
         return arr - arr.mean() if len(arr) == 1 else arr
     std = float(arr.std(ddof=1))
-    return (arr - arr.mean()) / std if std > 0 else arr - arr.mean()
+    centered = arr - arr.mean()
+    return np.divide(centered, np.float64(std)) if std > 0 else centered
 
 
-def _zscore_against(values: list[float], reference_values: list[float]) -> np.ndarray:
+def _zscore_against(values: list[float], reference_values: list[float]) -> FloatArray:
     """Return a z-scored array using the mean and spread of *reference_values*."""
-    arr = np.array(values, dtype=np.float64)
-    reference = np.array(reference_values, dtype=np.float64)
+    arr: FloatArray = np.asarray(values, dtype=np.float64)
+    reference: FloatArray = np.asarray(reference_values, dtype=np.float64)
     if len(reference) == 0:
         return arr
     std = float(reference.std(ddof=1)) if len(reference) > 1 else 0.0
     mean = float(reference.mean())
-    return (arr - mean) / std if std > 0 else arr - mean
+    centered = arr - mean
+    return np.divide(centered, np.float64(std)) if std > 0 else centered
 
 
-def _col(df: pl.DataFrame, name: str) -> np.ndarray | None:
+def _col(df: pl.DataFrame, name: str) -> FloatArray | None:
     """Return a float64 ndarray for a DataFrame column, or None when missing."""
     if name not in df.columns:
         return None
-    values = np.array(
+    values: FloatArray = np.asarray(
         df.select(pl.col(name).cast(pl.Float64).fill_nan(None).fill_null(0.0))
         .to_series()
         .to_list(),
@@ -60,19 +68,7 @@ def _resolve_reference_df(df: pl.DataFrame, reference_df: pl.DataFrame | None) -
     return reference_df
 
 
-def _reliability_weights(df: pl.DataFrame) -> np.ndarray:
-    """Return 0-1 reliability weights based on games played share of a full season."""
-    games = _col(df, "qb_games_played")
-    if games is None:
-        return np.ones(df.height, dtype=np.float64)
-
-    full_season_games = float(np.max(games)) if len(games) > 0 else 0.0
-    if full_season_games <= 0.0:
-        return np.ones(df.height, dtype=np.float64)
-    return np.clip(games / full_season_games, 0.0, 1.0)
-
-
-def _safe_corr(x: np.ndarray, y: np.ndarray) -> float:
+def _safe_corr(x: FloatArray, y: FloatArray) -> float:
     """Return Pearson correlation, or 0.0 when undefined/unstable."""
     if len(x) <= 1 or len(y) <= 1 or len(x) != len(y):
         return 0.0
@@ -84,23 +80,23 @@ def _safe_corr(x: np.ndarray, y: np.ndarray) -> float:
     return 0.0 if np.isnan(corr) else corr
 
 
-def _percentile(values: np.ndarray) -> np.ndarray:
+def _percentile(values: FloatArray) -> FloatArray:
     """Return percentile ranks from 0 to 100 with higher values ranking better."""
     if len(values) <= 1:
         return np.array([100.0] * len(values), dtype=np.float64)
     order = np.argsort(values)
-    ranks = np.empty(len(values), dtype=np.float64)
+    ranks: FloatArray = np.empty(len(values), dtype=np.float64)
     ranks[order] = np.arange(len(values), dtype=np.float64)
-    return np.round((ranks / (len(values) - 1)) * 100.0, 1)
+    percentile_scale = np.float64(len(values) - 1)
+    percentiles = np.multiply(np.divide(ranks, percentile_scale), np.float64(100.0))
+    return np.round(percentiles, 1).astype(np.float64)
 
 
 def _derive_qb_weights(
     df: pl.DataFrame,
-    min_correlation: float = _MIN_CORRELATION,
     stat_pool: list[tuple[str, bool]] | None = None,
 ) -> list[tuple[str, float, bool]]:
     """Return equal weights for the present QB stat-pool columns."""
-    del min_correlation
     selected_pool = stat_pool or (
         _QB_DIFF_STAT_POOL
         if any(_col(df, stat) is not None for stat, _ in _QB_DIFF_STAT_POOL)
@@ -180,7 +176,6 @@ def _build_paired_adjusted_frame(
 
 def _build_qb_adjusted_composite(
     df: pl.DataFrame,
-    min_correlation: float = _MIN_CORRELATION,
     reference_df: pl.DataFrame | None = None,
 ) -> np.ndarray:
     """Build the schedule-adjusted QB base from paired context or fallback differentials."""
@@ -196,80 +191,41 @@ def _build_qb_adjusted_composite(
             for stat, _ in _QB_PAIRED_STAT_POOL
             if f"adj_{stat}" in paired_df.columns
         ]
-        weights = _derive_qb_weights(
-            paired_df,
-            min_correlation=min_correlation,
-            stat_pool=paired_pool,
-        )
+        weights = _derive_qb_weights(paired_df, stat_pool=paired_pool)
         return _build_qb_raw_composite(
             paired_df,
             weights,
             reference_paired_df if reference_paired_df is not None else paired_df,
         )
 
-    weights = _derive_qb_weights(df, min_correlation=min_correlation)
+    weights = _derive_qb_weights(df)
     return _build_qb_raw_composite(df, weights, resolved_reference_df)
 
 
 def _build_qsos(df: pl.DataFrame, reference_df: pl.DataFrame | None = None) -> np.ndarray:
-    """Build QB schedule strength signal from available qopp_* columns."""
+    """Build QB schedule strength from the faced-defense ridge coefficient."""
     resolved_reference_df = _resolve_reference_df(df, reference_df)
-    n_teams = df.height
-    sos_parts: list[np.ndarray] = []
-    qopp_pa = _col(df, "qopp_points_allowed")
-    if qopp_pa is not None:
-        reference_qopp_pa = _col(resolved_reference_df, "qopp_points_allowed")
-        sos_parts.append(
-            -_zscore_against(
-                qopp_pa.tolist(),
-                (reference_qopp_pa if reference_qopp_pa is not None else qopp_pa).tolist(),
-            )
-        )
+    faced_defense_rating = _col(df, _QB_RIDGE_SOS_COLUMN)
+    if faced_defense_rating is None:
+        return np.zeros(df.height, dtype=np.float64)
 
-    for col_name in ("qopp_def_sacks", "qopp_def_interceptions"):
-        values = _col(df, col_name)
-        if values is not None:
-            reference_values = _col(resolved_reference_df, col_name)
-            sos_parts.append(
-                _zscore_against(
-                    values.tolist(),
-                    (reference_values if reference_values is not None else values).tolist(),
-                )
-            )
+    reference_faced_defense_rating = _col(resolved_reference_df, _QB_RIDGE_SOS_COLUMN)
+    return _zscore_against(
+        faced_defense_rating.tolist(),
+        (
+            reference_faced_defense_rating
+            if reference_faced_defense_rating is not None
+            else faced_defense_rating
+        ).tolist(),
+    )
 
-    for col_name in (
-        "qopp_qb_epa_per_dropback",
-        "qopp_qb_any_a",
-        "qopp_qb_passer_rating",
-        "qopp_qb_completion_percentage_above_expectation",
-        "qopp_qb_td_int_margin_rate",
-        "qopp_qb_pass_yards_per_dropback",
-    ):
-        values = _col(df, col_name)
-        if values is not None:
-            reference_values = _col(resolved_reference_df, col_name)
-            sos_parts.append(
-                -_zscore_against(
-                    values.tolist(),
-                    (reference_values if reference_values is not None else values).tolist(),
-                )
-            )
 
-    qopp_sack_rate = _col(df, "qopp_qb_sack_rate")
-    if qopp_sack_rate is not None:
-        reference_qopp_sack_rate = _col(resolved_reference_df, "qopp_qb_sack_rate")
-        sos_parts.append(
-            _zscore_against(
-                qopp_sack_rate.tolist(),
-                (
-                    reference_qopp_sack_rate
-                    if reference_qopp_sack_rate is not None
-                    else qopp_sack_rate
-                ).tolist(),
-            )
-        )
-
-    return np.mean(np.column_stack(sos_parts), axis=1) if sos_parts else np.zeros(n_teams)
+def _build_qb_adjusted_epa(df: pl.DataFrame) -> np.ndarray:
+    """Return the ridge-adjusted QB EPA surface used for published QB quality ratings."""
+    adjusted_epa = _col(df, _QB_RIDGE_ADJUSTED_COLUMN)
+    if adjusted_epa is None:
+        return np.zeros(df.height, dtype=np.float64)
+    return adjusted_epa
 
 
 def _build_outcome_signal(
@@ -332,17 +288,17 @@ def calibrate_qb_model(
 ) -> tuple[float, float, float]:
     """Return fixed QB model constants; historical win-based calibration is disabled."""
     del historical_df, correlation_grid, sos_weight_grid, outcome_weight_grid
-    return _MIN_CORRELATION, _SOS_WEIGHT, _OUTCOME_WEIGHT
+    return _MIN_CORRELATION, 0.0, _OUTCOME_WEIGHT
 
 
 def compute_qb_ratings(
     df: pl.DataFrame,
-    min_correlation: float = _MIN_CORRELATION,
-    sos_weight: float = _SOS_WEIGHT,
+    sos_weight: float = 0.0,
     outcome_weight: float = _OUTCOME_WEIGHT,
     reference_df: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
     """Compute QB raw, adjusted, and percentile outputs for each team row."""
+    del sos_weight, outcome_weight
     df = _filter_rating_pool(df)
     resolved_reference_df = _filter_rating_pool(_resolve_reference_df(df, reference_df))
     id_cols = [col for col in ("qb_id", "qb_name", "team") if col in df.columns]
@@ -350,7 +306,6 @@ def compute_qb_ratings(
 
     raw_weights = _derive_qb_weights(
         df,
-        min_correlation=min_correlation,
         stat_pool=_QB_STAT_POOL,
     )
     raw = _build_qb_raw_composite(df, raw_weights, resolved_reference_df)
@@ -359,43 +314,28 @@ def compute_qb_ratings(
         raw_weights,
         resolved_reference_df,
     )
-    adjusted_base = _build_qb_adjusted_composite(
-        df,
-        min_correlation=min_correlation,
-        reference_df=resolved_reference_df,
-    )
-    reference_adjusted_base = _build_qb_adjusted_composite(
-        resolved_reference_df,
-        min_correlation=min_correlation,
-        reference_df=resolved_reference_df,
-    )
     qraw = (
         _zscore_against(raw.tolist(), reference_raw.tolist())
         if n_teams > 0
         else np.zeros(0, dtype=np.float64)
     )
 
+    adjusted_epa = _build_qb_adjusted_epa(df)
+    reference_adjusted_epa = _build_qb_adjusted_epa(resolved_reference_df)
+    qsaor = _zscore_against(adjusted_epa.tolist(), reference_adjusted_epa.tolist())
     qsos = _build_qsos(df, resolved_reference_df)
-    reference_qsos = _build_qsos(resolved_reference_df, resolved_reference_df)
     qoutcome, has_outcome = _build_outcome_signal(df, resolved_reference_df)
-    reference_qoutcome, _ = _build_outcome_signal(resolved_reference_df, resolved_reference_df)
-    reliability = _reliability_weights(df)
-    reference_reliability = _reliability_weights(resolved_reference_df)
-    qsaor = _zscore_against(
-        (reliability * (adjusted_base + sos_weight * qsos)).tolist(),
-        (reference_reliability * (reference_adjusted_base + sos_weight * reference_qsos)).tolist(),
+    qsacr_input = composite_weights.build_weighted_composite(
+        df,
+        composite_weights.QB_QSACR_FROZEN_SPEC,
+        resolved_reference_df,
     )
-    qsacr = _zscore_against(
-        (reliability * (adjusted_base + sos_weight * qsos + outcome_weight * qoutcome)).tolist(),
-        (
-            reference_reliability
-            * (
-                reference_adjusted_base
-                + sos_weight * reference_qsos
-                + outcome_weight * reference_qoutcome
-            )
-        ).tolist(),
+    reference_qsacr_input = composite_weights.build_weighted_composite(
+        resolved_reference_df,
+        composite_weights.QB_QSACR_FROZEN_SPEC,
+        resolved_reference_df,
     )
+    qsacr = _zscore_against(qsacr_input.tolist(), reference_qsacr_input.tolist())
 
     payload: dict[str, list[float] | list[str]] = {}
     for col in id_cols:
@@ -419,4 +359,6 @@ def compute_qb_ratings(
 
     result = pl.DataFrame(payload)
     sort_key = "QSaCR" if "QSaCR" in result.columns else (id_cols[0] if id_cols else None)
-    return result.sort(sort_key) if sort_key is not None else result
+    if sort_key is None:
+        return result
+    return result.sort(sort_key, descending=(sort_key == "QSaCR"))

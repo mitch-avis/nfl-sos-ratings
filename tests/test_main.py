@@ -245,6 +245,7 @@ def test_main_handles_both_team_and_qb_profiles(
     assert qb_combined.select("diff_qb_passer_rating").item() == 9.0
     assert qb_combined.select("QSaCR_pct").item() == 75.0
     assert qb_combined.select("adj_qb_epa_per_dropback").item() == 0.12
+    assert qb_combined.select("adj_def_qb_epa_per_dropback_faced").item() == -0.05
     team_game_logs = pl.read_parquet(tmp_path / f"{main.SEASON}_team_game_logs.parquet")
     qb_game_logs = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_game_logs.parquet")
     assert team_game_logs.filter(pl.col("team") == "DEN").select("opponent_team").item() == "KC"

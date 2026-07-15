@@ -1,8 +1,8 @@
 """Single-season PBP-first pipeline for team and quarterback ratings.
 
 The pipeline loads PBP-derived team and QB game data, builds one-hop opponent
-profiles, computes equal-weight diff-based ratings, and writes simultaneous-
-adjustment outputs for side-by-side comparison.
+profiles, computes published ridge-backed ratings, and writes simultaneous-
+adjustment outputs for auditability and UI detail surfaces.
 """
 
 import io
@@ -40,6 +40,8 @@ _TEAM_SIMULTANEOUS_COLS = get_registry().pool_columns("team_simultaneous")
 
 _QB_SIMULTANEOUS_COLS = get_registry().pool_columns("qb_simultaneous")
 
+_QB_FACED_DEFENSE_COLUMN = "adj_def_qb_epa_per_dropback_faced"
+
 
 def _matching_qb_join_keys(left: pl.DataFrame, right: pl.DataFrame) -> list[str]:
     """Return the most specific QB identity keys shared by two frames."""
@@ -72,6 +74,42 @@ def _build_qb_combined(
     join_keys = _matching_qb_join_keys(qb_season_stats, qb_opp_profiles)
     qb_combined = qb_season_stats.join(qb_opp_profiles, on=join_keys, how="left")
     return _add_qb_differentials(qb_combined)
+
+
+def _build_qb_faced_defense_adjustments(
+    qb_games: pl.DataFrame,
+    defense_adjustments: pl.DataFrame,
+) -> pl.DataFrame:
+    """Average the ridge defense coefficients across the opponents each QB actually faced."""
+    defense_column = "adj_def_qb_epa_per_dropback"
+    if (
+        qb_games.is_empty()
+        or defense_adjustments.is_empty()
+        or "opponent_team" not in qb_games.columns
+        or defense_column not in defense_adjustments.columns
+    ):
+        return pl.DataFrame(schema={"team": pl.String, _QB_FACED_DEFENSE_COLUMN: pl.Float64})
+
+    faced_defenses = qb_games.join(
+        defense_adjustments.rename(
+            {"team": "opponent_team", defense_column: _QB_FACED_DEFENSE_COLUMN}
+        ),
+        on="opponent_team",
+        how="left",
+    )
+
+    group_keys = [
+        key for key in ("qb_id", "qb_name", "team_abbr", "team") if key in faced_defenses.columns
+    ]
+    if not group_keys:
+        return pl.DataFrame(schema={"team": pl.String, _QB_FACED_DEFENSE_COLUMN: pl.Float64})
+
+    schedule_strength = faced_defenses.group_by(group_keys).agg(
+        pl.col(_QB_FACED_DEFENSE_COLUMN).mean().alias(_QB_FACED_DEFENSE_COLUMN)
+    )
+    if "team_abbr" in schedule_strength.columns and "team" not in schedule_strength.columns:
+        schedule_strength = schedule_strength.rename({"team_abbr": "team"})
+    return schedule_strength
 
 
 def _build_historical_reference_frame(
@@ -252,7 +290,7 @@ def run_season(season: int) -> None:
         right_on=["team", "week"],
         how="left",
     )
-    qb_adjusted_df, _ = compute_qb_adjusted_stats(
+    qb_adjusted_df, qb_defense_adjustments = compute_qb_adjusted_stats(
         qb_adjustment_games,
         response_cols=_QB_SIMULTANEOUS_COLS,
     )
@@ -260,6 +298,17 @@ def run_season(season: int) -> None:
         [col for col in ("qb_id", "qb_name", "team") if col in qb_season_stats.columns]
     )
     qb_adjusted_output = qb_adjusted_df.join(qb_identity, on="qb_id", how="left")
+    qb_faced_defense = _build_qb_faced_defense_adjustments(
+        qb_adjustment_games,
+        qb_defense_adjustments,
+    )
+    qb_schedule_join_keys = _matching_qb_join_keys(qb_adjusted_output, qb_faced_defense)
+    if qb_schedule_join_keys:
+        qb_adjusted_output = qb_adjusted_output.join(
+            qb_faced_defense,
+            on=qb_schedule_join_keys,
+            how="left",
+        )
     _write_data_file(qb_adjusted_output, season, "simultaneous_qb_adjustments")
     qb_combined = qb_combined.join(
         qb_adjusted_output,

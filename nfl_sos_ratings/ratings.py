@@ -3,6 +3,7 @@
 import numpy as np
 import polars as pl
 
+from nfl_sos_ratings import composite_weights
 from nfl_sos_ratings.metrics import get_registry
 
 # ---------------------------------------------------------------------------
@@ -10,13 +11,22 @@ from nfl_sos_ratings.metrics import get_registry
 #
 # Membership lives in the metric registry (nfl_sos_ratings/metrics/catalog.py),
 # the single source of truth; higher-is-better derives from each metric's
-# polarity. Correlation-threshold filtering still removes anything that does
-# not actually predict winning.
+# polarity.
 # ---------------------------------------------------------------------------
 
 _OFF_STAT_POOL: list[tuple[str, bool]] = get_registry().pool_stats("team_offense")
 
 _DEF_STAT_POOL: list[tuple[str, bool]] = get_registry().pool_stats("team_defense")
+
+_RIDGE_OFFENSE_COMPONENTS: tuple[str, str] = (
+    "adj_off_passing_epa_per_offensive_snap",
+    "adj_off_rushing_epa_per_offensive_snap",
+)
+
+_RIDGE_DEFENSE_COMPONENTS: tuple[str, str] = (
+    "adj_def_passing_epa_per_offensive_snap",
+    "adj_def_rushing_epa_per_offensive_snap",
+)
 
 # How strongly schedule difficulty shifts the raw composite.
 # 0 = ignore schedule; 1 = equal weight to raw performance.
@@ -102,6 +112,16 @@ def _build_composite(
     return composite
 
 
+def _build_ridge_epa_composite(df: pl.DataFrame, component_cols: tuple[str, ...]) -> np.ndarray:
+    """Average the present ridge-adjusted EPA components for one rating side."""
+    present_components = [
+        values for column in component_cols if (values := _col(df, column)) is not None
+    ]
+    if not present_components:
+        return np.zeros(df.height, dtype=np.float64)
+    return np.mean(np.column_stack(present_components), axis=1)
+
+
 def _derive_turnover_margin(df: pl.DataFrame) -> np.ndarray | None:
     """Derive turnover margin from present takeaway and giveaway columns."""
     takeaways: list[np.ndarray] = []
@@ -130,62 +150,15 @@ def _derive_turnover_margin(df: pl.DataFrame) -> np.ndarray | None:
 
 
 def _build_overall_raw(df: pl.DataFrame, reference_df: pl.DataFrame | None = None) -> np.ndarray:
-    """Build the raw overall signal from win rate and turnover margin."""
-    resolved_reference_df = _resolve_reference_df(df, reference_df)
-    components: list[np.ndarray] = []
-
-    win_values = _col(df, "win_pct")
-    if win_values is None:
-        win_values = _col(df, "win_value")
-    if win_values is not None:
-        reference_win_values = _col(resolved_reference_df, "win_pct")
-        if reference_win_values is None:
-            reference_win_values = _col(resolved_reference_df, "win_value")
-        components.append(
-            _zscore_against(
-                win_values.tolist(),
-                (reference_win_values if reference_win_values is not None else win_values).tolist(),
-            )
-        )
-
-    turnover_margin = _col(df, "turnover_margin")
-    if turnover_margin is None:
-        turnover_margin = _derive_turnover_margin(df)
-    if turnover_margin is not None:
-        reference_turnover_margin = _col(resolved_reference_df, "turnover_margin")
-        if reference_turnover_margin is None:
-            reference_turnover_margin = _derive_turnover_margin(resolved_reference_df)
-        components.append(
-            _zscore_against(
-                turnover_margin.tolist(),
-                (
-                    reference_turnover_margin
-                    if reference_turnover_margin is not None
-                    else turnover_margin
-                ).tolist(),
-            )
-        )
-
-    if not components:
-        return np.zeros(df.height)
-    return np.mean(np.column_stack(components), axis=1)
+    """Return a neutral placeholder until Stage 1 redefines team overall quality."""
+    del reference_df
+    return np.zeros(df.height, dtype=np.float64)
 
 
 def _build_overall_sos(df: pl.DataFrame, reference_df: pl.DataFrame | None = None) -> np.ndarray:
-    """Build the overall schedule-strength signal from opponent overall fields."""
-    resolved_reference_df = _resolve_reference_df(df, reference_df)
-    parts: list[np.ndarray] = []
-    for column in ("opp_win_value", "opp_turnover_margin"):
-        values = _col(df, column)
-        if values is not None:
-            reference_values = _col(resolved_reference_df, column)
-            parts.append(
-                _zscore_against(
-                    values.tolist(),
-                    (reference_values if reference_values is not None else values).tolist(),
-                )
-            )
-    return np.mean(np.column_stack(parts), axis=1) if parts else np.zeros(df.height)
+    """Return a neutral placeholder until Stage 1 redefines team overall schedule context."""
+    del reference_df
+    return np.zeros(df.height, dtype=np.float64)
 
 
 def _build_off_sos(df: pl.DataFrame, reference_df: pl.DataFrame | None = None) -> np.ndarray:
@@ -229,59 +202,35 @@ def compute_ratings(
     df: pl.DataFrame,
     reference_df: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
-    """Compute SaOR, SaDR, SaOvR, and SaCR for every team in *df*."""
+    """Compute team ratings from ridge-adjusted passing and rushing EPA components."""
     resolved_reference_df = _resolve_reference_df(df, reference_df)
-    n = df.height
     teams = df.select("team").to_series().to_list()
 
-    win_pct_arr = _col(df, "win_pct")
-    if win_pct_arr is None:
-        win_pct_arr = np.full(n, 0.5)
+    raw_off = _build_ridge_epa_composite(df, _RIDGE_OFFENSE_COMPONENTS)
+    raw_def = _build_ridge_epa_composite(df, _RIDGE_DEFENSE_COMPONENTS)
+    reference_raw_off = _build_ridge_epa_composite(resolved_reference_df, _RIDGE_OFFENSE_COMPONENTS)
+    reference_raw_def = _build_ridge_epa_composite(resolved_reference_df, _RIDGE_DEFENSE_COMPONENTS)
 
-    off_weights = _derive_weights(df, _OFF_STAT_POOL, win_pct_arr, "Offensive")
-    def_weights = _derive_weights(df, _DEF_STAT_POOL, win_pct_arr, "Defensive")
+    saor = _zscore_against(raw_off.tolist(), reference_raw_off.tolist())
+    sadr = _zscore_against(raw_def.tolist(), reference_raw_def.tolist())
+    reference_saor = _zscore(reference_raw_off.tolist())
+    reference_sadr = _zscore(reference_raw_def.tolist())
 
-    sos_off = _build_off_sos(df, resolved_reference_df)
-    sos_def = _build_def_sos(df, resolved_reference_df)
-    sos_ovr = _build_overall_sos(df, resolved_reference_df)
+    saovr_input = saor + sadr
+    reference_saovr_input = reference_saor + reference_sadr
+    saovr = _zscore_against(saovr_input.tolist(), reference_saovr_input.tolist())
 
-    reference_sos_off = _build_off_sos(resolved_reference_df, resolved_reference_df)
-    reference_sos_def = _build_def_sos(resolved_reference_df, resolved_reference_df)
-    reference_sos_ovr = _build_overall_sos(resolved_reference_df, resolved_reference_df)
-
-    raw_off = _build_composite(df, off_weights, resolved_reference_df)
-    raw_def = _build_composite(df, def_weights, resolved_reference_df)
-    raw_ovr = _build_overall_raw(df, resolved_reference_df)
-    reference_raw_off = _build_composite(resolved_reference_df, off_weights, resolved_reference_df)
-    reference_raw_def = _build_composite(resolved_reference_df, def_weights, resolved_reference_df)
-    reference_raw_ovr = _build_overall_raw(resolved_reference_df, resolved_reference_df)
-    adj_off = raw_off + SOS_WEIGHT * sos_off
-    adj_def = raw_def + SOS_WEIGHT * sos_def
-    adj_ovr = raw_ovr + SOS_WEIGHT * sos_ovr
-    reference_adj_off = reference_raw_off + SOS_WEIGHT * reference_sos_off
-    reference_adj_def = reference_raw_def + SOS_WEIGHT * reference_sos_def
-    reference_adj_ovr = reference_raw_ovr + SOS_WEIGHT * reference_sos_ovr
-
-    saor = _zscore_against(adj_off.tolist(), reference_adj_off.tolist())
-    sadr = _zscore_against(adj_def.tolist(), reference_adj_def.tolist())
-    saovr = _zscore_against(adj_ovr.tolist(), reference_adj_ovr.tolist())
-    reference_saor = _zscore(reference_adj_off.tolist())
-    reference_sadr = _zscore(reference_adj_def.tolist())
-    reference_saovr = _zscore(reference_adj_ovr.tolist())
-    sacr = _zscore(
-        (
-            ((saor + sadr) + OVERALL_COMPOSITE_WEIGHT * saovr) / (2.0 + OVERALL_COMPOSITE_WEIGHT)
-        ).tolist()
+    sacr_input = composite_weights.build_weighted_composite(
+        df,
+        composite_weights.TEAM_SACR_FROZEN_SPEC,
+        resolved_reference_df,
     )
-    sacr = _zscore_against(
-        (
-            ((saor + sadr) + OVERALL_COMPOSITE_WEIGHT * saovr) / (2.0 + OVERALL_COMPOSITE_WEIGHT)
-        ).tolist(),
-        (
-            ((reference_saor + reference_sadr) + OVERALL_COMPOSITE_WEIGHT * reference_saovr)
-            / (2.0 + OVERALL_COMPOSITE_WEIGHT)
-        ).tolist(),
+    reference_sacr_input = composite_weights.build_weighted_composite(
+        resolved_reference_df,
+        composite_weights.TEAM_SACR_FROZEN_SPEC,
+        resolved_reference_df,
     )
+    sacr = _zscore_against(sacr_input.tolist(), reference_sacr_input.tolist())
 
     return pl.DataFrame(
         {
