@@ -83,7 +83,7 @@ Rules:
 
 | View | Denominator | Additional Notes |
 | --- | --- | --- |
-| Ratings | none | Schedule-adjusted outputs (`SaCR`, `SaOR`, `SaDR`, `SaOvR`, `SRS`). This is a view, not a category. |
+| Ratings | none | Schedule-adjusted outputs (`SaCR`, `SaOR`, `SaDR`, `SaOvR`, `SRS`). `SaCR` is the Stage 2 frozen-weight team composite over ridge-adjusted passing and rushing EPA on both sides of the ball. This is a view, not a category. |
 | Raw Stat Totals | none | For **count** metrics only. **rate** and **avg** metrics keep the same value they show elsewhere. |
 | Per-Game Rates | games played | For **count** metrics this is the per-game form. **rate** and **avg** metrics are unchanged. |
 | Per-Play Rates | play-specific denominators for the subcategory (dropback, attempt, carry, drive, series, etc.) | For **count** metrics this uses the stat's natural denominator suffix; **rate** and **avg** metrics are unchanged. |
@@ -287,6 +287,8 @@ Season identity and outcome summary. No subcategories.
 All differentials are `duplicate_of` their components for ratings purposes.
 The app's own ratings (`SaCR`, `SaOR`, `SaDR`, `SaOvR`, `SRS`) belong to the separate `Ratings`
 view rather than to the `Overall` / `Offense` / `Defense` / `Special Teams` stat taxonomy.
+Within that view, `SaCR` is the frozen Stage 2 weighted composite and `SaOR` / `SaDR` / `SaOvR`
+remain the ridge-backbone component views.
 
 ## Catalog: Offense
 

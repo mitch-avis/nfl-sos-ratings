@@ -44,14 +44,28 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         label="SaCR",
         full_name="Schedule-Adjusted Composite Rating",
         description=(
-            "The site's headline team rating. It blends schedule-adjusted offense, defense, "
-            "and a smaller outcome layer into one number, where 0 is league average and +1 "
-            "is one standard deviation better than average."
+            "The site's headline team rating. In Stage 2 of the methodology overhaul it is a "
+            "frozen-weight blend of standardized ridge-adjusted passing and rushing EPA on both "
+            "offense and defense. 0 is league average and +1 is one standard deviation better "
+            "than average."
         ),
         shape="score",
         polarity="higher",
         source="D",
         since=1999,
+        note=(
+            "Frozen Stage 2 weights: adj_off_passing_epa_per_offensive_snap=0.4046255151410425, "
+            "adj_off_rushing_epa_per_offensive_snap=0.20159591248913308, "
+            "adj_def_passing_epa_per_offensive_snap=0.29457048409623865, "
+            "adj_def_rushing_epa_per_offensive_snap=0.0992080882735857. Target: next-season "
+            "SaOvR. Fit window: 1999-2025 season pairs. Held-out leave-one-season-out metrics: "
+            "weighted RMSE 0.745182 vs equal-weight RMSE 0.752449; weighted MAE 0.603618 vs "
+            "equal-weight MAE 0.611575. Fitting command: uv run python -m "
+            "nfl_sos_ratings.composite_weights. Refit only with an explicit maintainer-approved "
+            "Stage 2 methodology update. The tested takeaway-creation candidate "
+            "(adj_def_takeaway_creation_rate_per_defensive_snap) was excluded after a small "
+            "negative fitted weight (-0.04081182634425329)."
+        ),
     ),
     _ratings(
         name="SaOR",
@@ -59,7 +73,8 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         full_name="Schedule-Adjusted Offense Rating",
         description=(
             "How good the team's offense was after accounting for the defenses it actually "
-            "faced. 0 is league average; positive means better than average."
+            "faced, using the simultaneous ridge solve over passing and rushing EPA per snap. "
+            "0 is league average; positive means better than average."
         ),
         shape="score",
         polarity="higher",
@@ -72,7 +87,9 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         full_name="Schedule-Adjusted Defense Rating",
         description=(
             "How good the team's defense was after accounting for the offenses it actually "
-            "faced. 0 is league average; positive means better than average."
+            "faced, using the defense side of the simultaneous ridge EPA solve. Higher is "
+            "better defense: positive means the defense suppresses opponent EPA more than "
+            "average."
         ),
         shape="score",
         polarity="higher",
@@ -84,8 +101,9 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         label="SaOvR",
         full_name="Schedule-Adjusted Overall Rating",
         description=(
-            "A schedule-adjusted signal built from whole-game outcomes such as win value and "
-            "turnover margin, complementing the pure offense and defense ratings."
+            "The combined team quality signal from Stage 1 of the methodology overhaul. It "
+            "adds the standardized SaOR and SaDR signals, so teams strong on both sides of "
+            "the ball rise to the top while wins and turnover luck stay out of the formula."
         ),
         shape="score",
         polarity="higher",
@@ -144,6 +162,16 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         shape="id",
         polarity="neutral",
         source="SCH",
+    ),
+    _overall(
+        name="is_home",
+        label="Home",
+        full_name="Home Team Flag",
+        description="Whether this team was the home side in the game represented by the row.",
+        shape="flag",
+        polarity="neutral",
+        source="SCH",
+        since=1999,
     ),
     _overall(
         name="games_played",

@@ -23,6 +23,7 @@ CURRENT_OUTPUT_COLUMN_SAMPLES = [
     "game_id",
     "week",
     "opponent_team",
+    "is_home",
     "games_played",
     "games",
     "wins",
@@ -82,6 +83,7 @@ CURRENT_OUTPUT_COLUMN_SAMPLES = [
     "diff_passing_epa_per_offensive_snap",
     "diff_qb_any_a",
     "adj_qb_epa_per_dropback",
+    "adj_def_qb_epa_per_dropback_faced",
     "adj_off_points_per_offensive_snap",
     "adj_def_passing_interceptions_per_offensive_snap",
     "adj_off_def_sacks_per_defensive_snap",
@@ -269,12 +271,34 @@ class TestRatingPools:
         ]
         team_offense = registry.pool_columns("team_offense")
         team_defense = registry.pool_columns("team_defense")
+        team_simultaneous = registry.pool_columns("team_simultaneous")
+        team_defense_playmaking = [member for member in team_defense if "allowed" not in member]
         assert len(team_offense) == 15
         assert len(team_defense) == 18
         assert team_offense[0] == "points_per_offensive_snap"
         assert team_defense[0] == "points_allowed_per_defensive_snap"
-        assert registry.pool_columns("team_simultaneous") == team_offense + team_defense
+        assert team_simultaneous == team_offense + team_defense_playmaking
+        assert all("allowed" not in member for member in team_simultaneous[len(team_offense) :])
         assert registry.pool_columns("qb_simultaneous") == registry.pool_columns("qb_paired")
+
+    def test_stage_two_rating_notes_capture_weight_provenance(
+        self, registry: MetricRegistry
+    ) -> None:
+        """SaCR and QSaCR notes should carry the frozen-weight provenance snapshot."""
+        sacr = registry.resolve_column("SaCR")
+        qsacr = registry.resolve_column("QSaCR")
+
+        assert sacr is not None and sacr.base.note is not None
+        assert "1999-2025" in sacr.base.note
+        assert "uv run python -m nfl_sos_ratings.composite_weights" in sacr.base.note
+        assert "-0.04081182634425329" in sacr.base.note
+        assert "adj_def_rushing_epa_per_offensive_snap=0.0992080882735857" in sacr.base.note
+
+        assert qsacr is not None and qsacr.base.note is not None
+        assert "2006-2025" in qsacr.base.note
+        assert "dropback-weighted WLS" in qsacr.base.note
+        assert "uv run python -m nfl_sos_ratings.composite_weights" in qsacr.base.note
+        assert "adj_qb_epa_per_dropback=0.6687790473858877" in qsacr.base.note
 
     def test_pool_members_are_ratings_eligible(self, registry: MetricRegistry) -> None:
         """Only ratings_eligible metrics may enter any pool."""

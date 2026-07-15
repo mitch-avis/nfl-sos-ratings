@@ -72,7 +72,7 @@ the team catalog all apply here; this document only restates what differs for in
 
 | View | Denominator | Additional Notes |
 | --- | --- | --- |
-| Ratings | none | Schedule-adjusted outputs (`QSaCR`, `QSaOR`, `QRaw`, `QSoS`, `QOutcome`). This is a view, not a category. |
+| Ratings | none | Schedule-adjusted outputs (`QSaCR`, `QSaOR`, `QRaw`, `QSoS`, `QOutcome`). `QSaCR` is the Stage 2 frozen-weight QB composite over adjusted EPA/dropback, CPOE, sack rate, and TD-INT margin rate. This is a view, not a category. |
 | Raw Stat Totals | none | For **count** metrics only. **rate** and **avg** metrics keep the same value they show elsewhere. |
 | Per-Game Rates | games played (or games as primary QB — must be labeled) | For **count** metrics this is the per-game form. **rate** and **avg** metrics are unchanged. |
 | Per-Play Rates | play-specific denominators for the subcategory: dropback, attempt, carry, drive, series, etc. | For **count** metrics this uses each subcategory's natural denominator; **rate** and **avg** metrics are unchanged. |
@@ -348,6 +348,8 @@ order: `Ratings`, `Raw Total Stats`, `Per-Game Rates`, `Per-Play Rates`,
 When any non-`Ratings` view is active, the secondary row is the eight-subcategory multi-select in
 the taxonomy order above.
 Default sort `QSaCR`; qualification filter on `qb_is_eligible` with a "show all" toggle.
+The `Ratings` view keeps `QSaOR` as the ridge backbone, `QSaCR` as the frozen Stage 2 weighted
+composite, and `QOutcome` as descriptive-only context.
 
 **QB Details page**: identical section order for cohesion, each section adding: percentile bars vs.
 qualified QBs (the existing `_pct` convention), the `qopp_` context and `diff_` comparison

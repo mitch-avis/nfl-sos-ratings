@@ -138,8 +138,9 @@ RATING_POOLS: tuple[RatingPool, ...] = (
         name="team_offense",
         entity="team",
         description=(
-            "Offensive inputs to SaOR. Includes total plus split yardage rates as an "
-            "accepted, frozen overlap; correlation filtering downweights redundancy."
+            "Legacy raw offensive rate pool kept for descriptive surfaces and raw helper "
+            "tests. Stage 1 published SaOR now comes from the ridge-adjusted EPA backbone, "
+            "not directly from this pool."
         ),
         members=(
             "points_per_offensive_snap",
@@ -162,7 +163,11 @@ RATING_POOLS: tuple[RatingPool, ...] = (
     RatingPool(
         name="team_defense",
         entity="team",
-        description=("Defensive inputs to SaDR: allowed rates plus defensive playmaking rates."),
+        description=(
+            "Legacy raw defensive rate pool kept for descriptive surfaces and raw helper "
+            "tests. Stage 1 published SaDR now comes from the defense side of the ridge EPA "
+            "backbone, not directly from this pool."
+        ),
         members=(
             "points_allowed_per_defensive_snap",
             "total_yards_allowed_per_defensive_snap",
@@ -188,7 +193,8 @@ RATING_POOLS: tuple[RatingPool, ...] = (
         name="qb_primary",
         entity="qb",
         description=(
-            "QB performance inputs to QRaw/QSaOR. ANY/A, sack rate, sacks, and passer "
+            "QB performance inputs to QRaw. Stage 1 published QSaOR/QSaCR now come from the "
+            "ridge-adjusted QB EPA/dropback backbone. ANY/A, sack rate, sacks, and passer "
             "rating overlap by construction — an accepted, frozen overlap; adding further "
             "overlapping members is forbidden."
         ),
@@ -207,8 +213,9 @@ RATING_POOLS: tuple[RatingPool, ...] = (
         name="qb_paired",
         entity="qb",
         description=(
-            "The qb_primary members that have qopp_ opponent mirrors, used for the "
-            "paired diff-based schedule adjustment."
+            "The qb_primary members that have qopp_ opponent mirrors. Retained for legacy "
+            "context and descriptive surfaces; Stage 1 published QB ratings no longer use "
+            "the paired diff path."
         ),
         members=(
             "qb_epa_per_dropback",
@@ -223,7 +230,11 @@ RATING_POOLS: tuple[RatingPool, ...] = (
     RatingPool(
         name="team_simultaneous",
         entity="team",
-        description="Response columns for the simultaneous team ridge adjustment.",
+        description=(
+            "Response columns for the simultaneous team ridge adjustment: offensive rate "
+            "inputs plus direct defensive playmaking rates, excluding redundant *_allowed "
+            "mirrors."
+        ),
         members=(
             "points_per_offensive_snap",
             "total_yards_per_offensive_snap",
@@ -240,17 +251,6 @@ RATING_POOLS: tuple[RatingPool, ...] = (
             "passing_interceptions_per_offensive_snap",
             "sack_fumbles_lost_per_offensive_snap",
             "rushing_fumbles_lost_per_offensive_snap",
-            "points_allowed_per_defensive_snap",
-            "total_yards_allowed_per_defensive_snap",
-            "passing_yards_allowed_per_defensive_snap",
-            "rushing_yards_allowed_per_defensive_snap",
-            "passing_epa_allowed_per_defensive_snap",
-            "rushing_epa_allowed_per_defensive_snap",
-            "passing_tds_allowed_per_defensive_snap",
-            "rushing_tds_allowed_per_defensive_snap",
-            "passing_first_downs_allowed_per_defensive_snap",
-            "rushing_first_downs_allowed_per_defensive_snap",
-            "passing_cpoe_allowed",
             "def_sacks_per_defensive_snap",
             "def_interceptions_per_defensive_snap",
             "def_pass_defended_per_defensive_snap",

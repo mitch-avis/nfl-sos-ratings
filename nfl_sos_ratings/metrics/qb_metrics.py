@@ -25,22 +25,35 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         label="QSaCR",
         full_name="QB Schedule-Adjusted Composite Rating",
         description=(
-            "The site's headline quarterback rating. It starts from opponent-adjusted "
-            "passing performance and adds a smaller outcome layer for wins and late-game "
-            "results. 0 is league average; positive is better."
+            "The site's headline quarterback rating. In Stage 2 of the methodology overhaul it "
+            "is a frozen-weight blend of standardized adjusted EPA/dropback, CPOE, sack rate, "
+            "and TD-INT margin rate, while wins and late-game results stay in QOutcome only. "
+            "0 is league average; positive is better."
         ),
         shape="score",
         polarity="higher",
         source="D",
         since=1999,
+        note=(
+            "Frozen Stage 2 weights: adj_qb_epa_per_dropback=0.6687790473858877, "
+            "adj_qb_completion_percentage_above_expectation=0.21464381898367774, "
+            "adj_qb_sack_rate=0.06725872314827445, adj_qb_td_int_margin_rate=0.04931841048216012. "
+            "Target: next-season adj_qb_epa_per_dropback with dropback-weighted WLS. Fit window: "
+            "2006-2025 season pairs because adjusted CPOE is unavailable before 2006. Held-out "
+            "leave-one-season-out metrics: weighted RMSE 0.093348 vs equal-weight RMSE 0.093446; "
+            "weighted MAE 0.073908 vs equal-weight MAE 0.074351. Fitting command: uv run python "
+            "-m nfl_sos_ratings.composite_weights. Refit only with an explicit maintainer-"
+            "approved Stage 2 methodology update."
+        ),
     ),
     _ratings(
         name="QSaOR",
         label="QSaOR",
         full_name="QB Schedule-Adjusted Offense Rating",
         description=(
-            "Passing performance after adjusting for the defenses actually faced — the "
-            "cleanest opponent-adjusted QB signal, with no outcome blend."
+            "Passing performance after adjusting for the defenses actually faced, using the "
+            "simultaneous ridge estimate of QB EPA per dropback. This is the published "
+            "opponent-adjusted QB quality signal in Stage 1."
         ),
         shape="score",
         polarity="higher",
@@ -65,8 +78,24 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         label="QSoS",
         full_name="QB Strength of Schedule",
         description=(
-            "How tough the defenses this quarterback faced were. Higher means a harder "
+            "How tough the defenses this quarterback faced were, measured as the mean faced-"
+            "defense coefficient from the simultaneous ridge QB solve. Higher means a harder "
             "slate — it describes the schedule, not the quarterback's play."
+        ),
+        shape="score",
+        polarity="higher",
+        source="D",
+        since=1999,
+        contextual=True,
+    ),
+    _ratings(
+        name="adj_def_qb_epa_per_dropback_faced",
+        label="Faced Adj Def EPA/DB",
+        full_name="Faced Defense Rating on QB EPA Per Dropback",
+        description=(
+            "The mean defense-side ridge coefficient, on QB EPA per dropback, for the "
+            "defenses this quarterback actually faced. This is the raw schedule-context "
+            "input behind QSoS."
         ),
         shape="score",
         polarity="higher",
@@ -80,8 +109,8 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         full_name="QB Outcome Layer",
         description=(
             "A secondary signal built from wins and late-game results such as "
-            "fourth-quarter comebacks and game-winning drives. Kept separate so results "
-            "never contaminate the performance ratings."
+            "fourth-quarter comebacks and game-winning drives. Descriptive-only: kept "
+            "separate so results never contaminate the performance ratings."
         ),
         shape="score",
         polarity="higher",
