@@ -386,4 +386,5 @@ Current live inputs:
 - Snap counts
 - Schedules and scores
 
-nflverse: <https://github.com/nflverse> nflreadpy: <https://github.com/nflverse/nflreadpy>
+nflverse: <https://github.com/nflverse>
+nflreadpy: <https://github.com/nflverse/nflreadpy>
