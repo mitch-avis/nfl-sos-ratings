@@ -11,8 +11,25 @@ It currently produces:
 - QB ratings: `QRaw`, `QSoS`, `QSaOR`, `QOutcome`, and `QSaCR`
 - One-hop diff-based comparison outputs
 - Simultaneous-adjustment outputs for teams and QBs
-- Intermediate CSV artifacts for auditability
-- Team and QB plots under `output/plots/`
+- A machine-readable metric registry (`nfl_sos_ratings/metrics/`) — the single source of truth
+  for every published stat's label, layman description, polarity, category, source, and
+  rating-pool eligibility, served to the web UI at `/api/metadata`
+- Intermediate Parquet artifacts for auditability (convert any file to CSV with
+  `pl.read_parquet(...).write_csv(...)` for spreadsheet inspection)
+- Team and QB plots under `data/plots/`
+
+The registry-backed analyst surfaces use a six-view model:
+
+- `Ratings`
+- `Raw Total Stats`
+- `Per-Game Rates`
+- `Per-Play Rates`
+- `Opponent Per-Game Rates`
+- `Opponent Per-Play Rates`
+
+`Ratings` is its own schedule-adjusted view.
+The other five reuse the same team/QB taxonomies, and opponent context is expressed through the
+two opponent views rather than through a standalone `Opponent Context` category.
 
 ## Table of Contents
 
@@ -30,7 +47,7 @@ It currently produces:
   - [Installation](#installation)
   - [Configuration](#configuration)
   - [How to Run](#how-to-run)
-  - [Output Files](#output-files)
+  - [Data Files](#data-files)
     - [Team outputs](#team-outputs)
     - [QB outputs](#qb-outputs)
     - [Plot outputs](#plot-outputs)
@@ -135,7 +152,9 @@ Both pipelines follow the same core rules:
 - Normalize team abbreviations before joins
 - Exclude all head-to-head games when profiling an opponent
 - Deduplicate opponent lists before averaging
-- Compare on per-game and per-snap or per-dropback rates
+- Compare on per-game and per-play rates.
+  For teams that often means per-snap; for QBs it usually means per-dropback, per-attempt, or
+  per-carry depending on the subcategory.
 
 ### Simultaneous Adjustment
 
@@ -196,11 +215,11 @@ Edit `nfl_sos_ratings/config.py`.
 
 ```python
 SEASON: int = 2025
-OUTPUT_DIR: str = "output"
+DATA_DIR: str = "data"
 ```
 
 - `SEASON` selects the target season for `main.py`
-- `OUTPUT_DIR` selects where CSVs and plots are written
+- `DATA_DIR` selects where Parquet outputs and plots are written
 
 ## How to Run
 
@@ -238,49 +257,49 @@ npm run dev
 
 Detailed frontend usage and troubleshooting notes live in `ui/web/README.md`.
 
-## Output Files
+## Data Files
 
-All files are written under `OUTPUT_DIR` with a `{SEASON}_` prefix.
+All files are written under `DATA_DIR` with a `{SEASON}_` prefix.
 
 ### Team outputs
 
-- `{SEASON}_team_per_game_stats.csv` PBP-derived team-game profile rolled to one season row per
+- `{SEASON}_team_per_game_stats.parquet` PBP-derived team-game profile rolled to one season row per
   team. Includes per-game totals, per-snap rates, `win_value`, and `turnover_margin`.
-- `{SEASON}_opponent_profiles.csv` Averaged opponent profile rows built from unique non-head-to-head
+- `{SEASON}_opponent_profiles.parquet` Averaged opponent profile rows built from unique non-head-to-head
   opponents.
-- `{SEASON}_combined.csv` Team rows joined to opponent rows, `diff_*` columns, team ratings, `SRS`,
+- `{SEASON}_combined.parquet` Team rows joined to opponent rows, `diff_*` columns, team ratings, `SRS`,
   and simultaneous-adjustment team columns.
-- `{SEASON}_ratings.csv` Compact team ratings summary with `SaCR`, `SaOR`, `SaDR`, `SaOvR`, and
+- `{SEASON}_ratings.parquet` Compact team ratings summary with `SaCR`, `SaOR`, `SaDR`, `SaOvR`, and
   `SRS`.
-- `{SEASON}_simultaneous_team_adjustments.csv` Multi-stat simultaneous-adjustment output with
+- `{SEASON}_simultaneous_team_adjustments.parquet` Multi-stat simultaneous-adjustment output with
   `adj_off_*` and `adj_def_*` columns.
 
 ### QB outputs
 
-- `{SEASON}_qb_per_game_stats.csv` QB season summary keyed by canonical QB identity and team
+- `{SEASON}_qb_per_game_stats.parquet` QB season summary keyed by canonical QB identity and team
   context. Includes explicit season totals such as `qb_attempts_total`, `qb_completions_total`, and
   `qb_pass_yards_total`; explicit per-game fields such as `qb_attempts_per_game`,
   `qb_completions_per_game`, and `qb_pass_yards_per_game`; dropback and snap totals; EPA per
   dropback; ANY/A; sack rate; yards per dropback; TD-INT differential fields; wins; and 4QC/GWD
   totals.
-- `{SEASON}_qb_opponent_profiles.csv` QB opponent context built from only the primary-QB games each
+- `{SEASON}_qb_opponent_profiles.parquet` QB opponent context built from only the primary-QB games each
   QB actually played, with unique faced defenses and no fabricated schedule fallback.
-- `{SEASON}_qb_combined.csv` QB season rows joined to opponent context, `diff_qb_*` columns,
+- `{SEASON}_qb_combined.parquet` QB season rows joined to opponent context, `diff_qb_*` columns,
   simultaneous QB adjustment columns, and final QB ratings.
-- `{SEASON}_qb_ratings.csv` Compact QB ratings summary for qualified passers.
-- `{SEASON}_simultaneous_qb_adjustments.csv` Multi-stat simultaneous-adjustment QB output with
+- `{SEASON}_qb_ratings.parquet` Compact QB ratings summary for qualified passers.
+- `{SEASON}_simultaneous_qb_adjustments.parquet` Multi-stat simultaneous-adjustment QB output with
   `adj_*` columns.
 
 ### Plot outputs
 
-Under `output/plots/`:
+Under `data/plots/`:
 
 - `{SEASON}_adjusted_ratings_offense.png`
 - `{SEASON}_adjusted_ratings_defense.png`
 - `{SEASON}_adjusted_ratings_overall.png`
 - `{SEASON}_sos_composite_ranking.png`
-- `{SEASON}_qb_adjusted_ratings.png` when QB combined output exists
-- `{SEASON}_qb_raw_vs_schedule.png` when QB combined output exists
+- `{SEASON}_qb_adjusted_ratings.png` when QB combined data exists
+- `{SEASON}_qb_raw_vs_schedule.png` when QB combined data exists
 
 ## Project Structure
 
@@ -303,14 +322,14 @@ nfl-sos-ratings/
 ├── tests/
 ├── ui/
 │   └── web/
-├── output/
+├── data/
 ├── .agents/
 ├── pyproject.toml
 └── README.md
 ```
 
-The active implementation handoff document for the ongoing methodology work is in
-`.agents/pbp-overhaul-plan.md`.
+The active implementation handoff document for the repo's current state and backlog is in
+`.agents/current-status.md`.
 
 ## Development Commands
 

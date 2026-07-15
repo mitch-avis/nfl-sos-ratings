@@ -53,8 +53,8 @@ generated directories such as `.venv/`, `ui/web/node_modules/`, or build outputs
 Run the pipeline and the visualizations:
 
 ```bash
-python -m nfl_sos_ratings.main        # writes CSVs to output/
-python -m nfl_sos_ratings.visualize   # writes plots to output/plots/
+python -m nfl_sos_ratings.main        # writes Parquet outputs to data/
+python -m nfl_sos_ratings.visualize   # writes plots to data/plots/
 ```
 
 Dependencies are compiled from `.in` files to pinned `.txt` files via `update_requirements.sh`. Edit
@@ -68,17 +68,25 @@ The package is `nfl_sos_ratings/`; tests mirror it under `tests/`. The team pipe
 lives in `simultaneous_adjustment.py`. `main` orchestrates. Read the module you are changing rather
 than assuming its shape.
 
-## Active plan document
+## Active plan documents
 
-The active implementation and handoff plan for the approved PBP overhaul lives at
-`.agents/pbp-overhaul-plan.md`.
+The active implementation and handoff plans live in `.agents/`:
 
-Agents working on that effort must:
+- `.agents/current-status.md` — consolidated repo status, recent work summary, active backlog,
+  and next-agent guidance.
+- `.agents/metric-expansion-plan.md` — the remaining planned-metric ETL work and category-sectioned
+  UI follow-up.
+- `.agents/frontend-ui-kickoff-plan.md` — the analyst web UI.
 
-- Read the plan document before making substantive changes.
+Agents working on any of those efforts must:
+
+- Read the relevant plan document before making substantive changes.
 - Update it in the same change set whenever progress, scope, decisions, blockers, validation status,
   or next steps change.
 - Keep it accurate enough for a new agent to resume work without relying on chat history.
+
+Completed one-off workstreams should be folded into `.agents/current-status.md` or the still-active
+workstream plan instead of leaving stale plan files behind.
 
 Treat a stale plan document as a repo bug.
 
@@ -96,8 +104,15 @@ These are correctness invariants specific to this project. Linters will not catc
   not remove or weaken this exclusion.
 - **Compare on rates, never on raw totals.** Division opponents play one fewer non-head-to-head game
   than non-division opponents, so raw season totals conflate rate with games played. All comparisons
-  and all averaged opponent profiles use per-game and per-snap rates (per-dropback for QBs). Keep
-  raw totals only as display columns on a subject's own profile.
+  and all averaged opponent profiles use per-game and per-play rates.
+  For teams that often means per-snap; for QBs it usually means per-dropback, per-attempt, or
+  per-carry depending on the subcategory. Keep raw totals only as display columns on a subject's
+  own profile.
+- **Views are not categories.** `Ratings` is a top-level view, not part of the team/QB stat
+  taxonomies.
+  The other five views (`Raw Total Stats`, `Per-Game Rates`, `Per-Play Rates`, `Opponent Per-Game
+  Rates`, `Opponent Per-Play Rates`) reuse the same team categories or QB subcategories.
+  `Opponent Context` is expressed through those two opponent views, not as a standalone category.
 - **Deduplicate the opponent list; weight each unique opponent equally.** A division rival played
   twice is profiled once (head-to-head exclusion makes the two profiles identical) and counts once
   in the averaged opponent profile.
@@ -106,6 +121,18 @@ These are correctness invariants specific to this project. Linters will not catc
   computation against a known value or an independent aggregation. Do not ship an unverified metric.
 - **Do not assume a column exists.** nflverse schemas differ across seasons and datasets. Check for
   a column before using it and handle its absence, as the existing loaders do.
+- **The metric registry is the single source of truth.** Every column the pipeline writes must
+  resolve against `nfl_sos_ratings/metrics/` (base metric name, or a registered prefix/suffix of
+  one) — `main.py` fails the write otherwise. New metrics get a registry entry first (label,
+  layman description, shape, denominator, polarity, source, `ratings_eligible`, `duplicate_of`).
+  Rating-pool membership also lives in the registry (`catalog.py`); changing it changes published
+  ratings and needs explicit sign-off.
+- **The two docs catalogs are companion references, not a second spec.** Keep
+  `docs/stats-catalog.md` and `docs/qb-stats-catalog.md` aligned with the metrics registry, but
+  treat `nfl_sos_ratings/metrics/` as authoritative when they diverge.
+- **Guard source floors in the loader layer.** When an nflverse source starts later than 1999,
+  handle that in `data_loader.py` and return a typed empty frame rather than relying on season-loop
+  exception handling higher up.
 
 ## Code conventions
 
@@ -127,10 +154,14 @@ pass both rather than restating their rules here. Beyond that:
   code you change; keep coverage above 90% on logic-bearing code.
 - **Always:** when you edit Markdown docs or plan files, run `markdownlint` on those repo-owned
   Markdown files before finishing.
-- **Ask first:** before adding a new dependency, changing the rating outputs or CSV schemas, or
+- **Dependencies:** adding a new dependency is fine when there is a good reason (no adequate
+  stdlib or existing-dependency option, actively maintained, pulls its weight). Add it to the
+  appropriate `.in` file, recompile with `update_requirements.sh`, and say in the change what it
+  is for. Do not add heavyweight or overlapping dependencies for marginal convenience.
+- **Ask first:** before changing the rating methodology or published rating outputs, or
   altering the strict ruff, pyright, or coverage configuration.
 - **Never:** weaken lint or type settings to make a check pass; commit secrets or credentials; edit
-  files under `output/` as if they were source (they are generated artifacts); hand-edit the pinned
+  files under `data/` as if they were source (they are generated artifacts); hand-edit the pinned
   `requirements*.txt` files.
 
 ## When adding new methodology

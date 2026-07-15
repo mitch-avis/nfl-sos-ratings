@@ -11,16 +11,26 @@ way that is much easier to interpret than the current static plots.
 
 ## Current status
 
-- Status: in progress, with the analyst shell shipped, index-page compare/reset behavior now
-  stable, and detail pages upgraded from a simple season snapshot into a first real analyst-facing
-  profile surface.
-- Last updated: 2026-07-12.
-- No new methodology blocker was found in `.agents/pbp-overhaul-plan.md`; late-game QB outcome work
+- Status: in progress, with the analyst shell shipped, index-page compare/reset behavior now stable,
+  and detail pages upgraded from a simple season snapshot into a first real analyst-facing profile
+  surface.
+- Last updated: 2026-07-14.
+- No new methodology blocker was found in `.agents/current-status.md`; late-game QB outcome work
   remains green for UI purposes.
+- Current queued scope for this session:
+  - complete in the current session:
+    - replaced the old multi-select metric-family controls with a single-select six-view primary
+      row (`Ratings`, `Raw Total Stats`, `Per-Game Rates`, `Per-Play Rates`,
+      `Opponent Per-Game Rates`, `Opponent Per-Play Rates`) plus a page-level `Reset`
+    - removed the old `Opponent Context` and `All Stats` buttons
+    - added persistent Teams category and Teams/QB subcategory rows that hide without collapsing
+      layout when `Ratings` is selected
+    - drove the detail-page weekly and unique-opponent tables from that top-of-page selection
+      state instead of their own local metric-family row
 - Implemented in the most recent session:
   - bottom-right page-jump controls now keep fixed vertical slots, with the up arrow always above
     the down arrow when both are visible and each button staying in a stable position when hidden
-  - a tested CSV-backed backend contract in `nfl_sos_ratings.ui_data`
+  - a tested Parquet-backed backend contract in `nfl_sos_ratings.ui_data`
   - a thin FastAPI app in `nfl_sos_ratings.ui_api`
   - a first-pass React + Vite shell in `ui/web/` with season-aware Teams and QBs index routes,
     sortable/filterable TanStack tables, and column-group toggles
@@ -43,8 +53,8 @@ way that is much easier to interpret than the current static plots.
   - restored content-driven table sizing so sticky identity columns keep explicit widths while the
     rest of the table expands to fit real headers and values again
   - compare add/remove/reset for both Teams and QBs now works immediately without a page refresh;
-    the `compare` query param is hydrated once into page state and app state remains the live
-    source of truth afterward
+    the `compare` query param is hydrated once into page state and app state remains the live source
+    of truth afterward
   - team index defaults now use `SaCR` sorting plus `Ratings` and `Per-Game Rates`; QB defaults now
     use `QSaCR` sorting plus `Ratings` and `Per-Game Rates`
   - Teams `Raw Totals` was renamed to `Per-Game Rates` across the season-index/detail surfaces to
@@ -58,7 +68,7 @@ way that is much easier to interpret than the current static plots.
   - a page-aware Reset control beside the group toggles that restores the current entity view's
     default groups, sorting, compare selections, and related local view state without touching theme
     or palette preferences
-  - additive team and QB game-log CSV exports from `nfl_sos_ratings.main`
+  - additive team and QB game-log Parquet exports from `nfl_sos_ratings.main`
   - additive team and QB game-log loaders plus entity-specific FastAPI endpoints in
     `nfl_sos_ratings.ui_data` and `nfl_sos_ratings.ui_api`
   - compact single-section ratings grids on Team and QB detail pages so five rating outputs no
@@ -66,8 +76,8 @@ way that is much easier to interpret than the current static plots.
   - Team detail `Opponent Context` now splits into offense, defense, and opponent-outcome buckets
     instead of one flat wall of metrics
   - a richer weekly log surface on both Team and QB detail pages with category buttons, full
-    single-game stat access, opponent season-rating context columns, and grouped opponent
-    breakdown tables for repeated opponents
+    single-game stat access, opponent season-rating context columns, and grouped opponent breakdown
+    tables for repeated opponents
   - an explanatory note for the QB unrated-row toggle that documents the one-snap minimum display
     rule and the 238-attempt rating qualifier
   - the left menu panel is now slimmer and cleaner, with `NFL SOS Ratings` promoted as the primary
@@ -78,16 +88,34 @@ way that is much easier to interpret than the current static plots.
     view while the main content scrolls
   - the sidebar brand card now uses the same gradient treatment in both light and dark themes, and
     the `Analyst Console` subtitle line was removed
-  - browser page titles now reflect the current route, season, and entity where applicable, such
-    as Teams, QBs, Glossary, and individual Team/QB detail pages
-  - switching to a season where a requested Team/QB detail entity does not exist now redirects
-    back to that entity index for the selected season instead of leaving the user on an error page
+  - browser page titles now reflect the current route, season, and entity where applicable, such as
+    Teams, QBs, Glossary, and individual Team/QB detail pages
+  - Teams and QBs index pages now use a single-select six-view row (`Ratings`, `Raw Total Stats`,
+    `Per-Game Rates`, `Per-Play Rates`, `Opponent Per-Game Rates`, `Opponent Per-Play Rates`)
+    instead of the old multi-select metric-family toggles
+  - the old `Opponent Context` and `All Stats` buttons are gone; Teams now show a single-select
+    category row plus a multi-select subcategory row for non-`Ratings` views, and QBs show the
+    matching single-tier subcategory row
+  - those non-`Ratings` rows now hide without collapsing their reserved space, which prevents the
+    main table from jumping vertically when the primary view changes
+  - Team and QB detail pages now use the same top-of-page control model, with the entire header
+    pane pinned at the top of the page and the old descriptive blurb / redundant header links
+    removed
+  - QB detail headers now render as `QB Detail` plus `QB Name - Full Team Name`, and Team detail
+    headers now show the full team name
+  - Game-by-Game Details and Unique Opponents no longer maintain their own local metric-family row;
+    both now follow the top-of-page control state, with result-context columns always pinned first
+  - those weekly/detail result-context columns now read as `Points For`, `Points Allowed`,
+    `Point Margin`, `Outcome`, and `T/O Margin`
+  - switching to a season where a requested Team/QB detail entity does not exist now redirects back
+    to that entity index for the selected season instead of leaving the user on an error page
   - grouped opponent-breakdown tables on detail pages are now sortable by column so users can rank
     repeated-opponent summaries more easily
   - QB eligibility now uses a season-aware attempt qualifier derived from team games when weekly
     data is present, which fixes pre-2021 16-game seasons such as 2017 where the previous static
     238-attempt threshold incorrectly excluded borderline qualifiers like C.J. Beathard
-  - regenerated 2016-2020 output CSVs so the UI now reflects the corrected pre-2021 QB qualifier
+  - regenerated 2016-2020 data Parquet files so the UI now reflects the corrected pre-2021 QB
+    qualifier
   - the sidebar brand-card description under `NFL SOS Ratings` now reads as a broader analyst-facing
     explanation instead of a narrow project-local note
   - the low-value `Identity` summary box was removed from the Teams and QBs index overview grids
@@ -114,49 +142,55 @@ way that is much easier to interpret than the current static plots.
   - Team/QB detail weekly sections now read as `Game-by-Game Details` and `Unique Opponents`, with
     more analyst-facing copy, less contract jargon, and a clearer note that unique-opponent rows
     collapse repeat opponents such as division rivals into one averaged line
-  - Team/QB detail weekly and unique-opponent tables now render `Win Value` as `W`, `L`, or `T`
-    for exact 1.0, 0.0, and 0.5 values instead of raw decimals
+  - Team/QB detail weekly and unique-opponent tables now render `Win Value` as `W`, `L`, or `T` for
+    exact 1.0, 0.0, and 0.5 values instead of raw decimals
   - Team/QB detail weekly game IDs now link out to the matching NFL Savant game overview pages
-  - the `Unique Opponents` section now mirrors the same category-toggle row used by the weekly
-    table so both surfaces switch together without extra page scanning
+  - the `Unique Opponents` section now mirrors the same category-toggle row used by the weekly table
+    so both surfaces switch together without extra page scanning
   - `Unique Opponents` now keeps the selected surface's full stat set instead of a heavily curated
     mini-ledger, while still pinning the chosen opponent rating plus `Sched Tier` first
-  - Team detail `Sched Tier` now switches by active category: `Opp SaDR` for offense,
-    `Opp SaOR` for defense, and `Opp SaCR` for results, per-snap, opponent-ratings, and all-stats
-    views
-  - `Sched Tier` now uses opponent-rating z-score thresholds instead of rank thirds, with
-    `Tougher` at `z >= 0.5`, `Softer` at `z <= -0.5`, and `Middle` in between, plus custom sort
-    ordering so it no longer sorts alphabetically
+  - Team detail `Sched Tier` now switches by active category: `Opp SaDR` for offense, `Opp SaOR` for
+    defense, and `Opp SaCR` for results, per-snap, opponent-ratings, and all-stats views
+  - `Sched Tier` now uses opponent-rating z-score thresholds instead of rank thirds, with `Tougher`
+    at `z >= 0.5`, `Softer` at `z <= -0.5`, and `Middle` in between, plus custom sort ordering so it
+    no longer sorts alphabetically
   - numeric heatmaps now extend into the `Unique Opponents` tables so repeated-opponent summaries
     are as scannable as the main index tables
   - team and QB z-score rating outputs now standardize against the current raw season plus any
-    available historical `*_combined.csv` / `*_qb_combined.csv` reference outputs, rather than
-    normalizing only within the current season frame
+    available historical `*_combined.parquet` / `*_qb_combined.parquet` reference data files, rather
+    than normalizing only within the current season frame
 - Validation completed this session:
-  - focused pure-frontend helper coverage for the new tooltip, page-jump, game-link, win-value,
-    and unique-opponent behavior via `npm exec -- tsc -p tsconfig.detail-tests.json && node --test
-    src/detailAnalytics.test.mjs src/detailUi.test.mjs`
-  - focused pytest coverage for the historical-reference rating path in `ratings`, `qb_ratings`,
-    and `main`
+  - focused pure-frontend helper coverage for the new tooltip, page-jump, game-link, win-value, and
+    unique-opponent behavior via `npm exec -- tsc -p tsconfig.detail-tests.json && node --test
+src/detailAnalytics.test.mjs src/detailUi.test.mjs`
+  - focused pytest coverage for the historical-reference rating path in `ratings`, `qb_ratings`, and
+    `main`
   - focused pytest coverage for the backend loader and API
-  - live contract sanity check against real `output/2025_*` files
+  - live contract sanity check against real `data/2025_*` files
   - `npm run build` for the frontend shell
   - focused pytest coverage for the new team/QB game-log exports, loaders, and API endpoints
   - `ruff format .`, `ruff check .`, `ty check .`, `pyright .`, and `pytest`
-  - live browser verification that Teams/QBs compare add/remove/reset now update immediately
-    without refresh on the current frontend shell
+  - live browser verification that Teams/QBs compare add/remove/reset now update immediately without
+    refresh on the current frontend shell
   - live browser verification for route-aware page titles and the QB-detail-to-index redirect when
     the selected season no longer contains the requested QB
   - live browser verification that the fixed sidebar remains pinned at the top of the viewport even
     after scrolling to the bottom of a long page
   - live browser verification that the light-theme sidebar brand card now shows the expected
     gradient styling and that the 2017 QB filter note uses the corrected 224-attempt qualifier
-  - focused pytest regression coverage for the pre-2021 QB qualifier and regenerated 2016-2020
-    output CSVs
+  - focused pytest regression coverage for the pre-2021 QB qualifier and regenerated 2016-2020 data
+    Parquet files
   - `npm run build` after the shell/index cleanup and weekly-summary-strip changes
   - focused zero-dependency frontend helper coverage via `npm exec -- tsc -p
-    tsconfig.detail-tests.json && node --test src/detailAnalytics.test.mjs`
+tsconfig.detail-tests.json && node --test src/detailAnalytics.test.mjs`
   - `npm run build` after the recent-form and grouped-opponent-ledger changes
+  - focused zero-dependency frontend helper coverage for the new six-view selection model and the
+    weekly base-column behavior via `npm exec -- tsc -p tsconfig.detail-tests.json && node --test
+src/detailAnalytics.test.mjs src/detailUi.test.mjs`
+  - `npm run build` after the six-view control-model refactor and pinned detail-header changes
+  - live browser verification that the primary row is single-select, the subcategory row remains
+    multi-select, reset returns to `Ratings`, the extra rows hide without collapsing table position,
+    and Team/QB detail headers use the new pinned pane and full-name formatting
 
 Notes from live verification:
 
@@ -176,20 +210,21 @@ Phase status summary:
 
 Outstanding follow-ups explicitly queued for the next agent session:
 
-1. Keep strengthening the weekly-log detail pages now that the shell/index cleanup is complete,
+1. Keep strengthening the weekly-log detail pages now that the shell/index cleanup and the new
+  control-model refactor are complete,
   especially if another compact trend primitive still feels justified after the new recent-form
   card, but keep it table-first and dependency-light.
 2. Refine the new grouped opponent ledgers after live use, especially if one team or QB weekly
   surface wants a different primary performance metric or a tighter default column mix.
 3. Add opponent-strength or rating-delta context to the weekly views carefully, without implying
-   that a repeated season-long opponent rating is a true single-game rating.
+  that a repeated season-long opponent rating is a true single-game rating.
 4. Revisit the compare workflow only after the weekly/detail surfaces settle, with the next step
-   being a pinned side-by-side layout rather than more compact-strip patching.
+  being a pinned side-by-side layout rather than more compact-strip patching.
 
 ## Hard prerequisite
 
-Check `.agents/pbp-overhaul-plan.md` first and confirm there is still no active methodology blocker
-on the QB outcome fields before doing frontend work.
+Check `.agents/current-status.md` first and confirm there is still no active methodology blocker on
+the QB outcome fields before doing frontend work.
 
 The previously open late-game 4QC/GWD bug was fixed in the latest remediation pass, but the UI
 session should still treat the overhaul plan as the source of truth in case new findings appear.
@@ -229,14 +264,14 @@ Primary jobs to support:
 
 ## Recommended implementation approach
 
-Build a lightweight local web app that reads the generated CSV outputs rather than rebuilding the
-rating pipeline inside the UI.
+Build a lightweight local web app that reads the generated Parquet outputs rather than rebuilding
+the rating pipeline inside the UI.
 
 Recommended stack for the first pass:
 
 1. Backend/API layer: Python + FastAPI.
 2. Frontend: React + Vite.
-3. Data transport: preloaded JSON from the existing CSV outputs, served by the API.
+3. Data transport: preloaded JSON from the existing Parquet outputs, served by the API.
 4. Tables/charts: TanStack Table plus a charting library with good tooltip/brush support.
 
 Why this direction:
@@ -259,12 +294,13 @@ Status: complete.
 Delivered:
 
 1. Treat these outputs as the first UI contract:
-   - `output/{season}_team_per_game_stats.csv`
-   - `output/{season}_qb_per_game_stats.csv`
-   - `output/{season}_combined.csv`
-   - `output/{season}_qb_combined.csv`
-   - `output/{season}_ratings.csv`
-   - `output/{season}_qb_ratings.csv`
+   - `data/{season}_team_per_game_stats.parquet`
+   - `data/{season}_qb_per_game_stats.parquet`
+   - `data/{season}_combined.parquet`
+   - `data/{season}_qb_combined.parquet`
+   - `data/{season}_ratings.parquet`
+   - `data/{season}_qb_ratings.parquet`
+
 2. Create a small backend loader that exposes one normalized response per season.
 3. Document stable field groups:
    - team raw totals/per-game
@@ -305,7 +341,7 @@ Delivered interaction requirements:
 
 ### Phase 2. Comparison UX
 
-Goal: make the UI materially better than CSV inspection.
+Goal: make the UI materially better than raw data inspection.
 
 Status: partial.
 
@@ -360,8 +396,8 @@ Status: in progress.
 
 Delivered so far:
 
-1. Export team game logs as `output/{season}_team_game_logs.csv`.
-2. Export QB game logs as `output/{season}_qb_game_logs.csv`.
+1. Export team game logs as `data/{season}_team_game_logs.parquet`.
+2. Export QB game logs as `data/{season}_qb_game_logs.parquet`.
 3. Extend `nfl_sos_ratings.ui_data` and `nfl_sos_ratings.ui_api` with additive entity-specific
    game-log payloads/endpoints.
 4. Add weekly game-log tables to Team and QB detail pages, keeping the existing season snapshot
@@ -369,12 +405,12 @@ Delivered so far:
 5. Add category-filter buttons so weekly logs can pivot between compact views and the full stat
    surface.
 6. Join opponent season ratings onto the weekly logs for additional game-level context.
-7. Add grouped opponent-breakdown tables so repeated opponents are summarized instead of repeated
-   as near-duplicate weekly rows.
+7. Add grouped opponent-breakdown tables so repeated opponents are summarized instead of repeated as
+   near-duplicate weekly rows.
 8. Compact the detail-page ratings view and split Team opponent context into more readable offense
    and defense sections.
-9. Add a compact weekly summary strip that highlights peak performance, closing-form deltas, and
-   the toughest opponent draw from the season-rating context.
+9. Add a compact weekly summary strip that highlights peak performance, closing-form deltas, and the
+   toughest opponent draw from the season-rating context.
 
 Required backend additions:
 
@@ -400,14 +436,14 @@ Execution notes for the next detail-page slice:
    - a best-stretch / worst-stretch summary over a fixed recent window
 3. Keep those summaries grounded in real game-log columns that already exist in the additive
    contract. Do not invent pseudo-expected values just to make the summaries look richer.
-4. The grouped opponent-breakdown table should graduate from "sortable summary" into
-   "analytical opponent ledger" without becoming another wide uncurated dump.
+4. The grouped opponent-breakdown table should graduate from "sortable summary" into "analytical
+   opponent ledger" without becoming another wide uncurated dump.
 5. Default grouped-opponent columns should stay compact and high-signal.
 6. For teams, the default grouped view should keep identity first (`opponent_team`, `games`,
    `weeks`) and then prefer one overall difficulty column (`opp_SaCR` or `opp_SRS`), one
-   opponent-side context column (`opp_SaDR` for offense reading or `opp_SaOR` for defense
-   reading), and one or two subject-performance columns such as `point_margin` or a core
-   efficiency rate when those columns exist for the active surface.
+   opponent-side context column (`opp_SaDR` for offense reading or `opp_SaOR` for defense reading),
+   and one or two subject-performance columns such as `point_margin` or a core efficiency rate when
+   those columns exist for the active surface.
 7. For QBs, the default grouped view should keep identity first and then prefer `opp_SaDR`,
    `opp_SaCR`, `point_margin`, and one or two core QB performance columns such as
    `qb_epa_per_dropback`, `qb_any_a`, or `qb_passer_rating` when available.
@@ -417,14 +453,14 @@ Execution notes for the next detail-page slice:
    - subject average performance against that opponent on a core metric
    - subject season-baseline delta on the same metric
    - a simple opponent-difficulty bucket derived from season-long ratings
-10. Avoid derived columns that pretend the opponent season rating was a true single-game forecast
-    or a directly comparable game-level stat.
-11. Weekly opponent-strength overlays should be treated as season-context labels, not as
-    single-game ratings.
+10. Avoid derived columns that pretend the opponent season rating was a true single-game forecast or
+    a directly comparable game-level stat.
+11. Weekly opponent-strength overlays should be treated as season-context labels, not as single-game
+    ratings.
 12. Match the context column to the surface being read: team offense views should emphasize
     `opp_SaDR`; team defense views should emphasize `opp_SaOR`; team overall/result views should
-    emphasize `opp_SaCR` or `opp_SRS`; QB passing views should emphasize `opp_SaDR`, with
-    `opp_SaCR` only as broader team context.
+    emphasize `opp_SaCR` or `opp_SRS`; QB passing views should emphasize `opp_SaDR`, with `opp_SaCR`
+    only as broader team context.
 13. If a weekly delta surface is added, the safest default is subject-week versus subject-season
     baseline on the same metric.
 14. Do not subtract unlike units or imply that a season rating is the expected output of one game
@@ -485,8 +521,8 @@ Design principles:
 
 Remaining polish tasks already requested by the user:
 
-1. Carry the same clarity and utility standard from the cleaned-up shell into the grouped weekly
-   and opponent-breakdown surfaces.
+1. Carry the same clarity and utility standard from the cleaned-up shell into the grouped weekly and
+   opponent-breakdown surfaces.
 2. Only revisit the compare panel once the richer detail-page workflows have settled.
 
 Current recommended polish target inside Phase 5:
@@ -543,7 +579,7 @@ Reasoning:
 
 1. Do not let the UI session silently redefine metric semantics.
 2. Do not build charts around columns that are still under methodology review.
-3. Do not couple the frontend directly to ad hoc CSV parsing in the browser.
+3. Do not couple the frontend directly to ad hoc backend-specific file parsing in the browser.
 4. Do not overbuild authentication, persistence, or deployment before the local analyst workflow is
    strong.
 5. Do not treat aggregated opponent profiles as if they were game logs; weekly detail views need
@@ -556,7 +592,7 @@ Reasoning:
 
 ## What the next agent should do first
 
-1. Read `.agents/pbp-overhaul-plan.md` and confirm no new methodology blocker has appeared.
+1. Read `.agents/current-status.md` and confirm no new methodology blocker has appeared.
 2. Inspect the current detail-page weekly surfaces first and pick one compact trend primitive to
    land cleanly without adding a charting dependency.
 3. In the same session, upgrade the grouped opponent-breakdown tables so their default columns are
@@ -564,9 +600,9 @@ Reasoning:
 4. If there is room after that, add opponent-strength or rating-delta context to the weekly views,
    but only with labels and tooltips that make the season-context nature of those values obvious.
 5. Prefer subject-season baseline deltas over any cross-unit subtraction, and prefer
-   offense-versus-defense matched context (`opp_SaDR`, `opp_SaOR`) over generic overall context
-   when the view is reading a specific side of the ball.
-6. Choose the first charting library only when the next detail-page chart is ready to implement,
-   and ask before adding that new dependency.
+   offense-versus-defense matched context (`opp_SaDR`, `opp_SaOR`) over generic overall context when
+   the view is reading a specific side of the ball.
+6. Choose the first charting library only when the next detail-page chart is ready to implement, and
+   ask before adding that new dependency.
 7. Revisit the compare panel after the richer detail pages settle, with a pinned side-by-side
    workflow as the next comparison upgrade rather than more patching on the compact strip.
