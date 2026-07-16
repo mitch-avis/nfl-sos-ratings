@@ -1025,6 +1025,32 @@ def test_load_pbp_data_filters_regular_season_and_normalizes_teams(
     assert result.select("away_team").item() == "SEA"
 
 
+def test_load_playoff_pbp_data_filters_postseason_and_normalizes_teams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify the validation-only playoff PBP loader keeps postseason rows only."""
+    pbp = pl.DataFrame(
+        {
+            "season_type": ["REG", "POST"],
+            "week": [1, 20],
+            "posteam": ["LA", "DEN"],
+            "defteam": ["SEA", "KC"],
+            "home_team": ["LA", "DEN"],
+            "away_team": ["SEA", "KC"],
+            "epa": [0.15, -0.2],
+        }
+    )
+
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", lambda seasons: pbp)
+
+    result = data_loader.load_playoff_pbp_data(2025)
+
+    assert result.height == 1
+    assert result.select("week").item() == 20
+    assert result.select("posteam").item() == "DEN"
+    assert result.select("defteam").item() == "KC"
+
+
 def test_load_weekly_player_stats_filters_regular_season_and_normalizes_teams(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

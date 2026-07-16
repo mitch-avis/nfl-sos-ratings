@@ -63,7 +63,7 @@ def test_build_team_training_rows_matches_aliases_and_standardizes_features(
     assert rows.select("team").to_series().to_list() == ["LAC", "LV", "NE"]
     assert rows.filter(pl.col("team") == "LV").select("target").item() == pytest.approx(1.5)
 
-    feature_names = [component.name for component in composite_weights.TEAM_SACR_COMPONENTS]
+    feature_names = list(composite_weights.TEAM_SACR_FROZEN_SPEC.feature_columns)
     for feature_name in feature_names:
         values = rows.select(feature_name).to_series()
         assert values.mean() == pytest.approx(0.0, abs=1e-9)
@@ -185,7 +185,7 @@ def test_builders_return_typed_empty_frames_when_no_pairs_are_available(tmp_path
         "season",
         "next_season",
         "team",
-        *[component.name for component in composite_weights.TEAM_SACR_COMPONENTS],
+        *composite_weights.TEAM_SACR_FROZEN_SPEC.feature_columns,
         "target",
     ]
     assert qb_rows.is_empty()
@@ -217,6 +217,59 @@ def test_build_team_training_rows_rejects_missing_stage_two_columns(tmp_path: Pa
 
     with pytest.raises(ValueError, match="missing required Stage 2 columns"):
         composite_weights.build_team_training_rows(tmp_path, seasons=[2020, 2021])
+
+
+def test_build_team_training_rows_accepts_frozen_team_columns_without_retired_candidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live validation path should only require the published frozen team feature set."""
+    monkeypatch.setattr(
+        composite_weights,
+        "load_pbp_data",
+        lambda season: pl.DataFrame(
+            {
+                "game_id": ["g1", "g1"],
+                "week": [1, 1],
+                "posteam": ["A", "B"],
+                "defteam": ["B", "A"],
+                "special": [1, 1],
+                "epa": [0.2, -0.2],
+            }
+        ),
+    )
+    _write_parquet(
+        tmp_path / "2020_combined.parquet",
+        pl.DataFrame(
+            {
+                "team": ["A", "B"],
+                "adj_off_passing_epa_per_offensive_snap": [0.2, -0.2],
+                "adj_off_rushing_epa_per_offensive_snap": [0.1, -0.1],
+                "adj_def_passing_epa_per_offensive_snap": [0.15, -0.15],
+                "adj_def_rushing_epa_per_offensive_snap": [0.05, -0.05],
+                "SaOvR": [0.8, -0.8],
+            }
+        ),
+    )
+    _write_parquet(
+        tmp_path / "2021_combined.parquet",
+        pl.DataFrame(
+            {
+                "team": ["A", "B"],
+                "SaOvR": [0.6, -0.6],
+            }
+        ),
+    )
+
+    rows = composite_weights.build_team_training_rows(tmp_path, seasons=[2020, 2021])
+
+    assert rows.columns == [
+        "season",
+        "next_season",
+        "team",
+        *composite_weights.TEAM_SACR_FROZEN_SPEC.feature_columns,
+        "target",
+    ]
 
 
 def test_helper_branches_cover_missing_components_reference_edges_and_weight_columns() -> None:

@@ -17,6 +17,7 @@ from nfl_sos_ratings.validation.walk_forward import (
     build_validation_report_text,
     build_weighted_team_feature_rows,
     compute_pairwise_mae_bootstrap,
+    compute_playoff_metric_correlations,
     compute_qbr_correlations,
     compute_stability_metrics,
     evaluate_feature_rows,
@@ -647,3 +648,145 @@ def test_build_validation_report_text_can_render_stage3c_and_qb_status_sections(
     assert "Candidate rule line." in report
     assert "## QB Open Status" in report
     assert "Stage 3d next." in report
+
+
+def test_compute_playoff_metric_correlations_reports_weighted_per_season_and_pooled_rows() -> None:
+    """Playoff validation correlations should include per-season and pooled weighted rows."""
+    playoff_summary = pl.DataFrame(
+        {
+            "season": [2025, 2025, 2025],
+            "qb_id": ["A", "B", "C"],
+            "playoff_adjusted_epa_per_dropback": [0.2, 0.4, 0.6],
+            "playoff_dropbacks": [10.0, 20.0, 30.0],
+        }
+    )
+    regular_metrics = pl.DataFrame(
+        {
+            "season": [2025, 2025, 2025],
+            "qb_id": ["A", "B", "C"],
+            "QSaCR": [1.0, 2.0, 3.0],
+            "QSaOR": [3.0, 2.0, 1.0],
+            "vs_top_half_adjusted_epa_per_dropback": [0.1, 0.2, 0.3],
+        }
+    )
+
+    correlations = compute_playoff_metric_correlations(
+        playoff_summary,
+        regular_metrics,
+        metric_columns=["QSaCR", "QSaOR", "vs_top_half_adjusted_epa_per_dropback"],
+    )
+
+    assert correlations.height == 6
+    assert set(correlations.select("season_label").to_series().to_list()) == {"2025", "pooled"}
+    assert correlations.filter(
+        (pl.col("metric") == "QSaCR") & (pl.col("season_label") == "pooled")
+    ).select("spearman").item() == pytest.approx(1.0)
+    assert correlations.filter(
+        (pl.col("metric") == "QSaOR") & (pl.col("season_label") == "pooled")
+    ).select("spearman").item() == pytest.approx(-1.0)
+
+
+def test_build_validation_report_text_includes_stage3d_sections() -> None:
+    """The validation report should render the Stage 3d D1 and D3 sections when provided."""
+    metrics = pl.DataFrame(
+        {
+            "baseline": ["SaOvR"],
+            "season": [None],
+            "split": ["overall"],
+            "games": [10],
+            "mae": [7.0],
+            "rmse": [9.0],
+        }
+    )
+    stability = pl.DataFrame(
+        {
+            "entity": ["team"],
+            "metric": ["SaOvR"],
+            "paired_rows": [200],
+            "pearson": [0.42],
+            "spearman": [0.40],
+        }
+    )
+    qbr = pl.DataFrame(
+        {
+            "season": [2006],
+            "joined_rows": [24],
+            "pearson": [0.72],
+            "spearman": [0.69],
+        }
+    )
+    d1_primary = pl.DataFrame(
+        {
+            "scope": ["pooled"],
+            "season": [None],
+            "rows": [100],
+            "total_dropbacks": [4000.0],
+            "slope": [0.25],
+            "ci_lower": [0.10],
+            "ci_upper": [0.40],
+            "direction_positive_count": [19],
+            "direction_total_count": [27],
+            "direction_p_value": [0.026],
+            "residual_label": ["vs_top_half_residual"],
+        }
+    )
+    d1_placebo = pl.DataFrame(
+        {
+            "scope": ["pooled"],
+            "season": [None],
+            "rows": [100],
+            "total_dropbacks": [4000.0],
+            "slope": [0.24],
+            "ci_lower": [0.08],
+            "ci_upper": [0.39],
+            "direction_positive_count": [18],
+            "direction_total_count": [27],
+            "direction_p_value": [0.041],
+            "residual_label": ["vs_bottom_half_residual"],
+        }
+    )
+    d1_cases = pl.DataFrame(
+        {
+            "season": [2025, 2025],
+            "qb_name": ["Drake Maye", "Matthew Stafford"],
+            "faced_difficulty": [-0.02, 0.01],
+            "additive_prediction": [0.28, 0.25],
+            "vs_top_half_adjusted_epa_per_dropback": [0.26, 0.24],
+            "vs_top_half_residual": [-0.02, -0.01],
+            "vs_top_half_dropbacks": [186.0, 291.0],
+        }
+    )
+    d3_correlations = pl.DataFrame(
+        {
+            "season_label": ["pooled"],
+            "metric": ["QSaCR"],
+            "qb_seasons": [120],
+            "playoff_dropbacks": [4200.0],
+            "spearman": [0.31],
+            "pearson": [0.28],
+        }
+    )
+    d1_decision: dict[str, object] = {
+        "decision": "not_supported",
+        "primary_gate_supported": True,
+        "placebo_is_symmetric": True,
+    }
+
+    report = build_validation_report_text(
+        metrics=metrics,
+        stability=stability,
+        qbr_correlations=qbr,
+        seasons=[1999, 2000],
+        start_week=5,
+        command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+        qb_split_half_primary=d1_primary,
+        qb_split_half_placebo=d1_placebo,
+        qb_split_half_cases=d1_cases,
+        qb_split_half_decision=d1_decision,
+        qb_playoff_correlations=d3_correlations,
+    )
+
+    assert "## Stage 3d D1 Split-Half Diagnostics" in report
+    assert "## Stage 3d D3 Playoff Validation" in report
+    assert "Drake Maye" in report
+    assert "QSaCR" in report

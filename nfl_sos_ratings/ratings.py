@@ -74,6 +74,28 @@ def _resolve_reference_df(df: pl.DataFrame, reference_df: pl.DataFrame | None) -
     return reference_df
 
 
+def _reference_special_teams_values(reference_df: pl.DataFrame) -> np.ndarray | None:
+    """Return pooled raw special-teams values when the reference frame covers every row."""
+    if "st_rating" not in reference_df.columns:
+        return None
+
+    values = np.asarray(
+        reference_df.select(pl.col("st_rating").cast(pl.Float64))
+        .to_series()
+        .drop_nulls()
+        .to_list(),
+        dtype=np.float64,
+    )
+    if values.size == 0:
+        return None
+    if values.size != reference_df.height:
+        raise ValueError(
+            "reference_df must provide st_rating for every team row when special teams are "
+            "part of the published rating reference"
+        )
+    return values
+
+
 def _derive_weights(
     df: pl.DataFrame,
     stat_pool: list[tuple[str, bool]],
@@ -213,17 +235,7 @@ def compute_ratings(
     raw_st = _col(df, "st_rating")
     existing_sastr = _col(df, "SaSTR")
     existing_reference_sastr = _col(resolved_reference_df, "SaSTR")
-    if "st_rating" in resolved_reference_df.columns:
-        reference_raw_st_values = np.asarray(
-            resolved_reference_df.select(pl.col("st_rating").cast(pl.Float64))
-            .to_series()
-            .drop_nulls()
-            .to_list(),
-            dtype=np.float64,
-        )
-        reference_raw_st = reference_raw_st_values if reference_raw_st_values.size > 0 else None
-    else:
-        reference_raw_st = None
+    reference_raw_st = _reference_special_teams_values(resolved_reference_df)
 
     saor = _zscore_against(raw_off.tolist(), reference_raw_off.tolist())
     sadr = _zscore_against(raw_def.tolist(), reference_raw_def.tolist())

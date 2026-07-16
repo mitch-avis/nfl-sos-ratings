@@ -96,6 +96,8 @@ The live pipeline is PBP-first.
   surface, including yards, TDs, first-down splits, EPA splits, CPOE, sacks suffered, interceptions,
   and fumble-loss splits.
 - `load_schedules()` supplies official scores for team outcomes.
+- `load_playoff_pbp_data()` exists only for Stage 3d validation analyses. It loads POST play-by-play
+  for playoff out-of-sample checks and must never feed published regular-season ratings.
 
 ### Team Pipeline
 
@@ -415,14 +417,25 @@ The command writes [docs/validation-report.md](docs/validation-report.md).
 That report is the authoritative summary of the current methodology checks.
 
 Current recorded result: QSaCR still clears passer rating and ANY/A on the matched
-consecutive-season QB population. On the team side, Stage 3c promoted the play-level `T4Weighted`
-backbone: overall walk-forward MAE improved to `10.600` and RMSE to `13.626`, better than SRS
-(`10.658` / `13.746`) and not significantly worse than SRS overall (`95% CI [-0.118, 0.001]`,
-`P(T4 <= SRS)=0.9695`). The team stability guard also improved (`0.445 / 0.434` vs
-`0.417 / 0.414` for Stage 1 `SaOvR`). The QB Stage 3b revision sweep (fixed team-defense offsets
-and lighter defense penalties) still did not produce an adoptable backbone change; the next active
-methodology question is the pre-registered Stage 3d nonlinearity investigation.
-Consult the validation report before changing either published backbone or advancing to Stage 4.
+consecutive-season QB population. On the team side, Stage 3c still records the promoted
+play-level `T4Weighted` backbone in the methodology history. Block R in Stage 3d fixed the pooled
+special-teams reference regression that had stopped `*_combined.parquet` and `*_ratings.parquet`
+from regenerating, and the back-catalog has since been rebuilt cleanly for 1999-2025.
+
+The current QB Stage 3d read is:
+
+- D1 split-half diagnostic: `not_supported`. The top-half residual slope is positive (`0.488`,
+  95% CI `[0.154, 0.818]`, `19 / 27` positive seasons, one-sided `p = 0.026`), but the
+  bottom-half placebo shows a similarly positive signal (`0.473`, 95% CI `[0.118, 0.836]`), so
+  the evidence is not specific to strong defenses.
+- D2 interaction model: skipped by rule because D1 did not read `supported`.
+- D3 playoff check: pooled over `313` playoff QB-seasons and `21,245` playoff dropbacks, the
+  current ranking is `QRaw` first (`Spearman 0.343`), `QSaCR` second (`0.326`), then `ANY/A`
+  (`0.325`), `QSaOR` (`0.323`), passer rating (`0.296`), and the Stage 3d split metric
+  (`0.257`).
+
+Consult the validation report before changing either published backbone or advancing to Stage 4 or
+the D4 maintainer sign-off.
 
 ## Troubleshooting
 

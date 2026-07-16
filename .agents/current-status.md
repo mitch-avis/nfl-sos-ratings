@@ -17,12 +17,14 @@ current-status summary changes.
 
 - Status: code-health green, with the PBP-first pipeline, Parquet contract, metrics registry, and
   analyst UI shell implemented. Stage 3c promoted the play-level T4 team backbone into the
-  published team ratings path; the next active methodology question is the pre-registered QB
-  Stage 3d nonlinearity investigation.
+  published team ratings path. Block R is now fixed and the 1999-2025 back-catalog has been
+  regenerated. Stage 3d evidence is in: D1 read `not_supported`, D2 was skipped by rule, and D3
+  is recorded in the validation report. The remaining methodology item is the D4 maintainer
+  sign-off memo, not another open coding blocker in the QB path.
 - Active correctness blocker: none currently known in the published team/QB pipeline.
-- Active methodology blocker: the QB Stage 3d question remains open; the additive schedule
-  adjustment passed the Stage 3b linear audit, but the maintainer wants the nonlinear
-  "flat-track bully" hypothesis tested before calling the QB path settled.
+- Active methodology blocker: no unresolved implementation blocker remains in Stage 3d. The open
+  decision is maintainer-facing: whether the D1/D3 evidence closes the QB question with the
+  current composite vindicated, or whether a D4 target experiment should be authorized.
 - Ratings methodology overhaul: the Stage 3 through Stage 3c harness/report work are implemented
   in the current worktree. They record the original negative Elo-leading headline, the
   intermediate T1/T2 team improvements, and the final promoted T4 team backbone.
@@ -160,6 +162,41 @@ The current methodology work adds a seventh theme.
     - promoted the winning team backbone into the published team ratings path by adding `SaSTR`,
       redefining published `SaOvR` to include offense, defense, and special teams, and refreezing
       `SaCR` to the five-component Stage 3c weights
+12. Ratings methodology Stage 3d and Block R:
+    - fixed the Stage 3c pooled-reference regression in the team ratings path: historical
+      `st_rating` values are now backfilled from `*_simultaneous_team_adjustments.parquet` when
+      rebuilding pooled team references, so the published team ratings path no longer mixes
+      current-season-only special teams with pooled offense/defense references
+    - hardened the multi-season pipeline to fail loudly: season data-step failures now produce an
+      end-of-run summary, skip visualization for failed seasons, and exit non-zero instead of
+      silently continuing on stale artifacts
+    - regenerated the full 1999-2025 back-catalog and verified fresh `*_combined.parquet` and
+      `*_ratings.parquet` outputs for every season; published team outputs now carry populated
+      `SaSTR` in both the 31-team and 32-team eras
+    - added a validation-only `load_playoff_pbp_data()` path plus contract coverage proving
+      postseason data stays out of published regular-season rating inputs
+    - ran Stage 3d D1: pooled top-half residual slope `0.488` with 95% CI `[0.154, 0.818]` and
+      `19 / 27` positive seasons (`p = 0.026`), but the bottom-half placebo was similarly
+      positive (`0.473`, CI `[0.118, 0.836]`), so the decision-gate reading is `not_supported`
+    - skipped D2 by rule because D1 did not read `supported`
+    - ran Stage 3d D3: pooled playoff ranking is `QRaw` (`Spearman 0.343`) ahead of `QSaCR`
+      (`0.326`), `qb_any_a` (`0.325`), `QSaOR` (`0.323`), `qb_passer_rating` (`0.296`), and the
+      Stage 3d split-half metric (`0.257`) across `313` playoff QB-seasons and `21,245`
+      playoff dropbacks
+
+## Stage 3d D4 memo
+
+Maintainer-facing options after Stage 3d:
+
+1. Close the QB question with the current published composite intact. D1 did not show a
+   strong-defense-specific miss and D3 still has `QSaCR` as the second-best pooled playoff
+   predictor, ahead of `QSaOR`, passer rating, and the split-half companion metric.
+2. Treat `QRaw` as evidence that the unadjusted raw-performance surface is a strong contextual
+   comparator, not as a reason to replace the published flagship automatically. D3 says more about
+   the predictive target than about 2025 specifically.
+3. Authorize a D4 target experiment only if the maintainer wants to test whether playoff or
+   versus-quality optimization should outrank the current next-season-adjusted-performance target.
+   That would be a new sign-off decision, not a continuation of Stage 3d's automatic gates.
 
 ## Validation snapshot
 
@@ -248,8 +285,9 @@ Current state:
 - Stage 3b QB experiment result: no adoption. Q1 fixed team-defense offsets and Q2 lighter
   defense penalties did not produce a convincing enough eligible-QB schedule-adjustment gain to
   justify changing the published QB backbone or refreezing QSaCR.
-- Stage 3d is now the active next step: the QB question remains open on a pre-registered
-  nonlinearity hypothesis rather than on linear-adjustment calibration.
+- Stage 3d implementation is complete in the current worktree. D1 read `not_supported`, D2 was
+  skipped, and D3 favored `QRaw` first and `QSaCR` second on the pooled playoff check. The only
+  remaining QB methodology item is the D4 maintainer sign-off question captured above.
 - Stage 3 secondary findings are positive: QSaCR stability beats passer rating and ANY/A on the
   matched QB population, and QSaCR tracks ESPN QBR strongly across 2006-2025.
 - Team-side Stage 3 is closed. The promoted published team path is the play-level T4 backbone with
@@ -330,8 +368,8 @@ These are not active workstreams, but they are still useful context.
   or frontend plan.
 2. If the task touches published rating methodology, continue from
   `.agents/ratings-methodology-overhaul-plan.md`, read `docs/validation-report.md`, and start from
-  the recorded Stage 3c team result plus the Stage 3d QB preregistration unless a maintainer
-  directs otherwise.
+  the recorded Block R fix plus the completed Stage 3d findings unless a maintainer directs
+  otherwise.
 3. If the task touches planned metrics, continue from `.agents/metric-expansion-plan.md`.
 4. If the task touches the analyst UI, continue from `.agents/frontend-ui-kickoff-plan.md`.
 5. Keep `docs/stats-catalog.md` and `docs/qb-stats-catalog.md` synchronized with the registry when

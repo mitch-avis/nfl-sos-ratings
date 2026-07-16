@@ -8,11 +8,11 @@ import pytest
 from nfl_sos_ratings import pipeline
 
 
-def test_pipeline_runs_data_then_visualizations_and_continues_on_errors(
+def test_pipeline_raises_on_failures_and_skips_visualization_for_failed_seasons(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Verify the multi-season pipeline preserves phase order and logs failures."""
+    """Verify failed data seasons are summarized, skipped in Phase 2, and exit non-zero."""
     calls: list[tuple[str, int]] = []
 
     monkeypatch.setattr(pipeline, "START_YEAR", 2024)
@@ -31,20 +31,24 @@ def test_pipeline_runs_data_then_visualizations_and_continues_on_errors(
     monkeypatch.setattr(pipeline, "run_season", fake_run_season)
     monkeypatch.setattr(pipeline.visualize, "main", fake_visualize)
 
-    pipeline.main()
+    with pytest.raises(SystemExit) as excinfo:
+        pipeline.main()
 
     assert calls == [
         ("data", 2024),
         ("data", 2025),
-        ("viz", 2024),
         ("viz", 2025),
     ]
+    assert excinfo.value.code == 1
     data = capsys.readouterr().out
     assert "Phase 1 of 2: Data gathering" in data
     assert "ERROR: season 2024 data step failed — boom" in data
     assert "Phase 2 of 2: Visualizations" in data
+    assert "Skipping visualization for season 2024 due to failed data step." in data
     assert "ERROR: season 2025 visualization failed — plot boom" in data
-    assert "Pipeline complete — 2 seasons processed." in data
+    assert "Data step failures: 2024" in data
+    assert "Visualization failures: 2025" in data
+    assert "Pipeline finished with failures." in data
 
 
 def test_pipeline_main_handles_windows_stdout(

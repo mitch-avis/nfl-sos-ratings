@@ -400,12 +400,34 @@ Record decisions in `.agents/current-status.md` when made.
   `P(T4 <= SRS)=0.9695`), and cleared the team stability guard (`0.445392 / 0.434221` vs
   `0.416775 / 0.414250`). Stage 3 is closed on the team side and the published team path now uses
   the play-level backbone plus `SaSTR`.
-5. Open: Stage 3d — QB nonlinearity investigation ("flat-track bully" hypothesis).
+5. Resolved in the current worktree: Stage 3d implementation ran to a `not_supported` D1 gate,
+  skipped D2 by rule, and completed D3 without adopting a published QB-path change.
 6. Open: Stage 4 CPOE era-boundary handling (exclude pre-2006 components vs. 2006+ window).
-7. Open: garbage-time filter default (config flag exists either way; default off vs. moderate WP
+7. Open: Stage 3d D4 maintainer sign-off on whether the current QB composite stands as-is, a new
+  target experiment should be authorized, or a companion contextual surface is sufficient.
+8. Open: garbage-time filter default (config flag exists either way; default off vs. moderate WP
   band).
 
 ### Stage 3d — QB nonlinearity investigation ("flat-track bully" hypothesis)
+
+Status in the current worktree:
+
+- Block R is fixed. The Stage 3c regression came from rebuilding pooled team references with
+  pooled offense/defense values but current-season-only special-teams values. The historical
+  `st_rating` surface is now backfilled from `*_simultaneous_team_adjustments.parquet`, the
+  pipeline fails loudly on season data-step errors, and the full 1999-2025 back-catalog has been
+  regenerated.
+- D1 is complete and the decision-gate reading is `not_supported`. The pooled top-half residual
+  slope is `0.488` with bootstrap CI `[0.154, 0.818]` and `19 / 27` positive seasons
+  (`p = 0.026`), but the bottom-half placebo is similarly positive at `0.473` with CI
+  `[0.118, 0.836]`, so the evidence is not specific to strong defenses.
+- D2 is skipped by rule because D1 did not read `supported`.
+- D3 is complete with a validation-only playoff load path. Pooled over `313` playoff QB-seasons
+  and `21,245` playoff dropbacks, the ranking is `QRaw` first (`Spearman 0.343`), `QSaCR`
+  second (`0.326`), then `qb_any_a` (`0.325`), `QSaOR` (`0.323`), `qb_passer_rating` (`0.296`),
+  and the Stage 3d split-half companion metric (`0.257`).
+- The remaining open item is D4 maintainer sign-off. No published QB backbone change is adopted
+  in this worktree.
 
 Hypothesis: QB-vs-defense effects are not additive; QBs who accumulate large per-dropback edges
 against weak defenses may systematically underperform the additive model's prediction against

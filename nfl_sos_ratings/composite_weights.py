@@ -347,7 +347,8 @@ def _attach_special_teams_rating(current: pl.DataFrame, season: int) -> pl.DataF
 def build_team_training_rows(data_dir: Path, seasons: Iterable[int]) -> pl.DataFrame:
     """Build team season-pair rows with season-t standardized predictors and season-t+1 targets."""
     season_list = sorted(seasons)
-    feature_names = [component.name for component in TEAM_SACR_COMPONENTS]
+    feature_components = TEAM_SACR_FROZEN_SPEC.components
+    feature_names = [component.name for component in feature_components]
     rows: list[pl.DataFrame] = []
 
     for season, next_season in zip(season_list, season_list[1:], strict=False):
@@ -356,14 +357,14 @@ def build_team_training_rows(data_dir: Path, seasons: Iterable[int]) -> pl.DataF
         upcoming = _canonicalize_team_codes(
             _read_back_catalog_frame(data_dir, next_season, "combined")
         )
-        _validate_component_columns(current, TEAM_SACR_COMPONENTS, frame_name=f"{season}_combined")
+        _validate_component_columns(current, feature_components, frame_name=f"{season}_combined")
         if "SaOvR" not in upcoming.columns:
             raise ValueError(f"{next_season}_combined is missing required Stage 2 columns: SaOvR")
 
         features = current.select(
-            pl.col("team"), *[_component_expr(component) for component in TEAM_SACR_COMPONENTS]
+            pl.col("team"), *[_component_expr(component) for component in feature_components]
         )
-        features = _standardize_component_columns(features, TEAM_SACR_COMPONENTS)
+        features = _standardize_component_columns(features, feature_components)
         targets = upcoming.select(
             pl.col("team"),
             pl.col("SaOvR").cast(pl.Float64).fill_nan(None).fill_null(0.0).alias("target"),

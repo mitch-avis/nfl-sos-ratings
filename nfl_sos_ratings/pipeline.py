@@ -37,21 +37,42 @@ def main() -> None:
     print(f"{'─' * 70}")
     print("Phase 1 of 2: Data gathering")
     print(f"{'─' * 70}\n")
+    failed_data_seasons: list[int] = []
     for season in seasons:
         try:
             run_season(season)
         except Exception as exc:
+            failed_data_seasons.append(season)
             print(f"\nERROR: season {season} data step failed — {exc}\n")
 
     # Phase 2: visualizations for every season
     print(f"\n{'─' * 70}")
     print("Phase 2 of 2: Visualizations")
     print(f"{'─' * 70}\n")
+    failed_visualization_seasons: list[int] = []
     for season in seasons:
+        if season in failed_data_seasons:
+            print(f"Skipping visualization for season {season} due to failed data step.")
+            continue
         try:
             visualize.main(season)
         except Exception as exc:
+            failed_visualization_seasons.append(season)
             print(f"\nERROR: season {season} visualization failed — {exc}\n")
+
+    if failed_data_seasons or failed_visualization_seasons:
+        print(f"\n{'=' * 70}")
+        print("Pipeline finished with failures.")
+        if failed_data_seasons:
+            data_failures = ", ".join(str(season) for season in failed_data_seasons)
+            print(f"Data step failures: {data_failures}")
+        if failed_visualization_seasons:
+            visualization_failures = ", ".join(
+                str(season) for season in failed_visualization_seasons
+            )
+            print(f"Visualization failures: {visualization_failures}")
+        print(f"{'=' * 70}")
+        raise SystemExit(1)
 
     print(f"\n{'=' * 70}")
     print(f"Pipeline complete — {len(seasons)} seasons processed.")

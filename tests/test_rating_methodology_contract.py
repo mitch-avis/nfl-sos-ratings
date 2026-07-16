@@ -1,8 +1,9 @@
 """Methodology contract tests for published rating inputs."""
 
 import polars as pl
+import pytest
 
-from nfl_sos_ratings import qb_ratings, ratings
+from nfl_sos_ratings import data_loader, qb_ratings, ratings
 
 
 def test_team_quality_ratings_ignore_win_based_outcome_columns() -> None:
@@ -104,3 +105,30 @@ def test_qb_quality_ratings_ignore_win_and_clutch_outcome_columns() -> None:
     assert base_quality.select(["QRaw", "QSaOR", "QSaCR"]).to_dict(as_series=False) == (
         varied_quality.select(["QRaw", "QSaOR", "QSaCR"]).to_dict(as_series=False)
     )
+
+
+def test_published_rating_inputs_remain_regular_season_only_when_playoff_loader_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Published rating inputs stay REG-only while the playoff loader remains validation-only."""
+    pbp = pl.DataFrame(
+        {
+            "season_type": ["REG", "POST"],
+            "week": [1, 20],
+            "posteam": ["KC", "KC"],
+            "defteam": ["DEN", "BUF"],
+            "home_team": ["KC", "KC"],
+            "away_team": ["DEN", "BUF"],
+            "epa": [0.1, 0.9],
+        }
+    )
+
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", lambda seasons: pbp)
+
+    regular = data_loader.load_pbp_data(2025)
+    postseason = data_loader.load_playoff_pbp_data(2025)
+
+    assert regular.height == 1
+    assert regular.select("season_type").item() == "REG"
+    assert postseason.height == 1
+    assert postseason.select("season_type").item() == "POST"

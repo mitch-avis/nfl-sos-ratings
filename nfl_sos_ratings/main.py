@@ -149,14 +149,50 @@ def _build_historical_reference_frame(
     suffix: str,
     current_frame: pl.DataFrame,
 ) -> pl.DataFrame:
-    """Return the current frame plus any available historical outputs for the same surface."""
+    """Return the current frame plus historical outputs for the same surface.
+
+    Team combined surfaces do not persist the raw ``st_rating`` column in the written
+    ``*_combined.parquet`` artifacts. When rebuilding a pooled team reference frame, backfill that
+    historical special-teams surface from the matching
+    ``*_simultaneous_team_adjustments.parquet`` files so Stage 3c team standardization sees the
+    full pooled reference distribution it expects.
+    """
+
+    def load_reference_frame(file_path: Path) -> pl.DataFrame:
+        """Load one historical reference frame, backfilling team ST values when needed."""
+        frame = pl.read_parquet(file_path)
+        if suffix != "combined" or "team" not in frame.columns:
+            return frame
+
+        season_prefix = file_path.name.split("_", 1)[0]
+        adjustments_path = data_path / f"{season_prefix}_simultaneous_team_adjustments.parquet"
+        if not adjustments_path.exists():
+            return frame
+
+        adjustments = pl.read_parquet(adjustments_path)
+        if "team" not in adjustments.columns or "st_rating" not in adjustments.columns:
+            return frame
+
+        frame = frame.join(
+            adjustments.select(["team", "st_rating"]).rename({"st_rating": "_reference_st_rating"}),
+            on="team",
+            how="left",
+        )
+        if "st_rating" in frame.columns:
+            return frame.with_columns(
+                pl.coalesce([pl.col("st_rating"), pl.col("_reference_st_rating")]).alias(
+                    "st_rating"
+                )
+            ).drop("_reference_st_rating")
+        return frame.rename({"_reference_st_rating": "st_rating"})
+
     data_path = Path(data_dir)
     frames = [current_frame]
 
     for file_path in sorted(data_path.glob(f"[0-9][0-9][0-9][0-9]_{suffix}.parquet")):
         if file_path.name.startswith(f"{season}_"):
             continue
-        frames.append(pl.read_parquet(file_path))
+        frames.append(load_reference_frame(file_path))
 
     return pl.concat(frames, how="diagonal_relaxed") if len(frames) > 1 else current_frame
 
