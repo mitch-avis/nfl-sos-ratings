@@ -4,19 +4,37 @@ from __future__ import annotations
 
 import argparse
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from itertools import combinations
 from pathlib import Path
 
 import numpy as np
 import polars as pl
 
+from nfl_sos_ratings import composite_weights
 from nfl_sos_ratings.config import DATA_DIR, END_YEAR, START_YEAR
-from nfl_sos_ratings.data_loader import load_espn_qbr
+from nfl_sos_ratings.data_loader import load_espn_qbr, load_pbp_data
 from nfl_sos_ratings.simultaneous_adjustment import solve_srs
-from nfl_sos_ratings.validation.snapshots import build_team_rating_snapshot
+from nfl_sos_ratings.validation.diagnostics import (
+    compute_qb_case_study,
+    compute_qb_defense_spread_summary,
+    compute_qb_experiment_sweep,
+    compute_qb_season_audit_summary,
+    compute_season_mae_deltas,
+    compute_weekly_mae_curves,
+)
+from nfl_sos_ratings.validation.snapshots import (
+    build_special_teams_game_frame_from_pbp,
+    build_special_teams_rating_snapshot,
+    build_team_adjusted_snapshot,
+    build_team_rating_snapshot,
+    build_team_weighted_rating_snapshot,
+)
 
 _NORMALIZED_NAME_RE = re.compile(r"[^a-z0-9]+")
+_TEAM_T1_FEATURE_COLUMNS = list(composite_weights.TEAM_SACR_FROZEN_SPEC.feature_columns)
+_TEAM_T2_FEATURE_COLUMNS = [*_TEAM_T1_FEATURE_COLUMNS, "st_rating"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,6 +221,170 @@ def build_saovr_feature_rows(weekly_team_rows: pl.DataFrame, season: int) -> pl.
     )
 
 
+def build_weighted_team_feature_rows(
+    weekly_team_rows: pl.DataFrame,
+    season: int,
+    weight_map: dict[str, float],
+    baseline_name: str = "T1Weighted",
+) -> pl.DataFrame:
+    """Build walk-forward rows from a weighted pregame team component snapshot."""
+    weighted_column = "weighted_team_rating"
+    return build_snapshot_feature_rows(
+        weekly_team_rows,
+        season=season,
+        baseline_name=baseline_name,
+        snapshot_builder=lambda frame, cutoff_week: build_team_weighted_rating_snapshot(
+            frame,
+            cutoff_week=cutoff_week,
+            weight_map=weight_map,
+            output_col=weighted_column,
+        ),
+        rating_column=weighted_column,
+    )
+
+
+def _zscore_values(values: np.ndarray) -> np.ndarray:
+    """Return sample-standardized values for walk-forward component weighting."""
+    if values.size == 0:
+        return values
+    centered = values - float(values.mean())
+    if values.size == 1:
+        return centered
+    std = float(values.std(ddof=1))
+    return centered / std if std > 0.0 else centered
+
+
+def _build_weighted_rating_from_frame(
+    component_frame: pl.DataFrame,
+    *,
+    feature_columns: Sequence[str],
+    weight_map: dict[str, float],
+    output_col: str,
+) -> pl.DataFrame:
+    """Return one weighted, z-scored team rating from standardized component columns."""
+    weighted_values = np.zeros(component_frame.height, dtype=np.float64)
+    for column in feature_columns:
+        if column not in component_frame.columns:
+            continue
+        component_values = np.asarray(
+            component_frame.select(column).to_series().cast(pl.Float64).to_list(),
+            dtype=np.float64,
+        )
+        weighted_values += _zscore_values(component_values) * float(weight_map.get(column, 0.0))
+
+    return pl.DataFrame(
+        {
+            "team": component_frame.select("team").to_series().cast(pl.String).to_list(),
+            output_col: np.round(_zscore_values(weighted_values), 6).tolist(),
+        }
+    ).sort("team")
+
+
+def build_weighted_team_special_teams_feature_rows(
+    weekly_team_rows: pl.DataFrame,
+    st_game_rows: pl.DataFrame,
+    season: int,
+    weight_map: dict[str, float],
+    baseline_name: str = "T2Weighted",
+) -> pl.DataFrame:
+    """Build walk-forward rows from a weighted team-plus-special-teams snapshot."""
+    weighted_column = "weighted_team_rating"
+
+    def snapshot_builder(frame: pl.DataFrame, cutoff_week: int) -> pl.DataFrame:
+        adjusted_snapshot = build_team_adjusted_snapshot(frame, cutoff_week=cutoff_week)
+        st_snapshot = build_special_teams_rating_snapshot(st_game_rows, cutoff_week=cutoff_week)
+        merged = adjusted_snapshot.join(st_snapshot, on="team", how="left").with_columns(
+            pl.col("st_rating").fill_null(0.0)
+        )
+        return _build_weighted_rating_from_frame(
+            merged,
+            feature_columns=_TEAM_T2_FEATURE_COLUMNS,
+            weight_map=weight_map,
+            output_col=weighted_column,
+        )
+
+    return build_snapshot_feature_rows(
+        weekly_team_rows,
+        season=season,
+        baseline_name=baseline_name,
+        snapshot_builder=snapshot_builder,
+        rating_column=weighted_column,
+    )
+
+
+def _equal_team_weight_map() -> dict[str, float]:
+    """Return the default equal-weight team component map for T1 fallbacks."""
+    equal_weight = 1.0 / len(_TEAM_T1_FEATURE_COLUMNS)
+    return dict.fromkeys(_TEAM_T1_FEATURE_COLUMNS, equal_weight)
+
+
+def _equal_weight_map(feature_columns: Sequence[str]) -> dict[str, float]:
+    """Return equal weights over an arbitrary feature-column list."""
+    equal_weight = 1.0 / len(feature_columns)
+    return dict.fromkeys(feature_columns, equal_weight)
+
+
+def _normalize_team_weight_map(weight_map: dict[str, float]) -> dict[str, float]:
+    """Normalize a fitted team weight map by absolute weight while preserving signs."""
+    total_abs_weight = float(sum(abs(weight) for weight in weight_map.values()))
+    if total_abs_weight <= 0.0:
+        return _equal_team_weight_map()
+    return {
+        column: float(weight / total_abs_weight)
+        for column, weight in weight_map.items()
+        if column in _TEAM_T1_FEATURE_COLUMNS
+    }
+
+
+def _normalize_feature_weight_map(
+    weight_map: dict[str, float],
+    feature_columns: Sequence[str],
+) -> dict[str, float]:
+    """Normalize a fitted feature weight map by absolute weight while preserving signs."""
+    total_abs_weight = float(sum(abs(weight_map.get(column, 0.0)) for column in feature_columns))
+    if total_abs_weight <= 0.0:
+        return _equal_weight_map(feature_columns)
+    return {
+        column: float(weight_map.get(column, 0.0) / total_abs_weight) for column in feature_columns
+    }
+
+
+def _build_rolling_feature_weight_maps(
+    training_rows: pl.DataFrame,
+    seasons: Sequence[int],
+    feature_columns: Sequence[str],
+) -> dict[int, dict[str, float]]:
+    """Fit one rolling weight map per season for the requested feature set."""
+    weight_maps: dict[int, dict[str, float]] = {}
+    equal_weight_map = _equal_weight_map(feature_columns)
+
+    for season in sorted(seasons):
+        prior_rows = training_rows.filter(pl.col("next_season") < int(season))
+        if prior_rows.is_empty():
+            weight_maps[int(season)] = dict(equal_weight_map)
+            continue
+
+        fitted_weights = composite_weights.fit_linear_weights(
+            prior_rows,
+            feature_columns=list(feature_columns),
+            target_column="target",
+        )
+        weight_maps[int(season)] = _normalize_feature_weight_map(
+            fitted_weights,
+            feature_columns,
+        )
+
+    return weight_maps
+
+
+def build_rolling_team_weight_maps(
+    training_rows: pl.DataFrame,
+    seasons: Sequence[int],
+) -> dict[int, dict[str, float]]:
+    """Fit one T1 team component weight map per season using only prior season pairs."""
+    return _build_rolling_feature_weight_maps(training_rows, seasons, _TEAM_T1_FEATURE_COLUMNS)
+
+
 def _elo_margin_multiplier(rating_gap: float, home_margin: float) -> float:
     """Return a standard logarithmic margin-of-victory Elo multiplier."""
     return float(np.log(abs(home_margin) + 1.0) * (2.2 / ((abs(rating_gap) * 0.001) + 2.2)))
@@ -292,6 +474,117 @@ def run_walk_forward_backtest(
     all_features = pl.concat(feature_frames, how="vertical")
     predictions = evaluate_feature_rows(all_features, start_week=start_week)
     return predictions, score_prediction_rows(predictions)
+
+
+def run_weighted_team_backtest(
+    data_dir: Path,
+    seasons: list[int],
+    start_week: int = 5,
+    baseline_name: str = "T1Weighted",
+) -> tuple[pl.DataFrame, pl.DataFrame, dict[int, dict[str, float]]]:
+    """Run the T1 weighted-team walk-forward backtest with prior-season rolling weights."""
+    training_rows = composite_weights.build_team_training_rows(data_dir, seasons)
+    weight_maps = build_rolling_team_weight_maps(training_rows, seasons)
+
+    feature_frames: list[pl.DataFrame] = []
+    for season in sorted(seasons):
+        weekly_team_rows = pl.read_parquet(data_dir / f"{season}_team_game_logs.parquet")
+        feature_frames.append(
+            build_weighted_team_feature_rows(
+                weekly_team_rows,
+                season=season,
+                weight_map=weight_maps[int(season)],
+                baseline_name=baseline_name,
+            )
+        )
+
+    if not feature_frames:
+        empty_predictions = evaluate_feature_rows(pl.DataFrame(), start_week=start_week)
+        return empty_predictions, score_prediction_rows(empty_predictions), weight_maps
+
+    predictions = evaluate_feature_rows(
+        pl.concat(feature_frames, how="vertical"), start_week=start_week
+    )
+    return predictions, score_prediction_rows(predictions), weight_maps
+
+
+def build_team_training_rows_with_special_teams(
+    data_dir: Path,
+    seasons: Sequence[int],
+) -> pl.DataFrame:
+    """Build rolling team training rows augmented with a full-season special-teams rating."""
+    base_rows = composite_weights.build_team_training_rows(data_dir, seasons).select(
+        "season",
+        "next_season",
+        "team",
+        *_TEAM_T1_FEATURE_COLUMNS,
+        "target",
+    )
+    st_rows: list[pl.DataFrame] = []
+    for season in sorted(seasons):
+        pbp = load_pbp_data(int(season))
+        st_game_rows = build_special_teams_game_frame_from_pbp(pbp)
+        st_snapshot = build_special_teams_rating_snapshot(st_game_rows, cutoff_week=100)
+        if st_snapshot.is_empty():
+            continue
+        st_values = np.asarray(
+            st_snapshot.select("st_rating").to_series().cast(pl.Float64).to_list(),
+            dtype=np.float64,
+        )
+        st_rows.append(
+            st_snapshot.with_columns(
+                pl.lit(int(season)).cast(pl.Int64).alias("season"),
+                pl.Series("st_rating", _zscore_values(st_values)),
+            )
+        )
+
+    if not st_rows:
+        return base_rows.with_columns(pl.lit(0.0).alias("st_rating"))
+
+    st_frame = pl.concat(st_rows, how="diagonal_relaxed")
+    return base_rows.join(
+        st_frame.select("season", "team", "st_rating"),
+        on=["season", "team"],
+        how="left",
+    ).with_columns(pl.col("st_rating").fill_null(0.0))
+
+
+def run_weighted_team_special_teams_backtest(
+    data_dir: Path,
+    seasons: list[int],
+    start_week: int = 5,
+    baseline_name: str = "T2Weighted",
+) -> tuple[pl.DataFrame, pl.DataFrame, dict[int, dict[str, float]]]:
+    """Run the T2 weighted-team walk-forward backtest with a special-teams component."""
+    training_rows = build_team_training_rows_with_special_teams(data_dir, seasons)
+    weight_maps = _build_rolling_feature_weight_maps(
+        training_rows,
+        seasons,
+        _TEAM_T2_FEATURE_COLUMNS,
+    )
+
+    feature_frames: list[pl.DataFrame] = []
+    for season in sorted(seasons):
+        weekly_team_rows = pl.read_parquet(data_dir / f"{season}_team_game_logs.parquet")
+        st_game_rows = build_special_teams_game_frame_from_pbp(load_pbp_data(int(season)))
+        feature_frames.append(
+            build_weighted_team_special_teams_feature_rows(
+                weekly_team_rows,
+                st_game_rows=st_game_rows,
+                season=season,
+                weight_map=weight_maps[int(season)],
+                baseline_name=baseline_name,
+            )
+        )
+
+    if not feature_frames:
+        empty_predictions = evaluate_feature_rows(pl.DataFrame(), start_week=start_week)
+        return empty_predictions, score_prediction_rows(empty_predictions), weight_maps
+
+    predictions = evaluate_feature_rows(
+        pl.concat(feature_frames, how="vertical"), start_week=start_week
+    )
+    return predictions, score_prediction_rows(predictions), weight_maps
 
 
 def compute_stability_metrics(data_dir: Path, seasons: list[int]) -> pl.DataFrame:
@@ -475,11 +768,19 @@ def build_validation_report_text(
     seasons: list[int],
     start_week: int,
     command: str,
+    mae_deltas: pl.DataFrame | None = None,
+    stage3b_metrics: pl.DataFrame | None = None,
+    weekly_curves: pl.DataFrame | None = None,
+    saovr_vs_srs: pl.DataFrame | None = None,
+    t2_vs_srs: pl.DataFrame | None = None,
+    qb_season_audit: pl.DataFrame | None = None,
+    qb_defense_spread: pl.DataFrame | None = None,
+    qb_experiment_sweep: pl.DataFrame | None = None,
+    qb_case_study: pl.DataFrame | None = None,
 ) -> str:
-    """Render the Stage 3 validation report as Markdown."""
+    """Render the Stage 3 and Stage 3b validation report as Markdown."""
     overall_metrics = metrics.filter(pl.col("split") != "season").sort(["baseline", "split"])
     season_metrics = metrics.filter(pl.col("split") == "season").sort(["season", "baseline"])
-
     overall_map = {
         str(row["baseline"]): float(row["mae"])
         for row in metrics.filter(pl.col("split") == "overall").iter_rows(named=True)
@@ -489,6 +790,17 @@ def build_validation_report_text(
         for row in metrics.filter(pl.col("split") == "late").iter_rows(named=True)
     }
     stability_map = {str(row["metric"]): row for row in stability.iter_rows(named=True)}
+
+    history_lines = [
+        "## Stage 3 History",
+        "",
+        (
+            "The original Stage 3 headline compared prior-carrying Elo against "
+            "within-season-only backbones."
+        ),
+        "That result is preserved here as history rather than deleted or rewritten.",
+        "",
+    ]
     acceptance_lines = [
         "## Acceptance Check",
         "",
@@ -512,11 +824,6 @@ def build_validation_report_text(
                 f"{late_map['SaOvR']:.3f}; Elo {late_map['Elo']:.3f}; "
                 f"SRS {late_map['SRS']:.3f}; RawEPA {late_map['RawEPA']:.3f}."
             )
-    elif {"SaOvR", "Elo"} <= set(overall_map):
-        acceptance_lines.append(
-            "- Team headline: partial baseline set in this report sample. "
-            f"SaOvR overall MAE {overall_map['SaOvR']:.3f}; Elo {overall_map['Elo']:.3f}."
-        )
 
     if {"QSaCR", "qb_passer_rating", "qb_any_a"} <= set(stability_map):
         qsacr_row = stability_map["QSaCR"]
@@ -546,6 +853,100 @@ def build_validation_report_text(
         )
     acceptance_lines.append("")
 
+    stage3b_lines = [
+        "## Stage 3b Criterion",
+        "",
+        "Stage 3b re-registers the validation target into information-matched leagues.",
+        "",
+        (
+            "- League 1 is binding: within-season-only team backbones must beat SRS and "
+            "RawEPA on held-out\n  MAE, with paired-bootstrap support."
+        ),
+        (
+            "- League 2 is informative: prior-carrying forecast-only variants can be "
+            "compared against Elo,\n  but that is not the binding published-rating gate."
+        ),
+        "",
+    ]
+
+    if stage3b_metrics is not None and not stage3b_metrics.is_empty():
+        stage3b_map = {
+            str(row["baseline"]): float(row["mae"])
+            for row in stage3b_metrics.filter(pl.col("split") == "overall").iter_rows(named=True)
+        }
+        t2_vs_srs_row = None
+        t2_vs_raw_row = None
+        if mae_deltas is not None and not mae_deltas.is_empty():
+            t2_vs_srs_match = mae_deltas.filter(
+                (pl.col("baseline_a") == "T2Weighted")
+                & (pl.col("baseline_b") == "SRS")
+                & (pl.col("split") == "overall")
+            )
+            if not t2_vs_srs_match.is_empty():
+                t2_vs_srs_row = t2_vs_srs_match.row(0, named=True)
+            t2_vs_raw_match = mae_deltas.filter(
+                (pl.col("baseline_a") == "T2Weighted")
+                & (pl.col("baseline_b") == "RawEPA")
+                & (pl.col("split") == "overall")
+            )
+            if not t2_vs_raw_match.is_empty():
+                t2_vs_raw_row = t2_vs_raw_match.row(0, named=True)
+
+        if {"T1Weighted", "T2Weighted"} <= set(stage3b_map):
+            league1_pass = (
+                t2_vs_srs_row is not None
+                and bool(t2_vs_srs_row["distinguishable_from_zero"])
+                and t2_vs_raw_row is not None
+                and bool(t2_vs_raw_row["distinguishable_from_zero"])
+                and stage3b_map.get("T2Weighted", float("inf"))
+                < stage3b_map.get("SRS", float("inf"))
+                and stage3b_map.get("T2Weighted", float("inf"))
+                < stage3b_map.get("RawEPA", float("inf"))
+            )
+            stage3b_lines.append("## Stage 3b Acceptance Check")
+            stage3b_lines.append("")
+            stage3b_lines.append(
+                "- League 1 team headline: "
+                f"{'Pass' if league1_pass else 'Fail'}. "
+                f"T1Weighted overall MAE {stage3b_map['T1Weighted']:.3f}; "
+                f"T2Weighted overall MAE {stage3b_map['T2Weighted']:.3f}; "
+                f"SRS {stage3b_map.get('SRS', float('nan')):.3f};\n  "
+                f"RawEPA {stage3b_map.get('RawEPA', float('nan')):.3f}."
+            )
+            if t2_vs_srs_row is not None:
+                stage3b_lines.append(
+                    "- League 1 bootstrap vs SRS: "
+                    f"MAE delta {float(t2_vs_srs_row['mae_delta']):.3f} with 95% CI "
+                    f"[{float(t2_vs_srs_row['ci_lower']):.3f}, "
+                    f"{float(t2_vs_srs_row['ci_upper']):.3f}]."
+                )
+            if t2_vs_raw_row is not None:
+                stage3b_lines.append(
+                    "- League 1 bootstrap vs RawEPA: "
+                    f"MAE delta {float(t2_vs_raw_row['mae_delta']):.3f} with 95% CI "
+                    f"[{float(t2_vs_raw_row['ci_lower']):.3f}, "
+                    f"{float(t2_vs_raw_row['ci_upper']):.3f}]."
+                )
+
+    if qb_experiment_sweep is not None and not qb_experiment_sweep.is_empty():
+        current_row = qb_experiment_sweep.filter(pl.col("variant") == "current")
+        q1_row = qb_experiment_sweep.filter(pl.col("variant") == "q1_fixed_team_defense")
+        q2_row = qb_experiment_sweep.sort("slope", descending=True).head(1)
+        if not current_row.is_empty() and not q1_row.is_empty() and not q2_row.is_empty():
+            current_variant = current_row.row(0, named=True)
+            q1_variant = q1_row.row(0, named=True)
+            q2_variant = q2_row.row(0, named=True)
+            stage3b_lines.append(
+                "- QB revision sweep: not adopted. "
+                f"Current eligible-QB slope {float(current_variant['slope']):.3f}; "
+                f"Q1 fixed-defense slope {float(q1_variant['slope']):.3f};\n  "
+                f"best tested Q2 slope {float(q2_variant['slope']):.3f} ({q2_variant['variant']})."
+            )
+            stage3b_lines.append(
+                "- League 2 forecast-only prior experiment: not evaluated in this worktree."
+            )
+            stage3b_lines.append("")
+
     overview_lines = [
         "# Validation Report",
         "",
@@ -558,63 +959,138 @@ def build_validation_report_text(
         command,
         "```",
         "",
+        *history_lines,
+        *stage3b_lines,
         *acceptance_lines,
     ]
 
     if not overall_metrics.is_empty():
         overall_rows = [
-            [
-                row["baseline"],
-                row["split"],
-                row["games"],
-                row["mae"],
-                row["rmse"],
-            ]
+            [row["baseline"], row["split"], row["games"], row["mae"], row["rmse"]]
             for row in overall_metrics.iter_rows(named=True)
         ]
         overview_lines.extend(
             [
-                "## Walk-Forward Summary",
+                "## Original Walk-Forward Summary",
+                "",
+                _markdown_table(["Baseline", "Split", "Games", "MAE", "RMSE"], overall_rows),
+                "",
+            ]
+        )
+
+    if stage3b_metrics is not None and not stage3b_metrics.is_empty():
+        stage3b_rows = [
+            [row["baseline"], row["split"], row["games"], row["mae"], row["rmse"]]
+            for row in stage3b_metrics.filter(pl.col("split") != "season").iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## League 1 Team Experiments",
+                "",
+                _markdown_table(["Baseline", "Split", "Games", "MAE", "RMSE"], stage3b_rows),
+                "",
+            ]
+        )
+
+    if mae_deltas is not None and not mae_deltas.is_empty():
+        delta_rows = [
+            [
+                row["baseline_a"],
+                row["baseline_b"],
+                row["split"],
+                row["games"],
+                row["mae_delta"],
+                row["ci_lower"],
+                row["ci_upper"],
+                row["distinguishable_from_zero"],
+            ]
+            for row in mae_deltas.iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## Paired Bootstrap MAE Deltas",
                 "",
                 _markdown_table(
-                    ["Baseline", "Split", "Games", "MAE", "RMSE"],
-                    overall_rows,
+                    [
+                        "Baseline A",
+                        "Baseline B",
+                        "Split",
+                        "Games",
+                        "MAE Delta",
+                        "CI Lower",
+                        "CI Upper",
+                        "Distinguishable",
+                    ],
+                    delta_rows,
                 ),
+                "",
+            ]
+        )
+
+    if weekly_curves is not None and not weekly_curves.is_empty():
+        weekly_rows = [
+            [row["week"], row["baseline"], row["games"], row["mae"], row["rmse"]]
+            for row in weekly_curves.iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## Weekly MAE Curves",
+                "",
+                _markdown_table(["Week", "Baseline", "Games", "MAE", "RMSE"], weekly_rows),
                 "",
             ]
         )
 
     if not season_metrics.is_empty():
         season_rows = [
-            [
-                row["season"],
-                row["baseline"],
-                row["games"],
-                row["mae"],
-                row["rmse"],
-            ]
+            [row["season"], row["baseline"], row["games"], row["mae"], row["rmse"]]
             for row in season_metrics.iter_rows(named=True)
         ]
         overview_lines.extend(
             [
-                "## Per-Season Walk-Forward",
+                "## Original Per-Season Walk-Forward",
+                "",
+                _markdown_table(["Season", "Baseline", "Games", "MAE", "RMSE"], season_rows),
+                "",
+            ]
+        )
+
+    if saovr_vs_srs is not None and not saovr_vs_srs.is_empty():
+        delta_rows = [
+            [row["season"], row["mae_a"], row["mae_b"], row["mae_delta"], row["rmse_delta"]]
+            for row in saovr_vs_srs.iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## Per-Season SaOvR vs SRS",
                 "",
                 _markdown_table(
-                    ["Season", "Baseline", "Games", "MAE", "RMSE"],
-                    season_rows,
+                    ["Season", "SaOvR MAE", "SRS MAE", "MAE Delta", "RMSE Delta"],
+                    delta_rows,
+                ),
+                "",
+            ]
+        )
+
+    if t2_vs_srs is not None and not t2_vs_srs.is_empty():
+        delta_rows = [
+            [row["season"], row["mae_a"], row["mae_b"], row["mae_delta"], row["rmse_delta"]]
+            for row in t2_vs_srs.iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## Per-Season T2Weighted vs SRS",
+                "",
+                _markdown_table(
+                    ["Season", "T2Weighted MAE", "SRS MAE", "MAE Delta", "RMSE Delta"],
+                    delta_rows,
                 ),
                 "",
             ]
         )
 
     stability_rows = [
-        [
-            row["metric"],
-            row["entity"],
-            row["paired_rows"],
-            row["pearson"],
-            row["spearman"],
-        ]
+        [row["metric"], row["entity"], row["paired_rows"], row["pearson"], row["spearman"]]
         for row in stability.iter_rows(named=True)
     ]
     overview_lines.extend(
@@ -622,8 +1098,7 @@ def build_validation_report_text(
             "## Stability",
             "",
             _markdown_table(
-                ["Metric", "Entity", "Paired Rows", "Pearson", "Spearman"],
-                stability_rows,
+                ["Metric", "Entity", "Paired Rows", "Pearson", "Spearman"], stability_rows
             ),
             "",
         ]
@@ -637,18 +1112,127 @@ def build_validation_report_text(
         [
             "## QBR Correlations",
             "",
-            _markdown_table(
-                ["Season", "Joined Rows", "Pearson", "Spearman"],
-                qbr_rows,
-            ),
+            _markdown_table(["Season", "Joined Rows", "Pearson", "Spearman"], qbr_rows),
             "",
+        ]
+    )
+
+    if qb_season_audit is not None and not qb_season_audit.is_empty():
+        audit_rows = [
+            [
+                row["season"],
+                row["rows"],
+                row["slope"],
+                row["correlation"],
+                row["mean_abs_identity_residual"],
+            ]
+            for row in qb_season_audit.iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## QB Adjustment Audit",
+                "",
+                _markdown_table(
+                    ["Season", "Eligible QBs", "Slope", "Correlation", "Mean Abs Residual"],
+                    audit_rows,
+                ),
+                "",
+            ]
+        )
+
+    if qb_defense_spread is not None and not qb_defense_spread.is_empty():
+        spread_rows = [
+            [
+                row["season"],
+                row["team_defense_sd"],
+                row["qb_defense_sd"],
+                row["qb_to_team_spread_ratio"],
+            ]
+            for row in qb_defense_spread.iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## QB Defense Spread Audit",
+                "",
+                _markdown_table(
+                    ["Season", "Team Defense SD", "QB Defense SD", "QB/Team Ratio"],
+                    spread_rows,
+                ),
+                "",
+            ]
+        )
+
+    if qb_experiment_sweep is not None and not qb_experiment_sweep.is_empty():
+        experiment_rows = [
+            [
+                row["variant"],
+                row["eligible_rows"],
+                row["slope"],
+                row["correlation"],
+                row.get("defense_penalty_multiplier"),
+            ]
+            for row in qb_experiment_sweep.iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## QB Revision Sweep",
+                "",
+                _markdown_table(
+                    [
+                        "Variant",
+                        "Eligible QBs",
+                        "Slope",
+                        "Correlation",
+                        "Defense Penalty Multiplier",
+                    ],
+                    experiment_rows,
+                ),
+                "",
+            ]
+        )
+
+    if qb_case_study is not None and not qb_case_study.is_empty():
+        case_rows = [
+            [
+                row["variant"],
+                row["qb_name"],
+                row["raw_weighted"],
+                row["adjusted_value"],
+                row["faced_difficulty"],
+                row["adjustment_delta"],
+            ]
+            for row in qb_case_study.iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## Maye/Stafford Case Study",
+                "",
+                _markdown_table(
+                    [
+                        "Variant",
+                        "QB",
+                        "Raw EPA/DB",
+                        "Adjusted EPA/DB",
+                        "Faced Difficulty",
+                        "Adjustment Delta",
+                    ],
+                    case_rows,
+                ),
+                "",
+            ]
+        )
+
+    overview_lines.extend(
+        [
             "## SaCR Caveat",
             "",
             "SaCR may be evaluated as a secondary line with a caveat:",
             "its frozen Stage 2 weights were fit on the full 1999-2025 history.",
             "A walk-forward SaCR line over that same window has look-ahead in the weights.",
-            "SaOvR is the headline walk-forward metric because it does not depend on a "
-            "fitted Stage 2 weight snapshot.",
+            (
+                "SaOvR is the headline walk-forward metric because it does not depend on "
+                "a fitted Stage 2 weight snapshot."
+            ),
             "",
         ]
     )
@@ -660,18 +1244,36 @@ def write_validation_report(
     metrics: pl.DataFrame,
     stability: pl.DataFrame,
     qbr_correlations: pl.DataFrame,
+    mae_deltas: pl.DataFrame | None,
     seasons: list[int],
     start_week: int,
     command: str,
+    stage3b_metrics: pl.DataFrame | None = None,
+    weekly_curves: pl.DataFrame | None = None,
+    saovr_vs_srs: pl.DataFrame | None = None,
+    t2_vs_srs: pl.DataFrame | None = None,
+    qb_season_audit: pl.DataFrame | None = None,
+    qb_defense_spread: pl.DataFrame | None = None,
+    qb_experiment_sweep: pl.DataFrame | None = None,
+    qb_case_study: pl.DataFrame | None = None,
 ) -> None:
     """Write the Stage 3 validation report to disk."""
     report_text = build_validation_report_text(
         metrics=metrics,
         stability=stability,
         qbr_correlations=qbr_correlations,
+        mae_deltas=mae_deltas,
         seasons=seasons,
         start_week=start_week,
         command=command,
+        stage3b_metrics=stage3b_metrics,
+        weekly_curves=weekly_curves,
+        saovr_vs_srs=saovr_vs_srs,
+        t2_vs_srs=t2_vs_srs,
+        qb_season_audit=qb_season_audit,
+        qb_defense_spread=qb_defense_spread,
+        qb_experiment_sweep=qb_experiment_sweep,
+        qb_case_study=qb_case_study,
     )
     report_path.write_text(report_text, encoding="utf-8")
 
@@ -723,11 +1325,40 @@ def main(argv: list[str] | None = None) -> None:
         f"--report-path {args.report_path}"
     )
 
-    _predictions, metrics = run_walk_forward_backtest(
+    base_predictions, metrics = run_walk_forward_backtest(
         data_dir,
         seasons=seasons,
         start_week=args.start_week,
     )
+    t1_predictions, t1_metrics, _t1_weights = run_weighted_team_backtest(
+        data_dir,
+        seasons=seasons,
+        start_week=args.start_week,
+    )
+    t2_predictions, t2_metrics, _t2_weights = run_weighted_team_special_teams_backtest(
+        data_dir,
+        seasons=seasons,
+        start_week=args.start_week,
+    )
+    combined_predictions = pl.concat(
+        [base_predictions, t1_predictions, t2_predictions], how="vertical"
+    )
+    combined_metrics = pl.concat([metrics, t1_metrics, t2_metrics], how="vertical")
+    mae_deltas = compute_pairwise_mae_bootstrap(
+        combined_predictions,
+        baselines=["T2Weighted", "T1Weighted", "SRS", "RawEPA", "SaOvR"],
+    )
+    weekly_curves = compute_weekly_mae_curves(combined_predictions).filter(
+        pl.col("baseline").is_in(["Elo", "SRS", "SaOvR", "T2Weighted"])
+    )
+    saovr_vs_srs = compute_season_mae_deltas(combined_metrics, baseline_a="SaOvR", baseline_b="SRS")
+    t2_vs_srs = compute_season_mae_deltas(
+        combined_metrics, baseline_a="T2Weighted", baseline_b="SRS"
+    )
+    qb_season_audit = compute_qb_season_audit_summary(data_dir, seasons)
+    qb_defense_spread = compute_qb_defense_spread_summary(data_dir, seasons)
+    qb_experiment_sweep = compute_qb_experiment_sweep(data_dir, seasons[-1])
+    qb_case_study = compute_qb_case_study(data_dir, seasons[-1])
     stability = compute_stability_metrics(data_dir, seasons=seasons)
     qbr_correlations = compute_qbr_correlations(data_dir, seasons=seasons)
     write_validation_report(
@@ -735,9 +1366,18 @@ def main(argv: list[str] | None = None) -> None:
         metrics=metrics,
         stability=stability,
         qbr_correlations=qbr_correlations,
+        mae_deltas=mae_deltas,
         seasons=seasons,
         start_week=args.start_week,
         command=command,
+        stage3b_metrics=combined_metrics,
+        weekly_curves=weekly_curves,
+        saovr_vs_srs=saovr_vs_srs,
+        t2_vs_srs=t2_vs_srs,
+        qb_season_audit=qb_season_audit,
+        qb_defense_spread=qb_defense_spread,
+        qb_experiment_sweep=qb_experiment_sweep,
+        qb_case_study=qb_case_study,
     )
 
     print(f"Wrote validation report to {report_path}")
@@ -919,18 +1559,138 @@ def score_prediction_rows(predictions: pl.DataFrame) -> pl.DataFrame:
     return pl.DataFrame(metric_rows).sort(["baseline", "split", "season"])
 
 
+def _split_prediction_rows(predictions: pl.DataFrame, split: str) -> pl.DataFrame:
+    """Return the prediction rows for one named evaluation split."""
+    if split == "overall":
+        return predictions
+    if split == "early":
+        return predictions.filter(pl.col("week") < 8)
+    if split == "late":
+        return predictions.filter(pl.col("week") >= 8)
+    detail = f"unsupported split: {split}"
+    raise ValueError(detail)
+
+
+def compute_pairwise_mae_bootstrap(
+    predictions: pl.DataFrame,
+    *,
+    baselines: Sequence[str] | None = None,
+    splits: Sequence[str] = ("overall", "early", "late"),
+    resamples: int = 2000,
+    seed: int = 0,
+) -> pl.DataFrame:
+    """Compute paired-bootstrap MAE deltas for every requested baseline pair.
+
+    The delta is ``MAE(baseline_a) - MAE(baseline_b)``, so negative values favor
+    ``baseline_a``.
+    """
+    if predictions.is_empty():
+        return pl.DataFrame(
+            schema={
+                "baseline_a": pl.String,
+                "baseline_b": pl.String,
+                "split": pl.String,
+                "games": pl.Int64,
+                "mae_delta": pl.Float64,
+                "ci_lower": pl.Float64,
+                "ci_upper": pl.Float64,
+                "distinguishable_from_zero": pl.Boolean,
+            }
+        )
+
+    scored_predictions = predictions
+    if "error" not in scored_predictions.columns:
+        scored_predictions = scored_predictions.with_columns(
+            (pl.col("predicted_margin") - pl.col("home_margin")).alias("error")
+        )
+
+    selected_baselines = list(
+        baselines
+        if baselines is not None
+        else scored_predictions.select("baseline")
+        .to_series()
+        .cast(pl.String)
+        .unique()
+        .sort()
+        .to_list()
+    )
+    rng = np.random.default_rng(seed)
+    row_id_columns = ["season", "week", "game_id", "home_team", "away_team"]
+    bootstrap_rows: list[dict[str, object]] = []
+
+    for split in splits:
+        split_predictions = _split_prediction_rows(scored_predictions, str(split))
+        if split_predictions.is_empty():
+            continue
+
+        error_frame = (
+            split_predictions.with_columns(pl.col("error").abs().alias("abs_error"))
+            .select([*row_id_columns, "baseline", "abs_error"])
+            .pivot(
+                on="baseline", index=row_id_columns, values="abs_error", aggregate_function="first"
+            )
+            .sort(row_id_columns)
+        )
+
+        for baseline_a, baseline_b in combinations(selected_baselines, 2):
+            if baseline_a not in error_frame.columns or baseline_b not in error_frame.columns:
+                continue
+
+            paired_errors = error_frame.select([baseline_a, baseline_b]).drop_nulls()
+            if paired_errors.is_empty():
+                continue
+
+            diffs = np.asarray(
+                paired_errors.select(pl.col(baseline_a) - pl.col(baseline_b))
+                .to_series()
+                .cast(pl.Float64)
+                .to_list(),
+                dtype=np.float64,
+            )
+            observed_delta = float(diffs.mean())
+            sampled_means = np.empty(resamples, dtype=np.float64)
+            sample_size = diffs.size
+
+            for sample_index in range(resamples):
+                sampled_indices = rng.integers(0, sample_size, size=sample_size)
+                sampled_means[sample_index] = float(diffs[sampled_indices].mean())
+
+            ci_lower, ci_upper = np.quantile(sampled_means, [0.025, 0.975])
+            bootstrap_rows.append(
+                {
+                    "baseline_a": baseline_a,
+                    "baseline_b": baseline_b,
+                    "split": str(split),
+                    "games": int(sample_size),
+                    "mae_delta": observed_delta,
+                    "ci_lower": float(ci_lower),
+                    "ci_upper": float(ci_upper),
+                    "distinguishable_from_zero": bool(ci_upper < 0.0 or ci_lower > 0.0),
+                }
+            )
+
+    return pl.DataFrame(bootstrap_rows).sort(["split", "baseline_a", "baseline_b"])
+
+
 __all__ = [
     "EloConfig",
     "build_elo_feature_rows",
+    "build_rolling_team_weight_maps",
+    "build_team_training_rows_with_special_teams",
     "build_raw_epa_feature_rows",
     "build_saovr_feature_rows",
     "build_validation_report_text",
+    "build_weighted_team_feature_rows",
+    "build_weighted_team_special_teams_feature_rows",
     "build_srs_feature_rows",
     "build_snapshot_feature_rows",
     "compute_qbr_correlations",
+    "compute_pairwise_mae_bootstrap",
     "compute_stability_metrics",
     "evaluate_feature_rows",
     "main",
+    "run_weighted_team_special_teams_backtest",
+    "run_weighted_team_backtest",
     "run_walk_forward_backtest",
     "score_prediction_rows",
     "write_validation_report",

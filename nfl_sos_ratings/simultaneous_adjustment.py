@@ -28,6 +28,23 @@ def _solve_linear_system(
     return np.linalg.solve(xtx + ridge, design.T @ response)
 
 
+def _solve_linear_system_with_penalties(
+    design: np.ndarray,
+    response: np.ndarray,
+    penalties: np.ndarray,
+) -> np.ndarray:
+    """Solve a ridge system with a per-coefficient non-negative penalty vector."""
+    if penalties.ndim != 1 or penalties.shape[0] != design.shape[1]:
+        raise ValueError("penalties must be a 1D vector matching the design column count")
+    if np.allclose(penalties, 0.0):
+        solution, *_ = np.linalg.lstsq(design, response, rcond=None)
+        return solution
+
+    xtx = design.T @ design
+    ridge = np.diag(np.clip(penalties.astype(np.float64), 0.0, None))
+    return np.linalg.solve(xtx + ridge, design.T @ response)
+
+
 def _apply_sample_weights(
     design: np.ndarray,
     response: np.ndarray,
@@ -221,6 +238,7 @@ def solve_qb_stat_ridge(
     defense_col: str = "opponent_team",
     dropback_col: str = "qb_dropbacks",
     ridge_lambda: float | None = None,
+    defense_ridge_lambda: float | None = None,
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Jointly estimate quarterback offense and defense-allowed ratings."""
     qb_games = qb_games.drop_nulls([qb_col, defense_col, response_col])
@@ -262,7 +280,20 @@ def solve_qb_stat_ridge(
         else tune_ridge_lambda(design, response, sample_weights=sample_weights)
     )
     weighted_design, weighted_response = _apply_sample_weights(design, response, sample_weights)
-    coefficients = _solve_linear_system(weighted_design, weighted_response, solved_lambda)
+    if defense_ridge_lambda is None:
+        coefficients = _solve_linear_system(weighted_design, weighted_response, solved_lambda)
+    else:
+        penalties = np.concatenate(
+            [
+                np.full(qb_count, solved_lambda, dtype=np.float64),
+                np.full(defense_count, defense_ridge_lambda, dtype=np.float64),
+            ]
+        )
+        coefficients = _solve_linear_system_with_penalties(
+            weighted_design,
+            weighted_response,
+            penalties,
+        )
     offense = coefficients[:qb_count] - coefficients[:qb_count].mean()
     defense = coefficients[qb_count:] - coefficients[qb_count:].mean()
     return (
@@ -273,6 +304,71 @@ def solve_qb_stat_ridge(
             "team"
         ),
     )
+
+
+def solve_qb_stat_with_fixed_defense_offsets(
+    qb_games: pl.DataFrame,
+    response_col: str,
+    fixed_defense_ratings: pl.DataFrame,
+    qb_col: str = "qb_id",
+    defense_col: str = "opponent_team",
+    dropback_col: str = "qb_dropbacks",
+    ridge_lambda: float | None = None,
+) -> pl.DataFrame:
+    """Estimate QB offense ratings with opponent defense effects held fixed.
+
+    The supplied defense ratings are treated as known offsets in the same response units as
+    ``response_col``. Only QB offense coefficients are penalized and fit.
+    """
+    qb_games = qb_games.drop_nulls([qb_col, defense_col, response_col])
+    if qb_games.is_empty() or fixed_defense_ratings.is_empty():
+        return pl.DataFrame(schema={qb_col: pl.String, "offense_rating": pl.Float64})
+
+    joined = qb_games.join(
+        fixed_defense_ratings.rename({"team": defense_col}),
+        on=defense_col,
+        how="inner",
+    ).drop_nulls(["defense_rating"])
+    if joined.is_empty():
+        return pl.DataFrame(schema={qb_col: pl.String, "offense_rating": pl.Float64})
+
+    quarterbacks = _sorted_entities(joined, qb_col)
+    qb_index = {qb: index for index, qb in enumerate(quarterbacks)}
+    design = np.zeros((joined.height, len(quarterbacks)), dtype=np.float64)
+
+    for row_index, (quarterback,) in enumerate(joined.select([qb_col]).iter_rows()):
+        design[row_index, qb_index[str(quarterback)]] = 1.0
+
+    response = np.array(
+        joined.select(pl.col(response_col).cast(pl.Float64)).to_series().to_list(),
+        dtype=np.float64,
+    )
+    defense_offsets = np.array(
+        joined.select(pl.col("defense_rating").cast(pl.Float64)).to_series().to_list(),
+        dtype=np.float64,
+    )
+    target = response + defense_offsets
+
+    sample_weights = None
+    if dropback_col in joined.columns:
+        sample_weights = np.array(
+            joined.select(pl.col(dropback_col).cast(pl.Float64).fill_null(0.0))
+            .to_series()
+            .to_list(),
+            dtype=np.float64,
+        )
+
+    solved_lambda = (
+        ridge_lambda
+        if ridge_lambda is not None
+        else tune_ridge_lambda(design, target, sample_weights=sample_weights)
+    )
+    weighted_design, weighted_target = _apply_sample_weights(design, target, sample_weights)
+    coefficients = _solve_linear_system(weighted_design, weighted_target, solved_lambda)
+    offense = coefficients - coefficients.mean()
+    return pl.DataFrame(
+        {qb_col: quarterbacks, "offense_rating": np.round(offense, 6).tolist()}
+    ).sort(qb_col)
 
 
 def compute_team_adjusted_stats(
@@ -313,6 +409,7 @@ def compute_qb_adjusted_stats(
     qb_col: str = "qb_id",
     defense_col: str = "opponent_team",
     ridge_lambda: float | None = None,
+    defense_ridge_lambda: float | None = None,
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Compute prefixed QB and defense adjustments for multiple QB stats."""
     qb_games = qb_games.drop_nulls([qb_col, defense_col])
@@ -330,6 +427,7 @@ def compute_qb_adjusted_stats(
             qb_col=qb_col,
             defense_col=defense_col,
             ridge_lambda=ridge_lambda,
+            defense_ridge_lambda=defense_ridge_lambda,
         )
         qb_result = qb_result.join(
             qb_ratings.rename({"offense_rating": f"adj_{response_col}"}),

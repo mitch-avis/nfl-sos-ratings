@@ -80,7 +80,7 @@ def _build_qb_faced_defense_adjustments(
     qb_games: pl.DataFrame,
     defense_adjustments: pl.DataFrame,
 ) -> pl.DataFrame:
-    """Average the ridge defense coefficients across the opponents each QB actually faced."""
+    """Average faced-defense coefficients, weighted by the QB's dropback volume when available."""
     defense_column = "adj_def_qb_epa_per_dropback"
     if (
         qb_games.is_empty()
@@ -104,9 +104,29 @@ def _build_qb_faced_defense_adjustments(
     if not group_keys:
         return pl.DataFrame(schema={"team": pl.String, _QB_FACED_DEFENSE_COLUMN: pl.Float64})
 
-    schedule_strength = faced_defenses.group_by(group_keys).agg(
-        pl.col(_QB_FACED_DEFENSE_COLUMN).mean().alias(_QB_FACED_DEFENSE_COLUMN)
-    )
+    if "qb_dropbacks" in faced_defenses.columns:
+        schedule_strength = (
+            faced_defenses.with_columns(pl.col("qb_dropbacks").cast(pl.Float64).fill_null(0.0))
+            .group_by(group_keys)
+            .agg(
+                (pl.col(_QB_FACED_DEFENSE_COLUMN) * pl.col("qb_dropbacks"))
+                .sum()
+                .alias("_weighted_defense"),
+                pl.col("qb_dropbacks").sum().alias("_dropback_total"),
+                pl.col(_QB_FACED_DEFENSE_COLUMN).mean().alias("_fallback_mean"),
+            )
+            .with_columns(
+                pl.when(pl.col("_dropback_total") > 0.0)
+                .then(pl.col("_weighted_defense") / pl.col("_dropback_total"))
+                .otherwise(pl.col("_fallback_mean"))
+                .alias(_QB_FACED_DEFENSE_COLUMN)
+            )
+            .select([*group_keys, _QB_FACED_DEFENSE_COLUMN])
+        )
+    else:
+        schedule_strength = faced_defenses.group_by(group_keys).agg(
+            pl.col(_QB_FACED_DEFENSE_COLUMN).mean().alias(_QB_FACED_DEFENSE_COLUMN)
+        )
     if "team_abbr" in schedule_strength.columns and "team" not in schedule_strength.columns:
         schedule_strength = schedule_strength.rename({"team_abbr": "team"})
     return schedule_strength

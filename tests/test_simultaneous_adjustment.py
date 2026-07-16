@@ -200,6 +200,73 @@ def test_solve_qb_stat_ridge_shrinks_low_volume_qb_more_than_high_volume_qb() ->
     assert high_volume_rating > low_volume_rating > 0.0
 
 
+def test_solve_qb_stat_with_fixed_defense_offsets_recovers_offense_coefficients() -> None:
+    """Verify a fixed-defense QB solve recovers the planted QB offense effects."""
+    qb_games = pl.DataFrame(
+        {
+            "qb_id": ["QB_A", "QB_A", "QB_B", "QB_B"],
+            "opponent_team": ["DEF_1", "DEF_2", "DEF_1", "DEF_2"],
+            "epa_per_dropback": [0.05, 0.25, -0.25, -0.05],
+            "qb_dropbacks": [30, 30, 30, 30],
+        }
+    )
+    fixed_defense = pl.DataFrame(
+        {
+            "team": ["DEF_1", "DEF_2"],
+            "defense_rating": [0.10, -0.10],
+        }
+    )
+
+    qb_ratings = simultaneous_adjustment.solve_qb_stat_with_fixed_defense_offsets(
+        qb_games,
+        response_col="epa_per_dropback",
+        fixed_defense_ratings=fixed_defense,
+        ridge_lambda=1e-6,
+    )
+
+    assert qb_ratings.filter(pl.col("qb_id") == "QB_A").select(
+        "offense_rating"
+    ).item() == pytest.approx(
+        0.15,
+        abs=1e-3,
+    )
+    assert qb_ratings.filter(pl.col("qb_id") == "QB_B").select(
+        "offense_rating"
+    ).item() == pytest.approx(
+        -0.15,
+        abs=1e-3,
+    )
+
+
+def test_solve_qb_stat_ridge_separate_defense_penalty_expands_defense_spread() -> None:
+    """A lighter defense penalty should allow a wider fitted defense-effect spread."""
+    qb_games = pl.DataFrame(
+        {
+            "qb_id": ["QB_A", "QB_A", "QB_B", "QB_B", "QB_C", "QB_C"],
+            "opponent_team": ["DEF_1", "DEF_2", "DEF_1", "DEF_2", "DEF_1", "DEF_2"],
+            "epa_per_dropback": [0.25, 0.05, 0.05, -0.15, 0.10, -0.10],
+            "qb_dropbacks": [35, 35, 35, 35, 35, 35],
+        }
+    )
+
+    _, default_defense = simultaneous_adjustment.solve_qb_stat_ridge(
+        qb_games,
+        response_col="epa_per_dropback",
+        ridge_lambda=10.0,
+    )
+    _, lighter_defense = simultaneous_adjustment.solve_qb_stat_ridge(
+        qb_games,
+        response_col="epa_per_dropback",
+        ridge_lambda=10.0,
+        defense_ridge_lambda=0.0,
+    )
+
+    default_spread = default_defense.select(pl.col("defense_rating").std()).item()
+    lighter_spread = lighter_defense.select(pl.col("defense_rating").std()).item()
+
+    assert lighter_spread > default_spread
+
+
 def test_compute_team_adjusted_stats_emits_prefixed_columns() -> None:
     """Verify the team wrapper returns prefixed offense and defense columns."""
     games = pl.DataFrame(

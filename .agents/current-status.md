@@ -16,12 +16,14 @@ current-status summary changes.
 ## Current state
 
 - Status: code-health green, with the PBP-first pipeline, Parquet contract, metrics registry, and
-  analyst UI shell implemented, but the Stage 3 methodology claim is not green.
+  analyst UI shell implemented, but the Stage 3b League 1 methodology claim is still not green.
 - Active correctness blocker: none currently known in the published team/QB pipeline.
-- Active methodology blocker: the Stage 3 walk-forward report shows fixed-constant team Elo beats
-  SaOvR on overall held-out margin MAE.
-- Ratings methodology overhaul: the Stage 3 harness and report are implemented in the current
-  worktree, and they record a negative finding on the headline team acceptance criterion.
+- Active methodology blocker: the best current within-season team experiment (`T2Weighted`) beats
+  RawEPA and improves materially on SaOvR, but its overall MAE edge over SRS does not clear the
+  paired-bootstrap confidence interval.
+- Ratings methodology overhaul: the Stage 3 and Stage 3b harness/report work are implemented in
+  the current worktree, and they record a negative headline finding plus a partial but still
+  non-accepting team improvement.
 - Primary source of truth for metrics: `nfl_sos_ratings/metrics/`.
 - Human-readable metric companions: `docs/stats-catalog.md` and `docs/qb-stats-catalog.md`.
 - Active workstreams: ratings-methodology Stage 3, remaining metric expansion work, and
@@ -120,6 +122,27 @@ The current methodology work adds a seventh theme.
    - added external/reference metric taxonomy entries and pool-ineligibility tests for team Elo
      and ESPN QBR surfaces
 
+10. Ratings methodology Stage 3b:
+
+    - added paired-bootstrap MAE deltas, weekly MAE curves, season-delta diagnostics, and QB
+      audit helpers under `nfl_sos_ratings/validation/`
+    - fixed a correctness bug in `main._build_qb_faced_defense_adjustments()` by switching the
+      faced-defense mean from an unweighted average to a dropback-weighted average
+    - implemented the `T1Weighted` League 1 team experiment: rolling prior-season component
+      weights over the published four EPA backbone pieces; overall walk-forward MAE improved to
+      `10.648`
+    - implemented the `T2Weighted` League 1 team experiment: `T1Weighted` plus a special-teams
+      component built from raw special-play PBP; overall walk-forward MAE improved further to
+      `10.630`
+    - recorded the key League 1 finding: `T2Weighted` beats RawEPA with a nonzero paired-
+      bootstrap edge (`-0.066`, CI `[-0.113, -0.016]`) and beats SaOvR clearly, but its edge over
+      SRS remains statistically ambiguous (`-0.028`, CI `[-0.089, 0.036]`)
+    - ran the QB revision sweep and did not adopt a backbone change: Q1 fixed team-defense
+      offsets reduced the eligible-QB schedule slope, while the best Q2 separate-penalty variant
+      improved it only modestly (`0.505 -> 0.557`) and did not justify a published-path refreeze
+    - added the Maye/Stafford case study and the season-level QB slope/spread diagnostics to the
+      validation report
+
 ## Validation snapshot
 
 Latest recorded green state across the current worktree:
@@ -175,10 +198,31 @@ Current state:
 - Stage 3 harness/report work is implemented in the current worktree.
 - Stage 3 headline finding is negative: overall walk-forward MAE favors Elo (`10.580`) over SRS
   (`10.658`), RawEPA (`10.695`), and SaOvR (`10.701`).
+- Stage 3b is now the active methodology follow-up. The criterion has been re-registered into two
+  information-matched leagues because the failed Stage 3 headline compared prior-carrying Elo to
+  within-season-only backbones:
+  - League 1 is binding: within-season-only team backbones must beat SRS and RawEPA on held-out
+    MAE, with paired-bootstrap confidence intervals.
+  - League 2 is informative: a forecast-only previous-season prior can be compared against fixed-
+    constant Elo, but that is not the binding acceptance gate for the published within-season
+    ratings.
+- The original Elo-leading Stage 3 result stays recorded as history in the validation report and
+  remains part of the methodology record.
+- Stage 3b diagnostics/backbone-revision work is the active next step. Start with paired-bootstrap
+  MAE significance, per-week/per-season team error diagnostics, and the QB adjustment-magnitude
+  audit before changing either backbone.
+- Stage 3b team experiment result: `T1Weighted` lowers overall MAE to `10.648`, and
+  `T2Weighted` lowers it further to `10.630`. `T2Weighted` beats RawEPA with a nonzero bootstrap
+  edge but does not clear the same bar against SRS, so League 1 remains a fail under the
+  re-registered criterion.
+- Stage 3b QB experiment result: no adoption. Q1 fixed team-defense offsets and Q2 lighter
+  defense penalties did not produce a convincing enough eligible-QB schedule-adjustment gain to
+  justify changing the published QB backbone or refreezing QSaCR.
 - Stage 3 secondary findings are positive: QSaCR stability beats passer rating and ANY/A on the
   matched QB population, and QSaCR tracks ESPN QBR strongly across 2006-2025.
 - Stage 3 remains active until a maintainer decides whether to revise the team backbone or accept
-  the Elo-leading benchmark result.
+  the Stage 3b team improvement as sufficient, pursue further within-season team experiments, or
+  accept the still-ambiguous SRS comparison.
 - Stage 1b play-level ridge fitting is re-sequenced until after Stage 3, where the validation
   harness will compare game-level and play-level backbones on held-out margin MAE and
   year-over-year stability.
@@ -256,7 +300,7 @@ These are not active workstreams, but they are still useful context.
   or frontend plan.
 2. If the task touches published rating methodology, continue from
   `.agents/ratings-methodology-overhaul-plan.md`, read `docs/validation-report.md`, and start from
-  the recorded Stage 3 negative finding unless a maintainer directs otherwise.
+  the recorded Stage 3b findings unless a maintainer directs otherwise.
 3. If the task touches planned metrics, continue from `.agents/metric-expansion-plan.md`.
 4. If the task touches the analyst UI, continue from `.agents/frontend-ui-kickoff-plan.md`.
 5. Keep `docs/stats-catalog.md` and `docs/qb-stats-catalog.md` synchronized with the registry when

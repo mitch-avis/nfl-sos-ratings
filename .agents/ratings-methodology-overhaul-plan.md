@@ -289,6 +289,32 @@ Status in the current worktree:
   Pearson / Spearman), and mean QSaCR-to-QBR correlation is `0.893 / 0.873` across 2006-2025.
 - Do not advance to Stage 4 automatically from this worktree. The Stage 3 result needs explicit
   maintainer direction because the team headline acceptance criterion failed.
+- Stage 3b is now the active follow-up. The original headline criterion remains recorded as a
+  failed historical check, but future validation work is pre-registered under two information
+  sets because that failure exposed a mismatch in prior information:
+  - League 1 (binding headline): within-season-only systems. The team backbone must beat SRS and
+    RawEPA on held-out MAE with paired-bootstrap support.
+  - League 2 (informative): prior-carrying systems. A forecast-only previous-season prior may be
+    compared against fixed-constant Elo, but this is not the binding headline for published
+    within-season ratings.
+- This criterion revision is deliberate and follows the recorded Stage 3 failure; it is not a
+  post-hoc win condition rewrite. Keep the original Elo-leading result in the validation report's
+  history section whenever Stage 3b diagnostics or revisions are reported.
+- Stage 3b diagnostics and experiments now exist in the current worktree:
+  - paired-bootstrap MAE deltas, weekly MAE curves, season-delta diagnostics, and QB audit tables
+    are generated into `docs/validation-report.md`
+  - `T1Weighted` (rolling prior-season weights on the four EPA backbone pieces) improved overall
+    League 1 MAE to `10.648`
+  - `T2Weighted` (the same four EPA backbone pieces plus a raw-PBP special-teams component)
+    improved overall League 1 MAE to `10.630`
+  - `T2Weighted` beats RawEPA with a nonzero paired-bootstrap edge (`-0.066`, CI
+    `[-0.113, -0.016]`) and beats SaOvR clearly, but it still does not beat SRS with a CI that
+    clears zero (`-0.028`, CI `[-0.089, 0.036]`), so the League 1 acceptance criterion remains
+    unmet
+  - the QB revision sweep did not yield an adoption candidate: Q1 fixed team-defense offsets made
+    the eligible-QB slope worse, and the best Q2 lighter-defense-penalty variant only moved the
+    2025 eligible-QB slope from `0.505` to `0.557`, not enough to justify a published backbone
+    change or a QSaCR refreeze
 
 Scope:
 

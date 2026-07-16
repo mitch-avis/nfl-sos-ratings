@@ -317,6 +317,29 @@ def test_main_preserves_distinct_opponent_per_game_and_per_play_series(
     )
 
 
+def test_build_qb_faced_defense_adjustments_weights_by_dropbacks() -> None:
+    """Faced-defense schedule should weight each opponent by the QB's dropback volume."""
+    qb_games = pl.DataFrame(
+        {
+            "qb_id": ["QB1", "QB1"],
+            "qb_name": ["QB One", "QB One"],
+            "team_abbr": ["DEN", "DEN"],
+            "opponent_team": ["KC", "BUF"],
+            "qb_dropbacks": [40.0, 10.0],
+        }
+    )
+    defense_adjustments = pl.DataFrame(
+        {
+            "team": ["KC", "BUF"],
+            "adj_def_qb_epa_per_dropback": [0.30, -0.10],
+        }
+    )
+
+    faced_defense = main._build_qb_faced_defense_adjustments(qb_games, defense_adjustments)
+
+    assert faced_defense.select("adj_def_qb_epa_per_dropback_faced").item() == pytest.approx(0.22)
+
+
 def test_main_skips_historical_qb_calibration(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

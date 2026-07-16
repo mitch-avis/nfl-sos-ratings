@@ -413,8 +413,12 @@ The command writes [docs/validation-report.md](docs/validation-report.md).
 That report is the authoritative summary of the current methodology checks.
 
 Current recorded result: QSaCR clears passer rating and ANY/A on the matched consecutive-season QB
-population, but SaOvR does not yet beat the fixed-constant Elo baseline on overall walk-forward
-MAE.
+population. On the team side, the best Stage 3b within-season experiment (`T2Weighted`, which
+adds a small special-teams component to the rolling weighted EPA backbone) improves overall
+walk-forward MAE to `10.630` and beats RawEPA with a nonzero paired-bootstrap edge, but it still
+does not beat SRS with a paired-bootstrap margin that clears zero.
+The Stage 3b QB revision sweep (fixed team-defense offsets and lighter defense penalties) did not
+produce an adoptable change to the published QB backbone.
 Consult the validation report before changing the team backbone or advancing to Stage 4.
 
 ## Troubleshooting

@@ -10,9 +10,12 @@ from nfl_sos_ratings.validation.walk_forward import (
     EloConfig,
     build_elo_feature_rows,
     build_raw_epa_feature_rows,
+    build_rolling_team_weight_maps,
     build_snapshot_feature_rows,
     build_srs_feature_rows,
     build_validation_report_text,
+    build_weighted_team_feature_rows,
+    compute_pairwise_mae_bootstrap,
     compute_qbr_correlations,
     compute_stability_metrics,
     evaluate_feature_rows,
@@ -82,6 +85,70 @@ def test_build_raw_epa_feature_rows_uses_pre_cutoff_team_means() -> None:
 
     assert week_three_row["rating_diff"] == pytest.approx(0.16)
     assert week_three_row["home_margin"] == 10.0
+
+
+def test_build_weighted_team_feature_rows_uses_weighted_snapshot() -> None:
+    """Verify the weighted team feature rows use the supplied rolling weight map."""
+    weekly_df = _weekly_team_rows()
+
+    feature_rows = build_weighted_team_feature_rows(
+        weekly_df,
+        season=2025,
+        weight_map={
+            "adj_off_passing_epa_per_offensive_snap": 1.0,
+            "adj_off_rushing_epa_per_offensive_snap": 0.0,
+            "adj_def_passing_epa_per_offensive_snap": 0.0,
+            "adj_def_rushing_epa_per_offensive_snap": 0.0,
+        },
+        baseline_name="T1Weighted",
+    )
+    week_three_row = feature_rows.filter(pl.col("week") == 3).row(0, named=True)
+
+    assert week_three_row["baseline"] == "T1Weighted"
+    assert week_three_row["home_margin"] == 10.0
+    assert week_three_row["rating_diff"] > 0.0
+
+
+def test_build_rolling_team_weight_maps_uses_only_prior_season_pairs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rolling team weights should fit on season pairs that end before the target season."""
+    training_rows = pl.DataFrame(
+        {
+            "season": [2022, 2023],
+            "next_season": [2023, 2024],
+            "team": ["A", "B"],
+            "adj_off_passing_epa_per_offensive_snap": [0.1, 0.2],
+            "adj_off_rushing_epa_per_offensive_snap": [0.0, 0.1],
+            "adj_def_passing_epa_per_offensive_snap": [0.1, 0.2],
+            "adj_def_rushing_epa_per_offensive_snap": [0.0, 0.1],
+            "target": [0.2, 0.3],
+        }
+    )
+    captured: dict[str, object] = {}
+
+    def fake_fit_linear_weights(
+        df: pl.DataFrame,
+        feature_columns: list[str],
+        target_column: str,
+        sample_weight_column: str | None = None,
+    ) -> dict[str, float]:
+        captured["next_seasons"] = df.select("next_season").to_series().to_list()
+        captured["feature_columns"] = feature_columns
+        captured["target_column"] = target_column
+        captured["sample_weight_column"] = sample_weight_column
+        return {column: float(index + 1) for index, column in enumerate(feature_columns)}
+
+    monkeypatch.setattr(
+        "nfl_sos_ratings.validation.walk_forward.composite_weights.fit_linear_weights",
+        fake_fit_linear_weights,
+    )
+
+    weight_maps = build_rolling_team_weight_maps(training_rows, seasons=[2023, 2024, 2025])
+
+    assert weight_maps[2023]["adj_off_passing_epa_per_offensive_snap"] == pytest.approx(0.25)
+    assert captured["next_seasons"] == [2023, 2024]
+    assert weight_maps[2025]["adj_def_rushing_epa_per_offensive_snap"] == pytest.approx(0.4)
 
 
 def test_build_elo_feature_rows_updates_week_to_week() -> None:
@@ -199,6 +266,92 @@ def test_score_prediction_rows_reports_overall_and_early_late_splits() -> None:
 
     overall_rmse = metrics.filter(pl.col("split") == "overall").select("rmse").item()
     assert math.isclose(overall_rmse, math.sqrt(7.5), rel_tol=1e-9)
+
+
+def test_compute_pairwise_mae_bootstrap_returns_deterministic_delta_intervals() -> None:
+    """Verify paired-game bootstrap deltas report stable confidence intervals."""
+    predictions = pl.DataFrame(
+        {
+            "season": [2025] * 8,
+            "week": [5, 5, 6, 6, 5, 5, 6, 6],
+            "baseline": ["SaOvR", "SaOvR", "SaOvR", "SaOvR", "SRS", "SRS", "SRS", "SRS"],
+            "game_id": ["g1", "g2", "g3", "g4", "g1", "g2", "g3", "g4"],
+            "home_team": ["A", "B", "C", "D", "A", "B", "C", "D"],
+            "away_team": ["E", "F", "G", "H", "E", "F", "G", "H"],
+            "predicted_margin": [1.0, 1.0, 1.0, 1.0, 3.0, 3.0, 3.0, 3.0],
+            "home_margin": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        }
+    ).with_columns((pl.col("predicted_margin") - pl.col("home_margin")).alias("error"))
+
+    deltas = compute_pairwise_mae_bootstrap(predictions, baselines=["SaOvR", "SRS"], resamples=128)
+    overall_row = deltas.filter(pl.col("split") == "overall").row(0, named=True)
+
+    assert overall_row["baseline_a"] == "SaOvR"
+    assert overall_row["baseline_b"] == "SRS"
+    assert overall_row["mae_delta"] == pytest.approx(-2.0)
+    assert overall_row["ci_lower"] == pytest.approx(-2.0)
+    assert overall_row["ci_upper"] == pytest.approx(-2.0)
+    assert overall_row["distinguishable_from_zero"] is True
+
+
+def test_build_validation_report_text_includes_bootstrap_delta_section() -> None:
+    """Verify the report renders paired-bootstrap MAE deltas."""
+    metrics = pl.DataFrame(
+        {
+            "baseline": ["SaOvR", "SRS"],
+            "season": [None, None],
+            "split": ["overall", "overall"],
+            "games": [10, 10],
+            "mae": [7.0, 7.5],
+            "rmse": [9.0, 9.4],
+        }
+    )
+    stability = pl.DataFrame(
+        {
+            "entity": ["qb", "team"],
+            "metric": ["QSaCR", "SaOvR"],
+            "paired_rows": [100, 200],
+            "pearson": [0.61, 0.42],
+            "spearman": [0.60, 0.40],
+        }
+    )
+    qbr = pl.DataFrame(
+        {
+            "season": [2006],
+            "joined_rows": [24],
+            "pearson": [0.72],
+            "spearman": [0.69],
+        }
+    )
+    deltas = pl.DataFrame(
+        {
+            "baseline_a": ["SaOvR"],
+            "baseline_b": ["SRS"],
+            "split": ["overall"],
+            "games": [10],
+            "mae_delta": [-0.5],
+            "ci_lower": [-0.8],
+            "ci_upper": [-0.2],
+            "distinguishable_from_zero": [True],
+        }
+    )
+
+    report = build_validation_report_text(
+        metrics=metrics,
+        stability=stability,
+        qbr_correlations=qbr,
+        mae_deltas=deltas,
+        seasons=[1999, 2000],
+        start_week=5,
+        command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+    )
+
+    assert "## Paired Bootstrap MAE Deltas" in report
+    assert (
+        "| Baseline A | Baseline B | Split | Games | MAE Delta | CI Lower | CI Upper | "
+        "Distinguishable |" in report
+    )
+    assert "| SaOvR | SRS | overall | 10 | -0.500 | -0.800 | -0.200 | True |" in report
 
 
 def test_run_walk_forward_backtest_stacks_all_team_baselines(tmp_path) -> None:
