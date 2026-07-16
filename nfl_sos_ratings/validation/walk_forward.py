@@ -1263,9 +1263,7 @@ def _format_markdown_value(value: object) -> str:
     return str(value)
 
 
-def _markdown_table(
-    headers: Sequence[str], rows: Sequence[Sequence[object | None]]
-) -> str:
+def _markdown_table(headers: Sequence[str], rows: Sequence[Sequence[object | None]]) -> str:
     """Render a simple GitHub-flavored Markdown table."""
     header_row = "| " + " | ".join(headers) + " |"
     separator_row = "| " + " | ".join("---" for _ in headers) + " |"
