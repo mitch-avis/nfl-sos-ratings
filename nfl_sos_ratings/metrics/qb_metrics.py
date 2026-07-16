@@ -10,6 +10,7 @@ from __future__ import annotations
 from nfl_sos_ratings.metrics.schema import MetricDef, section
 
 _ratings = section("qb", "Schedule-Adjusted Ratings")
+_reference = section("qb", "External & Reference Ratings")
 _identity = section("qb", "Identity & Availability")
 _volume = section("qb", "Passing Volume")
 _efficiency = section("qb", "Passing Efficiency")
@@ -720,7 +721,7 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
 )
 
 QB_ADVANCED_METRICS: tuple[MetricDef, ...] = (
-    _advanced(
+    _reference(
         name="qb_qbr_total",
         label="QBR",
         full_name="ESPN Total QBR",
@@ -735,7 +736,7 @@ QB_ADVANCED_METRICS: tuple[MetricDef, ...] = (
         since=2006,
         status="planned",
     ),
-    _advanced(
+    _reference(
         name="qb_qbr_raw",
         label="Raw QBR",
         full_name="ESPN Raw QBR",
@@ -750,7 +751,7 @@ QB_ADVANCED_METRICS: tuple[MetricDef, ...] = (
         since=2006,
         status="planned",
     ),
-    _advanced(
+    _reference(
         name="qb_pts_added",
         label="Pts Added",
         full_name="ESPN Points Added",
@@ -761,7 +762,7 @@ QB_ADVANCED_METRICS: tuple[MetricDef, ...] = (
         since=2006,
         status="planned",
     ),
-    _advanced(
+    _reference(
         name="qb_qbr_plays",
         label="QBR Plays",
         full_name="ESPN QBR Plays",

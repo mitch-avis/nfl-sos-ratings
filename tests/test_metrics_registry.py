@@ -340,6 +340,33 @@ class TestRatingPools:
                 metrics=(_metric("canonical_stat"),), categories=(_category(),), pools=(pool,)
             )
 
+    @pytest.mark.parametrize(
+        ("entity", "member"),
+        (("team", "team_elo"), ("qb", "qb_qbr_total")),
+    )
+    def test_pool_rejects_external_reference_metrics(
+        self,
+        entity: str,
+        member: str,
+    ) -> None:
+        """External reference metrics must never be allowed into rating pools."""
+        from nfl_sos_ratings.metrics.catalog import QB_CATEGORIES, RATING_POOLS, TEAM_CATEGORIES
+        from nfl_sos_ratings.metrics.qb_metrics import QB_METRICS
+        from nfl_sos_ratings.metrics.team_metrics import TEAM_METRICS
+
+        pool = RatingPool(
+            name="bad_pool",
+            entity=cast(Any, entity),
+            description="Pool with a descriptive-only external reference metric.",
+            members=(member,),
+        )
+        with pytest.raises(RegistryValidationError, match="not ratings_eligible"):
+            MetricRegistry(
+                metrics=TEAM_METRICS + QB_METRICS,
+                categories=TEAM_CATEGORIES + QB_CATEGORIES,
+                pools=RATING_POOLS + (pool,),
+            )
+
 
 class TestPayload:
     """The API payload must be JSON-serializable and complete."""

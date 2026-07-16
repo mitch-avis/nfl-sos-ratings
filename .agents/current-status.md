@@ -15,11 +15,13 @@ current-status summary changes.
 
 ## Current state
 
-- Status: release-gate green, with the PBP-first pipeline, Parquet contract, metrics registry, and
-  analyst UI shell all implemented.
+- Status: code-health green, with the PBP-first pipeline, Parquet contract, metrics registry, and
+  analyst UI shell implemented, but the Stage 3 methodology claim is not green.
 - Active correctness blocker: none currently known in the published team/QB pipeline.
-- Ratings methodology overhaul: Stage 2 principled composite weights are complete in the current
-  worktree; Stage 3 validation is the next active slice.
+- Active methodology blocker: the Stage 3 walk-forward report shows fixed-constant team Elo beats
+  SaOvR on overall held-out margin MAE.
+- Ratings methodology overhaul: the Stage 3 harness and report are implemented in the current
+  worktree, and they record a negative finding on the headline team acceptance criterion.
 - Primary source of truth for metrics: `nfl_sos_ratings/metrics/`.
 - Human-readable metric companions: `docs/stats-catalog.md` and `docs/qb-stats-catalog.md`.
 - Active workstreams: ratings-methodology Stage 3, remaining metric expansion work, and
@@ -103,6 +105,20 @@ The current methodology work adds a seventh theme.
      composite after a small negative fitted weight (`-0.04081182634425329`)
    - recorded frozen-weight provenance, holdout diagnostics, and refit policy in the registry,
      README, and Stage 2 plan docs
+9. Ratings methodology Stage 3:
+   - added `nfl_sos_ratings/validation/` with pre-cutoff team snapshot builders, a walk-forward
+     backtest runner, fixed-constant Elo / SRS / raw-EPA baselines, stability metrics, QBR
+     correlations, and a `python -m nfl_sos_ratings.validation.walk_forward` report command
+   - added leakage-guard tests proving future-week perturbations do not affect earlier snapshots
+     and that week-*n* projections only fit on prior weeks
+   - added the generated `docs/validation-report.md` and documented the current negative finding:
+     Elo wins overall MAE (`10.580`) ahead of SRS (`10.658`), RawEPA (`10.695`), and SaOvR
+     (`10.701`)
+   - recorded the positive secondary checks: QSaCR year-over-year stability clears passer rating
+     and ANY/A on the matched QB population (`0.486 / 0.480` vs `0.473 / 0.475` and
+     `0.403 / 0.388`), and mean QSaCR-to-QBR correlation is `0.893 / 0.873` across 2006-2025
+   - added external/reference metric taxonomy entries and pool-ineligibility tests for team Elo
+     and ESPN QBR surfaces
 
 ## Validation snapshot
 
@@ -113,7 +129,10 @@ Latest recorded green state across the current worktree:
 - `ty check .`
 - `pyright .`
 - `pytest`
-- `markdownlint README.md docs/stats-catalog.md docs/qb-stats-catalog.md .agents/current-status.md .agents/ratings-methodology-overhaul-plan.md`
+- `python -m nfl_sos_ratings.validation.walk_forward`
+- `markdownlint README.md docs/stats-catalog.md docs/qb-stats-catalog.md`
+  `docs/validation-report.md .agents/current-status.md`
+  `.agents/ratings-methodology-overhaul-plan.md`
 - `python -m nfl_sos_ratings.composite_weights`
 
 ## Completed workstreams
@@ -153,7 +172,13 @@ Current state:
 - Stage 0 is complete.
 - Stage 1 is complete in the current worktree.
 - Stage 2 is complete in the current worktree.
-- Stage 3 is next: build the walk-forward validation harness and Elo baseline.
+- Stage 3 harness/report work is implemented in the current worktree.
+- Stage 3 headline finding is negative: overall walk-forward MAE favors Elo (`10.580`) over SRS
+  (`10.658`), RawEPA (`10.695`), and SaOvR (`10.701`).
+- Stage 3 secondary findings are positive: QSaCR stability beats passer rating and ANY/A on the
+  matched QB population, and QSaCR tracks ESPN QBR strongly across 2006-2025.
+- Stage 3 remains active until a maintainer decides whether to revise the team backbone or accept
+  the Elo-leading benchmark result.
 - Stage 1b play-level ridge fitting is re-sequenced until after Stage 3, where the validation
   harness will compare game-level and play-level backbones on held-out margin MAE and
   year-over-year stability.
@@ -230,8 +255,8 @@ These are not active workstreams, but they are still useful context.
 1. Read this file and confirm whether the task belongs to the ratings-methodology, metric-expansion,
   or frontend plan.
 2. If the task touches published rating methodology, continue from
-  `.agents/ratings-methodology-overhaul-plan.md` and start at Stage 3 unless a maintainer directs
-  otherwise.
+  `.agents/ratings-methodology-overhaul-plan.md`, read `docs/validation-report.md`, and start from
+  the recorded Stage 3 negative finding unless a maintainer directs otherwise.
 3. If the task touches planned metrics, continue from `.agents/metric-expansion-plan.md`.
 4. If the task touches the analyst UI, continue from `.agents/frontend-ui-kickoff-plan.md`.
 5. Keep `docs/stats-catalog.md` and `docs/qb-stats-catalog.md` synchronized with the registry when

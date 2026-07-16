@@ -27,11 +27,11 @@ the team catalog all apply here; this document only restates what differs for in
   - [QB-Level Ground Rules](#qb-level-ground-rules)
   - [Views and Denominators](#views-and-denominators)
   - [Category Taxonomy](#category-taxonomy)
+  - [Catalog: External \& Reference Ratings](#catalog-external--reference-ratings)
   - [Catalog: Identity \& Availability](#catalog-identity--availability)
   - [Catalog: Passing Volume](#catalog-passing-volume)
   - [Catalog: Passing Efficiency](#catalog-passing-efficiency)
   - [Catalog: Advanced \& Expected (Tier 2)](#catalog-advanced--expected-tier-2)
-    - [ESPN QBR (2006+, starters only — 27–32 QBs/week)](#espn-qbr-2006-starters-only--2732-qbsweek)
     - [NGS passing (2016+, qualified QBs — 97% of league attempts)](#ngs-passing-2016-qualified-qbs--97-of-league-attempts)
     - [PFR advanced passing (2018+ base; sub-eras per column)](#pfr-advanced-passing-2018-base-sub-eras-per-column)
   - [Catalog: Pressure, Sacks \& Pocket](#catalog-pressure-sacks--pocket)
@@ -101,7 +101,7 @@ QB
 ├── Identity & Availability     (games, starts, snaps, snap share, dropbacks)
 ├── Passing Volume              (attempts, completions, yards, air yards, TDs, INTs)
 ├── Passing Efficiency          (comp %, YPA, ANY/A, EPA/dropback, CPOE, passer rating)
-├── Advanced & Expected         (QBR, NGS tracking, PFR accuracy — Tier 2)
+├── Advanced & Expected         (NGS tracking and PFR accuracy — Tier 2)
 ├── Pressure, Sacks & Pocket    (sacks, pressure, pocket time, scramble escape)
 ├── Rushing                     (carries, yards, TDs, designed vs. scramble)
 ├── Scoring, Clutch & Outcomes  (total TDs, red zone, wins, 4QC, GWD)
@@ -112,6 +112,29 @@ Notes: for an individual QB a "Receiving" block is meaningless and omitted. Rush
 subcategory (a named gap in the current UI), covering both designed runs and scrambles.
 Opponent context is expressed through the two opponent views applied to these same eight
 subcategories, not as a ninth tab or category.
+
+The `Ratings` view now has two descriptive blocks:
+
+- the project's own schedule-adjusted ratings (`QSaCR`, `QSaOR`, `QRaw`, `QSoS`, `QOutcome`)
+- external/reference ratings such as ESPN QBR and related ESPN reference columns
+
+Those external/reference ratings are `ratings_eligible=False` in the registry and never feed the
+published project ratings.
+
+## Catalog: External & Reference Ratings
+
+These metrics live in the `Ratings` view for analyst context and external reference checks.
+They are not part of the five stat-view taxonomies below and are never allowed into any rating
+pool.
+
+### ESPN QBR (2006+, starters only — 27–32 QBs/week)
+
+| Column | Definition | Shape |
+| --- | --- | --- |
+| `qb_qbr_total` | Adjusted Total QBR (0–100, opponent-adjusted by ESPN) | rate |
+| `qb_qbr_raw` | Raw QBR, unadjusted — **preferred input to this project's own schedule adjustment** (avoids stacking ESPN's opponent correction under ours); `qbr_total` displayed alongside | rate |
+| `qb_pts_added` | Points contributed above average QB | count |
+| `qb_qbr_plays` | ESPN dropback count (cross-checks PBP dropbacks) | count |
 
 ## Catalog: Identity & Availability
 
@@ -176,19 +199,9 @@ The heart of the QBs page. Current rating-pool members marked ★ (see safeguard
 
 ## Catalog: Advanced & Expected (Tier 2)
 
-All verified reliable in-era (see team catalog test findings). Join by `espn_id` / `pfr_id` /
-`player_gsis_id`. Filter to regular season; normalize `LAR`→`LA`, `WSH`→`WAS`.
-
-### ESPN QBR (2006+, starters only — 27–32 QBs/week)
-
-| Column | Definition | Shape |
-| --- | --- | --- |
-| `qb_qbr_total` | Adjusted Total QBR (0–100, opponent-adjusted by ESPN) | rate |
-| `qb_qbr_raw` | Raw QBR, unadjusted — **preferred input to this project's own schedule adjustment** (avoids stacking ESPN's opponent correction under ours); `qbr_total` displayed alongside | rate |
-| `qb_qbr_rank` | ESPN rank in timeframe | rate |
-| `qb_pts_added` | Points contributed above average QB | count |
-| `qb_qbr_epa_total` | ESPN-model EPA, with splits: `pass`, `run`, `sack`, `penalty` | count |
-| `qb_qbr_plays` | ESPN dropback count (cross-checks PBP dropbacks) | count |
+All verified reliable in-era (see team catalog test findings). Join by `pfr_id` /
+`player_gsis_id`, with the ESPN/QBR identity crosswalk handled in the separate external/reference
+ratings block above. Filter to regular season; normalize `LAR`→`LA`, `WSH`→`WAS`.
 
 ### NGS passing (2016+, qualified QBs — 97% of league attempts)
 

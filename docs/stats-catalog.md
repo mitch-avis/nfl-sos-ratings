@@ -16,6 +16,7 @@ Scope: regular season, team grain. The QB-grain companion is
 - [Data Source Inventory](#data-source-inventory)
 - [Duplication Policy and Ratings Safeguards](#duplication-policy-and-ratings-safeguards)
 - [Category Taxonomy](#category-taxonomy)
+- [Catalog: External & Reference Ratings](#catalog-external--reference-ratings)
 - [Catalog: Overall](#catalog-overall)
 - [Catalog: Offense](#catalog-offense)
 - [Catalog: Defense](#catalog-defense)
@@ -258,6 +259,24 @@ subcategory (highly display-worthy, doesn't fit Downs); defense gets Pressure & 
 Receiving is retained on both sides **for display purposes only** with every row marked
 `duplicate_of` its passing counterpart (see safeguards above).
 
+The `Ratings` view now has two descriptive blocks:
+
+- the project's own schedule-adjusted ratings (`SaCR`, `SaOR`, `SaDR`, `SaOvR`, `SRS`)
+- external/reference ratings such as the fixed-constant team Elo validation baseline
+
+Those external/reference ratings are `ratings_eligible=False` in the registry and never feed the
+published project ratings.
+
+## Catalog: External & Reference Ratings
+
+These metrics live in the `Ratings` view for analyst context and validation baselines.
+They are not part of the five stat-view taxonomies below and are never allowed into any rating
+pool.
+
+| Column | Definition / formula | Source | Shape | Since |
+| --- | --- | --- | --- | --- |
+| `team_elo` | Fixed-constant team Elo benchmark with preseason regression toward 1500, used as the Stage 3 walk-forward validation baseline and as descriptive context | Elo | score | 1999 |
+
 ## Catalog: Overall
 
 Season identity and outcome summary. No subcategories.
@@ -287,6 +306,8 @@ Season identity and outcome summary. No subcategories.
 All differentials are `duplicate_of` their components for ratings purposes.
 The app's own ratings (`SaCR`, `SaOR`, `SaDR`, `SaOvR`, `SRS`) belong to the separate `Ratings`
 view rather than to the `Overall` / `Offense` / `Defense` / `Special Teams` stat taxonomy.
+External/reference ratings such as `team_elo` live in that same top-level view as descriptive-only
+benchmarks.
 Within that view, `SaCR` is the frozen Stage 2 weighted composite and `SaOR` / `SaDR` / `SaOvR`
 remain the ridge-backbone component views.
 

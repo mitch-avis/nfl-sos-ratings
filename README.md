@@ -54,6 +54,7 @@ two opponent views rather than through a standalone `Opponent Context` category.
     - [Plot outputs](#plot-outputs)
   - [Project Structure](#project-structure)
   - [Development Commands](#development-commands)
+  - [Validation](#validation)
   - [Troubleshooting](#troubleshooting)
     - [Import path issues](#import-path-issues)
     - [Missing plot files](#missing-plot-files)
@@ -386,6 +387,7 @@ ty check .
 pyright .
 pytest
 python -m nfl_sos_ratings.composite_weights
+python -m nfl_sos_ratings.validation.walk_forward
 ```
 
 Frontend build check:
@@ -394,6 +396,26 @@ Frontend build check:
 cd ui/web
 npm run build
 ```
+
+## Validation
+
+Stage 3 validation uses held-out walk-forward home-margin prediction from partial-season team
+snapshots, plus year-over-year stability checks for team and QB ratings and a QSaCR-to-ESPN-QBR
+reference comparison.
+
+Run the full validation harness from the repo root:
+
+```bash
+python -m nfl_sos_ratings.validation.walk_forward
+```
+
+The command writes [docs/validation-report.md](docs/validation-report.md).
+That report is the authoritative summary of the current methodology checks.
+
+Current recorded result: QSaCR clears passer rating and ANY/A on the matched consecutive-season QB
+population, but SaOvR does not yet beat the fixed-constant Elo baseline on overall walk-forward
+MAE.
+Consult the validation report before changing the team backbone or advancing to Stage 4.
 
 ## Troubleshooting
 

@@ -272,6 +272,24 @@ Acceptance criteria:
 
 ### Stage 3 — Validation harness and Elo baseline
 
+Status in the current worktree:
+
+- Implemented at the report-command scope.
+- Added `nfl_sos_ratings/validation/` with partial-season team snapshots, walk-forward team
+  backtesting, SRS/raw-EPA/fixed-constant-Elo baselines, stability summaries, and QBR
+  correlation checks.
+- Added `python -m nfl_sos_ratings.validation.walk_forward`, which writes
+  `docs/validation-report.md` from the on-disk Parquet back-catalog.
+- Added external/reference metric taxonomy entries and a registry test asserting Elo/QBR
+  surfaces remain `ratings_eligible=False`.
+- The harness records a negative headline finding: Elo leads overall held-out MAE at `10.580`,
+  ahead of SRS `10.658`, RawEPA `10.695`, and SaOvR `10.701`.
+- The secondary QB checks pass: QSaCR year-over-year stability beats passer rating and ANY/A on
+  the matched QB population (`0.486 / 0.480` vs `0.473 / 0.475` and `0.403 / 0.388` for
+  Pearson / Spearman), and mean QSaCR-to-QBR correlation is `0.893 / 0.873` across 2006-2025.
+- Do not advance to Stage 4 automatically from this worktree. The Stage 3 result needs explicit
+  maintainer direction because the team headline acceptance criterion failed.
+
 Scope:
 
 - New package `nfl_sos_ratings/validation/` with `walk_forward.py`: compute ratings through week

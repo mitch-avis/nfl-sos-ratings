@@ -23,6 +23,14 @@ TEAM_CATEGORIES: tuple[CategoryDef, ...] = (
         ),
     ),
     CategoryDef(
+        name="External & Reference Ratings",
+        entity="team",
+        description=(
+            "Third-party or benchmark rating systems used for analyst context and validation "
+            "baselines only. They never feed the project's published ratings."
+        ),
+    ),
+    CategoryDef(
         name="Overall",
         entity="team",
         description="Season identity and whole-game outcomes: record, points, and margins.",
@@ -82,6 +90,14 @@ QB_CATEGORIES: tuple[CategoryDef, ...] = (
         description=(
             "The project's own quarterback ratings, adjusted for the defenses each "
             "quarterback actually faced. Start here when ranking QBs."
+        ),
+    ),
+    CategoryDef(
+        name="External & Reference Ratings",
+        entity="qb",
+        description=(
+            "Third-party quarterback ratings used for analyst context and external "
+            "sanity checks only. They never feed the published project ratings."
         ),
     ),
     CategoryDef(

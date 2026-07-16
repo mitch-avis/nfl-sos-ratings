@@ -11,6 +11,7 @@ from __future__ import annotations
 from nfl_sos_ratings.metrics.schema import MetricDef, section
 
 _ratings = section("team", "Schedule-Adjusted Ratings")
+_reference = section("team", "External & Reference Ratings")
 _overall = section("team", "Overall")
 _off_total = section("team", "Offense", "Total")
 _off_pass = section("team", "Offense", "Passing")
@@ -123,6 +124,28 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="D",
         since=1999,
+    ),
+)
+
+REFERENCE_METRICS: tuple[MetricDef, ...] = (
+    _reference(
+        name="team_elo",
+        label="Elo",
+        full_name="Reference Team Elo Rating",
+        description=(
+            "A simple fixed-constant Elo benchmark carried only for analyst context and "
+            "validation comparisons. It is outcome-derived and intentionally excluded from "
+            "every published project rating."
+        ),
+        shape="score",
+        polarity="higher",
+        source="Elo",
+        since=1999,
+        status="planned",
+        note=(
+            "Stage 3 validation baseline only. The walk-forward harness uses a fixed-constant "
+            "simple Elo with preseason regression toward 1500 and no pool eligibility."
+        ),
     ),
 )
 
@@ -3347,6 +3370,7 @@ SPECIAL_TEAMS_METRICS: tuple[MetricDef, ...] = (
 
 TEAM_METRICS: tuple[MetricDef, ...] = (
     RATING_METRICS
+    + REFERENCE_METRICS
     + OVERALL_METRICS
     + OFFENSE_TOTAL_METRICS
     + OFFENSE_PASSING_METRICS
