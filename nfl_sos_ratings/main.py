@@ -17,7 +17,12 @@ if __package__ in {None, ""}:
 import polars as pl
 
 from nfl_sos_ratings.config import DATA_DIR, SEASON
-from nfl_sos_ratings.data_loader import load_qb_stats, load_schedule, load_weekly_team_stats
+from nfl_sos_ratings.data_loader import (
+    load_pbp_data,
+    load_qb_stats,
+    load_schedule,
+    load_weekly_team_stats,
+)
 from nfl_sos_ratings.metrics import get_registry
 from nfl_sos_ratings.opponent_stats import compute_all_opponent_profiles
 from nfl_sos_ratings.qb_opponent_stats import compute_qb_opponent_profiles
@@ -33,6 +38,12 @@ from nfl_sos_ratings.team_stats import (
     compute_all_teams_per_game,
     compute_all_teams_qb_per_game,
     compute_win_totals,
+)
+from nfl_sos_ratings.validation.snapshots import (
+    build_play_level_team_adjusted_snapshot,
+    build_play_level_team_frame_from_pbp,
+    build_special_teams_game_frame_from_pbp,
+    build_special_teams_rating_snapshot,
 )
 
 # Response-column membership lives in the metric registry (the SSOT).
@@ -412,10 +423,29 @@ def run_season(season: int) -> None:
     opp_renamed = opp_combined.rename({c: f"opp_{c}" for c in opp_combined.columns if c != "team"})
     combined = team_combined.join(opp_renamed, on="team", how="left")
 
-    team_adjusted_df = compute_team_adjusted_stats(
-        weekly_df,
-        response_cols=_TEAM_SIMULTANEOUS_COLS,
-    )
+    pbp_df = load_pbp_data(season)
+    play_rows = build_play_level_team_frame_from_pbp(pbp_df)
+    if play_rows.is_empty():
+        team_adjusted_df = compute_team_adjusted_stats(
+            weekly_df,
+            response_cols=_TEAM_SIMULTANEOUS_COLS,
+        )
+    else:
+        play_cutoff_week = int(play_rows.select(pl.col("week").max()).item()) + 1
+        team_adjusted_df = build_play_level_team_adjusted_snapshot(
+            play_rows,
+            cutoff_week=play_cutoff_week,
+        )
+        st_game_rows = build_special_teams_game_frame_from_pbp(pbp_df)
+        st_rating_df = build_special_teams_rating_snapshot(
+            st_game_rows,
+            cutoff_week=play_cutoff_week,
+        )
+        if "st_rating" in team_adjusted_df.columns:
+            team_adjusted_df = team_adjusted_df.drop("st_rating")
+        team_adjusted_df = team_adjusted_df.join(st_rating_df, on="team", how="left").with_columns(
+            pl.col("st_rating").fill_null(0.0)
+        )
     _write_data_file(team_adjusted_df, season, "simultaneous_team_adjustments")
     combined = combined.join(team_adjusted_df, on="team", how="left")
 
@@ -441,12 +471,15 @@ def run_season(season: int) -> None:
     srs_df = solve_srs(weekly_df, response_col="point_margin").rename({"srs_rating": "SRS"})
     combined = combined.join(srs_df, on="team", how="left")
 
+    if "st_rating" in combined.columns:
+        combined = combined.drop("st_rating")
+
     _write_data_file(combined, season, "combined")
 
     # Standalone ratings summary
     ratings_summary = ratings_df.join(
         combined.select(["team", "games_played", "SRS"]), on="team", how="left"
-    ).select(["team", "games_played", "SaCR", "SaOR", "SaDR", "SaOvR", "SRS"])
+    ).select(["team", "games_played", "SaCR", "SaOR", "SaDR", "SaSTR", "SaOvR", "SRS"])
     _write_data_file(ratings_summary, season, "ratings")
 
     # --- Print summary ---
@@ -478,7 +511,10 @@ def run_season(season: int) -> None:
     print(f"\n{'=' * 50}")
     print("SCHEDULE-ADJUSTED RATINGS (SaCR rank)")
     print(f"{'=' * 50}")
-    print("  SaCR = Composite  |  SaOR = Offense  |  SaDR = Defense  |  SaOvR = Overall")
+    print(
+        "  SaCR = Composite  |  SaOR = Offense  |  SaDR = Defense  |  "
+        "SaSTR = Special Teams  |  SaOvR = Overall"
+    )
     print("  (z-scores: 0 = league avg, +1 = 1 SD above avg)\n")
     with pl.Config(tbl_cols=-1, tbl_rows=32, fmt_float="mixed", float_precision=3):
         print(ratings_summary.sort("SaCR", descending=True))

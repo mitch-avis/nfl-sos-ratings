@@ -134,8 +134,8 @@ This runs TypeScript project builds and then a Vite production build.
 - Team index defaults are intentionally narrower now so the first view emphasizes rankings before
   you expand additional stat families.
 - QB index hides unrated rows by default; use the row-filter toggle to reveal all QB rows.
-- Team view currently sorts by `SRS` by default in the UI, while `SaCR`, `SaOR`, `SaDR`, and
-  `SaOvR` remain available as supporting schedule-adjusted component views.
+- Team view currently sorts by `SRS` by default in the UI, while `SaCR`, `SaOR`, `SaDR`, `SaSTR`,
+  and `SaOvR` remain available as supporting schedule-adjusted component views.
 
 ### Detail views
 

@@ -27,11 +27,39 @@ Stage 3b re-registers the validation target into information-matched leagues.
 
 - League 1 team headline: Fail. T1Weighted overall MAE 10.648; T2Weighted overall MAE 10.630; SRS 10.658;
   RawEPA 10.695.
-- League 1 bootstrap vs SRS: MAE delta -0.028 with 95% CI [-0.089, 0.036].
-- League 1 bootstrap vs RawEPA: MAE delta -0.066 with 95% CI [-0.113, -0.016].
+- League 1 bootstrap vs SRS: MAE delta -0.028 with 95% CI [-0.096, 0.035].
+- League 1 bootstrap vs RawEPA: MAE delta -0.066 with 95% CI [-0.112, -0.015].
 - QB revision sweep: not adopted. Current eligible-QB slope 0.505; Q1 fixed-defense slope 0.386;
   best tested Q2 slope 0.557 (q2_defense_penalty_x0).
 - League 2 forecast-only prior experiment: not evaluated in this worktree.
+
+## Stage 3c Decision Rule
+
+> A candidate team backbone is promoted to the published ratings if, on the full held-out
+> walk-forward window: (1) it is significantly better than RawEPA and than the Stage 1
+> SaOvR (95% paired-bootstrap CI excluding zero); (2) it is numerically better than SRS
+> on both overall MAE and overall RMSE, and not significantly worse than SRS; and (3)
+> adopting it does not degrade team year-over-year stability below the Stage 3 recorded
+> value. Statistical parity with SRS plus the construct advantages (schedule-adjusted,
+> outcome-free components, unit-level decomposition) is sufficient and will be stated
+> plainly, as parity, in the methodology documentation — never overclaimed as superiority.
+
+- Rationale: the stricter "beat SRS with CI clearing zero" bar is statistically
+  unattainable on this sample, and the current report already shows SRS itself does not
+  separate from RawEPA at 95%.
+
+## Stage 3c Team Outcome
+
+- Candidate selected for the final Stage 3c gate: T4Weighted.
+- T4 displacement check: T4Weighted overall MAE 10.600 and RMSE 13.626 versus
+  T2Weighted MAE 10.630 and RMSE 13.680.
+  Bootstrap delta -0.029 with 95% CI [-0.063, 0.002] and P(A<=B) 0.965.
+- Candidate vs RawEPA: MAE delta -0.095 with 95% CI [-0.147, -0.036] and P(A<=B) 1.000.
+- Candidate vs Stage 1 SaOvR: MAE delta -0.101 with 95% CI [-0.153, -0.050] and P(A<=B) 1.000.
+- Candidate vs SRS: overall MAE/RMSE 10.600/13.626 versus 10.658/13.746.
+  Bootstrap delta -0.058 with 95% CI [-0.120, 0.005] and P(A<=B) 0.965.
+- Stability guard: T4Weighted Pearson/Spearman 0.445/0.434 versus Stage 3 SaOvR 0.417/0.414.
+- Promotion decision under the fixed Stage 3c rule: Pass.
 
 ## Acceptance Check
 
@@ -80,41 +108,59 @@ Stage 3b re-registers the validation target into information-matched leagues.
 | T2Weighted | early | 1141 | 10.736 | 13.947 |
 | T2Weighted | late | 4156 | 10.600 | 13.606 |
 | T2Weighted | overall | 5297 | 10.630 | 13.680 |
+| T4Weighted | early | 1141 | 10.722 | 13.838 |
+| T4Weighted | late | 4156 | 10.567 | 13.567 |
+| T4Weighted | overall | 5297 | 10.600 | 13.626 |
 
 ## Paired Bootstrap MAE Deltas
 
-| Baseline A | Baseline B | Split | Games | MAE Delta | CI Lower | CI Upper | Distinguishable |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| RawEPA | SaOvR | early | 1141 | -0.109 | -0.220 | 0.004 | False |
-| SRS | RawEPA | early | 1141 | -0.099 | -0.245 | 0.049 | False |
-| SRS | SaOvR | early | 1141 | -0.208 | -0.372 | -0.034 | True |
-| T1Weighted | RawEPA | early | 1141 | -0.005 | -0.104 | 0.094 | False |
-| T1Weighted | SRS | early | 1141 | 0.094 | -0.072 | 0.261 | False |
-| T1Weighted | SaOvR | early | 1141 | -0.114 | -0.237 | 0.008 | False |
-| T2Weighted | RawEPA | early | 1141 | -0.047 | -0.149 | 0.060 | False |
-| T2Weighted | SRS | early | 1141 | 0.052 | -0.108 | 0.212 | False |
-| T2Weighted | SaOvR | early | 1141 | -0.156 | -0.278 | -0.038 | True |
-| T2Weighted | T1Weighted | early | 1141 | -0.042 | -0.080 | -0.006 | True |
-| RawEPA | SaOvR | late | 4156 | 0.022 | -0.028 | 0.070 | False |
-| SRS | RawEPA | late | 4156 | -0.021 | -0.065 | 0.024 | False |
-| SRS | SaOvR | late | 4156 | 0.002 | -0.061 | 0.067 | False |
-| T1Weighted | RawEPA | late | 4156 | -0.059 | -0.115 | -0.006 | True |
-| T1Weighted | SRS | late | 4156 | -0.039 | -0.110 | 0.029 | False |
-| T1Weighted | SaOvR | late | 4156 | -0.037 | -0.075 | 0.006 | False |
-| T2Weighted | RawEPA | late | 4156 | -0.071 | -0.128 | -0.013 | True |
-| T2Weighted | SRS | late | 4156 | -0.050 | -0.119 | 0.021 | False |
-| T2Weighted | SaOvR | late | 4156 | -0.049 | -0.095 | -0.004 | True |
-| T2Weighted | T1Weighted | late | 4156 | -0.012 | -0.034 | 0.010 | False |
-| RawEPA | SaOvR | overall | 5297 | -0.006 | -0.051 | 0.041 | False |
-| SRS | RawEPA | overall | 5297 | -0.037 | -0.088 | 0.010 | False |
-| SRS | SaOvR | overall | 5297 | -0.043 | -0.104 | 0.019 | False |
-| T1Weighted | RawEPA | overall | 5297 | -0.048 | -0.095 | 0.002 | False |
-| T1Weighted | SRS | overall | 5297 | -0.010 | -0.074 | 0.059 | False |
-| T1Weighted | SaOvR | overall | 5297 | -0.054 | -0.094 | -0.014 | True |
-| T2Weighted | RawEPA | overall | 5297 | -0.066 | -0.113 | -0.016 | True |
-| T2Weighted | SRS | overall | 5297 | -0.028 | -0.089 | 0.036 | False |
-| T2Weighted | SaOvR | overall | 5297 | -0.072 | -0.118 | -0.027 | True |
-| T2Weighted | T1Weighted | overall | 5297 | -0.018 | -0.037 | 0.001 | False |
+| Baseline A | Baseline B | Split | Games | MAE Delta | CI Lower | CI Upper | P(A<=B) | Distinguishable |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| RawEPA | SaOvR | early | 1141 | -0.109 | -0.225 | 0.007 | 0.968 | False |
+| SRS | RawEPA | early | 1141 | -0.099 | -0.245 | 0.053 | 0.911 | False |
+| SRS | SaOvR | early | 1141 | -0.208 | -0.390 | -0.042 | 0.995 | True |
+| T1Weighted | RawEPA | early | 1141 | -0.005 | -0.110 | 0.094 | 0.529 | False |
+| T1Weighted | SRS | early | 1141 | 0.094 | -0.068 | 0.254 | 0.137 | False |
+| T1Weighted | SaOvR | early | 1141 | -0.114 | -0.225 | 0.003 | 0.972 | False |
+| T2Weighted | RawEPA | early | 1141 | -0.047 | -0.160 | 0.059 | 0.823 | False |
+| T2Weighted | SRS | early | 1141 | 0.052 | -0.113 | 0.211 | 0.271 | False |
+| T2Weighted | SaOvR | early | 1141 | -0.156 | -0.280 | -0.027 | 0.992 | True |
+| T2Weighted | T1Weighted | early | 1141 | -0.042 | -0.079 | -0.004 | 0.985 | True |
+| T4Weighted | RawEPA | early | 1141 | -0.061 | -0.181 | 0.059 | 0.853 | False |
+| T4Weighted | SRS | early | 1141 | 0.038 | -0.115 | 0.191 | 0.309 | False |
+| T4Weighted | SaOvR | early | 1141 | -0.170 | -0.298 | -0.032 | 0.996 | True |
+| T4Weighted | T1Weighted | early | 1141 | -0.056 | -0.148 | 0.031 | 0.895 | False |
+| T4Weighted | T2Weighted | early | 1141 | -0.014 | -0.095 | 0.071 | 0.626 | False |
+| RawEPA | SaOvR | late | 4156 | 0.022 | -0.027 | 0.071 | 0.188 | False |
+| SRS | RawEPA | late | 4156 | -0.021 | -0.066 | 0.025 | 0.813 | False |
+| SRS | SaOvR | late | 4156 | 0.002 | -0.064 | 0.068 | 0.470 | False |
+| T1Weighted | RawEPA | late | 4156 | -0.059 | -0.116 | -0.005 | 0.983 | True |
+| T1Weighted | SRS | late | 4156 | -0.039 | -0.109 | 0.030 | 0.869 | False |
+| T1Weighted | SaOvR | late | 4156 | -0.037 | -0.077 | 0.005 | 0.961 | False |
+| T2Weighted | RawEPA | late | 4156 | -0.071 | -0.129 | -0.014 | 0.994 | True |
+| T2Weighted | SRS | late | 4156 | -0.050 | -0.117 | 0.018 | 0.928 | False |
+| T2Weighted | SaOvR | late | 4156 | -0.049 | -0.092 | -0.004 | 0.985 | True |
+| T2Weighted | T1Weighted | late | 4156 | -0.012 | -0.032 | 0.008 | 0.864 | False |
+| T4Weighted | RawEPA | late | 4156 | -0.104 | -0.164 | -0.044 | 1.000 | True |
+| T4Weighted | SRS | late | 4156 | -0.084 | -0.146 | -0.021 | 0.996 | True |
+| T4Weighted | SaOvR | late | 4156 | -0.082 | -0.135 | -0.029 | 0.999 | True |
+| T4Weighted | T1Weighted | late | 4156 | -0.045 | -0.086 | -0.006 | 0.986 | True |
+| T4Weighted | T2Weighted | late | 4156 | -0.033 | -0.067 | 0.001 | 0.971 | False |
+| RawEPA | SaOvR | overall | 5297 | -0.006 | -0.052 | 0.040 | 0.605 | False |
+| SRS | RawEPA | overall | 5297 | -0.037 | -0.086 | 0.008 | 0.940 | False |
+| SRS | SaOvR | overall | 5297 | -0.043 | -0.106 | 0.019 | 0.913 | False |
+| T1Weighted | RawEPA | overall | 5297 | -0.048 | -0.095 | 0.002 | 0.968 | False |
+| T1Weighted | SRS | overall | 5297 | -0.010 | -0.077 | 0.054 | 0.622 | False |
+| T1Weighted | SaOvR | overall | 5297 | -0.054 | -0.095 | -0.011 | 0.993 | True |
+| T2Weighted | RawEPA | overall | 5297 | -0.066 | -0.112 | -0.015 | 0.992 | True |
+| T2Weighted | SRS | overall | 5297 | -0.028 | -0.096 | 0.035 | 0.806 | False |
+| T2Weighted | SaOvR | overall | 5297 | -0.072 | -0.115 | -0.023 | 1.000 | True |
+| T2Weighted | T1Weighted | overall | 5297 | -0.018 | -0.037 | -0.000 | 0.977 | True |
+| T4Weighted | RawEPA | overall | 5297 | -0.095 | -0.147 | -0.036 | 1.000 | True |
+| T4Weighted | SRS | overall | 5297 | -0.058 | -0.120 | 0.005 | 0.965 | False |
+| T4Weighted | SaOvR | overall | 5297 | -0.101 | -0.153 | -0.050 | 1.000 | True |
+| T4Weighted | T1Weighted | overall | 5297 | -0.048 | -0.086 | -0.009 | 0.993 | True |
+| T4Weighted | T2Weighted | overall | 5297 | -0.029 | -0.063 | 0.002 | 0.965 | False |
 
 ## Weekly MAE Curves
 
@@ -176,6 +222,20 @@ Stage 3b re-registers the validation target into information-matched leagues.
 | 16 | T2Weighted | 429 | 11.155 | 14.103 |
 | 17 | T2Weighted | 428 | 11.399 | 14.473 |
 | 18 | T2Weighted | 80 | 10.361 | 12.585 |
+| 5 | T4Weighted | 384 | 10.012 | 13.283 |
+| 6 | T4Weighted | 379 | 10.694 | 13.662 |
+| 7 | T4Weighted | 378 | 11.471 | 14.547 |
+| 8 | T4Weighted | 378 | 10.361 | 13.272 |
+| 9 | T4Weighted | 371 | 10.263 | 13.066 |
+| 10 | T4Weighted | 384 | 11.215 | 14.269 |
+| 11 | T4Weighted | 401 | 9.693 | 12.804 |
+| 12 | T4Weighted | 417 | 9.869 | 12.782 |
+| 13 | T4Weighted | 421 | 10.402 | 13.431 |
+| 14 | T4Weighted | 418 | 10.897 | 13.998 |
+| 15 | T4Weighted | 429 | 10.497 | 13.570 |
+| 16 | T4Weighted | 429 | 11.126 | 14.038 |
+| 17 | T4Weighted | 428 | 11.350 | 14.423 |
+| 18 | T4Weighted | 80 | 10.184 | 12.521 |
 
 ## Original Per-Season Walk-Forward
 
@@ -475,6 +535,15 @@ Stage 3b re-registers the validation target into information-matched leagues.
 | q1_fixed_team_defense | Drake Maye | 0.306 | 0.253 | -0.016 | -0.054 |
 | q2_defense_penalty_x0 | Matthew Stafford | 0.244 | 0.229 | 0.008 | -0.015 |
 | q2_defense_penalty_x0 | Drake Maye | 0.306 | 0.240 | -0.035 | -0.066 |
+
+## QB Open Status
+
+- The Stage 3b QB audit continues to stand as a positive linear-adjustment result:
+  the additive adjustment operated at full strength in EPA units, the identity checks
+  held, and Q1/Q2 were correctly not adopted.
+- The QB question remains open anyway, but on a new hypothesis: possible model
+  misspecification from additive QB-vs-defense effects rather than miscalibrated
+  adjustment strength. Stage 3d is the pre-registered next step.
 
 ## SaCR Caveat
 

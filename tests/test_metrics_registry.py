@@ -91,6 +91,7 @@ CURRENT_OUTPUT_COLUMN_SAMPLES = [
     "SaCR",
     "SaOR",
     "SaDR",
+    "SaSTR",
     "SaOvR",
     "SRS",
     "QRaw",
@@ -292,7 +293,9 @@ class TestRatingPools:
         assert "1999-2025" in sacr.base.note
         assert "uv run python -m nfl_sos_ratings.composite_weights" in sacr.base.note
         assert "-0.04081182634425329" in sacr.base.note
-        assert "adj_def_rushing_epa_per_offensive_snap=0.0992080882735857" in sacr.base.note
+        assert "st_rating=0.0575025275920063" in sacr.base.note
+        assert "adj_def_rushing_epa_per_offensive_snap=0.0973640754908631" in sacr.base.note
+        assert "next-season SaOvR" in sacr.base.note
 
         assert qsacr is not None and qsacr.base.note is not None
         assert "2006-2025" in qsacr.base.note

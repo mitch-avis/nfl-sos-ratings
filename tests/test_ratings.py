@@ -70,15 +70,17 @@ def test_compute_ratings_with_real_inputs() -> None:
             "adj_off_rushing_epa_per_offensive_snap": [0.18, 0.14, -0.02, -0.12],
             "adj_def_passing_epa_per_offensive_snap": [0.30, -0.06, 0.22, -0.18],
             "adj_def_rushing_epa_per_offensive_snap": [0.16, -0.02, 0.18, -0.10],
+            "st_rating": [0.20, -0.06, 0.08, -0.12],
         }
     )
 
     result = ratings.compute_ratings(df)
 
-    assert result.columns == ["team", "SaOR", "SaDR", "SaOvR", "SaCR"]
+    assert result.columns == ["team", "SaOR", "SaDR", "SaSTR", "SaOvR", "SaCR"]
     assert result.select("team").to_series().to_list() == ["BAD", "DEF", "DOM", "OFF"]
     assert result.sort("SaOR", descending=True).select("team").to_series().to_list()[0] == "DOM"
     assert result.sort("SaDR", descending=True).select("team").to_series().to_list()[0] == "DOM"
+    assert result.sort("SaSTR", descending=True).select("team").to_series().to_list()[0] == "DOM"
     assert result.sort("SaOvR", descending=True).select("team").to_series().to_list()[0] == "DOM"
     assert result.sort("SaCR", descending=True).select("team").to_series().to_list()[0] == "DOM"
 
@@ -100,6 +102,7 @@ def test_compute_ratings_ignores_raw_total_only_columns() -> None:
 
     assert result.select("SaOR").to_series().to_list() == [0.0, 0.0]
     assert result.select("SaDR").to_series().to_list() == [0.0, 0.0]
+    assert result.select("SaSTR").to_series().to_list() == [0.0, 0.0]
     assert result.select("SaOvR").to_series().to_list() == [0.0, 0.0]
     assert result.select("SaCR").to_series().to_list() == [0.0, 0.0]
 
@@ -118,6 +121,7 @@ def test_compute_ratings_without_win_pct_and_without_sos_inputs(
     result = ratings.compute_ratings(df)
 
     assert result.height == 3
+    assert result.select("SaSTR").to_series().to_list() == [0.0, 0.0, 0.0]
     assert result.select("SaCR").to_series().to_list() == [0.0, 0.0, 0.0]
     assert result.select("SaOvR").to_series().to_list() == [0.0, 0.0, 0.0]
     assert capsys.readouterr().out == ""
@@ -140,6 +144,7 @@ def test_compute_ratings_excludes_outcome_only_fields_from_quality_ratings() -> 
 
     assert result.select("SaOR").to_series().to_list() == [0.0, 0.0, 0.0]
     assert result.select("SaDR").to_series().to_list() == [0.0, 0.0, 0.0]
+    assert result.select("SaSTR").to_series().to_list() == [0.0, 0.0, 0.0]
     assert result.select("SaOvR").to_series().to_list() == [0.0, 0.0, 0.0]
     assert result.select("SaCR").to_series().to_list() == [0.0, 0.0, 0.0]
 
@@ -155,6 +160,7 @@ def test_compute_ratings_builds_overall_and_composite_from_standardized_offense_
             "adj_off_rushing_epa_per_offensive_snap": [1.0, 0.0],
             "adj_def_passing_epa_per_offensive_snap": [3.0, 0.0],
             "adj_def_rushing_epa_per_offensive_snap": [3.0, 0.0],
+            "st_rating": [5.0, 0.0],
         }
     )
 
@@ -178,6 +184,7 @@ def test_compute_ratings_builds_overall_and_composite_from_standardized_offense_
             + weights["adj_off_rushing_epa_per_offensive_snap"] * 1.0
             + weights["adj_def_passing_epa_per_offensive_snap"] * 3.0
             + weights["adj_def_rushing_epa_per_offensive_snap"] * 3.0
+            + weights["st_rating"] * 5.0
         ),
         0.0,
     ]
@@ -185,7 +192,8 @@ def test_compute_ratings_builds_overall_and_composite_from_standardized_offense_
 
     assert result.select("SaOR").to_series().to_list() == [1.0, 0.0]
     assert result.select("SaDR").to_series().to_list() == [3.0, 0.0]
-    assert result.select("SaOvR").to_series().to_list() == [4.0, 0.0]
+    assert result.select("SaSTR").to_series().to_list() == [5.0, 0.0]
+    assert result.select("SaOvR").to_series().to_list() == [9.0, 0.0]
     assert result.select("SaCR").to_series().to_list() == pytest.approx(expected_sacr)
 
 
@@ -200,6 +208,7 @@ def test_compute_ratings_uses_frozen_stage_two_component_weights(
             "adj_off_rushing_epa_per_offensive_snap": [2.0, -2.0],
             "adj_def_passing_epa_per_offensive_snap": [3.0, -3.0],
             "adj_def_rushing_epa_per_offensive_snap": [4.0, -4.0],
+            "st_rating": [5.0, -5.0],
         }
     )
 
@@ -223,12 +232,14 @@ def test_compute_ratings_uses_frozen_stage_two_component_weights(
             + weights["adj_off_rushing_epa_per_offensive_snap"] * 2.0
             + weights["adj_def_passing_epa_per_offensive_snap"] * 3.0
             + weights["adj_def_rushing_epa_per_offensive_snap"] * 4.0
+            + weights["st_rating"] * 5.0
         ),
         (
             weights["adj_off_passing_epa_per_offensive_snap"] * -1.0
             + weights["adj_off_rushing_epa_per_offensive_snap"] * -2.0
             + weights["adj_def_passing_epa_per_offensive_snap"] * -3.0
             + weights["adj_def_rushing_epa_per_offensive_snap"] * -4.0
+            + weights["st_rating"] * -5.0
         ),
     ]
     expected = [round(value, 3) for value in expected]

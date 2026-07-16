@@ -47,23 +47,24 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "The site's headline team rating. In Stage 2 of the methodology overhaul it is a "
             "frozen-weight blend of standardized ridge-adjusted passing and rushing EPA on both "
-            "offense and defense. 0 is league average and +1 is one standard deviation better "
-            "than average."
+            "offense and defense, plus the schedule-adjusted special-teams backbone. 0 is league "
+            "average and +1 is one standard deviation better than average."
         ),
         shape="score",
         polarity="higher",
         source="D",
         since=1999,
         note=(
-            "Frozen Stage 2 weights: adj_off_passing_epa_per_offensive_snap=0.4046255151410425, "
-            "adj_off_rushing_epa_per_offensive_snap=0.20159591248913308, "
-            "adj_def_passing_epa_per_offensive_snap=0.29457048409623865, "
-            "adj_def_rushing_epa_per_offensive_snap=0.0992080882735857. Target: next-season "
-            "SaOvR. Fit window: 1999-2025 season pairs. Held-out leave-one-season-out metrics: "
-            "weighted RMSE 0.745182 vs equal-weight RMSE 0.752449; weighted MAE 0.603618 vs "
-            "equal-weight MAE 0.611575. Fitting command: uv run python -m "
+            "Frozen Stage 3c weights: adj_off_passing_epa_per_offensive_snap=0.3828739475913225, "
+            "adj_off_rushing_epa_per_offensive_snap=0.19062479977967036, "
+            "adj_def_passing_epa_per_offensive_snap=0.27163464954613765, "
+            "adj_def_rushing_epa_per_offensive_snap=0.0973640754908631, "
+            "st_rating=0.0575025275920063. Target: next-season SaOvR. Fit window: 1999-2025 "
+            "season pairs. Held-out leave-one-season-out metrics: weighted RMSE 0.745034 vs "
+            "equal-weight RMSE 0.759903; weighted MAE 0.604237 vs equal-weight MAE 0.618799. "
+            "Fitting command: uv run python -m "
             "nfl_sos_ratings.composite_weights. Refit only with an explicit maintainer-approved "
-            "Stage 2 methodology update. The tested takeaway-creation candidate "
+            "Stage 3c methodology update. The tested takeaway-creation candidate "
             "(adj_def_takeaway_creation_rate_per_defensive_snap) was excluded after a small "
             "negative fitted weight (-0.04081182634425329)."
         ),
@@ -98,13 +99,42 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         since=1999,
     ),
     _ratings(
+        name="SaSTR",
+        label="SaSTR",
+        full_name="Schedule-Adjusted Special Teams Rating",
+        description=(
+            "How good the team's special teams were after accounting for field-position and "
+            "opponent context through the Stage 3c special-teams backbone. Positive means more "
+            "special-teams value than an average team."
+        ),
+        shape="score",
+        polarity="higher",
+        source="D",
+        since=1999,
+    ),
+    _ratings(
         name="SaOvR",
         label="SaOvR",
         full_name="Schedule-Adjusted Overall Rating",
         description=(
-            "The combined team quality signal from Stage 1 of the methodology overhaul. It "
-            "adds the standardized SaOR and SaDR signals, so teams strong on both sides of "
-            "the ball rise to the top while wins and turnover luck stay out of the formula."
+            "The combined team quality signal from Stage 3c of the methodology overhaul. It "
+            "adds the standardized SaOR, SaDR, and SaSTR signals, so teams strong across "
+            "offense, defense, and special teams rise to the top while wins and turnover luck "
+            "stay out of the formula."
+        ),
+        shape="score",
+        polarity="higher",
+        source="D",
+        since=1999,
+    ),
+    _ratings(
+        name="st_rating",
+        label="ST Backbone",
+        full_name="Raw Special Teams Backbone Rating",
+        description=(
+            "The unstandardized Stage 3c special-teams backbone score before it is converted "
+            "into the published SaSTR surface. It is written only for auditability in the "
+            "simultaneous team adjustments output."
         ),
         shape="score",
         polarity="higher",

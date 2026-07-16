@@ -7,6 +7,8 @@ import pytest
 
 from nfl_sos_ratings import ratings, simultaneous_adjustment
 from nfl_sos_ratings.validation.snapshots import (
+    build_play_level_team_adjusted_snapshot,
+    build_play_level_team_frame_from_pbp,
     build_special_teams_game_frame_from_pbp,
     build_special_teams_rating_snapshot,
     build_team_adjusted_snapshot,
@@ -48,8 +50,8 @@ def test_build_team_rating_snapshot_matches_live_team_rating_path() -> None:
 
     result = build_team_rating_snapshot(weekly_df, cutoff_week=3).sort("team")
 
-    assert result.select(["team", "SaOR", "SaDR", "SaOvR"]).to_dict(as_series=False) == (
-        expected.select(["team", "SaOR", "SaDR", "SaOvR"]).to_dict(as_series=False)
+    assert result.select(["team", "SaOR", "SaDR", "SaSTR", "SaOvR"]).to_dict(as_series=False) == (
+        expected.select(["team", "SaOR", "SaDR", "SaSTR", "SaOvR"]).to_dict(as_series=False)
     )
 
 
@@ -149,6 +151,77 @@ def test_build_special_teams_game_frame_from_pbp_builds_team_margins() -> None:
     )
 
 
+def test_build_play_level_team_frame_from_pbp_builds_per_snap_pass_rush_rows() -> None:
+    """Scrimmage PBP should become one row per offensive snap with pass/rush EPA channels."""
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["g1", "g1", "g1", "g1", "g1", "g1"],
+            "week": [1, 1, 1, 1, 1, 1],
+            "posteam": ["A", "A", "A", "B", "B", "B"],
+            "defteam": ["B", "B", "B", "A", "A", "A"],
+            "home_team": ["A", "A", "A", "A", "A", "A"],
+            "away_team": ["B", "B", "B", "B", "B", "B"],
+            "qb_dropback": [1, 0, 0, 1, 0, 0],
+            "rush": [0, 1, 0, 0, 1, 0],
+            "qb_kneel": [0, 0, 1, 0, 0, 0],
+            "qb_spike": [0, 0, 0, 0, 0, 0],
+            "epa": [0.4, 0.2, -0.1, -0.3, 0.1, 1.0],
+        }
+    )
+
+    result = build_play_level_team_frame_from_pbp(pbp)
+
+    assert result.columns == [
+        "game_id",
+        "week",
+        "team",
+        "opponent_team",
+        "is_home",
+        "passing_epa_per_offensive_snap",
+        "rushing_epa_per_offensive_snap",
+    ]
+    assert result.height == 5
+    assert result.filter(pl.col("team") == "A").select("is_home").to_series().to_list() == [
+        True,
+        True,
+        True,
+    ]
+    assert result.select("passing_epa_per_offensive_snap").to_series().to_list() == pytest.approx(
+        [0.4, 0.0, 0.0, -0.3, 0.0]
+    )
+    assert result.select("rushing_epa_per_offensive_snap").to_series().to_list() == pytest.approx(
+        [0.0, 0.2, 0.0, 0.0, 0.1]
+    )
+
+
+def test_build_play_level_team_adjusted_snapshot_uses_only_pre_cutoff_rows() -> None:
+    """Play-level snapshots should match the live ridge wrapper on pre-cutoff play rows only."""
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["g1", "g1", "g2", "g2", "g3", "g3"],
+            "week": [1, 1, 2, 2, 3, 3],
+            "posteam": ["A", "B", "A", "B", "A", "B"],
+            "defteam": ["B", "A", "B", "A", "B", "A"],
+            "home_team": ["A", "A", "B", "B", "A", "A"],
+            "away_team": ["B", "B", "A", "A", "B", "B"],
+            "qb_dropback": [1, 1, 1, 1, 1, 1],
+            "rush": [0, 0, 0, 0, 0, 0],
+            "qb_kneel": [0, 0, 0, 0, 0, 0],
+            "qb_spike": [0, 0, 0, 0, 0, 0],
+            "epa": [0.3, -0.2, 0.1, 0.0, 99.0, -99.0],
+        }
+    )
+    play_rows = build_play_level_team_frame_from_pbp(pbp)
+    expected = simultaneous_adjustment.compute_team_adjusted_stats(
+        play_rows.filter(pl.col("week") < 3),
+        response_cols=_TEAM_RIDGE_RESPONSE_COLS,
+    ).sort("team")
+
+    result = build_play_level_team_adjusted_snapshot(play_rows, cutoff_week=3).sort("team")
+
+    assert result.to_dict(as_series=False) == expected.to_dict(as_series=False)
+
+
 def test_build_special_teams_rating_snapshot_uses_prior_games_only() -> None:
     """Special-teams snapshots should use only games before the requested cutoff."""
     st_games = pl.DataFrame(
@@ -190,10 +263,10 @@ def test_build_team_rating_snapshot_handles_early_cutoff() -> None:
     """Verify an early-week snapshot returns finite ratings instead of failing."""
     result = build_team_rating_snapshot(_weekly_team_rows(), cutoff_week=2).sort("team")
 
-    assert result.columns == ["team", "SaOR", "SaDR", "SaOvR", "SaCR"]
+    assert result.columns == ["team", "SaOR", "SaDR", "SaSTR", "SaOvR", "SaCR"]
     assert result.select("team").to_series().to_list() == ["A", "B"]
     assert all(
         math.isfinite(value)
-        for value in result.select(["SaOR", "SaDR", "SaOvR", "SaCR"]).row(0)
-        + result.select(["SaOR", "SaDR", "SaOvR", "SaCR"]).row(1)
+        for value in result.select(["SaOR", "SaDR", "SaSTR", "SaOvR", "SaCR"]).row(0)
+        + result.select(["SaOR", "SaDR", "SaSTR", "SaOvR", "SaCR"]).row(1)
     )

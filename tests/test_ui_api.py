@@ -28,10 +28,10 @@ def _seed_season_contract(data_dir: Path, season: int) -> None:
     )
     _write_table(
         data_dir / f"{season}_combined.parquet",
-        "team,points_for,points_per_offensive_snap,opp_points_for,SaCR,SaOR,SaDR,SaOvR,SRS",
-        "DET,510,0.42,390,1.2,1.1,0.9,1.0,7.4",
+        "team,points_for,points_per_offensive_snap,opp_points_for,SaCR,SaOR,SaDR,SaSTR,SaOvR,SRS",
+        "DET,510,0.42,390,1.2,1.1,0.9,0.3,1.0,7.4",
     )
-    _write_table(data_dir / f"{season}_ratings.parquet", "team,SaCR", "DET,1.2")
+    _write_table(data_dir / f"{season}_ratings.parquet", "team,SaCR,SaSTR", "DET,1.2,0.3")
     _write_table(
         data_dir / f"{season}_qb_combined.parquet",
         (
@@ -73,6 +73,7 @@ def test_get_season_returns_grouped_team_and_qb_tables(tmp_path: Path) -> None:
         "SaCR",
         "SaOR",
         "SaDR",
+        "SaSTR",
         "SaOvR",
         "SRS",
     ]

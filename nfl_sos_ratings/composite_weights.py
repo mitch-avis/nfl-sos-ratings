@@ -20,6 +20,8 @@ import numpy as np
 import polars as pl
 
 from nfl_sos_ratings.config import DATA_DIR, END_YEAR, START_YEAR, TEAM_ABBR_ALIASES
+from nfl_sos_ratings.data_loader import load_pbp_data
+from nfl_sos_ratings.simultaneous_adjustment import solve_srs
 
 QB_COMPOSITE_START_SEASON = 2006
 
@@ -85,6 +87,11 @@ TEAM_SACR_COMPONENTS: tuple[CompositeComponent, ...] = (
         ),
         higher_is_better=True,
     ),
+    CompositeComponent(
+        name="st_rating",
+        source_columns=("st_rating",),
+        higher_is_better=True,
+    ),
 )
 
 QB_QSACR_COMPONENTS: tuple[CompositeComponent, ...] = (
@@ -130,13 +137,15 @@ TEAM_SACR_FROZEN_SPEC = FrozenCompositeSpec(
             "adj_off_rushing_epa_per_offensive_snap",
             "adj_def_passing_epa_per_offensive_snap",
             "adj_def_rushing_epa_per_offensive_snap",
+            "st_rating",
         }
     ),
     weights=(
-        ("adj_off_passing_epa_per_offensive_snap", 0.4046255151410425),
-        ("adj_off_rushing_epa_per_offensive_snap", 0.20159591248913308),
-        ("adj_def_passing_epa_per_offensive_snap", 0.29457048409623865),
-        ("adj_def_rushing_epa_per_offensive_snap", 0.0992080882735857),
+        ("adj_off_passing_epa_per_offensive_snap", 0.3828739475913225),
+        ("adj_off_rushing_epa_per_offensive_snap", 0.19062479977967036),
+        ("adj_def_passing_epa_per_offensive_snap", 0.27163464954613765),
+        ("adj_def_rushing_epa_per_offensive_snap", 0.0973640754908631),
+        ("st_rating", 0.0575025275920063),
     ),
     target_column="SaOvR",
     fit_window=(1999, 2025),
@@ -241,6 +250,100 @@ def _empty_training_frame(schema: dict[str, type | pl.DataType | None]) -> pl.Da
     return pl.DataFrame(schema=schema)
 
 
+def _build_special_teams_game_frame_from_pbp(pbp_df: pl.DataFrame) -> pl.DataFrame:
+    """Convert special-play PBP into one net special-teams margin row per team-game."""
+    special_flag = "special" if "special" in pbp_df.columns else "special_teams_play"
+    required_columns = {"game_id", "week", "posteam", "defteam", special_flag, "epa"}
+    if not required_columns.issubset(set(pbp_df.columns)):
+        return pl.DataFrame(
+            schema={
+                "game_id": pl.String,
+                "week": pl.Int64,
+                "team": pl.String,
+                "opponent_team": pl.String,
+                "st_epa_margin_per_play": pl.Float64,
+            }
+        )
+
+    special_plays = pbp_df.filter(pl.col(special_flag).cast(pl.Int64) == 1).drop_nulls(
+        ["posteam", "defteam"]
+    )
+    if special_plays.is_empty():
+        return pl.DataFrame(
+            schema={
+                "game_id": pl.String,
+                "week": pl.Int64,
+                "team": pl.String,
+                "opponent_team": pl.String,
+                "st_epa_margin_per_play": pl.Float64,
+            }
+        )
+
+    offense_perspective = special_plays.select(
+        pl.col("game_id").cast(pl.String),
+        pl.col("week").cast(pl.Int64),
+        pl.col("posteam").cast(pl.String).alias("team"),
+        pl.col("defteam").cast(pl.String).alias("opponent_team"),
+        pl.col("epa").cast(pl.Float64).alias("st_epa_for"),
+        pl.lit(0.0).alias("st_epa_against"),
+        pl.lit(1.0).alias("special_play_count"),
+    )
+    defense_perspective = special_plays.select(
+        pl.col("game_id").cast(pl.String),
+        pl.col("week").cast(pl.Int64),
+        pl.col("defteam").cast(pl.String).alias("team"),
+        pl.col("posteam").cast(pl.String).alias("opponent_team"),
+        pl.lit(0.0).alias("st_epa_for"),
+        pl.col("epa").cast(pl.Float64).alias("st_epa_against"),
+        pl.lit(1.0).alias("special_play_count"),
+    )
+
+    return (
+        pl.concat([offense_perspective, defense_perspective], how="vertical")
+        .group_by(["game_id", "week", "team", "opponent_team"])
+        .agg(
+            pl.col("st_epa_for").sum().alias("st_epa_for"),
+            pl.col("st_epa_against").sum().alias("st_epa_against"),
+            pl.col("special_play_count").sum().alias("special_play_count"),
+        )
+        .with_columns(
+            (
+                (pl.col("st_epa_for") - pl.col("st_epa_against")) / pl.col("special_play_count")
+            ).alias("st_epa_margin_per_play")
+        )
+        .select(["game_id", "week", "team", "opponent_team", "st_epa_margin_per_play"])
+    )
+
+
+def _build_special_teams_rating_frame(season: int, teams: list[str]) -> pl.DataFrame:
+    """Return one season's full-year special-teams ratings, or zeros when unavailable."""
+    zero_frame = pl.DataFrame({"team": teams, "st_rating": [0.0] * len(teams)})
+    try:
+        pbp_df = load_pbp_data(season)
+    except Exception:
+        return zero_frame
+
+    st_game_rows = _build_special_teams_game_frame_from_pbp(pbp_df)
+    if st_game_rows.is_empty():
+        return zero_frame
+
+    return solve_srs(st_game_rows, response_col="st_epa_margin_per_play").rename(
+        {"srs_rating": "st_rating"}
+    )
+
+
+def _attach_special_teams_rating(current: pl.DataFrame, season: int) -> pl.DataFrame:
+    """Join a season's special-teams rating onto the current training frame when needed."""
+    if "st_rating" in current.columns:
+        return current
+
+    teams = current.select("team").to_series().cast(pl.String).to_list()
+    st_ratings = _build_special_teams_rating_frame(season, teams)
+    return current.join(st_ratings, on="team", how="left").with_columns(
+        pl.col("st_rating").fill_null(0.0)
+    )
+
+
 def build_team_training_rows(data_dir: Path, seasons: Iterable[int]) -> pl.DataFrame:
     """Build team season-pair rows with season-t standardized predictors and season-t+1 targets."""
     season_list = sorted(seasons)
@@ -249,6 +352,7 @@ def build_team_training_rows(data_dir: Path, seasons: Iterable[int]) -> pl.DataF
 
     for season, next_season in zip(season_list, season_list[1:], strict=False):
         current = _canonicalize_team_codes(_read_back_catalog_frame(data_dir, season, "combined"))
+        current = _attach_special_teams_rating(current, season)
         upcoming = _canonicalize_team_codes(
             _read_back_catalog_frame(data_dir, next_season, "combined")
         )

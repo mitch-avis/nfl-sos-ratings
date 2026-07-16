@@ -315,6 +315,21 @@ Status in the current worktree:
     the eligible-QB slope worse, and the best Q2 lighter-defense-penalty variant only moved the
     2025 eligible-QB slope from `0.505` to `0.557`, not enough to justify a published backbone
     change or a QSaCR refreeze
+- Stage 3c is the active team-side closeout:
+  - Before the deferred T4 play-level experiment runs, the team promotion decision rule is fixed
+    as follows: A candidate team backbone is promoted to the published ratings if, on the full
+    held-out walk-forward window: (1) it is significantly better than RawEPA and than the Stage 1
+    SaOvR (95% paired-bootstrap CI excluding zero); (2) it is numerically better than SRS on both
+    overall MAE and overall RMSE, and not significantly worse than SRS; and (3) adopting it does
+    not degrade team year-over-year stability below the Stage 3 recorded value.
+  - Statistical parity with SRS plus the construct advantages (schedule-adjusted, outcome-free
+    components, unit-level decomposition) is sufficient and will be stated plainly, as parity, in
+    the methodology documentation — never overclaimed as superiority.
+  - Rationale: the stricter requirement to beat SRS with a CI excluding zero is statistically
+    unattainable on the available sample, and the current report already shows SRS itself does not
+    separate from RawEPA at 95%.
+  - The Stage 3 harness must now report paired-bootstrap probability-of-superiority
+    (`P(candidate MAE <= SRS MAE)`) alongside the CI tables, overall and by split.
 
 Scope:
 
@@ -378,9 +393,51 @@ Record decisions in `.agents/current-status.md` when made.
   `adj_def_rushing_epa_per_offensive_snap`; the frozen QB menu is `adj_qb_epa_per_dropback`,
   `adj_qb_completion_percentage_above_expectation`, `adj_qb_sack_rate`, and
   `adj_qb_td_int_margin_rate`.
-4. Open: Stage 4 CPOE era-boundary handling (exclude pre-2006 components vs. 2006+ window).
-5. Open: garbage-time filter default (config flag exists either way; default off vs. moderate WP
+4. Resolved: the winning Stage 3c team backbone is the play-level T4 variant. It improved overall
+  walk-forward MAE to `10.600313` and overall RMSE to `13.625683`, beat `RawEPA` and Stage 1
+  `SaOvR` with nonzero paired-bootstrap edges, improved on SRS numerically (`10.657975` /
+  `13.745982`) without being significantly worse overall (CI `[-0.118376, 0.001255]`,
+  `P(T4 <= SRS)=0.9695`), and cleared the team stability guard (`0.445392 / 0.434221` vs
+  `0.416775 / 0.414250`). Stage 3 is closed on the team side and the published team path now uses
+  the play-level backbone plus `SaSTR`.
+5. Open: Stage 3d — QB nonlinearity investigation ("flat-track bully" hypothesis).
+6. Open: Stage 4 CPOE era-boundary handling (exclude pre-2006 components vs. 2006+ window).
+7. Open: garbage-time filter default (config flag exists either way; default off vs. moderate WP
   band).
+
+### Stage 3d — QB nonlinearity investigation ("flat-track bully" hypothesis)
+
+Hypothesis: QB-vs-defense effects are not additive; QBs who accumulate large per-dropback edges
+against weak defenses may systematically underperform the additive model's prediction against
+strong defenses, so a linear schedule adjustment under-corrects soft-schedule QBs even when
+applied at full strength.
+
+- **D1 — Split-half diagnostic (regular season only, no new data).** For each QB-season,
+  compute raw and adjusted EPA/dropback separately versus top-half and bottom-half defenses
+  (classified by the team-solve defense-vs-pass coefficients). Pooled over 1999–2025, test
+  whether QBs with below-median faced-difficulty systematically underperform the additive
+  prediction versus top-half defenses (versus-quality residual regressed on faced-difficulty;
+  report effect size, CI, and per-season consistency). Include 2025 Maye/Stafford as the named
+  case rows.
+- **D2 — Interaction model.** If D1 finds a real effect: estimate per-QB slopes versus defense
+  quality with shrinkage (hierarchical/ridge interaction), or a versus-top-half-defenses adjusted
+  rating as a companion surface. Adoption gate: improves D1's residual pattern without degrading
+  QSaCR year-over-year stability below the recorded `0.485 / 0.480`, and survives a leakage
+  review.
+- **D3 — Playoff out-of-sample check.** Add a POST play-by-play load path (validation-only;
+  published ratings remain regular-season). Pooled over all seasons, measure which regular-season
+  QB metrics (`QSaCR`, `QSaOR`, `QRaw`, passer rating, ANY/A, and any D2 candidate) best predict
+  same-season playoff adjusted EPA/dropback versus playoff defenses (rank correlation with
+  dropback-weighted pooling; report per-season and pooled). This operationalizes the maintainer's
+  requirement that schedule-adjusted ratings be informative about performance against
+  playoff-caliber opponents.
+- **D4 — Composite-target variant.** Fit an alternative `QSaCR` weight set targeting next-season
+  versus-top-half-defense EPA (instead of overall EPA); compare against the frozen weights on
+  D1/D3 criteria and stability. Adoption requires maintainer sign-off because it changes what the
+  flagship QB metric optimizes.
+- Publication rule: any adopted change refreezes `QSaCR` via the documented procedure; if nothing
+  is adopted, the negative result closes the question with evidence and the 2025 verdict stands as
+  the system's answer.
 
 ## Working agreements for agents on this plan
 

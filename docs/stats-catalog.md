@@ -84,7 +84,7 @@ Rules:
 
 | View | Denominator | Additional Notes |
 | --- | --- | --- |
-| Ratings | none | Schedule-adjusted outputs (`SaCR`, `SaOR`, `SaDR`, `SaOvR`, `SRS`). `SaCR` is the Stage 2 frozen-weight team composite over ridge-adjusted passing and rushing EPA on both sides of the ball. This is a view, not a category. |
+| Ratings | none | Schedule-adjusted outputs (`SaCR`, `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SRS`). `SaCR` is the Stage 3c frozen-weight team composite over ridge-adjusted passing EPA, rushing EPA, defense, and special teams. This is a view, not a category. |
 | Raw Stat Totals | none | For **count** metrics only. **rate** and **avg** metrics keep the same value they show elsewhere. |
 | Per-Game Rates | games played | For **count** metrics this is the per-game form. **rate** and **avg** metrics are unchanged. |
 | Per-Play Rates | play-specific denominators for the subcategory (dropback, attempt, carry, drive, series, etc.) | For **count** metrics this uses the stat's natural denominator suffix; **rate** and **avg** metrics are unchanged. |
@@ -261,7 +261,7 @@ Receiving is retained on both sides **for display purposes only** with every row
 
 The `Ratings` view now has two descriptive blocks:
 
-- the project's own schedule-adjusted ratings (`SaCR`, `SaOR`, `SaDR`, `SaOvR`, `SRS`)
+- the project's own schedule-adjusted ratings (`SaCR`, `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SRS`)
 - external/reference ratings such as the fixed-constant team Elo validation baseline
 
 Those external/reference ratings are `ratings_eligible=False` in the registry and never feed the
@@ -304,12 +304,13 @@ Season identity and outcome summary. No subcategories.
 | `srs`, `sos` | Simple Rating System and its schedule component | D(SCH) | rate | 1999 |
 
 All differentials are `duplicate_of` their components for ratings purposes.
-The app's own ratings (`SaCR`, `SaOR`, `SaDR`, `SaOvR`, `SRS`) belong to the separate `Ratings`
+The app's own ratings (`SaCR`, `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SRS`) belong to the separate `Ratings`
 view rather than to the `Overall` / `Offense` / `Defense` / `Special Teams` stat taxonomy.
 External/reference ratings such as `team_elo` live in that same top-level view as descriptive-only
 benchmarks.
-Within that view, `SaCR` is the frozen Stage 2 weighted composite and `SaOR` / `SaDR` / `SaOvR`
-remain the ridge-backbone component views.
+Within that view, `SaCR` is the frozen Stage 3c weighted composite, `SaSTR` is the published
+special-teams backbone surface, and `SaOR` / `SaDR` / `SaOvR` remain the ridge-backbone
+component views.
 
 ## Catalog: Offense
 

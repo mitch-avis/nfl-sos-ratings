@@ -202,7 +202,7 @@ def compute_ratings(
     df: pl.DataFrame,
     reference_df: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
-    """Compute team ratings from ridge-adjusted passing and rushing EPA components."""
+    """Compute team ratings from ridge-backed offense, defense, and special-teams components."""
     resolved_reference_df = _resolve_reference_df(df, reference_df)
     teams = df.select("team").to_series().to_list()
 
@@ -210,25 +210,62 @@ def compute_ratings(
     raw_def = _build_ridge_epa_composite(df, _RIDGE_DEFENSE_COMPONENTS)
     reference_raw_off = _build_ridge_epa_composite(resolved_reference_df, _RIDGE_OFFENSE_COMPONENTS)
     reference_raw_def = _build_ridge_epa_composite(resolved_reference_df, _RIDGE_DEFENSE_COMPONENTS)
+    raw_st = _col(df, "st_rating")
+    existing_sastr = _col(df, "SaSTR")
+    existing_reference_sastr = _col(resolved_reference_df, "SaSTR")
+    if "st_rating" in resolved_reference_df.columns:
+        reference_raw_st_values = np.asarray(
+            resolved_reference_df.select(pl.col("st_rating").cast(pl.Float64))
+            .to_series()
+            .drop_nulls()
+            .to_list(),
+            dtype=np.float64,
+        )
+        reference_raw_st = reference_raw_st_values if reference_raw_st_values.size > 0 else None
+    else:
+        reference_raw_st = None
 
     saor = _zscore_against(raw_off.tolist(), reference_raw_off.tolist())
     sadr = _zscore_against(raw_def.tolist(), reference_raw_def.tolist())
     reference_saor = _zscore(reference_raw_off.tolist())
     reference_sadr = _zscore(reference_raw_def.tolist())
 
-    saovr_input = saor + sadr
-    reference_saovr_input = reference_saor + reference_sadr
+    if raw_st is not None:
+        reference_st_source = reference_raw_st if reference_raw_st is not None else raw_st
+        sastr = _zscore_against(raw_st.tolist(), reference_st_source.tolist())
+        reference_sastr = _zscore(reference_st_source.tolist())
+    elif existing_sastr is not None:
+        sastr = existing_sastr
+        reference_sastr_source = (
+            existing_reference_sastr if existing_reference_sastr is not None else existing_sastr
+        )
+        reference_sastr = np.array(reference_sastr_source, dtype=np.float64)
+    else:
+        sastr = np.zeros(df.height, dtype=np.float64)
+        reference_sastr = np.zeros(resolved_reference_df.height, dtype=np.float64)
+
+    saovr_input = saor + sadr + sastr
+    reference_saovr_input = reference_saor + reference_sadr + reference_sastr
     saovr = _zscore_against(saovr_input.tolist(), reference_saovr_input.tolist())
 
+    composite_df = df
+    reference_composite_df = resolved_reference_df
+    if "st_rating" not in composite_df.columns:
+        composite_df = composite_df.with_columns(pl.Series("st_rating", sastr.tolist()))
+    if "st_rating" not in reference_composite_df.columns:
+        reference_composite_df = reference_composite_df.with_columns(
+            pl.Series("st_rating", reference_sastr.tolist())
+        )
+
     sacr_input = composite_weights.build_weighted_composite(
-        df,
+        composite_df,
         composite_weights.TEAM_SACR_FROZEN_SPEC,
-        resolved_reference_df,
+        reference_composite_df,
     )
     reference_sacr_input = composite_weights.build_weighted_composite(
-        resolved_reference_df,
+        reference_composite_df,
         composite_weights.TEAM_SACR_FROZEN_SPEC,
-        resolved_reference_df,
+        reference_composite_df,
     )
     sacr = _zscore_against(sacr_input.tolist(), reference_sacr_input.tolist())
 
@@ -237,6 +274,7 @@ def compute_ratings(
             "team": teams,
             "SaOR": np.round(saor, 3).tolist(),
             "SaDR": np.round(sadr, 3).tolist(),
+            "SaSTR": np.round(sastr, 3).tolist(),
             "SaOvR": np.round(saovr, 3).tolist(),
             "SaCR": np.round(sacr, 3).tolist(),
         }

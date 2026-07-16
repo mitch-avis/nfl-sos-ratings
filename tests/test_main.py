@@ -58,7 +58,14 @@ def _win_totals() -> pl.DataFrame:
 
 def _ratings_df() -> pl.DataFrame:
     return pl.DataFrame(
-        {"team": ["DEN"], "SaCR": [1.0], "SaOR": [0.8], "SaDR": [0.6], "SaOvR": [0.7]}
+        {
+            "team": ["DEN"],
+            "SaCR": [1.0],
+            "SaOR": [0.8],
+            "SaDR": [0.6],
+            "SaSTR": [0.2],
+            "SaOvR": [0.7],
+        }
     )
 
 
@@ -72,6 +79,7 @@ def _team_adjustments_df() -> pl.DataFrame:
             "team": ["DEN"],
             "adj_off_points_per_offensive_snap": [0.15],
             "adj_def_points_allowed_per_defensive_snap": [0.20],
+            "st_rating": [0.25],
         }
     )
 
@@ -122,10 +130,31 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(main, "compute_win_totals", lambda weekly_df: _win_totals())
     monkeypatch.setattr(main, "compute_ratings", lambda combined, **kwargs: _ratings_df())
     monkeypatch.setattr(main, "solve_srs", lambda weekly_df, response_col: _srs_df())
+    monkeypatch.setattr(main, "load_pbp_data", lambda season: pl.DataFrame({"week": [1]}))
     monkeypatch.setattr(
         main,
         "compute_team_adjusted_stats",
         lambda weekly_df, response_cols, ridge_lambda=1.0: _team_adjustments_df(),
+    )
+    monkeypatch.setattr(
+        main,
+        "build_play_level_team_frame_from_pbp",
+        lambda pbp_df: pl.DataFrame({"team": ["DEN"], "week": [1]}),
+    )
+    monkeypatch.setattr(
+        main,
+        "build_play_level_team_adjusted_snapshot",
+        lambda play_rows, cutoff_week: _team_adjustments_df(),
+    )
+    monkeypatch.setattr(
+        main,
+        "build_special_teams_game_frame_from_pbp",
+        lambda pbp_df: pl.DataFrame({"team": ["DEN"], "week": [1]}),
+    )
+    monkeypatch.setattr(
+        main,
+        "build_special_teams_rating_snapshot",
+        lambda st_game_rows, cutoff_week: pl.DataFrame({"team": ["DEN"], "st_rating": [0.25]}),
     )
     monkeypatch.setattr(
         main,
@@ -237,6 +266,7 @@ def test_main_handles_both_team_and_qb_profiles(
     qb_combined = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_combined.parquet")
     assert combined.select("diff_points_for").item() == 4.0
     assert combined.select("diff_qb_passer_rating").item() == 10.0
+    assert combined.select("SaSTR").item() == 0.2
     assert combined.select("SaOvR").item() == 0.7
     assert combined.select("SRS").item() == 1.2
     assert combined.select("adj_off_points_per_offensive_snap").item() == 0.15
@@ -256,6 +286,7 @@ def test_main_handles_both_team_and_qb_profiles(
     assert (tmp_path / f"{main.SEASON}_simultaneous_qb_adjustments.parquet").exists()
 
     ratings_summary = pl.read_parquet(tmp_path / f"{main.SEASON}_ratings.parquet")
+    assert ratings_summary.select("SaSTR").item() == 0.2
     assert ratings_summary.select("SRS").item() == 1.2
     assert "KC (DIV): 1 games" in capsys.readouterr().out
 

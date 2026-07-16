@@ -16,8 +16,23 @@ def _write_parquet(path: Path, frame: pl.DataFrame) -> None:
 
 def test_build_team_training_rows_matches_aliases_and_standardizes_features(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Team training rows should pair relocated clubs and z-score season-t predictors."""
+    monkeypatch.setattr(
+        composite_weights,
+        "load_pbp_data",
+        lambda season: pl.DataFrame(
+            {
+                "game_id": ["g1", "g1", "g2", "g2", "g3", "g3"],
+                "week": [1, 1, 1, 1, 1, 1],
+                "posteam": ["LV", "LAC", "NE", "LV", "LAC", "NE"],
+                "defteam": ["LAC", "LV", "LV", "NE", "NE", "LAC"],
+                "special": [1, 1, 1, 1, 1, 1],
+                "epa": [0.4, -0.1, -0.3, 0.2, 0.1, -0.2],
+            }
+        ),
+    )
     _write_parquet(
         tmp_path / "2020_combined.parquet",
         pl.DataFrame(
@@ -131,13 +146,15 @@ def test_frozen_stage_two_specs_match_the_committed_weight_snapshot() -> None:
         "adj_off_rushing_epa_per_offensive_snap",
         "adj_def_passing_epa_per_offensive_snap",
         "adj_def_rushing_epa_per_offensive_snap",
+        "st_rating",
     )
     assert composite_weights.TEAM_SACR_FROZEN_SPEC.weight_map() == pytest.approx(
         {
-            "adj_off_passing_epa_per_offensive_snap": 0.4046255151410425,
-            "adj_off_rushing_epa_per_offensive_snap": 0.20159591248913308,
-            "adj_def_passing_epa_per_offensive_snap": 0.29457048409623865,
-            "adj_def_rushing_epa_per_offensive_snap": 0.0992080882735857,
+            "adj_off_passing_epa_per_offensive_snap": 0.3828739475913225,
+            "adj_off_rushing_epa_per_offensive_snap": 0.19062479977967036,
+            "adj_def_passing_epa_per_offensive_snap": 0.27163464954613765,
+            "adj_def_rushing_epa_per_offensive_snap": 0.0973640754908631,
+            "st_rating": 0.0575025275920063,
         }
     )
 

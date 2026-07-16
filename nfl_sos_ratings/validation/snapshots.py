@@ -5,6 +5,7 @@ from collections.abc import Sequence
 import numpy as np
 import polars as pl
 
+from nfl_sos_ratings.pbp_expressions import scrimmage_snap_expr, value_expr
 from nfl_sos_ratings.ratings import compute_ratings
 from nfl_sos_ratings.simultaneous_adjustment import compute_team_adjusted_stats, solve_srs
 
@@ -60,6 +61,21 @@ def _empty_special_teams_game_frame() -> pl.DataFrame:
 def _empty_special_teams_snapshot(teams: list[str]) -> pl.DataFrame:
     """Return a zeroed special-teams snapshot for the requested teams."""
     return pl.DataFrame({"team": teams, "st_rating": [0.0] * len(teams)}).sort("team")
+
+
+def _empty_play_level_team_frame() -> pl.DataFrame:
+    """Return the standard empty play-level team-frame schema."""
+    return pl.DataFrame(
+        schema={
+            "game_id": pl.String,
+            "week": pl.Int64,
+            "team": pl.String,
+            "opponent_team": pl.String,
+            "is_home": pl.Boolean,
+            "passing_epa_per_offensive_snap": pl.Float64,
+            "rushing_epa_per_offensive_snap": pl.Float64,
+        }
+    )
 
 
 def _zscore(values: np.ndarray) -> np.ndarray:
@@ -125,6 +141,46 @@ def build_special_teams_game_frame_from_pbp(pbp_df: pl.DataFrame) -> pl.DataFram
     )
 
 
+def build_play_level_team_frame_from_pbp(pbp_df: pl.DataFrame) -> pl.DataFrame:
+    """Convert scrimmage-snap PBP into one play-level row per team offensive snap."""
+    required_columns = {"game_id", "week", "posteam", "defteam", "epa"}
+    missing = sorted(required_columns - set(pbp_df.columns))
+    if missing:
+        detail = ", ".join(missing)
+        raise ValueError(f"pbp_df is missing required play-level team columns: {detail}")
+
+    if "posteam_type" in pbp_df.columns:
+        is_home_expr = pl.col("posteam_type").cast(pl.String) == "home"
+    elif "home_team" in pbp_df.columns:
+        is_home_expr = pl.col("posteam").cast(pl.String) == pl.col("home_team").cast(pl.String)
+    else:
+        raise ValueError("pbp_df must include either posteam_type or home_team for is_home")
+
+    scrimmage_rows = pbp_df.filter(
+        pl.col("posteam").is_not_null()
+        & pl.col("defteam").is_not_null()
+        & scrimmage_snap_expr(pbp_df.columns)
+    )
+    if scrimmage_rows.is_empty():
+        return _empty_play_level_team_frame()
+
+    return scrimmage_rows.select(
+        pl.col("game_id").cast(pl.String),
+        pl.col("week").cast(pl.Int64),
+        pl.col("posteam").cast(pl.String).alias("team"),
+        pl.col("defteam").cast(pl.String).alias("opponent_team"),
+        is_home_expr.alias("is_home"),
+        pl.when(value_expr(pbp_df.columns, "qb_dropback") > 0)
+        .then(value_expr(pbp_df.columns, "epa", 0.0).cast(pl.Float64))
+        .otherwise(0.0)
+        .alias("passing_epa_per_offensive_snap"),
+        pl.when(value_expr(pbp_df.columns, "rush") > 0)
+        .then(value_expr(pbp_df.columns, "epa", 0.0).cast(pl.Float64))
+        .otherwise(0.0)
+        .alias("rushing_epa_per_offensive_snap"),
+    ).sort(["week", "game_id", "team"])
+
+
 def build_special_teams_rating_snapshot(
     st_game_rows: pl.DataFrame,
     cutoff_week: int,
@@ -164,6 +220,33 @@ def build_team_adjusted_snapshot(
             .cast(pl.String)
             .unique()
             .to_list()
+        )
+        return _empty_team_adjusted_snapshot(teams)
+
+    adjusted = compute_team_adjusted_stats(
+        filtered_rows,
+        response_cols=selected_response_cols,
+    )
+    for column in _DEFAULT_TEAM_ADJUSTED_COLS:
+        if column not in adjusted.columns:
+            adjusted = adjusted.with_columns(pl.lit(0.0).alias(column))
+    return adjusted.select(["team", *_DEFAULT_TEAM_ADJUSTED_COLS]).sort("team")
+
+
+def build_play_level_team_adjusted_snapshot(
+    play_rows: pl.DataFrame,
+    cutoff_week: int,
+    response_cols: Sequence[str] | None = None,
+) -> pl.DataFrame:
+    """Build a pre-cutoff adjusted team component frame from play-level offensive snaps."""
+    if "week" not in play_rows.columns:
+        raise ValueError("play_rows must include a week column")
+
+    selected_response_cols = list(response_cols or _DEFAULT_TEAM_RESPONSE_COLS)
+    filtered_rows = play_rows.filter(pl.col("week") < cutoff_week)
+    if filtered_rows.is_empty():
+        teams = sorted(
+            play_rows.select("team").drop_nulls().to_series().cast(pl.String).unique().to_list()
         )
         return _empty_team_adjusted_snapshot(teams)
 
@@ -252,6 +335,8 @@ def build_team_rating_snapshot(
 
 
 __all__ = [
+    "build_play_level_team_adjusted_snapshot",
+    "build_play_level_team_frame_from_pbp",
     "build_special_teams_game_frame_from_pbp",
     "build_special_teams_rating_snapshot",
     "build_team_adjusted_snapshot",

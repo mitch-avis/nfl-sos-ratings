@@ -23,7 +23,7 @@ REQUIRED_CONTRACT_SUFFIXES = (
 )
 TEAM_GAME_LOG_SUFFIX = "team_game_logs"
 QB_GAME_LOG_SUFFIX = "qb_game_logs"
-TEAM_RATING_COLUMNS = ("SaCR", "SaOR", "SaDR", "SaOvR", "SRS")
+TEAM_RATING_COLUMNS = ("SaCR", "SaOR", "SaDR", "SaSTR", "SaOvR", "SRS")
 QB_RATING_COLUMNS = ("QRaw", "QSoS", "QSaOR", "QOutcome", "QSaCR")
 TEAM_EXCLUDED_PREFIXES = ("qb_", "opp_qb_", "Q", "diff_", "adj_")
 QB_EXCLUDED_PREFIXES = ("diff_", "adj_")

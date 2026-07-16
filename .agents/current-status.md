@@ -16,17 +16,19 @@ current-status summary changes.
 ## Current state
 
 - Status: code-health green, with the PBP-first pipeline, Parquet contract, metrics registry, and
-  analyst UI shell implemented, but the Stage 3b League 1 methodology claim is still not green.
+  analyst UI shell implemented. Stage 3c promoted the play-level T4 team backbone into the
+  published team ratings path; the next active methodology question is the pre-registered QB
+  Stage 3d nonlinearity investigation.
 - Active correctness blocker: none currently known in the published team/QB pipeline.
-- Active methodology blocker: the best current within-season team experiment (`T2Weighted`) beats
-  RawEPA and improves materially on SaOvR, but its overall MAE edge over SRS does not clear the
-  paired-bootstrap confidence interval.
-- Ratings methodology overhaul: the Stage 3 and Stage 3b harness/report work are implemented in
-  the current worktree, and they record a negative headline finding plus a partial but still
-  non-accepting team improvement.
+- Active methodology blocker: the QB Stage 3d question remains open; the additive schedule
+  adjustment passed the Stage 3b linear audit, but the maintainer wants the nonlinear
+  "flat-track bully" hypothesis tested before calling the QB path settled.
+- Ratings methodology overhaul: the Stage 3 through Stage 3c harness/report work are implemented
+  in the current worktree. They record the original negative Elo-leading headline, the
+  intermediate T1/T2 team improvements, and the final promoted T4 team backbone.
 - Primary source of truth for metrics: `nfl_sos_ratings/metrics/`.
 - Human-readable metric companions: `docs/stats-catalog.md` and `docs/qb-stats-catalog.md`.
-- Active workstreams: ratings-methodology Stage 3, remaining metric expansion work, and
+- Active workstreams: ratings-methodology Stage 3d, remaining metric expansion work, and
   UI/detail-page follow-up.
 
 ## Recent work summary
@@ -142,6 +144,22 @@ The current methodology work adds a seventh theme.
       improved it only modestly (`0.505 -> 0.557`) and did not justify a published-path refreeze
     - added the Maye/Stafford case study and the season-level QB slope/spread diagnostics to the
       validation report
+11. Ratings methodology Stage 3c:
+    - pre-registered the final team promotion rule before the deferred T4 run and added
+      probability-of-superiority to the paired-bootstrap output tables
+    - implemented the required T4 play-level team backbone experiment using offensive-snap EPA
+      rows plus the existing special-teams backbone
+    - recorded the final team result: `T4Weighted` improved overall MAE to `10.600` and RMSE to
+      `13.626`, beating `T2Weighted` (`10.630` / `13.680`), `RawEPA` (`10.695` / `13.771`), and
+      Stage 1 `SaOvR` (`10.701` / `13.744`)
+    - recorded the SRS parity result that satisfied the fixed rule: `T4Weighted` beat SRS on
+      overall MAE/RMSE (`10.600` / `13.626` vs `10.658` / `13.746`) and was not significantly
+      worse than SRS overall (`95% CI [-0.118, 0.001]`, `P(T4 <= SRS)=0.9695`)
+    - confirmed the stability guard: team year-over-year stability improved from
+      `0.417 / 0.414` for Stage 1 `SaOvR` to `0.445 / 0.434` for the promoted T4 history
+    - promoted the winning team backbone into the published team ratings path by adding `SaSTR`,
+      redefining published `SaOvR` to include offense, defense, and special teams, and refreezing
+      `SaCR` to the five-component Stage 3c weights
 
 ## Validation snapshot
 
@@ -208,24 +226,36 @@ Current state:
     ratings.
 - The original Elo-leading Stage 3 result stays recorded as history in the validation report and
   remains part of the methodology record.
-- Stage 3b diagnostics/backbone-revision work is the active next step. Start with paired-bootstrap
-  MAE significance, per-week/per-season team error diagnostics, and the QB adjustment-magnitude
-  audit before changing either backbone.
 - Stage 3b team experiment result: `T1Weighted` lowers overall MAE to `10.648`, and
   `T2Weighted` lowers it further to `10.630`. `T2Weighted` beats RawEPA with a nonzero bootstrap
   edge but does not clear the same bar against SRS, so League 1 remains a fail under the
   re-registered criterion.
+- Stage 3c is complete on the team side. The final recorded team promotion rule was:
+  - A candidate team backbone is promoted to the published ratings if, on the full held-out
+    walk-forward window: (1) it is significantly better than RawEPA and than the Stage 1 SaOvR
+    (95% paired-bootstrap CI excluding zero); (2) it is numerically better than SRS on both
+    overall MAE and overall RMSE, and not significantly worse than SRS; and (3) adopting it does
+    not degrade team year-over-year stability below the Stage 3 recorded value.
+  - Statistical parity with SRS plus the construct advantages (schedule-adjusted, outcome-free
+    components, unit-level decomposition) is sufficient and will be stated plainly, as parity,
+    in the methodology documentation. It must never be overclaimed as superiority.
+  - Rationale: the stricter "beat SRS with CI clearing zero" bar is statistically unattainable on
+    the available sample, and the current report already shows SRS itself does not separate from
+    RawEPA at 95%.
+  - The Stage 3 harness now carries paired-bootstrap probability-of-superiority output
+  (`P(candidate MAE <= SRS MAE)`) alongside the existing CI tables so Stage 3c can compare each
+  candidate versus SRS by split and overall.
 - Stage 3b QB experiment result: no adoption. Q1 fixed team-defense offsets and Q2 lighter
   defense penalties did not produce a convincing enough eligible-QB schedule-adjustment gain to
   justify changing the published QB backbone or refreezing QSaCR.
+- Stage 3d is now the active next step: the QB question remains open on a pre-registered
+  nonlinearity hypothesis rather than on linear-adjustment calibration.
 - Stage 3 secondary findings are positive: QSaCR stability beats passer rating and ANY/A on the
   matched QB population, and QSaCR tracks ESPN QBR strongly across 2006-2025.
-- Stage 3 remains active until a maintainer decides whether to revise the team backbone or accept
-  the Stage 3b team improvement as sufficient, pursue further within-season team experiments, or
-  accept the still-ambiguous SRS comparison.
-- Stage 1b play-level ridge fitting is re-sequenced until after Stage 3, where the validation
-  harness will compare game-level and play-level backbones on held-out margin MAE and
-  year-over-year stability.
+- Team-side Stage 3 is closed. The promoted published team path is the play-level T4 backbone with
+  `SaSTR` and the refrozen five-component `SaCR` blend.
+- Stage 1b play-level ridge fitting is no longer deferred for teams; the play-level team backbone
+  won the Stage 3c gate and is now the published path.
 - Turnover margin remains descriptive-only and is intentionally out of published quality ratings
   unless a maintainer approves a later split into more causal sub-signals.
 - The approved team takeaway-creation candidate was tested in Stage 2 and excluded after a small
@@ -300,7 +330,8 @@ These are not active workstreams, but they are still useful context.
   or frontend plan.
 2. If the task touches published rating methodology, continue from
   `.agents/ratings-methodology-overhaul-plan.md`, read `docs/validation-report.md`, and start from
-  the recorded Stage 3b findings unless a maintainer directs otherwise.
+  the recorded Stage 3c team result plus the Stage 3d QB preregistration unless a maintainer
+  directs otherwise.
 3. If the task touches planned metrics, continue from `.agents/metric-expansion-plan.md`.
 4. If the task touches the analyst UI, continue from `.agents/frontend-ui-kickoff-plan.md`.
 5. Keep `docs/stats-catalog.md` and `docs/qb-stats-catalog.md` synchronized with the registry when

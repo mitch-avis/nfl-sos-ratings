@@ -43,6 +43,7 @@ def test_team_quality_ratings_ignore_win_based_outcome_columns() -> None:
             "def_qb_hits_per_defensive_snap": [0.10, 0.13, 0.15],
             "def_fumbles_forced_per_defensive_snap": [0.01, 0.02, 0.03],
             "def_safeties_per_defensive_snap": [0.0, 0.0, 0.01],
+            "st_rating": [0.20, 0.00, -0.10],
             "win_pct": [0.5, 0.5, 0.5],
             "win_value": [0.5, 0.5, 0.5],
         }
@@ -55,8 +56,10 @@ def test_team_quality_ratings_ignore_win_based_outcome_columns() -> None:
     base_quality = ratings.compute_ratings(base_df).sort("team")
     varied_quality = ratings.compute_ratings(varied_df).sort("team")
 
-    assert base_quality.select(["SaOR", "SaDR", "SaOvR", "SaCR"]).to_dict(as_series=False) == (
-        varied_quality.select(["SaOR", "SaDR", "SaOvR", "SaCR"]).to_dict(as_series=False)
+    assert base_quality.select(["SaOR", "SaDR", "SaSTR", "SaOvR", "SaCR"]).to_dict(
+        as_series=False
+    ) == (
+        varied_quality.select(["SaOR", "SaDR", "SaSTR", "SaOvR", "SaCR"]).to_dict(as_series=False)
     )
 
 

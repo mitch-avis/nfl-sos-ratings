@@ -9,6 +9,7 @@ from nfl_sos_ratings.validation.snapshots import build_team_rating_snapshot
 from nfl_sos_ratings.validation.walk_forward import (
     EloConfig,
     build_elo_feature_rows,
+    build_play_level_team_training_rows_with_special_teams,
     build_raw_epa_feature_rows,
     build_rolling_team_weight_maps,
     build_snapshot_feature_rows,
@@ -19,6 +20,7 @@ from nfl_sos_ratings.validation.walk_forward import (
     compute_qbr_correlations,
     compute_stability_metrics,
     evaluate_feature_rows,
+    run_play_level_team_special_teams_backtest,
     run_walk_forward_backtest,
     score_prediction_rows,
 )
@@ -291,6 +293,7 @@ def test_compute_pairwise_mae_bootstrap_returns_deterministic_delta_intervals() 
     assert overall_row["mae_delta"] == pytest.approx(-2.0)
     assert overall_row["ci_lower"] == pytest.approx(-2.0)
     assert overall_row["ci_upper"] == pytest.approx(-2.0)
+    assert overall_row["probability_baseline_a_not_worse"] == pytest.approx(1.0)
     assert overall_row["distinguishable_from_zero"] is True
 
 
@@ -332,6 +335,7 @@ def test_build_validation_report_text_includes_bootstrap_delta_section() -> None
             "mae_delta": [-0.5],
             "ci_lower": [-0.8],
             "ci_upper": [-0.2],
+            "probability_baseline_a_not_worse": [0.94],
             "distinguishable_from_zero": [True],
         }
     )
@@ -349,9 +353,9 @@ def test_build_validation_report_text_includes_bootstrap_delta_section() -> None
     assert "## Paired Bootstrap MAE Deltas" in report
     assert (
         "| Baseline A | Baseline B | Split | Games | MAE Delta | CI Lower | CI Upper | "
-        "Distinguishable |" in report
+        "P(A<=B) | Distinguishable |" in report
     )
-    assert "| SaOvR | SRS | overall | 10 | -0.500 | -0.800 | -0.200 | True |" in report
+    assert "| SaOvR | SRS | overall | 10 | -0.500 | -0.800 | -0.200 | 0.940 | True |" in report
 
 
 def test_run_walk_forward_backtest_stacks_all_team_baselines(tmp_path) -> None:
@@ -375,6 +379,102 @@ def test_run_walk_forward_backtest_stacks_all_team_baselines(tmp_path) -> None:
     assert set(
         metrics.filter(pl.col("split") != "season").select("split").to_series().to_list()
     ) == {"overall", "early", "late"}
+
+
+def test_run_play_level_team_special_teams_backtest_builds_t4_baseline(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify the T4 orchestration path evaluates a play-level weighted team baseline."""
+    _weekly_team_rows().write_parquet(tmp_path / "2025_team_game_logs.parquet")
+    pbp = pl.DataFrame(
+        {
+            "game_id": [
+                "g1",
+                "g1",
+                "g1",
+                "g1",
+                "g2",
+                "g2",
+                "g2",
+                "g2",
+                "g3",
+                "g3",
+                "g3",
+                "g3",
+            ],
+            "week": [1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3],
+            "posteam": ["A", "B", "A", "B", "B", "A", "B", "A", "A", "B", "A", "B"],
+            "defteam": ["B", "A", "B", "A", "A", "B", "A", "B", "B", "A", "B", "A"],
+            "home_team": ["A", "A", "A", "A", "B", "B", "B", "B", "A", "A", "A", "A"],
+            "away_team": ["B", "B", "B", "B", "A", "A", "A", "A", "B", "B", "B", "B"],
+            "qb_dropback": [1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0],
+            "rush": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            "qb_kneel": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            "qb_spike": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            "special": [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1],
+            "epa": [0.3, -0.2, -0.1, 0.1, -0.1, 0.2, 0.2, -0.2, 0.4, -0.3, 0.1, -0.1],
+        }
+    )
+    monkeypatch.setattr(
+        "nfl_sos_ratings.validation.walk_forward.load_pbp_data",
+        lambda season: pbp,
+    )
+
+    predictions, metrics, weight_maps = run_play_level_team_special_teams_backtest(
+        tmp_path,
+        seasons=[2025],
+        start_week=3,
+    )
+
+    assert set(predictions.select("baseline").to_series().to_list()) == {"T4Weighted"}
+    assert predictions.select("week").min().item() == 3
+    assert set(
+        metrics.filter(pl.col("split") != "season").select("split").to_series().to_list()
+    ) == {"overall", "early", "late"}
+    assert 2025 in weight_maps
+
+
+def test_build_play_level_team_training_rows_with_special_teams_uses_next_season_targets(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Play-level T4 training rows should pair current-season features with next-season targets."""
+    pl.DataFrame({"team": ["A", "B"], "SaOvR": [1.0, -1.0]}).write_parquet(
+        tmp_path / "2025_combined.parquet"
+    )
+    pl.DataFrame({"team": ["A", "B"], "SaOvR": [0.5, -0.5]}).write_parquet(
+        tmp_path / "2026_combined.parquet"
+    )
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["g1", "g1", "g2", "g2"],
+            "week": [1, 1, 1, 1],
+            "posteam": ["A", "B", "A", "B"],
+            "defteam": ["B", "A", "B", "A"],
+            "home_team": ["A", "A", "A", "A"],
+            "away_team": ["B", "B", "B", "B"],
+            "qb_dropback": [1, 1, 0, 0],
+            "rush": [0, 0, 1, 1],
+            "qb_kneel": [0, 0, 0, 0],
+            "qb_spike": [0, 0, 0, 0],
+            "special": [0, 0, 1, 1],
+            "epa": [0.3, -0.2, 0.1, -0.1],
+        }
+    )
+    monkeypatch.setattr(
+        "nfl_sos_ratings.validation.walk_forward.load_pbp_data",
+        lambda season: pbp,
+    )
+
+    training_rows = build_play_level_team_training_rows_with_special_teams(
+        tmp_path,
+        seasons=[2025, 2026],
+    )
+
+    assert training_rows.select("season").to_series().to_list() == [2025, 2025]
+    assert training_rows.select("next_season").to_series().to_list() == [2026, 2026]
+    assert training_rows.select("target").to_series().to_list() == pytest.approx([0.5, -0.5])
 
 
 def test_compute_stability_metrics_matches_adjacent_season_pairs(tmp_path) -> None:
@@ -500,3 +600,50 @@ def test_build_validation_report_text_includes_command_tables_and_sacr_caveat() 
     assert "| Baseline | Split | Games | MAE | RMSE |" in report
     assert "| Metric | Entity | Paired Rows | Pearson | Spearman |" in report
     assert "| Season | Joined Rows | Pearson | Spearman |" in report
+
+
+def test_build_validation_report_text_can_render_stage3c_and_qb_status_sections() -> None:
+    """Verify the report renderer can include Stage 3c and QB-open-status narrative blocks."""
+    metrics = pl.DataFrame(
+        {
+            "baseline": ["SaOvR"],
+            "season": [None],
+            "split": ["overall"],
+            "games": [10],
+            "mae": [7.0],
+            "rmse": [9.0],
+        }
+    )
+    stability = pl.DataFrame(
+        {
+            "entity": ["team"],
+            "metric": ["SaOvR"],
+            "paired_rows": [200],
+            "pearson": [0.42],
+            "spearman": [0.40],
+        }
+    )
+    qbr = pl.DataFrame(
+        {
+            "season": [2006],
+            "joined_rows": [24],
+            "pearson": [0.72],
+            "spearman": [0.69],
+        }
+    )
+
+    report = build_validation_report_text(
+        metrics=metrics,
+        stability=stability,
+        qbr_correlations=qbr,
+        seasons=[1999, 2000],
+        start_week=5,
+        command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+        stage3c_lines=["## Stage 3c Decision Rule", "", "- Candidate rule line."],
+        qb_open_status_lines=["## QB Open Status", "", "- Stage 3d next."],
+    )
+
+    assert "## Stage 3c Decision Rule" in report
+    assert "Candidate rule line." in report
+    assert "## QB Open Status" in report
+    assert "Stage 3d next." in report

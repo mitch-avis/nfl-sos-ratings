@@ -25,12 +25,12 @@ def test_discover_available_seasons_requires_complete_contract(tmp_path: Path) -
     contract_files = {
         "team_per_game_stats": "team,points_for\nDET,31\n",
         "qb_per_game_stats": "player_id,player_display_name\nqb-1,Jared Goff\n",
-        "combined": "team,points_for,opp_points_for,SaCR\nDET,31,20,1.2\n",
+        "combined": "team,points_for,opp_points_for,SaCR,SaSTR\nDET,31,20,1.2,0.3\n",
         "qb_combined": (
             "player_id,player_display_name,qb_attempts_total,opp_qb_any_a,QSaCR\n"
             "qb-1,Jared Goff,500,6.5,1.1\n"
         ),
-        "ratings": "team,SaCR\nDET,1.2\n",
+        "ratings": "team,SaCR,SaSTR\nDET,1.2,0.3\n",
         "qb_ratings": "player_id,QSaCR\nqb-1,1.1\n",
     }
 
@@ -64,11 +64,11 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
         tmp_path / "2024_combined.parquet",
         (
             "team,points_for,total_yards,points_per_offensive_snap,"
-            "opp_points_for,opp_points_allowed,SaCR,SaOR,SaDR,SaOvR,SRS"
+            "opp_points_for,opp_points_allowed,SaCR,SaOR,SaDR,SaSTR,SaOvR,SRS"
         ),
-        "DET,510,6800,0.42,390,315,1.2,1.1,0.9,1.0,7.4",
+        "DET,510,6800,0.42,390,315,1.2,1.1,0.9,0.3,1.0,7.4",
     )
-    _write_table(tmp_path / "2024_ratings.parquet", "team,SaCR\n", "DET,1.2")
+    _write_table(tmp_path / "2024_ratings.parquet", "team,SaCR,SaSTR\n", "DET,1.2,0.3")
     _write_table(
         tmp_path / "2024_qb_combined.parquet",
         (
@@ -94,6 +94,7 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
         "SaCR",
         "SaOR",
         "SaDR",
+        "SaSTR",
         "SaOvR",
         "SRS",
     ]

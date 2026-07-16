@@ -7,7 +7,7 @@ leakage from opponent profiles, and compares subjects to the adjusted quality of
 
 It currently produces:
 
-- Team ratings: `SaOR`, `SaDR`, `SaOvR`, `SaCR`, and `SRS`
+- Team ratings: `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SaCR`, and `SRS`
 - QB ratings: `QRaw`, `QSoS`, `QSaOR`, `QOutcome`, and `QSaCR`
 - Ridge-backed published ratings for teams and QBs, plus one-hop diff-based comparison outputs for
   descriptive context
@@ -112,10 +112,11 @@ The team path is:
    - `SaOR`: the equal-weight ridge offense composite over passing and rushing EPA per snap
    - `SaDR`: the equal-weight ridge defense composite over the same EPA responses, oriented so
      higher = better defense
-   - `SaOvR`: the standardized sum of `SaOR` and `SaDR`
-   - `SaCR`: the frozen Stage 2 blend of standardized ridge-adjusted offensive passing EPA,
-     offensive rushing EPA, defensive passing EPA, and defensive rushing EPA, with published
-     weights `0.4046 / 0.2016 / 0.2946 / 0.0992`
+   - `SaSTR`: the standardized special-teams backbone from the Stage 3c PBP special-play solve
+   - `SaOvR`: the standardized sum of `SaOR`, `SaDR`, and `SaSTR`
+   - `SaCR`: the frozen Stage 3c blend of standardized ridge-adjusted offensive passing EPA,
+     offensive rushing EPA, defensive passing EPA, defensive rushing EPA, and special teams,
+     with published weights `0.3829 / 0.1906 / 0.2716 / 0.0974 / 0.0575`
 8. Produce `SRS` from point margin as a simultaneous-adjustment reference.
 
 Team outcome fields such as wins, win value, and turnover margin remain published for context,
@@ -206,11 +207,12 @@ Key self-computed metrics use the following formulas:
   `passing_epa_per_offensive_snap` and `rushing_epa_per_offensive_snap`, then standardized
 - `SaDR`: the average of the ridge defense coefficients for the same EPA responses, then
   standardized so higher = better defense
-- `SaOvR`: standardized `SaOR + SaDR`
-- `SaCR`: the standardized Stage 2 frozen-weight blend of standardized
+- `SaSTR`: the standardized special-teams SRS solve over per-play special-teams EPA margin
+- `SaOvR`: standardized `SaOR + SaDR + SaSTR`
+- `SaCR`: the standardized Stage 3c frozen-weight blend of standardized
   `adj_off_passing_epa_per_offensive_snap`, `adj_off_rushing_epa_per_offensive_snap`,
-  `adj_def_passing_epa_per_offensive_snap`, and `adj_def_rushing_epa_per_offensive_snap`, with
-  weights `0.4046 / 0.2016 / 0.2946 / 0.0992`
+  `adj_def_passing_epa_per_offensive_snap`, `adj_def_rushing_epa_per_offensive_snap`, and
+  `st_rating`, with weights `0.3829 / 0.1906 / 0.2716 / 0.0974 / 0.0575`
 - QB EPA per dropback: `qb_passing_epa / qb_dropbacks`
 - QB pass yards per dropback: `qb_pass_yards / qb_dropbacks`
 - QB TD-INT margin rate: `(qb_pass_touchdowns - qb_interceptions) / qb_dropbacks`
@@ -314,10 +316,10 @@ All files are written under `DATA_DIR` with a `{SEASON}_` prefix.
   opponents.
 - `{SEASON}_combined.parquet` Team rows joined to opponent rows, `diff_*` columns, team ratings, `SRS`,
   and simultaneous-adjustment team columns.
-- `{SEASON}_ratings.parquet` Compact team ratings summary with `SaCR`, `SaOR`, `SaDR`, `SaOvR`, and
-  `SRS`.
+- `{SEASON}_ratings.parquet` Compact team ratings summary with `SaCR`, `SaOR`, `SaDR`, `SaSTR`,
+  `SaOvR`, and `SRS`.
 - `{SEASON}_simultaneous_team_adjustments.parquet` Multi-stat simultaneous-adjustment output with
-  `adj_off_*` and `adj_def_*` columns.
+  `adj_off_*` and `adj_def_*` columns plus the raw `st_rating` backbone component.
 
 ### QB outputs
 
@@ -412,14 +414,15 @@ python -m nfl_sos_ratings.validation.walk_forward
 The command writes [docs/validation-report.md](docs/validation-report.md).
 That report is the authoritative summary of the current methodology checks.
 
-Current recorded result: QSaCR clears passer rating and ANY/A on the matched consecutive-season QB
-population. On the team side, the best Stage 3b within-season experiment (`T2Weighted`, which
-adds a small special-teams component to the rolling weighted EPA backbone) improves overall
-walk-forward MAE to `10.630` and beats RawEPA with a nonzero paired-bootstrap edge, but it still
-does not beat SRS with a paired-bootstrap margin that clears zero.
-The Stage 3b QB revision sweep (fixed team-defense offsets and lighter defense penalties) did not
-produce an adoptable change to the published QB backbone.
-Consult the validation report before changing the team backbone or advancing to Stage 4.
+Current recorded result: QSaCR still clears passer rating and ANY/A on the matched
+consecutive-season QB population. On the team side, Stage 3c promoted the play-level `T4Weighted`
+backbone: overall walk-forward MAE improved to `10.600` and RMSE to `13.626`, better than SRS
+(`10.658` / `13.746`) and not significantly worse than SRS overall (`95% CI [-0.118, 0.001]`,
+`P(T4 <= SRS)=0.9695`). The team stability guard also improved (`0.445 / 0.434` vs
+`0.417 / 0.414` for Stage 1 `SaOvR`). The QB Stage 3b revision sweep (fixed team-defense offsets
+and lighter defense penalties) still did not produce an adoptable backbone change; the next active
+methodology question is the pre-registered Stage 3d nonlinearity investigation.
+Consult the validation report before changing either published backbone or advancing to Stage 4.
 
 ## Troubleshooting
 
