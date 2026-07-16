@@ -135,3 +135,6 @@ data/
 # Frontend UI
 ui/web/node_modules/
 ui/web/dist/
+
+# Generated prompt files
+*prompt.md
