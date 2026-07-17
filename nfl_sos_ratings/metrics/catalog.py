@@ -155,8 +155,8 @@ RATING_POOLS: tuple[RatingPool, ...] = (
         entity="team",
         description=(
             "Legacy raw offensive rate pool kept for descriptive surfaces and raw helper "
-            "tests. Stage 1 published SaOR now comes from the ridge-adjusted EPA backbone, "
-            "not directly from this pool."
+            "tests. Published SaOR now comes from the ridge-adjusted EPA backbone, not "
+            "directly from this pool."
         ),
         members=(
             "points_per_offensive_snap",
@@ -181,8 +181,8 @@ RATING_POOLS: tuple[RatingPool, ...] = (
         entity="team",
         description=(
             "Legacy raw defensive rate pool kept for descriptive surfaces and raw helper "
-            "tests. Stage 1 published SaDR now comes from the defense side of the ridge EPA "
-            "backbone, not directly from this pool."
+            "tests. Published SaDR now comes from the defense side of the ridge EPA backbone, "
+            "not directly from this pool."
         ),
         members=(
             "points_allowed_per_defensive_snap",
@@ -209,10 +209,10 @@ RATING_POOLS: tuple[RatingPool, ...] = (
         name="qb_primary",
         entity="qb",
         description=(
-            "QB performance inputs to QRaw. Stage 1 published QSaOR/QSaCR now come from the "
-            "ridge-adjusted QB EPA/dropback backbone. ANY/A, sack rate, sacks, and passer "
-            "rating overlap by construction — an accepted, frozen overlap; adding further "
-            "overlapping members is forbidden."
+            "QB performance inputs to QRaw. Published QSaOR and QSaCR now come from the "
+            "ridge-adjusted QB EPA per dropback backbone. ANY/A, sack rate, sacks, and passer "
+            "rating overlap by construction — an accepted overlap; adding further overlapping "
+            "members is forbidden."
         ),
         members=(
             "qb_epa_per_dropback",
@@ -230,8 +230,8 @@ RATING_POOLS: tuple[RatingPool, ...] = (
         entity="qb",
         description=(
             "The qb_primary members that have qopp_ opponent mirrors. Retained for legacy "
-            "context and descriptive surfaces; Stage 1 published QB ratings no longer use "
-            "the paired diff path."
+            "context and descriptive surfaces; published QB ratings no longer use the paired "
+            "diff path."
         ),
         members=(
             "qb_epa_per_dropback",
