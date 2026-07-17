@@ -8,6 +8,7 @@ from nfl_sos_ratings.metrics.registry import (
 from nfl_sos_ratings.metrics.schema import (
     CategoryDef,
     MetricDef,
+    MetricProvenance,
     RatingPool,
     ResolvedColumn,
 )
@@ -15,6 +16,7 @@ from nfl_sos_ratings.metrics.schema import (
 __all__ = [
     "CategoryDef",
     "MetricDef",
+    "MetricProvenance",
     "MetricRegistry",
     "RatingPool",
     "RegistryValidationError",
