@@ -152,7 +152,7 @@ def test_compute_ratings_excludes_outcome_only_fields_from_quality_ratings() -> 
 def test_compute_ratings_builds_overall_and_composite_from_standardized_offense_and_defense(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify Stage 1 overall and Stage 2 composite assembly stay in one place."""
+    """Team overall and composite assembly should stay in one place."""
     df = pl.DataFrame(
         {
             "team": ["A", "B"],
@@ -200,7 +200,7 @@ def test_compute_ratings_builds_overall_and_composite_from_standardized_offense_
 def test_compute_ratings_uses_frozen_stage_two_component_weights(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """SaCR should use the frozen Stage 2 weighted blend, not the Stage 1 equal average."""
+    """SaCR should use the published weighted blend, not the interim equal average."""
     df = pl.DataFrame(
         {
             "team": ["A", "B"],
