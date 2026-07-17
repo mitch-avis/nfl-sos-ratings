@@ -15,6 +15,7 @@ from nfl_sos_ratings.metrics.schema import (
     CategoryDef,
     Entity,
     MetricDef,
+    MetricProvenance,
     Polarity,
     PrefixRule,
     RatingPool,
@@ -289,6 +290,7 @@ class MetricRegistry:
                     "contextual": metric.contextual,
                     "formula": metric.formula,
                     "note": metric.note,
+                    "provenance": self._provenance_payload(metric.provenance),
                 }
                 for metric in self.metrics.values()
             },
@@ -313,6 +315,27 @@ class MetricRegistry:
                 if base is not None:
                     return base, suffix_rule
         return None
+
+    @staticmethod
+    def _provenance_payload(provenance: MetricProvenance | None) -> dict[str, object] | None:
+        """Return a JSON-safe provenance payload when one exists."""
+        if provenance is None:
+            return None
+        return {
+            "target": provenance.target,
+            "fit_window": list(provenance.fit_window) if provenance.fit_window else None,
+            "fitting_command": provenance.fitting_command,
+            "refit_policy": provenance.refit_policy,
+            "sample_weighting": provenance.sample_weighting,
+            "weight_snapshot": [
+                {"name": name, "weight": weight} for name, weight in provenance.weight_snapshot
+            ],
+            "holdout_metrics": dict(provenance.holdout_metrics),
+            "excluded_weight_candidates": [
+                {"name": name, "weight": weight}
+                for name, weight in provenance.excluded_weight_candidates
+            ],
+        }
 
     def _finalize(
         self,
