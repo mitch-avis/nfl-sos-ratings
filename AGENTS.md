@@ -72,8 +72,8 @@ than assuming its shape.
 
 The active implementation and handoff plans live in `.agents/`:
 
-- `.agents/current-status.md` — consolidated repo status, recent work summary, active backlog,
-  and next-agent guidance.
+- `.agents/current-status.md` — consolidated repo status, recent work summary, active backlog, and
+  next-agent guidance.
 - `.agents/metric-expansion-plan.md` — the remaining planned-metric ETL work and category-sectioned
   UI follow-up.
 - `.agents/frontend-ui-kickoff-plan.md` — the analyst web UI.
@@ -104,14 +104,12 @@ These are correctness invariants specific to this project. Linters will not catc
   not remove or weaken this exclusion.
 - **Compare on rates, never on raw totals.** Division opponents play one fewer non-head-to-head game
   than non-division opponents, so raw season totals conflate rate with games played. All comparisons
-  and all averaged opponent profiles use per-game and per-play rates.
-  For teams that often means per-snap; for QBs it usually means per-dropback, per-attempt, or
-  per-carry depending on the subcategory. Keep raw totals only as display columns on a subject's
-  own profile.
+  and all averaged opponent profiles use per-game and per-play rates. For teams that often means
+  per-snap; for QBs it usually means per-dropback, per-attempt, or per-carry depending on the
+  subcategory. Keep raw totals only as display columns on a subject's own profile.
 - **Views are not categories.** `Ratings` is a top-level view, not part of the team/QB stat
-  taxonomies.
-  The other five views (`Raw Total Stats`, `Per-Game Rates`, `Per-Play Rates`, `Opponent Per-Game
-  Rates`, `Opponent Per-Play Rates`) reuse the same team categories or QB subcategories.
+  taxonomies. The other five views (`Raw Total Stats`, `Per-Game Rates`, `Per-Play Rates`, `Opponent
+  Per-Game Rates`, `Opponent Per-Play Rates`) reuse the same team categories or QB subcategories.
   `Opponent Context` is expressed through those two opponent views, not as a standalone category.
 - **Deduplicate the opponent list; weight each unique opponent equally.** A division rival played
   twice is profiled once (head-to-head exclusion makes the two profiles identical) and counts once
@@ -123,8 +121,8 @@ These are correctness invariants specific to this project. Linters will not catc
   a column before using it and handle its absence, as the existing loaders do.
 - **The metric registry is the single source of truth.** Every column the pipeline writes must
   resolve against `nfl_sos_ratings/metrics/` (base metric name, or a registered prefix/suffix of
-  one) — `main.py` fails the write otherwise. New metrics get a registry entry first (label,
-  layman description, shape, denominator, polarity, source, `ratings_eligible`, `duplicate_of`).
+  one) — `main.py` fails the write otherwise. New metrics get a registry entry first (label, layman
+  description, shape, denominator, polarity, source, `ratings_eligible`, `duplicate_of`).
   Rating-pool membership also lives in the registry (`catalog.py`); changing it changes published
   ratings and needs explicit sign-off.
 - **The two docs catalogs are companion references, not a second spec.** Keep
@@ -148,18 +146,30 @@ pass both rather than restating their rules here. Beyond that:
 - Keep tunable model constants named and grouped at module top (as in `ratings.py`), not inlined as
   magic numbers.
 
+## Naming and provenance
+
+- Internal campaign/process vocabulary is not durable product language. Stage numbers and letters,
+  block labels, experiment codes, and other workstream-history shorthand belong only in `.agents/`
+  files and in `docs/validation-report.md` when preserving historical notebook entries.
+- Everywhere else, use timeless names and descriptions: code identifiers, docstrings, comments,
+  registry labels/descriptions, published column names, CLI labels, README prose, and catalog docs
+  should describe what something is or does, not where it landed in a past plan.
+- Provenance for fitted metrics belongs in structured metadata fields, not in user-facing prose. Put
+  fit windows, commands, weight snapshots, and refit policy in the registry metadata instead of in
+  descriptions or tooltips.
+
 ## Boundaries
 
 - **Always:** run format, lint, type-check, and tests before finishing; add or update tests for the
   code you change; keep coverage above 90% on logic-bearing code.
 - **Always:** when you edit Markdown docs or plan files, run `markdownlint` on those repo-owned
   Markdown files before finishing.
-- **Dependencies:** adding a new dependency is fine when there is a good reason (no adequate
-  stdlib or existing-dependency option, actively maintained, pulls its weight). Add it to the
-  appropriate `.in` file, recompile with `update_requirements.sh`, and say in the change what it
-  is for. Do not add heavyweight or overlapping dependencies for marginal convenience.
-- **Ask first:** before changing the rating methodology or published rating outputs, or
-  altering the strict ruff, pyright, or coverage configuration.
+- **Dependencies:** adding a new dependency is fine when there is a good reason (no adequate stdlib
+  or existing-dependency option, actively maintained, pulls its weight). Add it to the appropriate
+  `.in` file, recompile with `update_requirements.sh`, and say in the change what it is for. Do not
+  add heavyweight or overlapping dependencies for marginal convenience.
+- **Ask first:** before changing the rating methodology or published rating outputs, or altering the
+  strict ruff, pyright, or coverage configuration.
 - **Never:** weaken lint or type settings to make a check pass; commit secrets or credentials; edit
   files under `data/` as if they were source (they are generated artifacts); hand-edit the pinned
   `requirements*.txt` files.
