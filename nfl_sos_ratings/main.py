@@ -154,7 +154,7 @@ def _build_historical_reference_frame(
     Team combined surfaces do not persist the raw ``st_rating`` column in the written
     ``*_combined.parquet`` artifacts. When rebuilding a pooled team reference frame, backfill that
     historical special-teams surface from the matching
-    ``*_simultaneous_team_adjustments.parquet`` files so Stage 3c team standardization sees the
+    ``*_simultaneous_team_adjustments.parquet`` files so team standardization sees the
     full pooled reference distribution it expects.
     """
 
