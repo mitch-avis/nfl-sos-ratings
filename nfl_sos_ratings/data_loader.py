@@ -484,7 +484,7 @@ def load_pbp_data(season: int) -> pl.DataFrame:
 def load_playoff_pbp_data(season: int) -> pl.DataFrame:
     """Load postseason play-by-play data for validation-only analyses.
 
-    This path exists for Stage 3d validation work only. Published rating computation remains
+    This path exists for playoff validation work only. Published rating computation remains
     regular-season-only and must continue to use :func:`load_pbp_data`.
     """
     df = nfl.load_pbp(seasons=season)
