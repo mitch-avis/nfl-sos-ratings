@@ -542,7 +542,7 @@ def test_compute_qb_ratings_standardizes_paired_context_before_adjusting() -> No
 def test_compute_qb_ratings_uses_frozen_stage_two_component_weights(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """QSaCR should use the frozen Stage 2 weighted blend, not a QSaOR passthrough."""
+    """QSaCR should use the published weighted blend, not a QSaOR passthrough."""
     qb_combined = pl.DataFrame(
         {
             "qb_id": ["A", "B"],
@@ -670,7 +670,7 @@ def test_compute_qb_ratings_qsos_uses_new_allowed_dropback_metrics() -> None:
 
 
 def test_compute_qb_ratings_keeps_outcome_context_out_of_quality_ratings() -> None:
-    """Verify Stage 0 keeps wins and late-game outcomes descriptive-only."""
+    """Wins and late-game outcomes should remain descriptive-only."""
     qb_combined = pl.DataFrame(
         {
             "qb_id": ["CLUTCH", "NEUTRAL"],
@@ -916,7 +916,7 @@ def test_compute_qb_ratings_handles_nan_outcome_without_poisoning_scores() -> No
 
 
 def test_compute_qb_ratings_downweights_partial_season_samples() -> None:
-    """Verify Stage 1 does not apply an extra games-played shrinkage multiplier."""
+    """The QB rating path should not apply an extra games-played shrinkage multiplier."""
     qb_combined = pl.DataFrame(
         {
             "qb_id": ["FULL", "PART", "MID"],
