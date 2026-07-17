@@ -1,4 +1,4 @@
-"""Tests for Stage 2 composite-weight fitting helpers."""
+"""Tests for composite-weight fitting helpers."""
 
 from pathlib import Path
 
@@ -138,8 +138,8 @@ def test_fit_linear_weights_and_holdout_diagnostics_prefer_the_planted_signal() 
     assert diagnostics["weighted_mae"] < diagnostics["equal_weight_mae"]
 
 
-def test_frozen_stage_two_specs_match_the_committed_weight_snapshot() -> None:
-    """Frozen Stage 2 weight specs should not drift without an explicit refit."""
+def test_frozen_specs_match_the_committed_weight_snapshot() -> None:
+    """Published weight specs should not drift without an explicit refit."""
     assert composite_weights.TEAM_SACR_FROZEN_SPEC.fit_window == (1999, 2025)
     assert composite_weights.TEAM_SACR_FROZEN_SPEC.feature_columns == (
         "adj_off_passing_epa_per_offensive_snap",
@@ -199,7 +199,7 @@ def test_builders_return_typed_empty_frames_when_no_pairs_are_available(tmp_path
     ]
 
 
-def test_build_team_training_rows_rejects_missing_stage_two_columns(tmp_path: Path) -> None:
+def test_build_team_training_rows_rejects_missing_composite_columns(tmp_path: Path) -> None:
     """Team training rows should fail fast when a consumed season file is stale or incomplete."""
     _write_parquet(
         tmp_path / "2020_combined.parquet",
@@ -215,7 +215,7 @@ def test_build_team_training_rows_rejects_missing_stage_two_columns(tmp_path: Pa
         tmp_path / "2021_combined.parquet", pl.DataFrame({"team": ["A"], "SaOvR": [1.0]})
     )
 
-    with pytest.raises(ValueError, match="missing required Stage 2 columns"):
+    with pytest.raises(ValueError, match="missing required composite columns"):
         composite_weights.build_team_training_rows(tmp_path, seasons=[2020, 2021])
 
 
@@ -336,11 +336,11 @@ def test_fit_helpers_cover_weighted_and_empty_holdout_paths() -> None:
     }
 
 
-def test_main_prints_the_reproducible_stage_two_report(
+def test_main_prints_the_reproducible_composite_weight_report(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The CLI report should summarize the candidate and frozen Stage 2 fits."""
+    """The CLI report should summarize the candidate and published composite fits."""
     team_rows = pl.DataFrame(
         {
             "season": [2020],
@@ -397,7 +397,7 @@ def test_main_prints_the_reproducible_stage_two_report(
     composite_weights.main()
     output = capsys.readouterr().out
 
-    assert "Stage 2 composite-weight fit" in output
+    assert "Composite-weight fit summary" in output
     assert "Team candidate fit (includes turnover-creation test component):" in output
     assert "Frozen SaCR weights:" in output
     assert "Frozen QSaCR weights:" in output
