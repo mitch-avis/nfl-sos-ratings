@@ -1,24 +1,27 @@
 # NFL Quarterback Stats Catalog
 
 A human-readable companion to the typed metrics registry under `nfl_sos_ratings/metrics/`.
+
 The registry is the authoritative source of truth for published metric definitions, categories,
 polarity, and implementation status.
-This document explains the quarterback-side metric surface, sourcing rules, and display taxonomy
-for maintainers and analysts.
 
-ESPN QBR has no `nflreadpy` load function yet; download it directly from the nflverse release
-assets (Parquet, smallest format):
-[qbr_season_level.parquet](https://github.com/nflverse/nflverse-data/releases/download/espn_data/qbr_season_level.parquet)
-and
-[qbr_week_level.parquet](https://github.com/nflverse/nflverse-data/releases/download/espn_data/qbr_week_level.parquet).
+This document explains the quarterback-side metric surface, sourcing rules, and display taxonomy for
+maintainers and analysts.
+
+ESPN QBR has no `nflreadpy` load function yet; download it directly from the nflverse release assets
+(Parquet, smallest format):
+
+- [qbr_season_level.parquet]
+- [qbr_week_level.parquet]
+
 The pipeline's `data_loader.load_espn_qbr()` wraps these URLs.
 
 Scope: regular season. Included: stats directly describing individual quarterback play, plus the
-opposing-defense stats that are directly related to QB play (the `qopp_` context surface used by
-the schedule adjustment). Excluded: general team stats, non-QB player stats.
+opposing-defense stats that are directly related to QB play (the `qopp_` context surface used by the
+schedule adjustment). Excluded: general team stats, non-QB player stats.
 
-The sourcing rules, metric shapes (count / rate / avg), tier definitions, and test findings from
-the team catalog all apply here; this document only restates what differs for individual QBs.
+The sourcing rules, metric shapes (count / rate / avg), tier definitions, and test findings from the
+team catalog all apply here; this document only restates what differs for individual QBs.
 
 ## Table of Contents
 
@@ -28,6 +31,7 @@ the team catalog all apply here; this document only restates what differs for in
   - [Views and Denominators](#views-and-denominators)
   - [Category Taxonomy](#category-taxonomy)
   - [Catalog: External \& Reference Ratings](#catalog-external--reference-ratings)
+    - [ESPN QBR (2006+, starters only — 27–32 QBs/week)](#espn-qbr-2006-starters-only--2732-qbsweek)
   - [Catalog: Identity \& Availability](#catalog-identity--availability)
   - [Catalog: Passing Volume](#catalog-passing-volume)
   - [Catalog: Passing Efficiency](#catalog-passing-efficiency)
@@ -45,34 +49,34 @@ the team catalog all apply here; this document only restates what differs for in
 ## QB-Level Ground Rules
 
 1. **Identity is GSIS-based, joins are ID-only.** The pipeline already canonicalizes QBs to
-   `gsis_id`. Verified crosswalk: `load_players()` carries `gsis_id`, `espn_id` (→ QBR
-   `player_id`), and `pfr_id` (→ PFR `pfr_id`/`pfr_player_id`); NGS carries `player_gsis_id`
-   directly (0 nulls). Never join on names — NGS itself lists "Cam Ward" in weekly rows and
-   "Cameron Ward" in its season row.
-2. **Official passing truth comes from `player_stats` (PLS)**, per the existing pipeline:
-   attempts, completions, yards, TDs, INTs, sacks, sack yards, passing EPA, CPOE are replaced
-   with PLS weekly values. PBP remains the source for everything situational and derived
-   (dropbacks, scrambles, kneels, red zone, late-game state, success rate, air/YAC EPA splits).
-   The same exactness verified at team grain applies: PBP-derived official stats reconcile with
-   PLS, and the validation harness should assert it per QB-week.
+   `gsis_id`. Verified crosswalk: `load_players()` carries `gsis_id`, `espn_id` (→ QBR `player_id`),
+   and `pfr_id` (→ PFR `pfr_id`/`pfr_player_id`); NGS carries `player_gsis_id` directly (0 nulls).
+   Never join on names — NGS itself lists "Cam Ward" in weekly rows and "Cameron Ward" in its season
+   row.
+2. **Official passing truth comes from `player_stats` (PLS)**, per the existing pipeline: attempts,
+   completions, yards, TDs, INTs, sacks, sack yards, passing EPA, CPOE are replaced with PLS weekly
+   values. PBP remains the source for everything situational and derived (dropbacks, scrambles,
+   kneels, red zone, late-game state, success rate, air/YAC EPA splits). The same exactness verified
+   at team grain applies: PBP-derived official stats reconcile with PLS, and the validation harness
+   should assert it per QB-week.
 3. **Sign convention:** PLS `sack_yards_lost` is stored negative upstream; the ETL normalizes to
    positive magnitude (`qb_sack_yards_lost`), and every formula here assumes the magnitude.
 4. **Primary-QB policy.** Wins, 4QC, and GWD are assigned only to the team-week's primary QB.
-   Verified: PBP dropbacks alone reproduce the snap-count choice in 541/544 team-weeks (2025);
-   the 3 disagreements are injury/pull games. Policy: primary = most offensive snaps (SNP,
-   2012+) with dropbacks → attempts as tie-breaks; pre-2012 fallback = most dropbacks.
-5. **Season attribution for multi-team QBs:** keep QB-team season rows (the current shape) and
-   let the UI aggregate across teams for a player view; PFR season files' `2TM` rows are never
-   used (weekly rows carry true teams).
+   Verified: PBP dropbacks alone reproduce the snap-count choice in 541/544 team-weeks (2025); the 3
+   disagreements are injury/pull games. Policy: primary = most offensive snaps (SNP, 2012+) with
+   dropbacks → attempts as tie-breaks; pre-2012 fallback = most dropbacks.
+5. **Season attribution for multi-team QBs:** keep QB-team season rows (the current shape) and let
+   the UI aggregate across teams for a player view; PFR season files' `2TM` rows are never used
+   (weekly rows carry true teams).
 6. **Qualification:** league-wide QBs page needs a minimum-dropback threshold (existing
-   `qb_is_eligible`). QBR provides its own `qualified` flag (28 of 58 QBs in 2025) — do not mix
-   the two; apply this project's threshold consistently and show ESPN's flag only as context.
+   `qb_is_eligible`). QBR provides its own `qualified` flag (28 of 58 QBs in 2025) — do not mix the
+   two; apply this project's threshold consistently and show ESPN's flag only as context.
 
 ## Views and Denominators
 
 | View | Denominator | Additional Notes |
 | --- | --- | --- |
-| Ratings | none | Schedule-adjusted outputs (`QSaCR`, `QSaOR`, `QRaw`, `QSoS`, `QOutcome`). `QSaCR` is the Stage 2 frozen-weight QB composite over adjusted EPA/dropback, CPOE, sack rate, and TD-INT margin rate. This is a view, not a category. |
+| Ratings | none | Schedule-adjusted outputs (`QSaCR`, `QSaOR`, `QRaw`, `QSoS`, `QOutcome`). `QSaCR` is the published weighted QB composite over adjusted EPA/dropback, CPOE, sack rate, and TD-INT margin rate. This is a view, not a category. |
 | Raw Stat Totals | none | For **count** metrics only. **rate** and **avg** metrics keep the same value they show elsewhere. |
 | Per-Game Rates | games played (or games as primary QB — must be labeled) | For **count** metrics this is the per-game form. **rate** and **avg** metrics are unchanged. |
 | Per-Play Rates | play-specific denominators for the subcategory: dropback, attempt, carry, drive, series, etc. | For **count** metrics this uses each subcategory's natural denominator; **rate** and **avg** metrics are unchanged. |
@@ -82,18 +86,19 @@ the team catalog all apply here; this document only restates what differs for in
 | Opponent Per-Game Rates | games played, measured from the opponent profile | Opponent-profile columns are `qopp_`-prefixed. Count metrics keep their opponent per-game form here; intrinsic **rate** and **avg** metrics are unchanged opponent-context values. |
 | Opponent Per-Play Rates | play-specific denominators from the opponent profile | Opponent-profile columns are `qopp_`-prefixed and keep the same natural-denominator suffixes as the matching subject-side per-play stats (for example `qopp_qb_epa_per_dropback`, `qopp_qb_yards_per_carry`). |
 
-The naming suffix rules from the team catalog apply (`qb_` prefix preserved; every rate carries
-its denominator in name or documented convention).
+The naming suffix rules from the team catalog apply (`qb_` prefix preserved; every rate carries its
+denominator in name or documented convention).
+
 `_per_drive` and `_per_series` are still part of the same `Per-Play Rates` view when those
 denominators appear on supporting context columns; they do not create extra view types.
 
 ## Category Taxonomy
 
-Modeled on the team taxonomy, PFR passing/advanced-passing pages, and ESPN/NFL.com passing
-tables:
+Modeled on the team taxonomy, PFR passing/advanced-passing pages, and ESPN/NFL.com passing tables:
 
 Both QB pages — the league-wide QBs table and the individual QB Details page — use this
 eight-subcategory taxonomy inside the five stat views.
+
 `Ratings` stays separate as its own primary view and is not part of this taxonomy:
 
 ```text
@@ -109,9 +114,9 @@ QB
 ```
 
 Notes: for an individual QB a "Receiving" block is meaningless and omitted. Rushing is a first-class
-subcategory (a named gap in the current UI), covering both designed runs and scrambles.
-Opponent context is expressed through the two opponent views applied to these same eight
-subcategories, not as a ninth tab or category.
+subcategory (a named gap in the current UI), covering both designed runs and scrambles. Opponent
+context is expressed through the two opponent views applied to these same eight subcategories, not
+as a ninth tab or category.
 
 The `Ratings` view now has two descriptive blocks:
 
@@ -123,9 +128,8 @@ published project ratings.
 
 ## Catalog: External & Reference Ratings
 
-These metrics live in the `Ratings` view for analyst context and external reference checks.
-They are not part of the five stat-view taxonomies below and are never allowed into any rating
-pool.
+These metrics live in the `Ratings` view for analyst context and external reference checks. They are
+not part of the five stat-view taxonomies below and are never allowed into any rating pool.
 
 ### ESPN QBR (2006+, starters only — 27–32 QBs/week)
 
@@ -199,32 +203,31 @@ The heart of the QBs page. Current rating-pool members marked ★ (see safeguard
 
 ## Catalog: Advanced & Expected (Tier 2)
 
-All verified reliable in-era (see team catalog test findings). Join by `pfr_id` /
-`player_gsis_id`, with the ESPN/QBR identity crosswalk handled in the separate external/reference
-ratings block above. Filter to regular season; normalize `LAR`→`LA`, `WSH`→`WAS`.
+All verified reliable in-era (see team catalog test findings). Join by `pfr_id` / `player_gsis_id`,
+with the ESPN/QBR identity crosswalk handled in the separate external/reference ratings block above.
+Filter to regular season; normalize `LAR`→`LA`, `WSH`→`WAS`.
 
 ### NGS passing (2016+, qualified QBs — 97% of league attempts)
 
 `qb_avg_time_to_throw`, `qb_avg_completed_air_yards`, `qb_avg_intended_air_yards` (NGS aDOT),
 `qb_avg_air_yards_differential`, `qb_aggressiveness` (tight-window attempt %),
-`qb_avg_air_yards_to_sticks`, `qb_max_completed_air_distance`,
-`qb_expected_completion_percentage` (xCOMP%),
-`qb_ngs_cpoe` (`completion_percentage_above_expectation` — keep distinct from PBP CPOE; the two
-models disagree by design). All **avg** shape.
+`qb_avg_air_yards_to_sticks`, `qb_max_completed_air_distance`, `qb_expected_completion_percentage`
+(xCOMP%), `qb_ngs_cpoe` (`completion_percentage_above_expectation` — keep distinct from PBP CPOE;
+the two models disagree by design). All **avg** shape.
 
 ### PFR advanced passing (2018+ base; sub-eras per column)
 
 - 2018+: `qb_pocket_time`, `qb_times_blitzed`, `qb_times_hurried`, `qb_times_hit`,
   `qb_times_pressured`, `qb_pressure_pct`, `qb_drops_suffered`, `qb_drop_pct_suffered`,
   `qb_bad_throws`, `qb_bad_throw_pct`, `qb_throwaways`, `qb_spikes_pfr`.
-- 2019+: `qb_on_tgt_throws`, `qb_on_tgt_pct`, `qb_batted_balls`, RPO usage
-  (`qb_rpo_plays`, `qb_rpo_pass_att`, `qb_rpo_rush_att`, yards).
-- 2019–2023 only: play-action volume/yards (`qb_pa_pass_att`, `qb_pa_pass_yards`) —
-  discontinued upstream, display with era note.
-- 2024+ only: PFR air-yards family and `qb_scrambles_pfr` / `qb_scramble_yards_per_attempt`
-  (prefer PBP scrambles, 1999+).
-- Derived: `qb_drop_adjusted_comp_pct` = `(completions + drops) / (attempts − throwaways −
-  spikes − batted_balls)` — accuracy isolated from receiver/system noise.
+- 2019+: `qb_on_tgt_throws`, `qb_on_tgt_pct`, `qb_batted_balls`, RPO usage (`qb_rpo_plays`,
+  `qb_rpo_pass_att`, `qb_rpo_rush_att`, yards).
+- 2019–2023 only: play-action volume/yards (`qb_pa_pass_att`, `qb_pa_pass_yards`) — discontinued
+  upstream, display with era note.
+- 2024+ only: PFR air-yards family and `qb_scrambles_pfr` / `qb_scramble_yards_per_attempt` (prefer
+  PBP scrambles, 1999+).
+- Derived: `qb_drop_adjusted_comp_pct` = `(completions + drops) / (attempts − throwaways − spikes −
+  batted_balls)` — accuracy isolated from receiver/system noise.
 
 ## Catalog: Pressure, Sacks & Pocket
 
@@ -303,9 +306,10 @@ Outcome stats follow the primary-QB assignment policy.
 ## Opponent Views
 
 The defenses-faced profile: for each defense the QB actually played (primary-QB games only,
-head-to-head games excluded, deduplicated — existing pipeline rules), average what those
-defenses allowed to *all other* QBs, then average across the faced list. Every column below is
-a season-long context descriptor (UI `contextual: true`), not a QB grade.
+head-to-head games excluded, deduplicated — existing pipeline rules), average what those defenses
+allowed to *all other* QBs, then average across the faced list. Every column below is a season-long
+context descriptor (UI `contextual: true`), not a QB grade.
+
 These values appear through `Opponent Per-Game Rates` and `Opponent Per-Play Rates`, not through a
 standalone `Opponent Context` category.
 
@@ -326,46 +330,53 @@ Tier 1 mirror (PBP, 1999+) — what faced defenses allowed per opposing QB/dropb
 | `qopp_yards_per_dropback_allowed` | `qb_pass_yards_per_dropback` |
 | `qopp_qb_rush_epa_per_carry_allowed` | `qb_epa_per_carry` (QB-run defense) |
 
-Tier 2 context (PFR def weekly aggregated to team, 2018+): `qopp_pressure_rate`
-(`def_pressures` / dropbacks faced), `qopp_blitz_rate` (`def_times_blitzed`),
-`qopp_passer_rating_allowed_pfr` (coverage-grain cross-check). QBR weekly (2006+) supports a
-`qopp_qbr_raw_allowed` cross-check: mean raw QBR that faced defenses allowed to other starters.
+Tier 2 context (PFR def weekly aggregated to team, 2018+): `qopp_pressure_rate` (`def_pressures` /
+dropbacks faced), `qopp_blitz_rate` (`def_times_blitzed`), `qopp_passer_rating_allowed_pfr`
+(coverage-grain cross-check). QBR weekly (2006+) supports a `qopp_qbr_raw_allowed` cross-check: mean
+raw QBR that faced defenses allowed to other starters.
 
 `diff_qb_*` columns (QB minus `qopp_` context on the same metric) follow the existing prefix
 convention and are derived for every mirrored pair.
 
 ## Ratings Safeguards for QB Metrics
 
-Same registry design as the team catalog (`ratings_eligible`, `duplicate_of`, explicit
-allowlisted pools). QB-specific collision notes:
+Same registry design as the team catalog (`ratings_eligible`, `duplicate_of`, explicit allowlisted
+pools). QB-specific collision notes:
 
-- The current primary pool ★ (`qb_epa_per_dropback`, `qb_any_a`, `qb_cpoe`,
-  `qb_td_int_margin_rate`, `qb_sack_rate`) has known internal overlap: ANY/A already encodes
-  TDs, INTs, and sack yardage, and sack rate overlaps ANY/A's sack term. Documented as an
-  accepted, deliberate weighting — but the registry must forbid *adding* further overlapping
-  members (e.g., `qb_passer_rating`, which restates comp% / YPA / TD% / INT%; or
-  `qb_int_rate_per_attempt` next to `qb_td_int_margin_rate`).
-- `qb_passer_rating`, AY/A, NY/A, `qb_td_int_differential`, and all `_per_game` variants of
-  pool members are `duplicate_of` pool inputs → display-only.
-- `qb_qbr_total` is ESPN-opponent-adjusted; if QBR enters the adjustment system, use
-  `qb_qbr_raw` (project decision) and never both.
+- The current primary pool ★ (`qb_epa_per_dropback`, `qb_any_a`, `qb_cpoe`, `qb_td_int_margin_rate`,
+  `qb_sack_rate`) has known internal overlap: ANY/A already encodes TDs, INTs, and sack yardage, and
+  sack rate overlaps ANY/A's sack term. Documented as an accepted, deliberate weighting — but the
+  registry must forbid *adding* further overlapping members (e.g., `qb_passer_rating`, which
+  restates comp% / YPA / TD% / INT%; or `qb_int_rate_per_attempt` next to `qb_td_int_margin_rate`).
+- `qb_passer_rating`, AY/A, NY/A, `qb_td_int_differential`, and all `_per_game` variants of pool
+  members are `duplicate_of` pool inputs → display-only.
+- `qb_qbr_total` is ESPN-opponent-adjusted; if QBR enters the adjustment system, use `qb_qbr_raw`
+  (project decision) and never both.
 - NGS CPOE and PBP CPOE are different models — display both, never pool both.
-- Outcome-layer stats (wins, 4QC, GWD) stay quarantined in `QOutcome` and never join the
-  performance pools.
+- Outcome-layer stats (wins, 4QC, GWD) stay quarantined in `QOutcome` and never join the performance
+  pools.
 
 ## Page Layout Recommendation
 
 **QBs page (league-wide table)**: the top row is a single-select six-view control in this exact
-order: `Ratings`, `Raw Total Stats`, `Per-Game Rates`, `Per-Play Rates`,
-`Opponent Per-Game Rates`, `Opponent Per-Play Rates`, plus `Reset`.
+order: `Ratings`, `Raw Total Stats`, `Per-Game Rates`, `Per-Play Rates`, `Opponent Per-Game Rates`,
+`Opponent Per-Play Rates`, plus `Reset`.
+
 When any non-`Ratings` view is active, the secondary row is the eight-subcategory multi-select in
 the taxonomy order above.
-Default sort `QSaCR`; qualification filter on `qb_is_eligible` with a "show all" toggle.
-The `Ratings` view keeps `QSaOR` as the ridge backbone, `QSaCR` as the frozen Stage 2 weighted
-composite, and `QOutcome` as descriptive-only context.
+
+Default sort `QSaCR`; qualification filter on `qb_is_eligible` with a "show all" toggle. The
+`Ratings` view keeps `QSaOR` as the ridge backbone, `QSaCR` as the published weighted composite, and
+`QOutcome` as descriptive-only context.
 
 **QB Details page**: identical section order for cohesion, each section adding: percentile bars vs.
-qualified QBs (the existing `_pct` convention), the `qopp_` context and `diff_` comparison
-inline per metric, a weekly game log (PLS weekly + QBR weekly), and a faced-defenses table.
-Tier 2 sections carry source badges and era notes (PFR sub-eras, NGS 2016+, QBR 2006+) so
-missing values in older seasons read as "not tracked yet," not as gaps.
+qualified QBs (the existing `_pct` convention), the `qopp_` context and `diff_` comparison inline
+per metric, a weekly game log (PLS weekly + QBR weekly), and a faced-defenses table.
+
+Tier 2 sections carry source badges and era notes (PFR sub-eras, NGS 2016+, QBR 2006+) so missing
+values in older seasons read as "not tracked yet," not as gaps.
+
+[qbr_season_level.parquet]:
+    https://github.com/nflverse/nflverse-data/releases/download/espn_data/qbr_season_level.parquet
+[qbr_week_level.parquet]:
+    https://github.com/nflverse/nflverse-data/releases/download/espn_data/qbr_week_level.parquet
