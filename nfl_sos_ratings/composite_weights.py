@@ -1,7 +1,7 @@
-"""Stage 2 composite-weight fitting helpers.
+"""Composite-weight fitting helpers.
 
 These helpers build season-pair training rows from the on-disk Parquet back-catalog and fit
-predictive composite weights for the published Stage 2 team and QB ratings.
+predictive composite weights for the published team and QB ratings.
 
 QB season pairs are intentionally restricted to the CPOE era because
 ``adj_qb_completion_percentage_above_expectation`` is not available before 2006.
@@ -120,8 +120,8 @@ QB_QSACR_COMPONENTS: tuple[CompositeComponent, ...] = (
 COMPOSITE_WEIGHT_FITTING_COMMAND = "uv run python -m nfl_sos_ratings.composite_weights"
 
 COMPOSITE_WEIGHT_REFIT_POLICY = (
-    "Refit only when a maintainer explicitly reruns the Stage 2 methodology workflow, reviews "
-    "the held-out diagnostics, and updates the frozen snapshot in the same change set."
+    "Refit only when a maintainer explicitly reruns the composite-weight workflow, reviews the "
+    "held-out diagnostics, and updates the published snapshot in the same change set."
 )
 
 TEAM_TAKEAWAY_CREATION_CANDIDATE_WEIGHT = -0.04081182634425329
@@ -192,7 +192,7 @@ def _validate_component_columns(
     *,
     frame_name: str,
 ) -> None:
-    """Raise when a consumed back-catalog frame is missing a required Stage 2 column."""
+    """Raise when a consumed back-catalog frame is missing a required composite column."""
     missing = sorted(
         {
             source_column
@@ -203,7 +203,7 @@ def _validate_component_columns(
     )
     if missing:
         detail = ", ".join(missing)
-        raise ValueError(f"{frame_name} is missing required Stage 2 columns: {detail}")
+        raise ValueError(f"{frame_name} is missing required composite columns: {detail}")
 
 
 def _zscore(values: np.ndarray) -> np.ndarray:
@@ -359,7 +359,7 @@ def build_team_training_rows(data_dir: Path, seasons: Iterable[int]) -> pl.DataF
         )
         _validate_component_columns(current, feature_components, frame_name=f"{season}_combined")
         if "SaOvR" not in upcoming.columns:
-            raise ValueError(f"{next_season}_combined is missing required Stage 2 columns: SaOvR")
+            raise ValueError(f"{next_season}_combined is missing required composite columns: SaOvR")
 
         features = current.select(
             pl.col("team"), *[_component_expr(component) for component in feature_components]
@@ -412,7 +412,7 @@ def build_qb_training_rows(data_dir: Path, seasons: Iterable[int]) -> pl.DataFra
         )
         if "adj_qb_epa_per_dropback" not in upcoming.columns:
             raise ValueError(
-                f"{next_season}_qb_combined is missing required Stage 2 columns: "
+                f"{next_season}_qb_combined is missing required composite columns: "
                 "adj_qb_epa_per_dropback"
             )
 
@@ -666,7 +666,7 @@ def evaluate_leave_one_season_out(
 
 
 def main() -> None:
-    """Print the reproducible Stage 2 weight fit and held-out diagnostics."""
+    """Print the reproducible composite-weight fit and held-out diagnostics."""
     data_dir = Path(DATA_DIR)
     seasons = range(START_YEAR, END_YEAR + 1)
 
@@ -715,7 +715,7 @@ def main() -> None:
         sample_weight_column=QB_QSACR_FROZEN_SPEC.sample_weight_column,
     )
 
-    print("Stage 2 composite-weight fit")
+    print("Composite-weight fit summary")
     print(f"Command: {COMPOSITE_WEIGHT_FITTING_COMMAND}")
     print()
     print("Team candidate fit (includes turnover-creation test component):")
