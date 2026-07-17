@@ -282,26 +282,32 @@ class TestRatingPools:
         assert all("allowed" not in member for member in team_simultaneous[len(team_offense) :])
         assert registry.pool_columns("qb_simultaneous") == registry.pool_columns("qb_paired")
 
-    def test_stage_two_rating_notes_capture_weight_provenance(
-        self, registry: MetricRegistry
-    ) -> None:
-        """SaCR and QSaCR notes should carry the frozen-weight provenance snapshot."""
+    def test_rating_provenance_is_structured(self, registry: MetricRegistry) -> None:
+        """SaCR and QSaCR should expose structured provenance for the published weights."""
         sacr = registry.resolve_column("SaCR")
         qsacr = registry.resolve_column("QSaCR")
 
-        assert sacr is not None and sacr.base.note is not None
-        assert "1999-2025" in sacr.base.note
-        assert "uv run python -m nfl_sos_ratings.composite_weights" in sacr.base.note
-        assert "-0.04081182634425329" in sacr.base.note
-        assert "st_rating=0.0575025275920063" in sacr.base.note
-        assert "adj_def_rushing_epa_per_offensive_snap=0.0973640754908631" in sacr.base.note
-        assert "next-season SaOvR" in sacr.base.note
+        assert sacr is not None and sacr.base.provenance is not None
+        assert sacr.base.provenance.fit_window == (1999, 2025)
+        assert sacr.base.provenance.fitting_command == (
+            "uv run python -m nfl_sos_ratings.composite_weights"
+        )
+        assert sacr.base.provenance.target == "next-season SaOvR"
+        assert sacr.base.provenance.weight_snapshot[-1] == ("st_rating", 0.0575025275920063)
+        assert sacr.base.provenance.excluded_weight_candidates == (
+            ("adj_def_takeaway_creation_rate_per_defensive_snap", -0.04081182634425329),
+        )
 
-        assert qsacr is not None and qsacr.base.note is not None
-        assert "2006-2025" in qsacr.base.note
-        assert "dropback-weighted WLS" in qsacr.base.note
-        assert "uv run python -m nfl_sos_ratings.composite_weights" in qsacr.base.note
-        assert "adj_qb_epa_per_dropback=0.6687790473858877" in qsacr.base.note
+        assert qsacr is not None and qsacr.base.provenance is not None
+        assert qsacr.base.provenance.fit_window == (2006, 2025)
+        assert qsacr.base.provenance.sample_weighting == "dropback-weighted weighted least squares"
+        assert qsacr.base.provenance.fitting_command == (
+            "uv run python -m nfl_sos_ratings.composite_weights"
+        )
+        assert qsacr.base.provenance.weight_snapshot[0] == (
+            "adj_qb_epa_per_dropback",
+            0.6687790473858877,
+        )
 
     def test_pool_members_are_ratings_eligible(self, registry: MetricRegistry) -> None:
         """Only ratings_eligible metrics may enter any pool."""
