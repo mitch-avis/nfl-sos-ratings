@@ -172,13 +172,13 @@ def _derive_turnover_margin(df: pl.DataFrame) -> np.ndarray | None:
 
 
 def _build_overall_raw(df: pl.DataFrame, reference_df: pl.DataFrame | None = None) -> np.ndarray:
-    """Return a neutral placeholder until Stage 1 redefines team overall quality."""
+    """Return a neutral placeholder for the retired legacy overall-quality helper."""
     del reference_df
     return np.zeros(df.height, dtype=np.float64)
 
 
 def _build_overall_sos(df: pl.DataFrame, reference_df: pl.DataFrame | None = None) -> np.ndarray:
-    """Return a neutral placeholder until Stage 1 redefines team overall schedule context."""
+    """Return a neutral placeholder for the retired legacy overall schedule helper."""
     del reference_df
     return np.zeros(df.height, dtype=np.float64)
 
