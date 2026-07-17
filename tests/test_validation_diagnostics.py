@@ -1,4 +1,4 @@
-"""Tests for Stage 3b validation diagnostics helpers."""
+"""Tests for validation diagnostics helpers."""
 
 from pathlib import Path
 
@@ -7,6 +7,8 @@ import pytest
 
 from nfl_sos_ratings.validation.diagnostics import (
     build_qb_adjustment_audit_frame,
+    build_qb_leverage_profile_frame,
+    build_qb_opponent_offense_frame,
     build_qb_split_half_frame,
     compute_qb_playoff_season_summary,
     compute_qb_playoff_validation_frame,
@@ -15,6 +17,8 @@ from nfl_sos_ratings.validation.diagnostics import (
     evaluate_qb_split_half_decision,
     summarize_defense_spread,
     summarize_qb_adjustment_slopes,
+    summarize_qb_leverage_signal,
+    summarize_qb_opponent_offense_signal,
     summarize_qb_split_half_signal,
 )
 
@@ -64,7 +68,7 @@ def test_build_qb_adjustment_audit_frame_recovers_weighted_schedule_effect() -> 
             "qb_id": ["A", "A", "B", "B"],
             "qb_name": ["QB A", "QB A", "QB B", "QB B"],
             "team": ["TA", "TA", "TB", "TB"],
-            "opponent_team": ["D1", "D2", "D1", "D2"],
+            "opponent_team": ["DEF1", "DEF2", "DEF1", "DEF2"],
             "qb_dropbacks": [40.0, 10.0, 10.0, 40.0],
             "qb_epa_per_dropback": [0.10, 0.30, -0.30, -0.10],
         }
@@ -123,14 +127,23 @@ def test_build_qb_split_half_frame_aggregates_top_and_bottom_halves() -> None:
             "qb_id": ["A", "A", "A", "A", "B", "B", "B", "B"],
             "qb_name": ["QB A", "QB A", "QB A", "QB A", "QB B", "QB B", "QB B", "QB B"],
             "team": ["TA", "TA", "TA", "TA", "TB", "TB", "TB", "TB"],
-            "opponent_team": ["D1", "D2", "D3", "D4", "D1", "D2", "D3", "D4"],
+            "opponent_team": [
+                "DEF1",
+                "DEF2",
+                "DEF3",
+                "DEF4",
+                "DEF1",
+                "DEF2",
+                "DEF3",
+                "DEF4",
+            ],
             "qb_dropbacks": [20.0, 20.0, 10.0, 10.0, 10.0, 10.0, 20.0, 20.0],
             "qb_epa_per_dropback": [0.0, 0.1, 0.3, 0.4, -0.2, 0.0, 0.3, 0.5],
         }
     )
     defense_ratings = pl.DataFrame(
         {
-            "team": ["D1", "D2", "D3", "D4"],
+            "team": ["DEF1", "DEF2", "DEF3", "DEF4"],
             "defense_coefficient": [0.3, 0.1, -0.1, -0.2],
         }
     )
@@ -162,7 +175,7 @@ def test_build_qb_split_half_frame_aggregates_top_and_bottom_halves() -> None:
 
 
 def test_summarize_qb_split_half_signal_and_placebo_gate() -> None:
-    """The D1 gate should reject a symmetric placebo effect when the placebo is also positive."""
+    """The split-half gate should reject a symmetric positive placebo effect."""
     split_frame = pl.DataFrame(
         {
             "season": [
@@ -262,14 +275,14 @@ def test_compute_qb_playoff_season_summary_filters_to_eligible_qbs_and_adjusts_e
             "qb_id": ["A", "A", "B"],
             "qb_name": ["QB A", "QB A", "QB B"],
             "team": ["TA", "TA", "TB"],
-            "opponent_team": ["D1", "D2", "D1"],
+            "opponent_team": ["DEF1", "DEF2", "DEF1"],
             "qb_dropbacks": [10.0, 30.0, 20.0],
             "qb_epa_per_dropback": [0.0, 0.2, 0.3],
         }
     )
     defense_ratings = pl.DataFrame(
         {
-            "team": ["D1", "D2"],
+            "team": ["DEF1", "DEF2"],
             "defense_coefficient": [0.3, -0.1],
         }
     )
@@ -361,3 +374,121 @@ def test_compute_qb_playoff_validation_frame_canonicalizes_playoff_qb_ids_for_op
     assert validation.height == 1
     assert validation.select("qb_id").item() == "canon-a"
     assert validation.select("playoff_adjusted_epa_per_dropback").item() == pytest.approx(0.65)
+
+
+def test_build_qb_opponent_offense_frame_adjusts_for_defense_and_home_context() -> None:
+    """Opponent-offense rows should keep game-level adjusted residuals and offense context."""
+    qb_games = pl.DataFrame(
+        {
+            "season": [2025, 2025, 2025, 2025],
+            "qb_id": ["A", "A", "B", "B"],
+            "qb_name": ["QB A", "QB A", "QB B", "QB B"],
+            "team": ["TA", "TA", "TB", "TB"],
+            "opponent_team": ["OFF1", "OFF2", "OFF1", "OFF2"],
+            "qb_dropbacks": [20.0, 20.0, 20.0, 20.0],
+            "qb_epa_per_dropback": [0.10, 0.30, -0.10, 0.10],
+            "is_home": [True, False, False, True],
+        }
+    )
+    offense_ratings = pl.DataFrame(
+        {
+            "team": ["OFF1", "OFF2"],
+            "offense_rating": [0.20, -0.10],
+        }
+    )
+    defense_ratings = pl.DataFrame(
+        {
+            "team": ["OFF1", "OFF2"],
+            "defense_rating": [0.05, -0.05],
+        }
+    )
+
+    frame = build_qb_opponent_offense_frame(
+        qb_games,
+        offense_ratings,
+        defense_ratings,
+        home_field_advantage=0.02,
+    ).sort(["qb_id", "opponent_team"])
+
+    qb_a_home = frame.filter((pl.col("qb_id") == "A") & (pl.col("opponent_team") == "OFF1")).row(
+        0, named=True
+    )
+    qb_a_away = frame.filter((pl.col("qb_id") == "A") & (pl.col("opponent_team") == "OFF2")).row(
+        0, named=True
+    )
+
+    assert qb_a_home["adjusted_game_epa_per_dropback"] == pytest.approx(0.13)
+    assert qb_a_away["adjusted_game_epa_per_dropback"] == pytest.approx(0.27)
+    assert qb_a_home["season_adjusted_epa_per_dropback"] == pytest.approx(0.20)
+    assert qb_a_home["adjusted_residual"] == pytest.approx(-0.07)
+    assert qb_a_away["adjusted_residual"] == pytest.approx(0.07)
+    assert qb_a_home["opponent_offense_coefficient"] == pytest.approx(0.20)
+
+
+def test_summarize_qb_opponent_offense_signal_reports_ci_and_sign_consistency() -> None:
+    """Opponent-offense summaries should return pooled confidence intervals and sign counts."""
+    frame = pl.DataFrame(
+        {
+            "season": [2020, 2020, 2020, 2021, 2021, 2021, 2022, 2022, 2022],
+            "opponent_offense_coefficient": [-1.0, 0.0, 1.0] * 3,
+            "adjusted_residual": [-0.2, 0.0, 0.2, -0.18, 0.0, 0.18, -0.16, 0.0, 0.16],
+            "qb_dropbacks": [30.0] * 9,
+        }
+    )
+
+    summary = summarize_qb_opponent_offense_signal(frame, resamples=256, seed=0)
+    pooled = summary.filter(pl.col("scope") == "pooled").row(0, named=True)
+
+    assert pooled["slope"] > 0.0
+    assert pooled["ci_lower"] > 0.0
+    assert pooled["direction_positive_count"] == 3
+    assert pooled["direction_total_count"] == 3
+
+
+def test_build_qb_leverage_profile_frame_computes_low_and_moderate_shares() -> None:
+    """Leverage profiles should split dropbacks into low- and moderate-leverage shares."""
+    dropback_plays = pl.DataFrame(
+        {
+            "season": [2025] * 6,
+            "qb_id": ["A", "A", "A", "B", "B", "B"],
+            "qb_name": ["QB A", "QB A", "QB A", "QB B", "QB B", "QB B"],
+            "team": ["TA", "TA", "TA", "TB", "TB", "TB"],
+            "wp": [0.01, 0.50, 0.99, 0.10, 0.20, 0.90],
+        }
+    )
+    schedule = pl.DataFrame(
+        {
+            "season": [2025, 2025],
+            "qb_id": ["A", "B"],
+            "schedule_softness": [0.30, -0.20],
+        }
+    )
+
+    profile = build_qb_leverage_profile_frame(dropback_plays, schedule).sort("qb_id")
+
+    qb_a = profile.filter(pl.col("qb_id") == "A").row(0, named=True)
+    qb_b = profile.filter(pl.col("qb_id") == "B").row(0, named=True)
+
+    assert qb_a["low_leverage_share"] == pytest.approx(2.0 / 3.0)
+    assert qb_a["moderate_leverage_share"] == pytest.approx(1.0 / 3.0)
+    assert qb_b["low_leverage_share"] == pytest.approx(0.0)
+    assert qb_b["schedule_softness"] == pytest.approx(-0.20)
+
+
+def test_summarize_qb_leverage_signal_reports_supported_direction() -> None:
+    """Leverage summaries should report pooled support when low-leverage share tracks softness."""
+    profile = pl.DataFrame(
+        {
+            "season": [2020, 2020, 2020, 2021, 2021, 2021, 2022, 2022, 2022],
+            "schedule_softness": [-1.0, 0.0, 1.0] * 3,
+            "low_leverage_share": [0.1, 0.2, 0.3, 0.12, 0.22, 0.32, 0.14, 0.24, 0.34],
+            "total_dropbacks": [100.0] * 9,
+        }
+    )
+
+    summary = summarize_qb_leverage_signal(profile, resamples=256, seed=0)
+    pooled = summary.filter(pl.col("scope") == "pooled").row(0, named=True)
+
+    assert pooled["slope"] > 0.0
+    assert pooled["ci_lower"] > 0.0
+    assert pooled["direction_positive_count"] == 3
