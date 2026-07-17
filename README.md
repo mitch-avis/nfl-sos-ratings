@@ -12,9 +12,9 @@ It currently produces:
 - Ridge-backed published ratings for teams and QBs, plus one-hop diff-based comparison outputs for
   descriptive context
 - Simultaneous-adjustment audit outputs for teams and QBs
-- A machine-readable metric registry (`nfl_sos_ratings/metrics/`) — the single source of truth
-  for every published stat's label, layman description, polarity, category, source, and
-  rating-pool eligibility, served to the web UI at `/api/metadata`
+- A machine-readable metric registry (`nfl_sos_ratings/metrics/`) — the single source of truth for
+  every published stat's label, layman description, polarity, category, source, and rating-pool
+  eligibility, served to the web UI at `/api/metadata`
 - Intermediate Parquet artifacts for auditability (convert any file to CSV with
   `pl.read_parquet(...).write_csv(...)` for spreadsheet inspection)
 - Team and QB plots under `data/plots/`
@@ -28,9 +28,9 @@ The registry-backed analyst surfaces use a six-view model:
 - `Opponent Per-Game Rates`
 - `Opponent Per-Play Rates`
 
-`Ratings` is its own schedule-adjusted view.
-The other five reuse the same team/QB taxonomies, and opponent context is expressed through the
-two opponent views rather than through a standalone `Opponent Context` category.
+`Ratings` is its own schedule-adjusted view. The other five reuse the same team/QB taxonomies, and
+opponent context is expressed through the two opponent views rather than through a standalone
+`Opponent Context` category.
 
 ## Table of Contents
 
@@ -96,7 +96,7 @@ The live pipeline is PBP-first.
   surface, including yards, TDs, first-down splits, EPA splits, CPOE, sacks suffered, interceptions,
   and fumble-loss splits.
 - `load_schedules()` supplies official scores for team outcomes.
-- `load_playoff_pbp_data()` exists only for Stage 3d validation analyses. It loads POST play-by-play
+- `load_playoff_pbp_data()` exists only for playoff validation analyses. It loads POST play-by-play
   for playoff out-of-sample checks and must never feed published regular-season ratings.
 
 ### Team Pipeline
@@ -114,18 +114,18 @@ The team path is:
    - `SaOR`: the equal-weight ridge offense composite over passing and rushing EPA per snap
    - `SaDR`: the equal-weight ridge defense composite over the same EPA responses, oriented so
      higher = better defense
-   - `SaSTR`: the standardized special-teams backbone from the Stage 3c PBP special-play solve
+   - `SaSTR`: the standardized special-teams rating from the play-level special-play solve
    - `SaOvR`: the standardized sum of `SaOR`, `SaDR`, and `SaSTR`
-   - `SaCR`: the frozen Stage 3c blend of standardized ridge-adjusted offensive passing EPA,
-     offensive rushing EPA, defensive passing EPA, defensive rushing EPA, and special teams,
-     with published weights `0.3829 / 0.1906 / 0.2716 / 0.0974 / 0.0575`
+   - `SaCR`: the published weighted blend of standardized ridge-adjusted offensive passing EPA,
+     offensive rushing EPA, defensive passing EPA, defensive rushing EPA, and special teams, with
+     published weights `0.3829 / 0.1906 / 0.2716 / 0.0974 / 0.0575`
 8. Produce `SRS` from point margin as a simultaneous-adjustment reference.
 
-Team outcome fields such as wins, win value, and turnover margin remain published for context,
-but they no longer feed the published team quality ratings.
-The opponent-profile and `diff_*` outputs remain in the pipeline for the UI's descriptive views,
+- Team outcome fields such as wins, win value, and turnover margin remain published for context, but
+they no longer feed the published team quality ratings.
+- The opponent-profile and `diff_*` outputs remain in the pipeline for the UI's descriptive views,
 but they are no longer the published rating backbone.
-A tested adjusted takeaway-creation candidate (defensive interceptions plus forced fumbles per
+- A tested adjusted takeaway-creation candidate (defensive interceptions plus forced fumbles per
 snap) produced a small negative fitted weight and stays out of the frozen composite.
 
 ### QB Pipeline
@@ -148,15 +148,13 @@ The QB path is:
 7. Build QB opponent profiles from only the primary-QB games each QB actually played.
 8. Deduplicate faced defenses before profiling and remove the old scheduled-opponent fallback.
 9. Solve the tuned, dropback-weighted simultaneous ridge QB backbone on `qb_epa_per_dropback`.
-10. Publish QB ratings from that ridge backbone: `QRaw` is the unadjusted raw-performance
-    composite from the primary QB stat pool; `QSaOR` is the standardized ridge-adjusted
-    `adj_qb_epa_per_dropback` signal; `QSoS` is the standardized mean faced-defense coefficient
-  from the ridge solve, kept as descriptive schedule context; `QSaCR` is the frozen Stage 2
-  blend of standardized `adj_qb_epa_per_dropback`,
-  `adj_qb_completion_percentage_above_expectation`, `adj_qb_sack_rate`, and
-  `adj_qb_td_int_margin_rate`, with published weights
-  `0.6688 / 0.2146 / 0.0673 / 0.0493`; and `QOutcome` remains a descriptive-only outcome
-  context column.
+10. Publish QB ratings from that ridge backbone: `QRaw` is the unadjusted raw-performance composite
+    from the primary QB stat pool; `QSaOR` is the standardized ridge-adjusted
+    `adj_qb_epa_per_dropback` signal; `QSoS` is the standardized mean faced-defense coefficient from
+    the ridge solve, kept as descriptive schedule context; `QSaCR` is the published weighted blend
+  of standardized `adj_qb_epa_per_dropback`, `adj_qb_completion_percentage_above_expectation`,
+  `adj_qb_sack_rate`, and `adj_qb_td_int_margin_rate`, with published weights `0.6688 / 0.2146 /
+  0.0673 / 0.0493`; and `QOutcome` remains a descriptive-only outcome context column.
 
 The primary QB raw-performance pool for `QRaw` is centered on:
 
@@ -168,7 +166,7 @@ The primary QB raw-performance pool for `QRaw` is centered on:
 
 Secondary QB context remains available through fields such as passer rating, pass yards per
 dropback, wins, fourth-quarter comebacks, and game-winning drives. Those outcome stats remain
-published for context, but they do not feed `QRaw`, `QSaOR`, or `QSaCR` in Stage 2.
+published for context, but they do not feed `QRaw`, `QSaOR`, or `QSaCR`.
 
 ### Opponent Profiling Rules
 
@@ -178,9 +176,8 @@ Both pipelines follow the same core rules:
 - Normalize team abbreviations before joins
 - Exclude all head-to-head games when profiling an opponent
 - Deduplicate opponent lists before averaging
-- Compare on per-game and per-play rates.
-  For teams that often means per-snap; for QBs it usually means per-dropback, per-attempt, or
-  per-carry depending on the subcategory.
+- Compare on per-game and per-play rates. For teams that often means per-snap; for QBs it usually
+  means per-dropback, per-attempt, or per-carry depending on the subcategory.
 
 ### Simultaneous Adjustment
 
@@ -193,25 +190,25 @@ It currently provides:
 - `solve_qb_stat_ridge()` for tuned, dropback-weighted QB offense vs defense-allowed latent ratings
 - wrapper helpers that emit multi-stat adjusted tables for teams and QBs
 
-The main pipeline now uses the ridge-adjusted team and QB outputs as the published rating
-backbone, while still writing the one-hop opponent and `diff_*` surfaces for descriptive
-comparison in the UI.
-The team simultaneous-response pool keeps offensive rate responses plus direct defensive
-playmaking rates, excludes redundant defensive `*_allowed` mirrors, and estimates home field as
-part of the team solve.
+The main pipeline now uses the ridge-adjusted team and QB outputs as the published rating backbone,
+while still writing the one-hop opponent and `diff_*` surfaces for descriptive comparison in the UI.
+
+The team simultaneous-response pool keeps offensive rate responses plus direct defensive playmaking
+rates, excludes redundant defensive `*_allowed` mirrors, and estimates home field as part of the
+team solve.
 
 ### Derived Formulas
 
 Key self-computed metrics use the following formulas:
 
 - Team per-snap rates: game total divided by offensive or defensive snaps
-- `SaOR`: the average of the ridge offense coefficients for
-  `passing_epa_per_offensive_snap` and `rushing_epa_per_offensive_snap`, then standardized
+- `SaOR`: the average of the ridge offense coefficients for `passing_epa_per_offensive_snap` and
+  `rushing_epa_per_offensive_snap`, then standardized
 - `SaDR`: the average of the ridge defense coefficients for the same EPA responses, then
   standardized so higher = better defense
 - `SaSTR`: the standardized special-teams SRS solve over per-play special-teams EPA margin
 - `SaOvR`: standardized `SaOR + SaDR + SaSTR`
-- `SaCR`: the standardized Stage 3c frozen-weight blend of standardized
+- `SaCR`: the standardized published weighted blend of standardized
   `adj_off_passing_epa_per_offensive_snap`, `adj_off_rushing_epa_per_offensive_snap`,
   `adj_def_passing_epa_per_offensive_snap`, `adj_def_rushing_epa_per_offensive_snap`, and
   `st_rating`, with weights `0.3829 / 0.1906 / 0.2716 / 0.0974 / 0.0575`
@@ -223,13 +220,11 @@ Key self-computed metrics use the following formulas:
 / (qb_attempts + qb_sacks)`
 - `QSaOR`: the standardized ridge-adjusted `adj_qb_epa_per_dropback` coefficient
 - `QSoS`: the standardized mean faced-defense coefficient from the QB ridge solve
-- `QSaCR`: the standardized Stage 2 frozen-weight blend of standardized
-  `adj_qb_epa_per_dropback`, `adj_qb_completion_percentage_above_expectation`,
-  `adj_qb_sack_rate`, and `adj_qb_td_int_margin_rate`, with weights
-  `0.6688 / 0.2146 / 0.0673 / 0.0493`
-- `QOutcome`: a standardized descriptive blend of QB win rate or wins, fourth-quarter comebacks,
-  and game-winning drives; it is published separately and does not feed `QRaw`, `QSaOR`, or
-  `QSaCR`
+- `QSaCR`: the standardized published weighted blend of standardized `adj_qb_epa_per_dropback`,
+  `adj_qb_completion_percentage_above_expectation`, `adj_qb_sack_rate`, and
+  `adj_qb_td_int_margin_rate`, with weights `0.6688 / 0.2146 / 0.0673 / 0.0493`
+- `QOutcome`: a standardized descriptive blend of QB win rate or wins, fourth-quarter comebacks, and
+  game-winning drives; it is published separately and does not feed `QRaw`, `QSaOR`, or `QSaCR`
 - Fourth-quarter comeback: primary QB on the eventual game winner, where the offense had at least
   one quarter-4-or-later snap while trailing and the team's final score exceeded the opponent's
   final score
@@ -314,10 +309,10 @@ All files are written under `DATA_DIR` with a `{SEASON}_` prefix.
 
 - `{SEASON}_team_per_game_stats.parquet` PBP-derived team-game profile rolled to one season row per
   team. Includes per-game totals, per-snap rates, `win_value`, and `turnover_margin`.
-- `{SEASON}_opponent_profiles.parquet` Averaged opponent profile rows built from unique non-head-to-head
-  opponents.
-- `{SEASON}_combined.parquet` Team rows joined to opponent rows, `diff_*` columns, team ratings, `SRS`,
-  and simultaneous-adjustment team columns.
+- `{SEASON}_opponent_profiles.parquet` Averaged opponent profile rows built from unique
+  non-head-to-head opponents.
+- `{SEASON}_combined.parquet` Team rows joined to opponent rows, `diff_*` columns, team ratings,
+  `SRS`, and simultaneous-adjustment team columns.
 - `{SEASON}_ratings.parquet` Compact team ratings summary with `SaCR`, `SaOR`, `SaDR`, `SaSTR`,
   `SaOvR`, and `SRS`.
 - `{SEASON}_simultaneous_team_adjustments.parquet` Multi-stat simultaneous-adjustment output with
@@ -331,8 +326,8 @@ All files are written under `DATA_DIR` with a `{SEASON}_` prefix.
   `qb_completions_per_game`, and `qb_pass_yards_per_game`; dropback and snap totals; EPA per
   dropback; ANY/A; sack rate; yards per dropback; TD-INT differential fields; wins; and 4QC/GWD
   totals.
-- `{SEASON}_qb_opponent_profiles.parquet` QB opponent context built from only the primary-QB games each
-  QB actually played, with unique faced defenses and no fabricated schedule fallback.
+- `{SEASON}_qb_opponent_profiles.parquet` QB opponent context built from only the primary-QB games
+  each QB actually played, with unique faced defenses and no fabricated schedule fallback.
 - `{SEASON}_qb_combined.parquet` QB season rows joined to opponent context, `diff_qb_*` columns,
   simultaneous QB adjustment columns, the faced-defense ridge schedule column, and final QB ratings.
 - `{SEASON}_qb_ratings.parquet` Compact QB ratings summary for qualified passers.
@@ -403,7 +398,7 @@ npm run build
 
 ## Validation
 
-Stage 3 validation uses held-out walk-forward home-margin prediction from partial-season team
+The validation harness uses held-out walk-forward home-margin prediction from partial-season team
 snapshots, plus year-over-year stability checks for team and QB ratings and a QSaCR-to-ESPN-QBR
 reference comparison.
 
@@ -413,29 +408,12 @@ Run the full validation harness from the repo root:
 python -m nfl_sos_ratings.validation.walk_forward
 ```
 
-The command writes [docs/validation-report.md](docs/validation-report.md).
-That report is the authoritative summary of the current methodology checks.
+The command writes [docs/validation-report.md](docs/validation-report.md). That report is the
+authoritative summary of the current methodology checks.
 
-Current recorded result: QSaCR still clears passer rating and ANY/A on the matched
-consecutive-season QB population. On the team side, Stage 3c still records the promoted
-play-level `T4Weighted` backbone in the methodology history. Block R in Stage 3d fixed the pooled
-special-teams reference regression that had stopped `*_combined.parquet` and `*_ratings.parquet`
-from regenerating, and the back-catalog has since been rebuilt cleanly for 1999-2025.
-
-The current QB Stage 3d read is:
-
-- D1 split-half diagnostic: `not_supported`. The top-half residual slope is positive (`0.488`,
-  95% CI `[0.154, 0.818]`, `19 / 27` positive seasons, one-sided `p = 0.026`), but the
-  bottom-half placebo shows a similarly positive signal (`0.473`, 95% CI `[0.118, 0.836]`), so
-  the evidence is not specific to strong defenses.
-- D2 interaction model: skipped by rule because D1 did not read `supported`.
-- D3 playoff check: pooled over `313` playoff QB-seasons and `21,245` playoff dropbacks, the
-  current ranking is `QRaw` first (`Spearman 0.343`), `QSaCR` second (`0.326`), then `ANY/A`
-  (`0.325`), `QSaOR` (`0.323`), passer rating (`0.296`), and the Stage 3d split metric
-  (`0.257`).
-
-Consult the validation report before changing either published backbone or advancing to Stage 4 or
-the D4 maintainer sign-off.
+The validation report records the current walk-forward team comparisons against SRS, raw EPA, and
+Elo, plus the QB stability, playoff, and external-reference checks. Consult that report before
+changing the published rating definitions.
 
 ## Troubleshooting
 
