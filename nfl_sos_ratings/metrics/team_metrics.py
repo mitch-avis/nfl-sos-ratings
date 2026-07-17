@@ -8,7 +8,7 @@ storage schemas, and UI all grow from this one file.
 
 from __future__ import annotations
 
-from nfl_sos_ratings.metrics.schema import MetricDef, section
+from nfl_sos_ratings.metrics.schema import MetricDef, MetricProvenance, section
 
 _ratings = section("team", "Schedule-Adjusted Ratings")
 _reference = section("team", "External & Reference Ratings")
@@ -45,28 +45,40 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         label="SaCR",
         full_name="Schedule-Adjusted Composite Rating",
         description=(
-            "The site's headline team rating. In Stage 2 of the methodology overhaul it is a "
-            "frozen-weight blend of standardized ridge-adjusted passing and rushing EPA on both "
-            "offense and defense, plus the schedule-adjusted special-teams backbone. 0 is league "
-            "average and +1 is one standard deviation better than average."
+            "The site's headline team rating. It is a weighted blend of standardized, "
+            "schedule-adjusted passing and rushing EPA on offense and defense plus the "
+            "schedule-adjusted special-teams rating. 0 is league average and +1 is one "
+            "standard deviation better than average."
         ),
         shape="score",
         polarity="higher",
         source="D",
         since=1999,
-        note=(
-            "Frozen Stage 3c weights: adj_off_passing_epa_per_offensive_snap=0.3828739475913225, "
-            "adj_off_rushing_epa_per_offensive_snap=0.19062479977967036, "
-            "adj_def_passing_epa_per_offensive_snap=0.27163464954613765, "
-            "adj_def_rushing_epa_per_offensive_snap=0.0973640754908631, "
-            "st_rating=0.0575025275920063. Target: next-season SaOvR. Fit window: 1999-2025 "
-            "season pairs. Held-out leave-one-season-out metrics: weighted RMSE 0.745034 vs "
-            "equal-weight RMSE 0.759903; weighted MAE 0.604237 vs equal-weight MAE 0.618799. "
-            "Fitting command: uv run python -m "
-            "nfl_sos_ratings.composite_weights. Refit only with an explicit maintainer-approved "
-            "Stage 3c methodology update. The tested takeaway-creation candidate "
-            "(adj_def_takeaway_creation_rate_per_defensive_snap) was excluded after a small "
-            "negative fitted weight (-0.04081182634425329)."
+        provenance=MetricProvenance(
+            target="next-season SaOvR",
+            fit_window=(1999, 2025),
+            fitting_command="uv run python -m nfl_sos_ratings.composite_weights",
+            refit_policy=(
+                "Refit only when a maintainer explicitly reruns the composite-weight workflow, "
+                "reviews the held-out diagnostics, and updates the published snapshot in the "
+                "same change set."
+            ),
+            weight_snapshot=(
+                ("adj_off_passing_epa_per_offensive_snap", 0.3828739475913225),
+                ("adj_off_rushing_epa_per_offensive_snap", 0.19062479977967036),
+                ("adj_def_passing_epa_per_offensive_snap", 0.27163464954613765),
+                ("adj_def_rushing_epa_per_offensive_snap", 0.0973640754908631),
+                ("st_rating", 0.0575025275920063),
+            ),
+            holdout_metrics=(
+                ("weighted_rmse", 0.745034),
+                ("equal_weight_rmse", 0.759903),
+                ("weighted_mae", 0.604237),
+                ("equal_weight_mae", 0.618799),
+            ),
+            excluded_weight_candidates=(
+                ("adj_def_takeaway_creation_rate_per_defensive_snap", -0.04081182634425329),
+            ),
         ),
     ),
     _ratings(
@@ -104,7 +116,7 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         full_name="Schedule-Adjusted Special Teams Rating",
         description=(
             "How good the team's special teams were after accounting for field-position and "
-            "opponent context through the Stage 3c special-teams backbone. Positive means more "
+            "opponent context through the special-teams rating model. Positive means more "
             "special-teams value than an average team."
         ),
         shape="score",
@@ -117,10 +129,9 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         label="SaOvR",
         full_name="Schedule-Adjusted Overall Rating",
         description=(
-            "The combined team quality signal from Stage 3c of the methodology overhaul. It "
-            "adds the standardized SaOR, SaDR, and SaSTR signals, so teams strong across "
-            "offense, defense, and special teams rise to the top while wins and turnover luck "
-            "stay out of the formula."
+            "The combined team quality signal. It adds the standardized SaOR, SaDR, and SaSTR "
+            "signals, so teams strong across offense, defense, and special teams rise to the "
+            "top while wins and turnover luck stay out of the formula."
         ),
         shape="score",
         polarity="higher",
@@ -132,8 +143,8 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         label="ST Backbone",
         full_name="Raw Special Teams Backbone Rating",
         description=(
-            "The unstandardized Stage 3c special-teams backbone score before it is converted "
-            "into the published SaSTR surface. It is written only for auditability in the "
+            "The unstandardized special-teams rating before it is converted into the published "
+            "SaSTR surface. It is written only for auditability in the "
             "simultaneous team adjustments output."
         ),
         shape="score",
@@ -173,7 +184,7 @@ REFERENCE_METRICS: tuple[MetricDef, ...] = (
         since=1999,
         status="planned",
         note=(
-            "Stage 3 validation baseline only. The walk-forward harness uses a fixed-constant "
+            "Validation baseline only. The walk-forward harness uses a fixed-constant "
             "simple Elo with preseason regression toward 1500 and no pool eligibility."
         ),
     ),
