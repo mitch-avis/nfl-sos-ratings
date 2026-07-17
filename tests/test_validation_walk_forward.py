@@ -103,11 +103,11 @@ def test_build_weighted_team_feature_rows_uses_weighted_snapshot() -> None:
             "adj_def_passing_epa_per_offensive_snap": 0.0,
             "adj_def_rushing_epa_per_offensive_snap": 0.0,
         },
-        baseline_name="T1Weighted",
+        baseline_name="Rolling EPA Weights",
     )
     week_three_row = feature_rows.filter(pl.col("week") == 3).row(0, named=True)
 
-    assert week_three_row["baseline"] == "T1Weighted"
+    assert week_three_row["baseline"] == "Rolling EPA Weights"
     assert week_three_row["home_margin"] == 10.0
     assert week_three_row["rating_diff"] > 0.0
 
@@ -382,11 +382,11 @@ def test_run_walk_forward_backtest_stacks_all_team_baselines(tmp_path) -> None:
     ) == {"overall", "early", "late"}
 
 
-def test_run_play_level_team_special_teams_backtest_builds_t4_baseline(
+def test_run_play_level_team_special_teams_backtest_builds_play_level_baseline(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify the T4 orchestration path evaluates a play-level weighted team baseline."""
+    """Verify the play-level path evaluates a play-level weighted team baseline."""
     _weekly_team_rows().write_parquet(tmp_path / "2025_team_game_logs.parquet")
     pbp = pl.DataFrame(
         {
@@ -428,7 +428,9 @@ def test_run_play_level_team_special_teams_backtest_builds_t4_baseline(
         start_week=3,
     )
 
-    assert set(predictions.select("baseline").to_series().to_list()) == {"T4Weighted"}
+    assert set(predictions.select("baseline").to_series().to_list()) == {
+        "Play-Level EPA Weights + ST"
+    }
     assert predictions.select("week").min().item() == 3
     assert set(
         metrics.filter(pl.col("split") != "season").select("split").to_series().to_list()
@@ -440,7 +442,7 @@ def test_build_play_level_team_training_rows_with_special_teams_uses_next_season
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Play-level T4 training rows should pair current-season features with next-season targets."""
+    """Play-level training rows should pair current-season features with next-season targets."""
     pl.DataFrame({"team": ["A", "B"], "SaOvR": [1.0, -1.0]}).write_parquet(
         tmp_path / "2025_combined.parquet"
     )
@@ -556,7 +558,7 @@ def test_compute_qbr_correlations_joins_qbs_by_team_and_name(tmp_path, monkeypat
 
 
 def test_build_validation_report_text_includes_command_tables_and_sacr_caveat() -> None:
-    """Verify the report renderer includes the required Stage 3 sections."""
+    """Verify the report renderer includes the required core sections."""
     metrics = pl.DataFrame(
         {
             "baseline": ["SaOvR", "Elo"],
@@ -603,8 +605,8 @@ def test_build_validation_report_text_includes_command_tables_and_sacr_caveat() 
     assert "| Season | Joined Rows | Pearson | Spearman |" in report
 
 
-def test_build_validation_report_text_can_render_stage3c_and_qb_status_sections() -> None:
-    """Verify the report renderer can include Stage 3c and QB-open-status narrative blocks."""
+def test_build_validation_report_text_can_render_team_decision_and_qb_status_sections() -> None:
+    """Verify the report renderer can include team-decision and QB-status narrative blocks."""
     metrics = pl.DataFrame(
         {
             "baseline": ["SaOvR"],
@@ -640,7 +642,7 @@ def test_build_validation_report_text_can_render_stage3c_and_qb_status_sections(
         seasons=[1999, 2000],
         start_week=5,
         command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
-        stage3c_lines=["## Stage 3c Decision Rule", "", "- Candidate rule line."],
+        team_decision_lines=["## Stage 3c Decision Rule", "", "- Candidate rule line."],
         qb_open_status_lines=["## QB Open Status", "", "- Stage 3d next."],
     )
 
@@ -684,10 +686,17 @@ def test_compute_playoff_metric_correlations_reports_weighted_per_season_and_poo
     assert correlations.filter(
         (pl.col("metric") == "QSaOR") & (pl.col("season_label") == "pooled")
     ).select("spearman").item() == pytest.approx(-1.0)
+    pooled_qsacr = correlations.filter(
+        (pl.col("metric") == "QSaCR") & (pl.col("season_label") == "pooled")
+    ).row(0, named=True)
+    assert pooled_qsacr["spearman_ci_lower"] <= pooled_qsacr["spearman"]
+    assert pooled_qsacr["spearman_ci_upper"] >= pooled_qsacr["spearman"]
+    assert pooled_qsacr["pearson_ci_lower"] <= pooled_qsacr["pearson"]
+    assert pooled_qsacr["pearson_ci_upper"] >= pooled_qsacr["pearson"]
 
 
 def test_build_validation_report_text_includes_stage3d_sections() -> None:
-    """The validation report should render the Stage 3d D1 and D3 sections when provided."""
+    """The validation report should render the split-half and playoff sections when provided."""
     metrics = pl.DataFrame(
         {
             "baseline": ["SaOvR"],
@@ -790,3 +799,125 @@ def test_build_validation_report_text_includes_stage3d_sections() -> None:
     assert "## Stage 3d D3 Playoff Validation" in report
     assert "Drake Maye" in report
     assert "QSaCR" in report
+
+
+def test_build_validation_report_text_includes_qb_context_sections_and_playoff_cis() -> None:
+    """The validation report should render D5/D6 sections and playoff correlation intervals."""
+    metrics = pl.DataFrame(
+        {
+            "baseline": ["SaOvR"],
+            "season": [None],
+            "split": ["overall"],
+            "games": [10],
+            "mae": [7.0],
+            "rmse": [9.0],
+        }
+    )
+    stability = pl.DataFrame(
+        {
+            "entity": ["team"],
+            "metric": ["SaOvR"],
+            "paired_rows": [200],
+            "pearson": [0.42],
+            "spearman": [0.40],
+        }
+    )
+    qbr = pl.DataFrame(
+        {
+            "season": [2006],
+            "joined_rows": [24],
+            "pearson": [0.72],
+            "spearman": [0.69],
+        }
+    )
+    qb_playoff_correlations = pl.DataFrame(
+        {
+            "season_label": ["pooled"],
+            "metric": ["QSaCR"],
+            "qb_seasons": [120],
+            "playoff_dropbacks": [4200.0],
+            "spearman": [0.31],
+            "spearman_ci_lower": [0.21],
+            "spearman_ci_upper": [0.39],
+            "pearson": [0.28],
+            "pearson_ci_lower": [0.18],
+            "pearson_ci_upper": [0.36],
+        }
+    )
+    qb_opponent_offense_summary = pl.DataFrame(
+        {
+            "scope": ["pooled"],
+            "season": [None],
+            "rows": [120],
+            "total_dropbacks": [4500.0],
+            "slope": [0.12],
+            "correlation": [0.22],
+            "ci_lower": [0.04],
+            "ci_upper": [0.20],
+            "direction_positive_count": [18],
+            "direction_total_count": [27],
+            "direction_p_value": [0.02],
+        }
+    )
+    qb_opponent_offense_cases = pl.DataFrame(
+        {
+            "season": [2025, 2025],
+            "qb_name": ["Drake Maye", "Matthew Stafford"],
+            "faced_opponent_offense": [0.15, -0.04],
+            "mean_adjusted_residual": [0.03, -0.01],
+            "total_dropbacks": [320.0, 290.0],
+        }
+    )
+    qb_leverage_summary = pl.DataFrame(
+        {
+            "scope": ["pooled"],
+            "season": [None],
+            "rows": [120],
+            "total_dropbacks": [4500.0],
+            "slope": [0.08],
+            "correlation": [0.19],
+            "ci_lower": [0.01],
+            "ci_upper": [0.14],
+            "direction_positive_count": [17],
+            "direction_total_count": [27],
+            "direction_p_value": [0.03],
+        }
+    )
+    qb_leverage_cases = pl.DataFrame(
+        {
+            "season": [2025, 2025],
+            "qb_name": ["Drake Maye", "Matthew Stafford"],
+            "schedule_softness": [0.25, -0.10],
+            "low_leverage_share": [0.36, 0.19],
+            "moderate_leverage_share": [0.64, 0.81],
+        }
+    )
+    qb_leverage_decision: dict[str, object] = {
+        "decision": "not_supported",
+        "moderate_wp_band": "0.05-0.95",
+        "stability_pass": False,
+        "playoff_pass": True,
+    }
+
+    report = build_validation_report_text(
+        metrics=metrics,
+        stability=stability,
+        qbr_correlations=qbr,
+        seasons=[1999, 2000],
+        start_week=5,
+        command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+        qb_playoff_correlations=qb_playoff_correlations,
+        qb_opponent_offense_summary=qb_opponent_offense_summary,
+        qb_opponent_offense_cases=qb_opponent_offense_cases,
+        qb_opponent_offense_decision={"decision": "supported"},
+        qb_leverage_summary=qb_leverage_summary,
+        qb_leverage_cases=qb_leverage_cases,
+        qb_leverage_decision=qb_leverage_decision,
+    )
+
+    assert "## D5 Opponent-Offense Effect" in report
+    assert "## D6 Leverage Profile and Filtered Variant" in report
+    assert "Drake Maye" in report
+    assert "0.05-0.95" in report
+    assert "Spearman CI Lower" in report
+    assert "Pearson CI Upper" in report
