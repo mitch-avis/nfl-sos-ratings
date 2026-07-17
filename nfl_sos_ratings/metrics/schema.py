@@ -34,6 +34,20 @@ for the play-by-play metric expansion."""
 
 
 @dataclass(frozen=True, slots=True)
+class MetricProvenance:
+    """Structured provenance for fitted or externally maintained metrics."""
+
+    target: str | None = None
+    fit_window: tuple[int, int] | None = None
+    fitting_command: str | None = None
+    refit_policy: str | None = None
+    sample_weighting: str | None = None
+    weight_snapshot: tuple[tuple[str, float], ...] = ()
+    holdout_metrics: tuple[tuple[str, float], ...] = ()
+    excluded_weight_candidates: tuple[tuple[str, float], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class MetricDef:
     """One stat/rating/metric definition — the single source of truth entry."""
 
@@ -55,6 +69,7 @@ class MetricDef:
     contextual: bool = False
     formula: str | None = None
     note: str | None = None
+    provenance: MetricProvenance | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +148,7 @@ class MetricFields(TypedDict):
     contextual: NotRequired[bool]
     formula: NotRequired[str | None]
     note: NotRequired[str | None]
+    provenance: NotRequired[MetricProvenance | None]
 
 
 class MetricBuilder(Protocol):
