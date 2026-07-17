@@ -7,7 +7,7 @@ writes today. Entries with ``status="planned"`` encode the full QB catalog in
 
 from __future__ import annotations
 
-from nfl_sos_ratings.metrics.schema import MetricDef, section
+from nfl_sos_ratings.metrics.schema import MetricDef, MetricProvenance, section
 
 _ratings = section("qb", "Schedule-Adjusted Ratings")
 _reference = section("qb", "External & Reference Ratings")
@@ -26,8 +26,8 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         label="QSaCR",
         full_name="QB Schedule-Adjusted Composite Rating",
         description=(
-            "The site's headline quarterback rating. In Stage 2 of the methodology overhaul it "
-            "is a frozen-weight blend of standardized adjusted EPA/dropback, CPOE, sack rate, "
+            "The site's headline quarterback rating. It is a weighted blend of standardized "
+            "adjusted EPA per dropback, completion percentage above expectation, sack rate, "
             "and TD-INT margin rate, while wins and late-game results stay in QOutcome only. "
             "0 is league average; positive is better."
         ),
@@ -35,16 +35,28 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="D",
         since=1999,
-        note=(
-            "Frozen Stage 2 weights: adj_qb_epa_per_dropback=0.6687790473858877, "
-            "adj_qb_completion_percentage_above_expectation=0.21464381898367774, "
-            "adj_qb_sack_rate=0.06725872314827445, adj_qb_td_int_margin_rate=0.04931841048216012. "
-            "Target: next-season adj_qb_epa_per_dropback with dropback-weighted WLS. Fit window: "
-            "2006-2025 season pairs because adjusted CPOE is unavailable before 2006. Held-out "
-            "leave-one-season-out metrics: weighted RMSE 0.093348 vs equal-weight RMSE 0.093446; "
-            "weighted MAE 0.073908 vs equal-weight MAE 0.074351. Fitting command: uv run python "
-            "-m nfl_sos_ratings.composite_weights. Refit only with an explicit maintainer-"
-            "approved Stage 2 methodology update."
+        provenance=MetricProvenance(
+            target="next-season adj_qb_epa_per_dropback",
+            fit_window=(2006, 2025),
+            fitting_command="uv run python -m nfl_sos_ratings.composite_weights",
+            refit_policy=(
+                "Refit only when a maintainer explicitly reruns the composite-weight workflow, "
+                "reviews the held-out diagnostics, and updates the published snapshot in the "
+                "same change set."
+            ),
+            sample_weighting="dropback-weighted weighted least squares",
+            weight_snapshot=(
+                ("adj_qb_epa_per_dropback", 0.6687790473858877),
+                ("adj_qb_completion_percentage_above_expectation", 0.21464381898367774),
+                ("adj_qb_sack_rate", 0.06725872314827445),
+                ("adj_qb_td_int_margin_rate", 0.04931841048216012),
+            ),
+            holdout_metrics=(
+                ("weighted_rmse", 0.093348),
+                ("equal_weight_rmse", 0.093446),
+                ("weighted_mae", 0.073908),
+                ("equal_weight_mae", 0.074351),
+            ),
         ),
     ),
     _ratings(
@@ -54,7 +66,7 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "Passing performance after adjusting for the defenses actually faced, using the "
             "simultaneous ridge estimate of QB EPA per dropback. This is the published "
-            "opponent-adjusted QB quality signal in Stage 1."
+            "opponent-adjusted QB quality signal."
         ),
         shape="score",
         polarity="higher",
