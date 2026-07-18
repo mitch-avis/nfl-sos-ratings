@@ -168,6 +168,21 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         source="D",
         since=1999,
     ),
+    _ratings(
+        name="sos",
+        label="SoS",
+        full_name="Strength of Schedule",
+        description=(
+            "The game-weighted mean of the opponents' SaCR values over the schedule this "
+            "team actually played. Positive means a harder-than-average slate by that "
+            "season's overall opponent team quality. Context, not a team grade."
+        ),
+        shape="score",
+        polarity="higher",
+        source="D",
+        since=1999,
+        contextual=True,
+    ),
 )
 
 REFERENCE_METRICS: tuple[MetricDef, ...] = (
@@ -533,21 +548,6 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         polarity="neutral",
         source="SCH",
         denominator="games played",
-        since=1999,
-        contextual=True,
-        status="planned",
-    ),
-    _overall(
-        name="sos",
-        label="SoS",
-        full_name="Strength of Schedule (SRS Component)",
-        description=(
-            "The schedule-difficulty component of the Simple Rating System: how good the "
-            "team's opponents were, in points per game. Context, not a team grade."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
         since=1999,
         contextual=True,
         status="planned",
