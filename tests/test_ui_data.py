@@ -64,18 +64,18 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
         tmp_path / "2024_combined.parquet",
         (
             "team,points_for,total_yards,points_per_offensive_snap,"
-            "opp_points_for,opp_points_allowed,SaCR,SaOR,SaDR,SaSTR,SaOvR,SRS"
+            "opp_points_for,opp_points_allowed,SaCR,SaOR,SaDR,SaSTR,SaOvR,SRS,sos"
         ),
-        "DET,510,6800,0.42,390,315,1.2,1.1,0.9,0.3,1.0,7.4",
+        "DET,510,6800,0.42,390,315,1.2,1.1,0.9,0.3,1.0,7.4,0.8",
     )
     _write_table(tmp_path / "2024_ratings.parquet", "team,SaCR,SaSTR\n", "DET,1.2,0.3")
     _write_table(
         tmp_path / "2024_qb_combined.parquet",
         (
             "player_id,player_display_name,team,qb_attempts_total,qb_attempts_per_game,"
-            "qb_epa_per_dropback,opp_qb_any_a,QRaw,QSoS,QSaOR,QOutcome,QSaCR"
+            "qb_epa_per_dropback,opp_qb_any_a,QRaw,QSoS,faced_opp_SaCR,QSaOR,QOutcome,QSaCR"
         ),
-        "qb-1,Jared Goff,DET,605,35.6,0.18,6.5,1.0,0.2,1.1,0.4,1.3",
+        "qb-1,Jared Goff,DET,605,35.6,0.18,6.5,1.0,0.2,0.6,1.1,0.4,1.3",
     )
     _write_table(tmp_path / "2024_qb_ratings.parquet", "player_id,QSaCR\n", "qb-1,1.3")
 
@@ -97,6 +97,7 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
         "SaSTR",
         "SaOvR",
         "SRS",
+        "sos",
     ]
     assert "raw_totals" not in dataset["teams"]["column_groups"]
     assert dataset["qbs"]["column_groups"]["raw_totals"] == ["qb_attempts_total"]
@@ -106,6 +107,7 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
     assert dataset["qbs"]["column_groups"]["ratings"] == [
         "QRaw",
         "QSoS",
+        "faced_opp_SaCR",
         "QSaOR",
         "QOutcome",
         "QSaCR",
