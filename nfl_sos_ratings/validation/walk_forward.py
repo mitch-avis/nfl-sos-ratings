@@ -17,6 +17,7 @@ from nfl_sos_ratings import composite_weights
 from nfl_sos_ratings.config import DATA_DIR, END_YEAR, START_YEAR
 from nfl_sos_ratings.data_loader import load_espn_qbr, load_pbp_data
 from nfl_sos_ratings.simultaneous_adjustment import solve_srs
+from nfl_sos_ratings.validation import history_strings
 from nfl_sos_ratings.validation.diagnostics import (
     compute_qb_case_study,
     compute_qb_defense_spread_summary,
@@ -1013,162 +1014,19 @@ def build_team_decision_lines(
     t4_team_stability: dict[str, float | int] | None,
 ) -> list[str]:
     """Build the team decision-rule and outcome narrative for the validation report."""
-    overall_metrics = {
-        str(row["baseline"]): row
-        for row in metrics.filter(pl.col("split") == "overall").iter_rows(named=True)
-    }
-    t2_row = overall_metrics.get(_ROLLING_EPA_ST_BASELINE)
-    t4_row = overall_metrics.get(_PLAY_LEVEL_EPA_ST_BASELINE)
-    srs_row = overall_metrics.get("SRS")
-    if t2_row is None or t4_row is None or srs_row is None:
-        return []
-
-    candidate = (
-        _PLAY_LEVEL_EPA_ST_BASELINE
-        if float(t4_row["mae"]) < float(t2_row["mae"])
-        else _ROLLING_EPA_ST_BASELINE
-    )
-    candidate_row = t4_row if candidate == _PLAY_LEVEL_EPA_ST_BASELINE else t2_row
-    candidate_vs_raw = _find_pairwise_mae_row(mae_deltas, candidate, "RawEPA", "overall")
-    candidate_vs_saovr = _find_pairwise_mae_row(mae_deltas, candidate, "SaOvR", "overall")
-    candidate_vs_srs = _find_pairwise_mae_row(mae_deltas, candidate, "SRS", "overall")
-    t4_vs_t2 = _find_pairwise_mae_row(
+    return history_strings.build_team_decision_lines(
+        metrics,
         mae_deltas,
-        _PLAY_LEVEL_EPA_ST_BASELINE,
-        _ROLLING_EPA_ST_BASELINE,
-        "overall",
+        base_team_stability=base_team_stability,
+        t4_team_stability=t4_team_stability,
+        rolling_epa_st_baseline=_ROLLING_EPA_ST_BASELINE,
+        play_level_epa_st_baseline=_PLAY_LEVEL_EPA_ST_BASELINE,
     )
-
-    stability_ok = False
-    if (
-        candidate == _PLAY_LEVEL_EPA_ST_BASELINE
-        and base_team_stability is not None
-        and t4_team_stability is not None
-    ):
-        stability_ok = float(t4_team_stability["pearson"]) >= _row_float(
-            base_team_stability,
-            "pearson",
-        ) and float(t4_team_stability["spearman"]) >= _row_float(base_team_stability, "spearman")
-
-    if candidate == _ROLLING_EPA_ST_BASELINE:
-        stability_ok = True
-
-    promotion_pass = bool(
-        candidate_vs_raw is not None
-        and candidate_vs_saovr is not None
-        and candidate_vs_srs is not None
-        and _row_bool(candidate_vs_raw, "distinguishable_from_zero")
-        and _row_float(candidate_vs_raw, "mae_delta") < 0.0
-        and _row_bool(candidate_vs_saovr, "distinguishable_from_zero")
-        and _row_float(candidate_vs_saovr, "mae_delta") < 0.0
-        and _row_float(candidate_row, "mae") < _row_float(srs_row, "mae")
-        and _row_float(candidate_row, "rmse") < _row_float(srs_row, "rmse")
-        and _row_float(candidate_vs_srs, "ci_lower") <= 0.0
-        and stability_ok
-    )
-
-    t4_displacement_lines = [
-        f"- Play-level displacement check: {_PLAY_LEVEL_EPA_ST_BASELINE} overall MAE "
-        f"{_row_float(t4_row, 'mae'):.3f} and RMSE {_row_float(t4_row, 'rmse'):.3f}\n  versus "
-        f"{_ROLLING_EPA_ST_BASELINE} MAE {_row_float(t2_row, 'mae'):.3f} and RMSE "
-        f"{_row_float(t2_row, 'rmse'):.3f}."
-    ]
-    if t4_vs_t2 is not None:
-        t4_displacement_lines.append(
-            "  Bootstrap delta "
-            f"{_row_float(t4_vs_t2, 'mae_delta'):.3f} with 95% CI "
-            f"[{_row_float(t4_vs_t2, 'ci_lower'):.3f}, {_row_float(t4_vs_t2, 'ci_upper'):.3f}] "
-            f"and P(A<=B) {_row_float(t4_vs_t2, 'probability_baseline_a_not_worse'):.3f}."
-        )
-
-    lines = [
-        "## Stage 3c Decision Rule",
-        "",
-        "> A candidate team backbone is promoted to the published ratings if, on the full held-out",
-        "> walk-forward window: (1) it is significantly better than RawEPA and than the Stage 1",
-        "> SaOvR (95% paired-bootstrap CI excluding zero); (2) it is numerically better than SRS",
-        "> on both overall MAE and overall RMSE, and not significantly worse than SRS; and (3)",
-        "> adopting it does not degrade team year-over-year stability below the Stage 3 recorded",
-        "> value. Statistical parity with SRS plus the construct advantages (schedule-adjusted,",
-        "> outcome-free components, unit-level decomposition) is sufficient and will be stated",
-        "> plainly, as parity, in the methodology documentation — never overclaimed as",
-        "> superiority.",
-        "",
-        '- Rationale: the stricter "beat SRS with CI clearing zero" bar is statistically',
-        "  unattainable on this sample, and the current report already shows SRS itself does not",
-        "  separate from RawEPA at 95%.",
-        "",
-        "## Stage 3c Team Outcome",
-        "",
-        f"- Candidate selected for the final Stage 3c gate: {candidate}.",
-        *t4_displacement_lines,
-    ]
-
-    if candidate_vs_raw is not None:
-        lines.append(
-            "- Candidate vs RawEPA: MAE delta "
-            f"{_row_float(candidate_vs_raw, 'mae_delta'):.3f} with 95% CI "
-            f"[{_row_float(candidate_vs_raw, 'ci_lower'):.3f}, "
-            f"{_row_float(candidate_vs_raw, 'ci_upper'):.3f}]\n  "
-            f"and P(A<=B) {_row_float(candidate_vs_raw, 'probability_baseline_a_not_worse'):.3f}."
-        )
-    if candidate_vs_saovr is not None:
-        lines.append(
-            "- Candidate vs Stage 1 SaOvR: MAE delta "
-            f"{_row_float(candidate_vs_saovr, 'mae_delta'):.3f} with 95% CI "
-            f"[{_row_float(candidate_vs_saovr, 'ci_lower'):.3f}, "
-            f"{_row_float(candidate_vs_saovr, 'ci_upper'):.3f}]\n  "
-            f"and P(A<=B) {_row_float(candidate_vs_saovr, 'probability_baseline_a_not_worse'):.3f}."
-        )
-    if candidate_vs_srs is not None:
-        lines.append(
-            "- Candidate vs SRS: overall MAE/RMSE "
-            f"{_row_float(candidate_row, 'mae'):.3f}/"
-            f"{_row_float(candidate_row, 'rmse'):.3f} versus "
-            f"{_row_float(srs_row, 'mae'):.3f}/{_row_float(srs_row, 'rmse'):.3f}."
-        )
-        lines.append(
-            "  Bootstrap delta "
-            f"{_row_float(candidate_vs_srs, 'mae_delta'):.3f} with 95% CI "
-            f"[{_row_float(candidate_vs_srs, 'ci_lower'):.3f}, "
-            f"{_row_float(candidate_vs_srs, 'ci_upper'):.3f}] and P(A<=B) "
-            f"{_row_float(candidate_vs_srs, 'probability_baseline_a_not_worse'):.3f}."
-        )
-
-    if (
-        candidate == _PLAY_LEVEL_EPA_ST_BASELINE
-        and base_team_stability is not None
-        and t4_team_stability is not None
-    ):
-        lines.append(
-            f"- Stability guard: {_PLAY_LEVEL_EPA_ST_BASELINE} Pearson/Spearman "
-            f"{float(t4_team_stability['pearson']):.3f}/{float(t4_team_stability['spearman']):.3f} "
-            f"versus Stage 3 SaOvR {_row_float(base_team_stability, 'pearson'):.3f}/"
-            f"{_row_float(base_team_stability, 'spearman'):.3f}."
-        )
-
-    promotion_label = "Pass" if promotion_pass else "Fail"
-    lines.append(f"- Promotion decision under the fixed Stage 3c rule: {promotion_label}.")
-    lines.append("")
-    return lines
 
 
 def build_qb_status_lines() -> list[str]:
     """Return the current quarterback-methodology status note for the report."""
-    return [
-        "## QB Open Status",
-        "",
-        "- The published QB composite target and weights remain unchanged, and the split-half",
-        "  companion metric is not promoted to a published surface.",
-        "- The earlier QB audit continues to stand as a positive linear-adjustment result:",
-        "  the additive adjustment operated at full strength in EPA units, the identity checks",
-        (
-            "  held, and the fixed-defense and lighter-defense-penalty variants were correctly "
-            "not adopted."
-        ),
-        "- The only remaining QB follow-up is the opponent-context batch below. If those checks",
-        "  also come back null, the current published composite stands as the system's answer.",
-    ]
+    return history_strings.build_qb_status_lines()
 
 
 def compute_stability_metrics(data_dir: Path, seasons: list[int]) -> pl.DataFrame:
@@ -1389,16 +1247,7 @@ def build_validation_report_text(
     }
     stability_map = {str(row["metric"]): row for row in stability.iter_rows(named=True)}
 
-    history_lines = [
-        "## Stage 3 History",
-        "",
-        (
-            "The original Stage 3 headline compared prior-carrying Elo against "
-            "within-season-only backbones."
-        ),
-        "That result is preserved here as history rather than deleted or rewritten.",
-        "",
-    ]
+    history_lines = history_strings.stage_history_lines()
     acceptance_lines = [
         "## Acceptance Check",
         "",
@@ -1451,21 +1300,7 @@ def build_validation_report_text(
         )
     acceptance_lines.append("")
 
-    comparison_lines = [
-        "## Stage 3b Criterion",
-        "",
-        "Stage 3b re-registers the validation target into information-matched leagues.",
-        "",
-        (
-            "- League 1 is binding: within-season-only team backbones must beat SRS and "
-            "RawEPA on held-out\n  MAE, with paired-bootstrap support."
-        ),
-        (
-            "- League 2 is informative: prior-carrying forecast-only variants can be "
-            "compared against Elo,\n  but that is not the binding published-rating gate."
-        ),
-        "",
-    ]
+    comparison_lines = history_strings.stage3b_criterion_lines()
 
     if comparison_metrics is not None and not comparison_metrics.is_empty():
         comparison_map = {
@@ -1501,13 +1336,13 @@ def build_validation_report_text(
                 and comparison_map.get(_ROLLING_EPA_ST_BASELINE, float("inf"))
                 < comparison_map.get("RawEPA", float("inf"))
             )
-            comparison_lines.append("## Stage 3b Acceptance Check")
+            comparison_lines.append(history_strings.stage3b_acceptance_heading())
             comparison_lines.append("")
             comparison_lines.append(
-                "- League 1 team headline: "
+                "- League 1 team headline:\n  "
                 f"{'Pass' if league1_pass else 'Fail'}. "
                 f"{_ROLLING_EPA_BASELINE} overall MAE "
-                f"{comparison_map[_ROLLING_EPA_BASELINE]:.3f}; "
+                f"{comparison_map[_ROLLING_EPA_BASELINE]:.3f};\n  "
                 f"{_ROLLING_EPA_ST_BASELINE} overall MAE "
                 f"{comparison_map[_ROLLING_EPA_ST_BASELINE]:.3f};\n  "
                 f"SRS {comparison_map.get('SRS', float('nan')):.3f};\n  "
@@ -1838,10 +1673,10 @@ def build_validation_report_text(
         )
 
     if qb_open_status_lines:
-        overview_lines.extend([*qb_open_status_lines, ""])
+        overview_lines.extend(qb_open_status_lines)
 
     if qb_opponent_offense_summary is not None and not qb_opponent_offense_summary.is_empty():
-        overview_lines.extend(["## D5 Opponent-Offense Effect", ""])
+        overview_lines.extend(history_strings.d5_heading_lines())
         if qb_opponent_offense_decision is not None:
             overview_lines.append(
                 f"- Gate reading: {qb_opponent_offense_decision.get('decision', 'not_supported')}."
@@ -1857,7 +1692,6 @@ def build_validation_report_text(
                 f"{int(pooled['direction_total_count'])} "
                 f"positive seasons (p = {float(pooled['direction_p_value']):.3f})."
             )
-        overview_lines.append("")
         summary_rows = [
             [
                 row["scope"],
@@ -1876,7 +1710,6 @@ def build_validation_report_text(
         ]
         overview_lines.extend(
             [
-                "",
                 _markdown_table(
                     [
                         "Scope",
@@ -1909,7 +1742,6 @@ def build_validation_report_text(
             ]
             overview_lines.extend(
                 [
-                    "",
                     _markdown_table(
                         [
                             "Season",
@@ -1925,7 +1757,7 @@ def build_validation_report_text(
             )
 
     if qb_leverage_summary is not None and not qb_leverage_summary.is_empty():
-        overview_lines.extend(["## D6 Leverage Profile and Filtered Variant", ""])
+        overview_lines.extend(history_strings.d6_heading_lines())
         if qb_leverage_decision is not None:
             overview_lines.append(
                 "- Moderate-leverage win-probability band: "
@@ -1951,7 +1783,6 @@ def build_validation_report_text(
                 f"{int(pooled['direction_total_count'])} "
                 f"positive seasons (p = {float(pooled['direction_p_value']):.3f})."
             )
-        overview_lines.append("")
         summary_rows = [
             [
                 row["scope"],
@@ -1970,7 +1801,6 @@ def build_validation_report_text(
         ]
         overview_lines.extend(
             [
-                "",
                 _markdown_table(
                     [
                         "Scope",
@@ -2003,7 +1833,6 @@ def build_validation_report_text(
             ]
             overview_lines.extend(
                 [
-                    "",
                     _markdown_table(
                         [
                             "Season",
@@ -2019,7 +1848,7 @@ def build_validation_report_text(
             )
 
     if qb_split_half_primary is not None and not qb_split_half_primary.is_empty():
-        overview_lines.extend(["## Stage 3d D1 Split-Half Diagnostics", ""])
+        overview_lines.extend(history_strings.split_half_heading_lines())
         if qb_split_half_decision is not None:
             decision_text = str(qb_split_half_decision.get("decision", "not_supported"))
             overview_lines.append(f"- Decision gate reading: {decision_text}.")
@@ -2030,8 +1859,8 @@ def build_validation_report_text(
                 )
             if qb_split_half_decision.get("placebo_is_symmetric"):
                 overview_lines.append(
-                    "- Placebo check: bottom-half residuals showed a same-direction signal, "
-                    "so the strong-defense-specific interpretation is not supported."
+                    "- Placebo check: bottom-half residuals showed a same-direction signal, so"
+                    " the strong-defense-specific interpretation is not supported."
                 )
             overview_lines.append("")
         primary_rows = [
@@ -2172,12 +2001,7 @@ def build_validation_report_text(
             headers.extend(["Pearson CI Lower", "Pearson CI Upper"])
         overview_lines.extend(
             [
-                "## Stage 3d D3 Playoff Validation",
-                "",
-                "- Interpretation rule: whichever metric best predicts playoff performance is "
-                "evidence about that metric, not about 2025 specifically.\n  If QSaCR wins, that "
-                "is vindicating evidence for the current composite and must be recorded as such.",
-                "",
+                *history_strings.playoff_validation_intro_lines(),
                 _markdown_table(
                     headers,
                     correlation_rows,
@@ -2186,20 +2010,7 @@ def build_validation_report_text(
             ]
         )
 
-    overview_lines.extend(
-        [
-            "## SaCR Caveat",
-            "",
-            "SaCR may be evaluated as a secondary line with a caveat:",
-            "its frozen Stage 2 weights were fit on the full 1999-2025 history.",
-            "A walk-forward SaCR line over that same window has look-ahead in the weights.",
-            (
-                "SaOvR is the headline walk-forward metric because it does not depend on "
-                "a fitted Stage 2 weight snapshot."
-            ),
-            "",
-        ]
-    )
+    overview_lines.extend(history_strings.sacr_caveat_lines())
     return "\n".join(overview_lines).rstrip() + "\n"
 
 
@@ -2499,23 +2310,7 @@ def main(argv: list[str] | None = None) -> None:
         t4_team_stability=t4_team_stability,
     )
     qb_open_status_lines = build_qb_status_lines()
-    regression_note_lines = [
-        "## Block R Regression Note",
-        "",
-        (
-            "- A Stage 3c regression combined pooled offense/defense reference arrays with\n  "
-            "current-season-only special-teams reference values, causing the team ratings path\n  "
-            "to raise a NumPy broadcast error before `*_combined.parquet` and\n  "
-            "`*_ratings.parquet` wrote."
-        ),
-        (
-            "- The fix backfills historical `st_rating` values from\n  "
-            "`*_simultaneous_team_adjustments.parquet` when rebuilding pooled team references\n  "
-            "and makes the multi-season pipeline exit non-zero with a failure summary if any\n  "
-            "season data step fails."
-        ),
-        "",
-    ]
+    regression_note_lines = history_strings.regression_note_lines()
     qbr_correlations = compute_qbr_correlations(data_dir, seasons=seasons)
     write_validation_report(
         report_path,
