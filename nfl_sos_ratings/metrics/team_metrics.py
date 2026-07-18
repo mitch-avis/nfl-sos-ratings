@@ -47,8 +47,8 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "The site's headline team rating. It is a weighted blend of standardized, "
             "schedule-adjusted passing and rushing EPA on offense and defense plus the "
-            "schedule-adjusted special-teams rating. 0 is league average and +1 is one "
-            "standard deviation better than average."
+            "schedule-adjusted special-teams rating. 0 is that season's league average, and "
+            "+1 is one standard deviation above that season's average."
         ),
         shape="score",
         polarity="higher",
@@ -88,7 +88,8 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "How good the team's offense was after accounting for the defenses it actually "
             "faced, using the simultaneous ridge solve over passing and rushing EPA per snap. "
-            "0 is league average; positive means better than average."
+            "0 is that season's average offense; positive means better than that season's "
+            "average."
         ),
         shape="score",
         polarity="higher",
@@ -103,7 +104,7 @@ RATING_METRICS: tuple[MetricDef, ...] = (
             "How good the team's defense was after accounting for the offenses it actually "
             "faced, using the defense side of the simultaneous ridge EPA solve. Higher is "
             "better defense: positive means the defense suppresses opponent EPA more than "
-            "average."
+            "that season's average defense."
         ),
         shape="score",
         polarity="higher",
@@ -117,7 +118,7 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "How good the team's special teams were after accounting for field-position and "
             "opponent context through the special-teams rating model. Positive means more "
-            "special-teams value than an average team."
+            "special-teams value than that season's average team."
         ),
         shape="score",
         polarity="higher",
@@ -131,7 +132,8 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "The combined team quality signal. It adds the standardized SaOR, SaDR, and SaSTR "
             "signals, so teams strong across offense, defense, and special teams rise to the "
-            "top while wins and turnover luck stay out of the formula."
+            "top while wins and turnover luck stay out of the formula. 0 is that season's "
+            "average overall profile."
         ),
         shape="score",
         polarity="higher",
