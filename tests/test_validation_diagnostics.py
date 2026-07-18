@@ -88,6 +88,34 @@ def test_build_qb_adjustment_audit_frame_recovers_weighted_schedule_effect() -> 
     assert audit.select("adjustment_delta").to_series().to_list() == pytest.approx([0.06, -0.06])
 
 
+def test_build_qb_adjustment_audit_frame_collapses_multi_team_qb_seasons() -> None:
+    """The audit frame should keep one season row per QB even across team changes."""
+    qb_games = pl.DataFrame(
+        {
+            "qb_id": ["A", "A", "B", "B"],
+            "qb_name": ["QB A", "QB A", "QB B", "QB B"],
+            "team": ["CLE", "CIN", "TB", "TB"],
+            "opponent_team": ["DEF1", "DEF2", "DEF1", "DEF2"],
+            "qb_dropbacks": [40.0, 10.0, 10.0, 40.0],
+            "qb_epa_per_dropback": [0.10, 0.30, -0.30, -0.10],
+        }
+    )
+
+    audit = build_qb_adjustment_audit_frame(
+        qb_games,
+        response_col="qb_epa_per_dropback",
+        ridge_lambda=0.0,
+    ).sort("qb_id")
+
+    assert audit.height == 2
+    assert audit.select("qb_id").to_series().to_list() == ["A", "B"]
+    assert audit.select("raw_value").to_series().to_list() == pytest.approx([0.14, -0.14])
+    assert audit.select("adjusted_value").to_series().to_list() == pytest.approx([0.2, -0.2])
+    assert audit.select("weighted_faced_defense").to_series().to_list() == pytest.approx(
+        [0.06, -0.06]
+    )
+
+
 def test_summarize_qb_adjustment_slopes_reports_season_level_fit() -> None:
     """Season summaries should expose slope, correlation, and residual size."""
     audit = pl.DataFrame(
