@@ -103,10 +103,27 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         label="QSoS",
         full_name="QB Strength of Schedule",
         description=(
-            "How tough the defenses this quarterback faced were, measured as the mean faced-"
-            "defense coefficient from the simultaneous ridge QB solve. Higher means a harder "
-            "slate than that season's average faced-defense difficulty — it describes the "
-            "schedule, not the quarterback's play."
+            "How tough the pass defenses this quarterback faced were, measured as the "
+            "dropback-weighted mean faced-defense coefficient from the simultaneous ridge QB "
+            "EPA-per-dropback solve. Higher means a harder pass-defense slate than that "
+            "season's average faced-defense difficulty — it describes the schedule, not the "
+            "quarterback's play."
+        ),
+        shape="score",
+        polarity="higher",
+        source="D",
+        since=1999,
+        contextual=True,
+    ),
+    _ratings(
+        name="faced_opp_SaCR",
+        label="Opp SaCR",
+        full_name="Faced Opponent SaCR",
+        description=(
+            "The equal-game mean of the opponents' SaCR values over the games this "
+            "quarterback played. Positive means a harder-than-average overall opponent slate "
+            "by that season's team-quality composite, rather than the pass-defense-only lens "
+            "used by QSoS."
         ),
         shape="score",
         polarity="higher",
@@ -119,9 +136,9 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         label="Faced Adj Def EPA/DB",
         full_name="Faced Defense Rating on QB EPA Per Dropback",
         description=(
-            "The mean defense-side ridge coefficient, on QB EPA per dropback, for the "
-            "defenses this quarterback actually faced. This is the raw schedule-context "
-            "input behind QSoS."
+            "The dropback-weighted mean defense-side ridge coefficient, on QB EPA per "
+            "dropback, for the defenses this quarterback actually faced. This is the raw "
+            "pass-defense schedule-context input behind QSoS."
         ),
         shape="score",
         polarity="higher",
