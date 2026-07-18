@@ -68,6 +68,32 @@ def _resolve_reference_df(df: pl.DataFrame, reference_df: pl.DataFrame | None) -
     return reference_df
 
 
+def _season_frames(df: pl.DataFrame) -> list[pl.DataFrame]:
+    """Partition a QB rating frame by season when a season column is present."""
+    if "season" not in df.columns or df.is_empty():
+        return [df]
+    return list(df.partition_by("season", maintain_order=True))
+
+
+def _has_non_null_values(df: pl.DataFrame, column: str) -> bool:
+    """Return whether a column exists and contains at least one non-null value."""
+    if column not in df.columns:
+        return False
+    return bool(
+        df.select(pl.col(column).cast(pl.Float64).fill_nan(None).is_not_null().any()).item()
+    )
+
+
+def _season_supports_cpoe(df: pl.DataFrame) -> bool:
+    """Return whether this rating frame belongs to the CPOE era."""
+    if "season" not in df.columns or df.is_empty():
+        return True
+    season_values = df.select("season").to_series().drop_nulls().unique().to_list()
+    return all(
+        int(season) >= composite_weights.QB_COMPOSITE_START_SEASON for season in season_values
+    )
+
+
 def _safe_corr(x: FloatArray, y: FloatArray) -> float:
     """Return Pearson correlation, or 0.0 when undefined/unstable."""
     if len(x) <= 1 or len(y) <= 1 or len(x) != len(y):
@@ -298,67 +324,94 @@ def compute_qb_ratings(
     reference_df: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
     """Compute QB raw, adjusted, and percentile outputs for each team row."""
-    del sos_weight, outcome_weight
+    del sos_weight, outcome_weight, reference_df
     df = _filter_rating_pool(df)
-    resolved_reference_df = _filter_rating_pool(_resolve_reference_df(df, reference_df))
-    id_cols = [col for col in ("qb_id", "qb_name", "team") if col in df.columns]
-    n_teams = df.height
+    frames: list[pl.DataFrame] = []
 
-    raw_weights = _derive_qb_weights(
-        df,
-        stat_pool=_QB_STAT_POOL,
-    )
-    raw = _build_qb_raw_composite(df, raw_weights, resolved_reference_df)
-    reference_raw = _build_qb_raw_composite(
-        resolved_reference_df,
-        raw_weights,
-        resolved_reference_df,
-    )
-    qraw = (
-        _zscore_against(raw.tolist(), reference_raw.tolist())
-        if n_teams > 0
-        else np.zeros(0, dtype=np.float64)
-    )
+    for season_df in _season_frames(df):
+        id_cols = [col for col in ("qb_id", "qb_name", "team") if col in season_df.columns]
+        n_qbs = season_df.height
 
-    adjusted_epa = _build_qb_adjusted_epa(df)
-    reference_adjusted_epa = _build_qb_adjusted_epa(resolved_reference_df)
-    qsaor = _zscore_against(adjusted_epa.tolist(), reference_adjusted_epa.tolist())
-    qsos = _build_qsos(df, resolved_reference_df)
-    qoutcome, has_outcome = _build_outcome_signal(df, resolved_reference_df)
-    qsacr_input = composite_weights.build_weighted_composite(
-        df,
-        composite_weights.QB_QSACR_FROZEN_SPEC,
-        resolved_reference_df,
-    )
-    reference_qsacr_input = composite_weights.build_weighted_composite(
-        resolved_reference_df,
-        composite_weights.QB_QSACR_FROZEN_SPEC,
-        resolved_reference_df,
-    )
-    qsacr = _zscore_against(qsacr_input.tolist(), reference_qsacr_input.tolist())
+        raw_weights = _derive_qb_weights(
+            season_df,
+            stat_pool=_QB_STAT_POOL,
+        )
+        raw = _build_qb_raw_composite(season_df, raw_weights, season_df)
+        qraw = _zscore(raw.tolist()) if n_qbs > 0 else np.zeros(0, dtype=np.float64)
 
-    payload: dict[str, list[float] | list[str]] = {}
-    for col in id_cols:
-        payload[col] = df.select(col).to_series().cast(pl.String).to_list()
+        adjusted_epa = _build_qb_adjusted_epa(season_df)
+        qsaor = _zscore(adjusted_epa.tolist())
+        qsos = _build_qsos(season_df, season_df)
+        qoutcome, has_outcome = _build_outcome_signal(season_df, season_df)
+        qsacr_input = composite_weights.build_weighted_composite(
+            season_df,
+            composite_weights.QB_QSACR_FROZEN_SPEC,
+            season_df,
+        )
+        qsacr = _zscore(qsacr_input.tolist())
 
-    payload.update(
-        {
-            "QRaw": np.round(qraw, 3).tolist(),
-            "QSaOR": np.round(qsaor, 3).tolist(),
-            "QSoS": np.round(qsos, 3).tolist(),
-            "QSaCR": np.round(qsacr, 3).tolist(),
-            "QRaw_pct": _percentile(qraw).tolist(),
-            "QSaOR_pct": _percentile(qsaor).tolist(),
-            "QSoS_pct": _percentile(qsos).tolist(),
-            "QSaCR_pct": _percentile(qsacr).tolist(),
-        }
-    )
-    if has_outcome:
-        payload["QOutcome"] = np.round(qoutcome, 3).tolist()
-        payload["QOutcome_pct"] = _percentile(qoutcome).tolist()
+        publish_cpoe_composites = _season_supports_cpoe(season_df)
+        publish_qraw = publish_cpoe_composites and _has_non_null_values(
+            season_df,
+            "qb_completion_percentage_above_expectation",
+        )
+        publish_qsacr = publish_cpoe_composites and _has_non_null_values(
+            season_df,
+            "adj_qb_completion_percentage_above_expectation",
+        )
 
-    result = pl.DataFrame(payload)
-    sort_key = "QSaCR" if "QSaCR" in result.columns else (id_cols[0] if id_cols else None)
+        null_metric_values: list[float | None] = [None for _ in range(n_qbs)]
+        qraw_values: list[float | None] = (
+            [float(value) for value in np.round(qraw, 3).tolist()]
+            if publish_qraw
+            else null_metric_values.copy()
+        )
+        qsaor_values: list[float | None] = [float(value) for value in np.round(qsaor, 3).tolist()]
+        qsos_values: list[float | None] = [float(value) for value in np.round(qsos, 3).tolist()]
+        qsacr_values: list[float | None] = (
+            [float(value) for value in np.round(qsacr, 3).tolist()]
+            if publish_qsacr
+            else null_metric_values.copy()
+        )
+        qraw_pct_values: list[float | None] = (
+            [float(value) for value in _percentile(qraw).tolist()]
+            if publish_qraw
+            else null_metric_values.copy()
+        )
+        qsaor_pct_values: list[float | None] = [
+            float(value) for value in _percentile(qsaor).tolist()
+        ]
+        qsos_pct_values: list[float | None] = [float(value) for value in _percentile(qsos).tolist()]
+        qsacr_pct_values: list[float | None] = (
+            [float(value) for value in _percentile(qsacr).tolist()]
+            if publish_qsacr
+            else null_metric_values.copy()
+        )
+
+        payload: dict[str, list[float | None] | list[str]] = {}
+        for col in id_cols:
+            payload[col] = season_df.select(col).to_series().cast(pl.String).to_list()
+
+        payload["QRaw"] = qraw_values
+        payload["QSaOR"] = qsaor_values
+        payload["QSoS"] = qsos_values
+        payload["QSaCR"] = qsacr_values
+        payload["QRaw_pct"] = qraw_pct_values
+        payload["QSaOR_pct"] = qsaor_pct_values
+        payload["QSoS_pct"] = qsos_pct_values
+        payload["QSaCR_pct"] = qsacr_pct_values
+        if has_outcome:
+            payload["QOutcome"] = np.round(qoutcome, 3).tolist()
+            payload["QOutcome_pct"] = _percentile(qoutcome).tolist()
+
+        frames.append(pl.DataFrame(payload))
+
+    result = pl.concat(frames, how="vertical_relaxed") if frames else pl.DataFrame()
+    if result.is_empty():
+        return result
+
+    has_qsacr_values = bool(result.select(pl.col("QSaCR").drop_nulls().len()).item())
+    sort_key = "QSaCR" if has_qsacr_values else ("qb_id" if "qb_id" in result.columns else None)
     if sort_key is None:
         return result
     return result.sort(sort_key, descending=(sort_key == "QSaCR"))
