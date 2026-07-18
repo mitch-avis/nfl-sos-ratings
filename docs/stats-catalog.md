@@ -85,7 +85,7 @@ Rules:
 
 | View | Denominator | Additional Notes |
 | --- | --- | --- |
-| Ratings | none | Schedule-adjusted outputs (`SaCR`, `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SRS`). Every published project rating is standardized within its own season, so `0` means that season's average and `+1` means one standard deviation above that season's average. `SaCR` is the published weighted team composite over ridge-adjusted passing EPA, rushing EPA, defense, and special teams. This is a view, not a category. |
+| Ratings | none | Schedule-adjusted outputs (`SaCR`, `sos`, `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SRS`). Every published project rating is standardized within its own season, so `0` means that season's average and `+1` means one standard deviation above that season's average. `SaCR` is the published weighted team composite over ridge-adjusted passing EPA, rushing EPA, defense, and special teams. `sos` is the played-game mean opponent `SaCR`, kept as descriptive schedule context. This is a view, not a category. |
 | Raw Stat Totals | none | For **count** metrics only. **rate** and **avg** metrics keep the same value they show elsewhere. |
 | Per-Game Rates | games played | For **count** metrics this is the per-game form. **rate** and **avg** metrics are unchanged. |
 | Per-Play Rates | play-specific denominators for the subcategory (dropback, attempt, carry, drive, series, etc.) | For **count** metrics this uses the stat's natural denominator suffix; **rate** and **avg** metrics are unchanged. |
@@ -306,14 +306,15 @@ Season identity and outcome summary. No subcategories.
 | `avg_scoring_margin` | Point differential per game | D(SCH) | rate | 1999 |
 | `one_score_game_record` | W-L-T in games decided by ≤ 8 points | D(SCH) | count | 1999 |
 | `avg_rest_days` | Mean of schedule rest fields | SCH | avg | 1999 |
-| `srs`, `sos` | Simple Rating System and its schedule component | D(SCH) | rate | 1999 |
 
 All differentials are `duplicate_of` their components for ratings purposes. The app's own ratings
-(`SaCR`, `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SRS`) belong to the separate `Ratings` view rather than
-to the `Overall` / `Offense` / `Defense` / `Special Teams` stat taxonomy. External/reference ratings
-such as `team_elo` live in that same top-level view as descriptive-only benchmarks. Within that
-view, `SaCR` is the published weighted composite, `SaSTR` is the published special-teams backbone
-surface, and `SaOR` / `SaDR` / `SaOvR` remain the ridge-backbone component views.
+(`SaCR`, `sos`, `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SRS`) belong to the separate
+`Ratings` view rather than to the `Overall` / `Offense` / `Defense` / `Special Teams`
+stat taxonomy. External/reference ratings such as `team_elo` live in that same top-level
+view as descriptive-only benchmarks. Within that view, `SaCR` is the published weighted
+composite, `sos` is the played-game mean opponent `SaCR`, `SaSTR` is the published
+special-teams backbone surface, and `SaOR` / `SaDR` / `SaOvR` remain the ridge-backbone
+component views.
 
 ## Catalog: Offense
 
