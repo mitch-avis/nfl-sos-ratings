@@ -17,9 +17,13 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 _DURABLE_DOC_PATHS: tuple[Path, ...] = (
     _REPO_ROOT / "README.md",
+    _REPO_ROOT / "docs" / "methodology.md",
     _REPO_ROOT / "docs" / "stats-catalog.md",
     _REPO_ROOT / "docs" / "qb-stats-catalog.md",
 )
+
+_SOURCE_ROOT = _REPO_ROOT / "nfl_sos_ratings"
+_HISTORY_LANGUAGE_EXEMPT_SOURCE = _SOURCE_ROOT / "validation" / "history_strings.py"
 
 _PUBLISHED_RATING_COLUMNS: tuple[str, ...] = (
     "SaOR",
@@ -170,6 +174,11 @@ def test_durable_methodology_surfaces_avoid_campaign_terminology(
         "validation_cli_help": _build_validation_cli_help(capsys),
         "validation_baseline_labels": baseline_labels,
         "composite_weights_cli": _capture_composite_weight_cli_output(monkeypatch, capsys),
+        **{
+            path.relative_to(_REPO_ROOT).as_posix(): path.read_text(encoding="utf-8")
+            for path in sorted(_SOURCE_ROOT.rglob("*.py"))
+            if path != _HISTORY_LANGUAGE_EXEMPT_SOURCE
+        },
         **{
             path.relative_to(_REPO_ROOT).as_posix(): path.read_text(encoding="utf-8")
             for path in _DURABLE_DOC_PATHS
