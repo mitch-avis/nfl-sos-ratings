@@ -7,8 +7,8 @@ leakage from opponent profiles, and compares subjects to the adjusted quality of
 
 It currently produces:
 
-- Team ratings: `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SaCR`, and `SRS`
-- QB ratings: `QRaw`, `QSoS`, `QSaOR`, `QOutcome`, and `QSaCR`
+- Team ratings/context: `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SaCR`, `sos`, and `SRS`
+- QB ratings/context: `QRaw`, `QSoS`, `faced_opp_SaCR`, `QSaOR`, `QOutcome`, and `QSaCR`
 - Ridge-backed published ratings for teams and QBs, plus one-hop diff-based comparison outputs for
   descriptive context
 - Simultaneous-adjustment audit outputs for teams and QBs
@@ -122,7 +122,8 @@ The team path is:
    - `SaCR`: the published weighted blend of standardized ridge-adjusted offensive passing EPA,
      offensive rushing EPA, defensive passing EPA, defensive rushing EPA, and special teams, with
      published weights `0.3829 / 0.1906 / 0.2716 / 0.0974 / 0.0575`
-8. Produce `SRS` from point margin as a simultaneous-adjustment reference.
+8. Publish `sos` as the played-game mean of opponent `SaCR`, kept as descriptive schedule context.
+9. Produce `SRS` from point margin as a simultaneous-adjustment reference.
 
 - Team outcome fields such as wins, win value, and turnover margin remain published for context, but
 they no longer feed the published team quality ratings.
@@ -153,11 +154,14 @@ The QB path is:
 9. Solve the tuned, dropback-weighted simultaneous ridge QB backbone on `qb_epa_per_dropback`.
 10. Publish QB ratings from that ridge backbone: `QRaw` is the unadjusted raw-performance composite
     from the primary QB stat pool; `QSaOR` is the standardized ridge-adjusted
-    `adj_qb_epa_per_dropback` signal; `QSoS` is the standardized mean faced-defense coefficient from
-    the ridge solve, kept as descriptive schedule context; `QSaCR` is the published weighted blend
-  of standardized `adj_qb_epa_per_dropback`, `adj_qb_completion_percentage_above_expectation`,
-  `adj_qb_sack_rate`, and `adj_qb_td_int_margin_rate`, with published weights `0.6688 / 0.2146 /
-  0.0673 / 0.0493`; and `QOutcome` remains a descriptive-only outcome context column.
+  `adj_qb_epa_per_dropback` signal; `QSoS` is the standardized dropback-weighted mean
+  faced-pass-defense coefficient from the ridge solve, kept as descriptive schedule context;
+  `faced_opp_SaCR` is the equal-game mean opponent `SaCR` over the games that QB played, kept as
+  the overall-opponent-quality companion surface; `QSaCR` is the published weighted blend of
+  standardized `adj_qb_epa_per_dropback`,
+  `adj_qb_completion_percentage_above_expectation`, `adj_qb_sack_rate`, and
+  `adj_qb_td_int_margin_rate`, with published weights `0.6688 / 0.2146 / 0.0673 / 0.0493`; and
+  `QOutcome` remains a descriptive-only outcome context column.
 
 Published team and QB ratings are standardized within their own season. `0` means that season's
 average qualifying team or QB, and `+1` means one standard deviation above that season's average.
@@ -321,9 +325,9 @@ All files are written under `DATA_DIR` with a `{SEASON}_` prefix.
 - `{SEASON}_opponent_profiles.parquet` Averaged opponent profile rows built from unique
   non-head-to-head opponents.
 - `{SEASON}_combined.parquet` Team rows joined to opponent rows, `diff_*` columns, team ratings,
-  `SRS`, and simultaneous-adjustment team columns.
-- `{SEASON}_ratings.parquet` Compact team ratings summary with `SaCR`, `SaOR`, `SaDR`, `SaSTR`,
-  `SaOvR`, and `SRS`.
+  `sos`, `SRS`, and simultaneous-adjustment team columns.
+- `{SEASON}_ratings.parquet` Compact team ratings summary with `SaCR`, `sos`, `SaOR`, `SaDR`,
+  `SaSTR`, `SaOvR`, and `SRS`.
 - `{SEASON}_simultaneous_team_adjustments.parquet` Multi-stat simultaneous-adjustment output with
   `adj_off_*` and `adj_def_*` columns plus the raw `st_rating` backbone component.
 
@@ -338,8 +342,10 @@ All files are written under `DATA_DIR` with a `{SEASON}_` prefix.
 - `{SEASON}_qb_opponent_profiles.parquet` QB opponent context built from only the primary-QB games
   each QB actually played, with unique faced defenses and no fabricated schedule fallback.
 - `{SEASON}_qb_combined.parquet` QB season rows joined to opponent context, `diff_qb_*` columns,
-  simultaneous QB adjustment columns, the faced-defense ridge schedule column, and final QB ratings.
-- `{SEASON}_qb_ratings.parquet` Compact QB ratings summary for qualified passers.
+  simultaneous QB adjustment columns, the faced-defense ridge schedule column,
+  `faced_opp_SaCR`, and final QB ratings.
+- `{SEASON}_qb_ratings.parquet` Compact QB ratings summary for qualified passers, including
+  `faced_opp_SaCR` as the overall-opponent-quality schedule companion.
 - `{SEASON}_simultaneous_qb_adjustments.parquet` Multi-stat simultaneous-adjustment QB output with
   `adj_*` columns plus `adj_def_qb_epa_per_dropback_faced`.
 
