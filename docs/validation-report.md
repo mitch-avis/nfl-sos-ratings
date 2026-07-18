@@ -523,6 +523,203 @@ Stage 3b re-registers the validation target into information-matched leagues.
 | 2024 | 0.026 | 0.062 | 2.391 |
 | 2025 | 0.042 | 0.101 | 2.419 |
 
+## Schedule-Strength Audit
+
+The 2025 Maye/Shough/Flacco/McCarthy discrepancy was audited from the published Parquet outputs
+first, then from the live codepath.
+
+The first pass found one source-data issue before any code change: the hand-entered audit table had
+`SaCR` and `SaDR` transposed for Tyler Shough, Joe Flacco, and J.J. McCarthy. The reproduced
+Parquet-backed table below is the ground-truth regression anchor now pinned in
+`tests/test_qsos_audit.py`.
+
+### Anchor Reproduction
+
+| QB | Games | Avg Opp SaCR | Avg Opp SaDR | Avg Opp SRS |
+| --- | ---: | ---: | ---: | ---: |
+| Drake Maye | 17 | -0.700882 | -0.466000 | -4.284944 |
+| Tyler Shough | 11 | -0.327727 | -0.201636 | -1.566831 |
+| Joe Flacco | 13 | -0.155385 | -0.367769 | -1.695016 |
+| J.J. McCarthy | 10 | 0.127100 | -0.533800 | -0.994624 |
+
+### Four-QB QSoS Trace
+
+`2025` had zero null opponent-defense joins across all `674` QB-game rows, and zero null joins for
+each of the four named QBs. The explicit join-integrity concern did not fire on the live data.
+
+One outright bug did surface: multi-team QBs were being grouped by QB-plus-team when building the
+faced-defense schedule input even though the published season surface is one row per QB. Joe
+Flacco's pre-fix `QSoS` was `-2.026`; after regrouping all `13` played games across his `CLE` and
+`CIN` stints, the refreshed 2025 output is `-2.150`.
+
+| QB | Published QSoS | Faced Def | Distinct Teams | Null Joins |
+| --- | ---: | ---: | ---: | ---: |
+| Joe Flacco | -2.150 | -0.048787 | 2 | 0 |
+| Tyler Shough | -2.122 | -0.048173 | 1 | 0 |
+| J.J. McCarthy | -1.994 | -0.045330 | 1 | 0 |
+| Drake Maye | -1.280 | -0.029482 | 1 | 0 |
+
+#### Drake Maye
+
+| Team | Week | Opp | Dropbacks | Def Coeff |
+| --- | ---: | --- | ---: | ---: |
+| NE | 1 | LV | 50 | -0.042174 |
+| NE | 2 | MIA | 26 | -0.099015 |
+| NE | 3 | PIT | 42 | -0.008111 |
+| NE | 4 | CAR | 18 | -0.039442 |
+| NE | 5 | BUF | 34 | 0.091081 |
+| NE | 6 | NO | 27 | 0.039951 |
+| NE | 7 | TEN | 27 | -0.133682 |
+| NE | 8 | CLE | 30 | 0.149503 |
+| NE | 9 | ATL | 35 | 0.035693 |
+| NE | 10 | TB | 32 | -0.036752 |
+| NE | 11 | NYJ | 35 | -0.184644 |
+| NE | 12 | CIN | 36 | -0.129175 |
+| NE | 13 | NYG | 34 | 0.024259 |
+| NE | 15 | BUF | 26 | 0.091081 |
+| NE | 16 | BAL | 47 | -0.032278 |
+| NE | 17 | NYJ | 22 | -0.184644 |
+| NE | 18 | MIA | 18 | -0.099015 |
+
+Equal-game defense mean: `-0.032786`
+
+Dropback-weighted defense mean: `-0.029482`
+
+#### Tyler Shough
+
+| Team | Week | Opp | Dropbacks | Def Coeff |
+| --- | ---: | --- | ---: | ---: |
+| NO | 3 | SEA | 2 | 0.095555 |
+| NO | 8 | TB | 32 | -0.036752 |
+| NO | 9 | LAR | 24 | 0.070429 |
+| NO | 10 | CAR | 29 | -0.039442 |
+| NO | 12 | ATL | 48 | 0.035693 |
+| NO | 13 | MIA | 43 | -0.099015 |
+| NO | 14 | TB | 23 | -0.036752 |
+| NO | 15 | CAR | 36 | -0.039442 |
+| NO | 16 | NYJ | 51 | -0.184644 |
+| NO | 17 | TEN | 29 | -0.133682 |
+| NO | 18 | ATL | 39 | 0.035693 |
+
+Equal-game defense mean: `-0.030214`
+
+Dropback-weighted defense mean: `-0.048173`
+
+#### Joe Flacco
+
+| Team | Week | Opp | Dropbacks | Def Coeff |
+| --- | ---: | --- | ---: | ---: |
+| CIN | 6 | GB | 45 | -0.063224 |
+| CIN | 7 | PIT | 49 | -0.008111 |
+| CIN | 8 | NYJ | 35 | -0.184644 |
+| CIN | 9 | CHI | 51 | -0.024047 |
+| CIN | 11 | PIT | 41 | -0.008111 |
+| CIN | 12 | NE | 37 | -0.007383 |
+| CIN | 16 | MIA | 1 | -0.099015 |
+| CIN | 17 | ARI | 5 | -0.075714 |
+| CIN | 18 | CLE | 0 | 0.149503 |
+| CLE | 1 | CIN | 47 | -0.129175 |
+| CLE | 2 | BAL | 47 | -0.032278 |
+| CLE | 3 | GB | 37 | -0.063224 |
+| CLE | 4 | DET | 37 | 0.023410 |
+
+Equal-game defense mean: `-0.040155`
+
+Dropback-weighted defense mean: `-0.048787`
+
+#### J.J. McCarthy
+
+| Team | Week | Opp | Dropbacks | Def Coeff |
+| --- | ---: | --- | ---: | ---: |
+| MIN | 1 | CHI | 25 | -0.024047 |
+| MIN | 2 | ATL | 27 | 0.035693 |
+| MIN | 9 | DET | 30 | 0.023410 |
+| MIN | 10 | BAL | 44 | -0.032278 |
+| MIN | 11 | CHI | 32 | -0.024047 |
+| MIN | 12 | GB | 24 | -0.063224 |
+| MIN | 14 | WAS | 27 | -0.148474 |
+| MIN | 15 | DAL | 24 | -0.195093 |
+| MIN | 16 | NYG | 17 | 0.024259 |
+| MIN | 18 | GB | 23 | -0.063224 |
+
+Equal-game defense mean: `-0.046703`
+
+Dropback-weighted defense mean: `-0.045330`
+
+The Maye-versus-Shough ordering is mostly construct plus weighting, not a hidden join issue.
+Maye's equal-game pass-defense mean is slightly softer than Shough's (`-0.032786` vs `-0.030214`),
+but dropback weighting flips the pair (`-0.029482` vs `-0.048173`) because Shough's hardest
+pass-defense games carried very little volume (`SEA`: `2` dropbacks, `LAR`: `24`) while his soft,
+high-volume games (`NYJ`: `51`, `MIA`: `43`, `TEN`: `29`) dominate the weighted mean.
+
+### Defense Coefficient Calibration
+
+Compression is not supported by the raw unit-comparable defense-coefficient spread. In both `2025`
+and pooled `1999-2025`, the QB defense coefficients are wider than the team pass-defense
+coefficients, not narrower.
+
+| Scope | Anchor | Pearson | QB SD | Anchor SD | SD Ratio |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 2025 | Team pass-defense coeff | 0.979 | 0.100622 | 0.061626 | 1.633 |
+| 2025 | SaDR | 0.934 | 0.100622 | 1.000014 | 0.101 |
+| 2025 | SaCR | 0.496 | 0.100622 | 1.000015 | 0.101 |
+| 2025 | SRS | 0.567 | 0.100622 | 6.211806 | 0.016 |
+| 1999-2025 pooled | Team pass-defense coeff | 0.973 | 0.082252 | 0.050574 | 1.626 |
+| 1999-2025 pooled | SaDR | 0.899 | 0.082252 | 0.984776 | 0.084 |
+| 1999-2025 pooled | SaCR | 0.558 | 0.082252 | 0.984754 | 0.084 |
+| 1999-2025 pooled | SRS | 0.598 | 0.082252 | 6.112101 | 0.013 |
+
+`SaDR`, `SaCR`, and `SRS` are retained as external calibration anchors, but only the team
+pass-defense coefficient is truly unit-comparable to the QB defense coefficient. On that direct
+lens, the under-docking-by-compression hypothesis is rejected.
+
+### QSoS Rank Correlations
+
+`QSoS` behaves like a pass-defense schedule lens, not an overall opponent-quality lens.
+
+| Metric | 2025 Spearman | Mean 1999-2025 Spearman |
+| --- | ---: | ---: |
+| Equal-game opp SaCR | 0.447 | 0.465 |
+| Dropback-weighted opp SaCR | 0.366 | 0.504 |
+| Equal-game opp SaDR | 0.831 | 0.802 |
+| Dropback-weighted opp SaDR | 0.826 | 0.842 |
+| Equal-game opp SRS | 0.531 | 0.497 |
+| Dropback-weighted opp SRS | 0.475 | 0.538 |
+| Dropback-weighted team pass-defense coeff | 0.884 | 0.938 |
+
+### Largest 2025 Rank Gaps vs Overall Opponent Quality
+
+| QB | Team | QSoS | Equal Opp SaCR | QSoS Rank | Opp SaCR Rank | Abs Gap |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Lamar Jackson | BAL | 0.385 | -0.336 | 8.0 | 31.0 | 23.0 |
+| Joe Burrow | CIN | 1.079 | -0.228 | 5.0 | 26.0 | 21.0 |
+| J.J. McCarthy | MIN | -1.994 | 0.127 | 31.0 | 10.0 | 21.0 |
+| Spencer Rattler | NO | -0.159 | 0.299 | 23.0 | 5.0 | 18.0 |
+| Michael Penix Jr. | ATL | -0.865 | 0.105 | 27.0 | 12.0 | 15.0 |
+| Jacoby Brissett | ARI | 0.210 | 0.506 | 14.0 | 1.0 | 13.0 |
+| Joe Flacco | CIN | -2.150 | -0.048 | 32.0 | 19.0 | 13.0 |
+| Daniel Jones | IND | 0.293 | -0.106 | 10.0 | 22.0 | 12.0 |
+
+### Drake Maye's 2025 Opponent Placement
+
+Maye's schedule is soft on the pass-defense lens too, just much less extreme than on the overall
+team-quality lens.
+
+- Mean faced defense coefficient: `-0.032786`
+- Mean faced opponent `SaCR`: `-0.700882`
+- Mean faced opponent `SRS`: `-4.284944`
+
+That is the core explanation. The model was not hiding a neutral or hard Maye schedule. It was
+measuring a different thing: pass-defense difficulty with dropback weighting. Under that construct,
+Maye remains soft-scheduled, but not the softest named case.
+
+### Adjustment-Side Disposition
+
+No diagnostic rescaling variant was promoted or retained as a sign-off candidate. The audit found
+no evidence that the QB defense coefficients are compressed relative to the team pass-defense
+coefficients, so there is no quantitative basis here for an under-docking fix beyond the outright
+multi-team aggregation bug that was fixed in the live pipeline.
+
 ## QB Revision Sweep
 
 | Variant | Eligible QBs | Slope | Correlation | Defense Penalty Multiplier |
