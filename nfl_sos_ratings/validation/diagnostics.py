@@ -633,7 +633,7 @@ def compute_qb_split_half_diagnostics(
         )
         if not frame.is_empty():
             rows.append(frame)
-    return pl.concat(rows, how="vertical") if rows else pl.DataFrame()
+    return pl.concat(rows, how="vertical_relaxed") if rows else pl.DataFrame()
 
 
 def compute_qb_playoff_season_summary(
@@ -804,7 +804,7 @@ def compute_qb_playoff_validation_frame(
                 how="left",
             )
         rows.append(joined)
-    return pl.concat(rows, how="vertical") if rows else pl.DataFrame()
+    return pl.concat(rows, how="vertical_relaxed") if rows else pl.DataFrame()
 
 
 def _build_qb_game_frame_from_pbp(
@@ -911,7 +911,7 @@ def compute_qb_opponent_offense_diagnostics(
     dropback_col: str = "qb_dropbacks",
     team_response_col: str = "passing_epa_per_offensive_snap",
 ) -> tuple[pl.DataFrame, pl.DataFrame, dict[str, object]]:
-    """Return D5 summary rows, named cases, and the support decision."""
+    """Return opponent-offense summary rows, named cases, and the support decision."""
     rows: list[pl.DataFrame] = []
     latest_season = max(seasons) if seasons else None
 
@@ -1026,7 +1026,7 @@ def compute_qb_leverage_diagnostics(
     moderate_wp_low: float = 0.05,
     moderate_wp_high: float = 0.95,
 ) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame, dict[str, object]]:
-    """Return D6 leverage summaries, named cases, filtered-history rows, and decision inputs."""
+    """Return leverage summaries, named cases, filtered-history rows, and decision inputs."""
     profile_rows: list[pl.DataFrame] = []
     variant_rows: list[pl.DataFrame] = []
     latest_season = max(seasons) if seasons else None
