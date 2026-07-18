@@ -94,8 +94,10 @@ CURRENT_OUTPUT_COLUMN_SAMPLES = [
     "SaSTR",
     "SaOvR",
     "SRS",
+    "sos",
     "QRaw",
     "QSoS",
+    "faced_opp_SaCR",
     "QSaOR",
     "QSaCR",
     "QOutcome",
@@ -328,6 +330,30 @@ class TestRatingPools:
             resolved = registry.resolve_column(column)
             assert resolved is not None
             assert "that season" in resolved.description.lower(), column
+
+    def test_schedule_strength_entries_are_precise_and_visible(
+        self, registry: MetricRegistry
+    ) -> None:
+        """Schedule-context surfaces should resolve with precise metric descriptions."""
+        qsos = registry.resolve_column("QSoS")
+        raw_qsos = registry.resolve_column("adj_def_qb_epa_per_dropback_faced")
+        team_sos = registry.resolve_column("sos")
+        qb_overall = registry.resolve_column("faced_opp_SaCR")
+
+        assert qsos is not None
+        assert "dropback-weighted" in qsos.description.lower()
+        assert "pass-defense" in qsos.description.lower()
+
+        assert raw_qsos is not None
+        assert "dropback-weighted" in raw_qsos.description.lower()
+
+        assert team_sos is not None
+        assert team_sos.category == "Schedule-Adjusted Ratings"
+        assert team_sos.contextual is True
+
+        assert qb_overall is not None
+        assert qb_overall.category == "Schedule-Adjusted Ratings"
+        assert qb_overall.contextual is True
 
     def test_qb_cpoe_era_boundary_is_documented_on_published_composites(
         self, registry: MetricRegistry
