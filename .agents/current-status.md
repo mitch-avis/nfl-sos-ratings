@@ -24,8 +24,8 @@ current-status summary changes.
 - Active correctness blocker: none currently known in the published team/QB pipeline.
 - Active methodology blocker: none currently known. The recorded QB null results close that question
   with evidence unless a maintainer explicitly opens a new workstream.
-- Ratings methodology record: the archived validation history remains in `docs/validation-report.md`,
-  while the reader-facing explanation is in `docs/methodology.md`.
+- Ratings methodology record: the archived validation history remains in
+  `docs/validation-report.md`, while the reader-facing explanation is in `docs/methodology.md`.
 - Primary source of truth for metrics: `nfl_sos_ratings/metrics/`.
 - Human-readable metric companions: `docs/stats-catalog.md` and `docs/qb-stats-catalog.md`.
 - Active workstreams: remaining metric expansion work and UI/detail-page follow-up.
@@ -210,8 +210,8 @@ The current terminology/provenance cleanup adds an eighth theme.
     - switched the published team and QB scales to within-season standardization and removed the
       pooled historical-reference path from the live pipeline and validation snapshot path
     - documented the explicit 2006+ publication boundary for the CPOE-bearing QB headline
-      composites; `QRaw` and `QSaCR` now stay null for 1999-2005 instead of silently renormalizing
-      a reduced-input formula
+      composites; `QRaw` and `QSaCR` now stay null for 1999-2005 instead of silently renormalizing a
+      reduced-input formula
     - added `docs/methodology.md` as the durable public methodology page and linked it from the
       README and the existing glossary UI route
     - moved archived validation-report stage/block wording into
@@ -276,8 +276,8 @@ Latest recorded green state across the current worktree:
 
 - Published team and QB ratings are standardized within their own season.
 - The live pipeline no longer uses a pooled all-time reference frame to scale published ratings.
-- The CPOE-bearing QB headline composites (`QRaw`, `QSaCR`) publish for 2006+ only; `QSaOR`,
-  `QSoS`, and `QOutcome` still publish across the full 1999-2025 span.
+- The CPOE-bearing QB headline composites (`QRaw`, `QSaCR`) publish for 2006+ only; `QSaOR`, `QSoS`,
+  and `QOutcome` still publish across the full 1999-2025 span.
 - The durable reader-facing explanation lives in `docs/methodology.md`.
 - The archived experimental record lives in `docs/validation-report.md`.
 - New methodology challenges should follow the same pattern: define a falsifiable hypothesis,
@@ -351,8 +351,8 @@ These are not active workstreams, but they are still useful context.
 
 ## What the next agent should do first
 
-1. Read this file and confirm whether the task belongs to metric expansion, the analyst UI, or a
-  new methodology challenge.
+1. Read this file and confirm whether the task belongs to metric expansion, the analyst UI, or a new
+  methodology challenge.
 2. If the task challenges published rating methodology, start from `docs/methodology.md` and
   `docs/validation-report.md`, then define a falsifiable protocol and decision gate before making
   code changes.

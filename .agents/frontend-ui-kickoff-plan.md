@@ -19,14 +19,14 @@ way that is much easier to interpret than the current static plots.
   remains green for UI purposes.
 - Current queued scope for this session:
   - complete in the current session:
-    - replaced the old multi-select metric-family controls with a single-select six-view primary
-      row (`Ratings`, `Raw Total Stats`, `Per-Game Rates`, `Per-Play Rates`,
-      `Opponent Per-Game Rates`, `Opponent Per-Play Rates`) plus a page-level `Reset`
+    - replaced the old multi-select metric-family controls with a single-select six-view primary row
+      (`Ratings`, `Raw Total Stats`, `Per-Game Rates`, `Per-Play Rates`, `Opponent Per-Game Rates`,
+      `Opponent Per-Play Rates`) plus a page-level `Reset`
     - removed the old `Opponent Context` and `All Stats` buttons
     - added persistent Teams category and Teams/QB subcategory rows that hide without collapsing
       layout when `Ratings` is selected
-    - drove the detail-page weekly and unique-opponent tables from that top-of-page selection
-      state instead of their own local metric-family row
+    - drove the detail-page weekly and unique-opponent tables from that top-of-page selection state
+      instead of their own local metric-family row
 - Implemented in the most recent session:
   - bottom-right page-jump controls now keep fixed vertical slots, with the up arrow always above
     the down arrow when both are visible and each button staying in a stable position when hidden
@@ -98,15 +98,14 @@ way that is much easier to interpret than the current static plots.
     matching single-tier subcategory row
   - those non-`Ratings` rows now hide without collapsing their reserved space, which prevents the
     main table from jumping vertically when the primary view changes
-  - Team and QB detail pages now use the same top-of-page control model, with the entire header
-    pane pinned at the top of the page and the old descriptive blurb / redundant header links
-    removed
+  - Team and QB detail pages now use the same top-of-page control model, with the entire header pane
+    pinned at the top of the page and the old descriptive blurb / redundant header links removed
   - QB detail headers now render as `QB Detail` plus `QB Name - Full Team Name`, and Team detail
     headers now show the full team name
   - Game-by-Game Details and Unique Opponents no longer maintain their own local metric-family row;
     both now follow the top-of-page control state, with result-context columns always pinned first
-  - those weekly/detail result-context columns now read as `Points For`, `Points Allowed`,
-    `Point Margin`, `Outcome`, and `T/O Margin`
+  - those weekly/detail result-context columns now read as `Points For`, `Points Allowed`, `Point
+    Margin`, `Outcome`, and `T/O Margin`
   - switching to a season where a requested Team/QB detail entity does not exist now redirects back
     to that entity index for the selected season instead of leaving the user on an error page
   - grouped opponent-breakdown tables on detail pages are now sortable by column so users can rank
@@ -211,9 +210,8 @@ Phase status summary:
 Outstanding follow-ups explicitly queued for the next agent session:
 
 1. Keep strengthening the weekly-log detail pages now that the shell/index cleanup and the new
-  control-model refactor are complete,
-  especially if another compact trend primitive still feels justified after the new recent-form
-  card, but keep it table-first and dependency-light.
+  control-model refactor are complete, especially if another compact trend primitive still feels
+  justified after the new recent-form card, but keep it table-first and dependency-light.
 2. Refine the new grouped opponent ledgers after live use, especially if one team or QB weekly
   surface wants a different primary performance metric or a tighter default column mix.
 3. Add opponent-strength or rating-delta context to the weekly views carefully, without implying

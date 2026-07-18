@@ -78,9 +78,8 @@ There are two separate rating systems:
 
 ## Current Methodology
 
-The public write-up is in [docs/methodology.md](docs/methodology.md).
-That page is the best place to read the rating definitions,
-the within-season scale, the validation framing, and the documented subjective choices.
+The public write-up is in [docs/methodology.md]. That page is the best place to read the rating
+definitions, the within-season scale, the validation framing, and the documented subjective choices.
 
 ### Data Inputs
 
@@ -160,13 +159,11 @@ The QB path is:
   `adj_qb_sack_rate`, and `adj_qb_td_int_margin_rate`, with published weights `0.6688 / 0.2146 /
   0.0673 / 0.0493`; and `QOutcome` remains a descriptive-only outcome context column.
 
-Published team and QB ratings are standardized within their own season.
-`0` means that season's average qualifying team or QB,
-and `+1` means one standard deviation above that season's average.
+Published team and QB ratings are standardized within their own season. `0` means that season's
+average qualifying team or QB, and `+1` means one standard deviation above that season's average.
 
-Because CPOE is part of the headline QB composites,
-`QRaw` and `QSaCR` are published for `2006+` only.
-The `1999-2005` rows are intentionally null instead of using a reduced-input formula.
+Because CPOE is part of the headline QB composites, `QRaw` and `QSaCR` are published for `2006+`
+only. The `1999-2005` rows are intentionally null instead of using a reduced-input formula.
 
 The primary QB raw-performance pool for `QRaw` is centered on:
 
@@ -420,11 +417,10 @@ Run the full validation harness from the repo root:
 python -m nfl_sos_ratings.validation.walk_forward
 ```
 
-The command writes [docs/validation-report.md](docs/validation-report.md). That report is the
-authoritative summary of the current methodology checks.
+The command writes [docs/validation-report.md]. That report is the authoritative summary of the
+current methodology checks.
 
-For the durable, reader-facing explanation of what the ratings mean,
-see [docs/methodology.md](docs/methodology.md).
+For the durable, reader-facing explanation of what the ratings mean, see [docs/methodology.md].
 
 The validation report records the current walk-forward team comparisons against SRS, raw EPA, and
 Elo, plus the QB stability, playoff, and external-reference checks. Consult that report before
@@ -466,5 +462,7 @@ Current live inputs:
 - Snap counts
 - Schedules and scores
 
+[docs/methodology.md]: docs/methodology.md
+[docs/validation-report.md]: docs/validation-report.md
 [nflverse]: https://github.com/nflverse
 [nflreadpy]: https://github.com/nflverse/nflreadpy

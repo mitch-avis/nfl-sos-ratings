@@ -123,9 +123,9 @@ The `Ratings` view now has two descriptive blocks:
 - the project's own schedule-adjusted ratings (`QSaCR`, `QSaOR`, `QRaw`, `QSoS`, `QOutcome`)
 - external/reference ratings such as ESPN QBR and related ESPN reference columns
 
-For the project's own ratings, the displayed scale is always within-season.
-If a QB is `+2.0`, that means two standard deviations better than that season's qualifying QBs,
-not two standard deviations better than a pooled all-time reference.
+For the project's own ratings, the displayed scale is always within-season. If a QB is `+2.0`, that
+means two standard deviations better than that season's qualifying QBs, not two standard deviations
+better than a pooled all-time reference.
 
 Those external/reference ratings are `ratings_eligible=False` in the registry and never feed the
 published project ratings.

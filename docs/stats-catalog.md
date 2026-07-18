@@ -266,9 +266,9 @@ The `Ratings` view now has two descriptive blocks:
 - the project's own schedule-adjusted ratings (`SaCR`, `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SRS`)
 - external/reference ratings such as the fixed-constant team Elo validation baseline
 
-For the project's own ratings, the displayed scale is always within-season.
-If a team is `+2.0`, that means two standard deviations better than that season's peers,
-not two standard deviations better than a pooled all-time reference.
+For the project's own ratings, the displayed scale is always within-season. If a team is `+2.0`,
+that means two standard deviations better than that season's peers, not two standard deviations
+better than a pooled all-time reference.
 
 Those external/reference ratings are `ratings_eligible=False` in the registry and never feed the
 published project ratings.

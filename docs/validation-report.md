@@ -1,6 +1,7 @@
 # Validation Report
 
 Evaluation seasons: 1999-2025.
+
 Prediction weeks start at 5.
 
 ## Command
@@ -11,71 +12,63 @@ uv run python -m nfl_sos_ratings.validation.walk_forward --data-dir data --start
 
 ## Block R Regression Note
 
-- A Stage 3c regression combined pooled offense/defense reference arrays with
-  current-season-only special-teams reference values, causing the team ratings path
-  to raise a NumPy broadcast error before `*_combined.parquet` and
-  `*_ratings.parquet` wrote.
-- The fix backfills historical `st_rating` values from
-  `*_simultaneous_team_adjustments.parquet` when rebuilding pooled team references
-  and makes the multi-season pipeline exit non-zero with a failure summary if any
-  season data step fails.
+- A Stage 3c regression combined pooled offense/defense reference arrays with current-season-only
+  special-teams reference values, causing the team ratings path to raise a NumPy broadcast error
+  before `*_combined.parquet` and `*_ratings.parquet` wrote.
+- The fix backfills historical `st_rating` values from `*_simultaneous_team_adjustments.parquet`
+  when rebuilding pooled team references and makes the multi-season pipeline exit non-zero with a
+  failure summary if any season data step fails.
 
 ## Stage 3 History
 
-The original Stage 3 headline compared prior-carrying Elo against within-season-only backbones.
-That result is preserved here as history rather than deleted or rewritten.
+The original Stage 3 headline compared prior-carrying Elo against within-season-only backbones. That
+result is preserved here as history rather than deleted or rewritten.
 
 ## Stage 3b Criterion
 
 Stage 3b re-registers the validation target into information-matched leagues.
 
-- League 1 is binding: within-season-only team backbones must beat SRS and RawEPA on held-out
-  MAE, with paired-bootstrap support.
-- League 2 is informative: prior-carrying forecast-only variants can be compared against Elo,
-  but that is not the binding published-rating gate.
+- League 1 is binding: within-season-only team backbones must beat SRS and RawEPA on held-out MAE,
+  with paired-bootstrap support.
+- League 2 is informative: prior-carrying forecast-only variants can be compared against Elo, but
+  that is not the binding published-rating gate.
 
 ## Stage 3b Acceptance Check
 
-- League 1 team headline:
-  Fail. Rolling EPA Weights overall MAE 10.845;
-  Rolling EPA Weights + ST overall MAE 10.835;
-  SRS 10.658;
-  RawEPA 10.695.
+- League 1 team headline: Fail. Rolling EPA Weights overall MAE 10.845; Rolling EPA Weights + ST
+  overall MAE 10.835; SRS 10.658; RawEPA 10.695.
 - League 1 bootstrap vs SRS: MAE delta 0.177 with 95% CI [0.111, 0.246].
 - League 1 bootstrap vs RawEPA: MAE delta 0.139 with 95% CI [0.061, 0.219].
-- QB revision sweep: not adopted. Current eligible-QB slope 0.505; fixed-defense slope 0.386;
-  best tested lighter-defense-penalty slope 0.557 (lighter_defense_penalty_x0).
+- QB revision sweep: not adopted. Current eligible-QB slope 0.505; fixed-defense slope 0.386; best
+  tested lighter-defense-penalty slope 0.557 (lighter_defense_penalty_x0).
 - League 2 forecast-only prior experiment: not evaluated in this worktree.
 
 ## Stage 3c Decision Rule
 
 > A candidate team backbone is promoted to the published ratings if, on the full held-out
-> walk-forward window: (1) it is significantly better than RawEPA and than the Stage 1
-> SaOvR (95% paired-bootstrap CI excluding zero); (2) it is numerically better than SRS
-> on both overall MAE and overall RMSE, and not significantly worse than SRS; and (3)
-> adopting it does not degrade team year-over-year stability below the Stage 3 recorded
-> value. Statistical parity with SRS plus the construct advantages (schedule-adjusted,
-> outcome-free components, unit-level decomposition) is sufficient and will be stated
-> plainly, as parity, in the methodology documentation — never overclaimed as
-> superiority.
+> walk-forward window: (1) it is significantly better than RawEPA and than the Stage 1 SaOvR (95%
+> paired-bootstrap CI excluding zero); (2) it is numerically better than SRS on both overall MAE and
+> overall RMSE, and not significantly worse than SRS; and (3) adopting it does not degrade team
+> year-over-year stability below the Stage 3 recorded value. Statistical parity with SRS plus the
+> construct advantages (schedule-adjusted, outcome-free components, unit-level decomposition) is
+> sufficient and will be stated plainly, as parity, in the methodology documentation — never
+> overclaimed as superiority.
 
-- Rationale: the stricter "beat SRS with CI clearing zero" bar is statistically
-  unattainable on this sample, and the current report already shows SRS itself does not
-  separate from RawEPA at 95%.
+- Rationale: the stricter "beat SRS with CI clearing zero" bar is statistically unattainable on this
+  sample, and the current report already shows SRS itself does not separate from RawEPA at 95%.
 
 ## Stage 3c Team Outcome
 
 - Candidate selected for the final Stage 3c gate: Play-Level EPA Weights + ST.
 - Play-level displacement check: Play-Level EPA Weights + ST overall MAE 10.813 and RMSE 13.885
-  versus Rolling EPA Weights + ST MAE 10.835 and RMSE 13.923.
-  Bootstrap delta -0.022 with 95% CI [-0.050, 0.005] and P(A<=B) 0.941.
-- Candidate vs RawEPA: MAE delta 0.117 with 95% CI [0.042, 0.197]
-  and P(A<=B) 0.002.
-- Candidate vs Stage 1 SaOvR: MAE delta 0.112 with 95% CI [0.031, 0.189]
-  and P(A<=B) 0.005.
-- Candidate vs SRS: overall MAE/RMSE 10.813/13.885 versus 10.658/13.746.
-  Bootstrap delta 0.155 with 95% CI [0.089, 0.220] and P(A<=B) 0.000.
-- Stability guard: Play-Level EPA Weights + ST Pearson/Spearman 0.387/0.363 versus Stage 3 SaOvR 0.377/0.365.
+  versus Rolling EPA Weights + ST MAE 10.835 and RMSE 13.923. Bootstrap delta -0.022 with 95% CI
+  [-0.050, 0.005] and P(A<=B) 0.941.
+- Candidate vs RawEPA: MAE delta 0.117 with 95% CI [0.042, 0.197] and P(A<=B) 0.002.
+- Candidate vs Stage 1 SaOvR: MAE delta 0.112 with 95% CI [0.031, 0.189] and P(A<=B) 0.005.
+- Candidate vs SRS: overall MAE/RMSE 10.813/13.885 versus 10.658/13.746. Bootstrap delta 0.155 with
+  95% CI [0.089, 0.220] and P(A<=B) 0.000.
+- Stability guard: Play-Level EPA Weights + ST Pearson/Spearman 0.387/0.363 versus Stage 3 SaOvR
+  0.377/0.365.
 - Promotion decision under the fixed Stage 3c rule: Fail.
 
 ## Acceptance Check
@@ -83,7 +76,8 @@ Stage 3b re-registers the validation target into information-matched leagues.
 - Leakage discipline: the snapshot perturbation test and prior-only fit test pass.
 - Team headline: Fail. SaOvR overall MAE 10.701; Elo 10.580; SRS 10.658; RawEPA 10.695.
 - Team late-season context: SaOvR late-week MAE 10.649; Elo 10.550; SRS 10.651; RawEPA 10.671.
-- QB stability: Pass. QSaCR Pearson/Spearman 0.479/0.466; passer rating 0.413/0.416; ANY/A 0.338/0.330.
+- QB stability: Pass. QSaCR Pearson/Spearman 0.479/0.466; passer rating 0.413/0.416; ANY/A
+  0.338/0.330.
 - External reference: mean QBR Pearson/Spearman correlation 0.891/0.870 across 20 seasons.
 
 ## Original Walk-Forward Summary
@@ -555,20 +549,18 @@ Stage 3b re-registers the validation target into information-matched leagues.
 
 ## QB Open Status
 
-- The published QB composite target and weights remain unchanged, and the split-half
-  companion metric is not promoted to a published surface.
-- The earlier QB audit continues to stand as a positive linear-adjustment result:
-  the additive adjustment operated at full strength in EPA units, the identity checks
-  held, and the fixed-defense and lighter-defense-penalty variants were correctly not
-  adopted.
-- The only remaining QB follow-up is the opponent-context batch below. If those checks
-  also come back null, the current published composite stands as the system's answer.
+- The published QB composite target and weights remain unchanged, and the split-half companion
+  metric is not promoted to a published surface.
+- The earlier QB audit continues to stand as a positive linear-adjustment result: the additive
+  adjustment operated at full strength in EPA units, the identity checks held, and the fixed-defense
+  and lighter-defense-penalty variants were correctly not adopted.
+- The only remaining QB follow-up is the opponent-context batch below. If those checks also come
+  back null, the current published composite stands as the system's answer.
 
 ## D5 Opponent-Offense Effect
 
 - Gate reading: not_supported.
-- Pooled weighted slope -0.041 with 95% CI [-0.134, 0.052]
-  and 10 / 27 positive seasons (p = 0.939).
+- Pooled weighted slope -0.041 with 95% CI [-0.134, 0.052] and 10 / 27 positive seasons (p = 0.939).
 
 | Scope | Season | QB Seasons | Dropbacks | Slope | Correlation | CI Lower | CI Upper | Positive Seasons | Season Count | Binomial P |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -611,8 +603,7 @@ Stage 3b re-registers the validation target into information-matched leagues.
 - Moderate-leverage win-probability band: 0.05-0.95.
 - Gate reading: not_supported.
 - Companion gate: stability fail, playoff correlation pass.
-- Pooled weighted slope -0.026 with 95% CI [-0.202, 0.153]
-  and 14 / 27 positive seasons (p = 0.500).
+- Pooled weighted slope -0.026 with 95% CI [-0.202, 0.153] and 14 / 27 positive seasons (p = 0.500).
 
 | Scope | Season | QB Seasons | Dropbacks | Slope | Correlation | CI Lower | CI Upper | Positive Seasons | Season Count | Binomial P |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -732,10 +723,9 @@ Bottom-half placebo summary:
 
 ## Stage 3d D3 Playoff Validation
 
-- Interpretation rule: whichever metric best predicts playoff performance is
-  evidence about that metric, not about 2025 specifically.
-  If QSaCR wins, that is vindicating evidence for the current composite and must
-  be recorded as such.
+- Interpretation rule: whichever metric best predicts playoff performance is evidence about that
+  metric, not about 2025 specifically. If QSaCR wins, that is vindicating evidence for the current
+  composite and must be recorded as such.
 
 | Season | Metric | QB Seasons | Playoff Dropbacks | Spearman | Spearman CI Lower | Spearman CI Upper | Pearson | Pearson CI Lower | Pearson CI Upper |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -924,7 +914,7 @@ Bottom-half placebo summary:
 
 ## SaCR Caveat
 
-SaCR may be evaluated as a secondary line with a caveat:
-its frozen Stage 2 weights were fit on the full 1999-2025 history.
-A walk-forward SaCR line over that same window has look-ahead in the weights.
-SaOvR is the headline walk-forward metric because it does not depend on a fitted Stage 2 weight snapshot.
+SaCR may be evaluated as a secondary line with a caveat: its frozen Stage 2 weights were fit on the
+full 1999-2025 history. A walk-forward SaCR line over that same window has look-ahead in the
+weights. SaOvR is the headline walk-forward metric because it does not depend on a fitted Stage 2
+weight snapshot.
