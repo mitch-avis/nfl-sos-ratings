@@ -167,6 +167,16 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         lambda weekly_df, qb_df, schedule_df, qb_season_df: (_qb_opp_profiles(), {"DEN": []}),
     )
     monkeypatch.setattr(main, "compute_qb_ratings", lambda qb_combined, **kwargs: _qb_ratings_df())
+    monkeypatch.setattr(
+        main,
+        "_build_team_schedule_strength",
+        lambda team_games, team_ratings: pl.DataFrame({"team": ["DEN"], "sos": [1.0]}),
+    )
+    monkeypatch.setattr(
+        main,
+        "_build_qb_faced_overall_quality",
+        lambda qb_games, team_ratings: pl.DataFrame({"team": ["DEN"], "faced_opp_SaCR": [1.0]}),
+    )
 
 
 def test_main_uses_current_season_scaling_for_team_and_qb_ratings(
@@ -345,6 +355,80 @@ def test_main_preserves_distinct_opponent_per_game_and_per_play_series(
     )
 
 
+def test_main_writes_team_and_qb_schedule_context_companions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Main should publish team and QB overall-opponent schedule context columns."""
+    original_team_sos = main._build_team_schedule_strength
+    original_qb_overall = main._build_qb_faced_overall_quality
+    _patch_common(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        main,
+        "load_qb_stats",
+        lambda season: pl.DataFrame(
+            {
+                "qb_id": ["qb-1"],
+                "qb_name": ["QB One"],
+                "team_abbr": ["DEN"],
+                "week": [1],
+                "qb_passer_rating": [100.0],
+            }
+        ),
+    )
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(
+        main,
+        "compute_qb_season_stats",
+        lambda qb_df, weekly_df=None: pl.DataFrame(
+            {
+                "qb_id": ["qb-1"],
+                "qb_name": ["QB One"],
+                "team": ["DEN"],
+                "qb_is_eligible": [True],
+                "qb_attempts_total": [10],
+                "qb_win_pct": [1.0],
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        main,
+        "compute_all_opponent_profiles",
+        lambda weekly_df, qb_df, schedule_df: (
+            pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
+            pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
+            {},
+        ),
+    )
+    monkeypatch.setattr(
+        main,
+        "compute_ratings",
+        lambda combined, **kwargs: pl.DataFrame(
+            {
+                "team": ["DEN", "KC"],
+                "SaCR": [0.5, 1.0],
+                "SaOR": [0.8, 0.2],
+                "SaDR": [0.6, 0.1],
+                "SaSTR": [0.2, 0.0],
+                "SaOvR": [0.7, 0.3],
+            }
+        ),
+    )
+    monkeypatch.setattr(main, "_build_team_schedule_strength", original_team_sos)
+    monkeypatch.setattr(main, "_build_qb_faced_overall_quality", original_qb_overall)
+
+    main.main()
+
+    combined = pl.read_parquet(tmp_path / f"{main.SEASON}_combined.parquet")
+    ratings = pl.read_parquet(tmp_path / f"{main.SEASON}_ratings.parquet")
+    qb_combined = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_combined.parquet")
+    qb_ratings = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_ratings.parquet")
+
+    assert combined.filter(pl.col("team") == "DEN").select("sos").item() == pytest.approx(1.0)
+    assert ratings.filter(pl.col("team") == "DEN").select("sos").item() == pytest.approx(1.0)
+    assert qb_combined.select("faced_opp_SaCR").item() == pytest.approx(1.0)
+    assert qb_ratings.select("faced_opp_SaCR").item() == pytest.approx(1.0)
+
+
 def test_build_qb_faced_defense_adjustments_weights_by_dropbacks() -> None:
     """Faced-defense schedule should weight each opponent by the QB's dropback volume."""
     qb_games = pl.DataFrame(
@@ -366,6 +450,76 @@ def test_build_qb_faced_defense_adjustments_weights_by_dropbacks() -> None:
     faced_defense = main._build_qb_faced_defense_adjustments(qb_games, defense_adjustments)
 
     assert faced_defense.select("adj_def_qb_epa_per_dropback_faced").item() == pytest.approx(0.22)
+
+
+def test_build_qb_faced_defense_adjustments_aggregates_multi_team_qb_seasons() -> None:
+    """Season-level faced-defense context should cover every game a QB played across teams."""
+    qb_games = pl.DataFrame(
+        {
+            "qb_id": ["QB1", "QB1", "QB1"],
+            "qb_name": ["QB One", "QB One", "QB One"],
+            "team_abbr": ["CLE", "CLE", "CIN"],
+            "opponent_team": ["BAL", "GB", "PIT"],
+            "qb_dropbacks": [20.0, 30.0, 50.0],
+        }
+    )
+    defense_adjustments = pl.DataFrame(
+        {
+            "team": ["BAL", "GB", "PIT"],
+            "adj_def_qb_epa_per_dropback": [-0.10, 0.20, -0.05],
+        }
+    )
+
+    faced_defense = main._build_qb_faced_defense_adjustments(qb_games, defense_adjustments)
+
+    assert faced_defense.height == 1
+    assert faced_defense.select("qb_id").item() == "QB1"
+    assert faced_defense.select("adj_def_qb_epa_per_dropback_faced").item() == pytest.approx(0.015)
+
+
+def test_build_qb_faced_defense_adjustments_normalizes_team_aliases() -> None:
+    """Opponent joins should use the shared team-alias normalization before weighting."""
+    qb_games = pl.DataFrame(
+        {
+            "qb_id": ["QB1", "QB1"],
+            "qb_name": ["QB One", "QB One"],
+            "team_abbr": ["DEN", "DEN"],
+            "opponent_team": ["LA", "BUF"],
+            "qb_dropbacks": [30.0, 10.0],
+        }
+    )
+    defense_adjustments = pl.DataFrame(
+        {
+            "team": ["LAR", "BUF"],
+            "adj_def_qb_epa_per_dropback": [0.30, -0.10],
+        }
+    )
+
+    faced_defense = main._build_qb_faced_defense_adjustments(qb_games, defense_adjustments)
+
+    assert faced_defense.select("adj_def_qb_epa_per_dropback_faced").item() == pytest.approx(0.2)
+
+
+def test_build_qb_faced_defense_adjustments_rejects_unmatched_opponents() -> None:
+    """Unmatched opponent rows should fail loudly instead of diluting schedule strength."""
+    qb_games = pl.DataFrame(
+        {
+            "qb_id": ["QB1"],
+            "qb_name": ["QB One"],
+            "team_abbr": ["DEN"],
+            "opponent_team": ["XXX"],
+            "qb_dropbacks": [25.0],
+        }
+    )
+    defense_adjustments = pl.DataFrame(
+        {
+            "team": ["BUF"],
+            "adj_def_qb_epa_per_dropback": [-0.10],
+        }
+    )
+
+    with pytest.raises(ValueError, match="Missing QB defense adjustments"):
+        main._build_qb_faced_defense_adjustments(qb_games, defense_adjustments)
 
 
 def test_main_skips_historical_qb_calibration(
