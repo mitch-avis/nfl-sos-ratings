@@ -155,4 +155,6 @@ def test_get_metadata_returns_registry_payload(tmp_path: Path) -> None:
     assert team_categories[0] == "Schedule-Adjusted Ratings"
     assert qb_categories[0] == "Schedule-Adjusted Ratings"
     assert payload["metrics"]["qb_sack_rate"]["polarity"] == "lower"
+    assert "that season's average" in payload["metrics"]["SaCR"]["description"].lower()
+    assert "1999-2005" in payload["metrics"]["QSaCR"]["note"]
     assert "qb_primary" in payload["pools"]
