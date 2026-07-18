@@ -16,6 +16,11 @@ export function GlossaryPage(): ReactElement {
           Use this page to decode the abbreviations in the tables and understand which ratings are
           best suited for overall ranking versus offense-only or schedule-only interpretation.
         </p>
+        <p>
+          The full public methodology write-up lives in the repository at
+          {' '}
+          <strong>docs/methodology.md</strong>.
+        </p>
       </section>
 
       <section className="panel guidance-panel">
