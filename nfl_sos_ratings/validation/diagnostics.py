@@ -61,6 +61,44 @@ def _weighted_mean_frame(
     return weighted
 
 
+def _qb_entity_group_keys(
+    frame: pl.DataFrame,
+    *,
+    qb_col: str,
+    qb_name_col: str,
+    team_col: str,
+) -> list[str]:
+    """Return the grouping keys that match the published one-row-per-QB season surface."""
+    keys = [column for column in (qb_col, qb_name_col) if column in frame.columns]
+    if keys:
+        return keys
+    if team_col in frame.columns:
+        return [team_col]
+    return []
+
+
+def _qb_team_context_frame(
+    frame: pl.DataFrame,
+    *,
+    group_keys: Sequence[str],
+    team_col: str,
+) -> pl.DataFrame | None:
+    """Return one representative team label per grouped QB when team context is available."""
+    if team_col not in frame.columns or team_col in group_keys:
+        return None
+
+    sort_columns = [*group_keys, "len", team_col]
+    descending = [False] * len(group_keys) + [True, False]
+    return (
+        frame.group_by([*group_keys, team_col])
+        .len()
+        .sort(sort_columns, descending=descending)
+        .group_by(list(group_keys), maintain_order=True)
+        .first()
+        .select([*group_keys, team_col])
+    )
+
+
 def _one_sided_binomial_tail(successes: int, trials: int) -> float:
     """Return ``P(X >= successes)`` for ``X ~ Binomial(trials, 0.5)``."""
     if trials <= 0:
@@ -1328,10 +1366,18 @@ def build_qb_adjustment_audit_frame(
         ridge_lambda=ridge_lambda,
     )
 
-    group_keys = [
-        column for column in (qb_col, qb_name_col, team_col) if column in filtered_games.columns
-    ]
+    group_keys = _qb_entity_group_keys(
+        filtered_games,
+        qb_col=qb_col,
+        qb_name_col=qb_name_col,
+        team_col=team_col,
+    )
     weight_col = dropback_col if dropback_col in filtered_games.columns else response_col
+    team_context = _qb_team_context_frame(
+        filtered_games,
+        group_keys=group_keys,
+        team_col=team_col,
+    )
 
     raw_frame = _weighted_mean_frame(
         filtered_games,
@@ -1354,14 +1400,14 @@ def build_qb_adjustment_audit_frame(
     ).select([*group_keys, "weighted_faced_defense"])
 
     adjusted_frame = qb_ratings.rename({"offense_rating": "adjusted_value"})
-    if qb_name_col in filtered_games.columns:
+    if any(column != qb_col for column in group_keys):
         adjusted_frame = adjusted_frame.join(
             filtered_games.select(group_keys).unique(),
             on=qb_col,
             how="left",
         )
 
-    return (
+    audit = (
         raw_frame.join(adjusted_frame, on=group_keys, how="left")
         .join(faced_defense, on=group_keys, how="left")
         .with_columns(
@@ -1370,8 +1416,12 @@ def build_qb_adjustment_audit_frame(
                 pl.col("adjusted_value") - pl.col("raw_value") - pl.col("weighted_faced_defense")
             ).alias("identity_residual"),
         )
-        .sort(group_keys)
     )
+
+    if team_context is not None:
+        audit = audit.join(team_context, on=group_keys, how="left")
+
+    return audit.sort(group_keys)
 
 
 def summarize_qb_adjustment_slopes(audit_frame: pl.DataFrame) -> pl.DataFrame:
