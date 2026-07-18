@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import polars as pl
 import pytest
 
-from nfl_sos_ratings import main, ratings
+from nfl_sos_ratings import main
 
 
 def _weekly_df() -> pl.DataFrame:
@@ -169,10 +169,10 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(main, "compute_qb_ratings", lambda qb_combined, **kwargs: _qb_ratings_df())
 
 
-def test_main_builds_historical_reference_frames_for_team_and_qb_ratings(
+def test_main_uses_current_season_scaling_for_team_and_qb_ratings(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Verify current-season ratings are standardized against available historical outputs."""
+    """Published ratings should be scaled from the current season only."""
     _patch_common(monkeypatch, tmp_path)
     monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
     monkeypatch.setattr(
@@ -197,18 +197,14 @@ def test_main_builds_historical_reference_frames_for_team_and_qb_ratings(
         )
     ).write_parquet(tmp_path / "2024_qb_combined.parquet")
 
-    captured: dict[str, int] = {}
+    captured: dict[str, object] = {}
 
     def capture_team_reference(combined: pl.DataFrame, **kwargs: object) -> pl.DataFrame:
-        reference_df = kwargs.get("reference_df")
-        assert isinstance(reference_df, pl.DataFrame)
-        captured["team_reference_height"] = reference_df.height
+        captured["team_reference_df"] = kwargs.get("reference_df")
         return _ratings_df()
 
     def capture_qb_reference(qb_combined: pl.DataFrame, **kwargs: object) -> pl.DataFrame:
-        reference_df = kwargs.get("reference_df")
-        assert isinstance(reference_df, pl.DataFrame)
-        captured["qb_reference_height"] = reference_df.height
+        captured["qb_reference_df"] = kwargs.get("reference_df")
         return _qb_ratings_df()
 
     monkeypatch.setattr(main, "compute_ratings", capture_team_reference)
@@ -216,70 +212,8 @@ def test_main_builds_historical_reference_frames_for_team_and_qb_ratings(
 
     main.main()
 
-    assert captured == {"team_reference_height": 2, "qb_reference_height": 2}
-
-
-def test_team_reference_frame_backfills_historical_special_teams_values(
-    tmp_path: Path,
-) -> None:
-    """Historical team references should carry pooled ST values into team rating standardization."""
-
-    def build_combined_frame(team_count: int, *, season_bias: float) -> pl.DataFrame:
-        teams = [f"T{index:02d}" for index in range(team_count)]
-        row_ids = list(range(team_count))
-        return pl.DataFrame(
-            {
-                "team": teams,
-                "adj_off_passing_epa_per_offensive_snap": [
-                    season_bias + (row_id * 0.01) for row_id in row_ids
-                ],
-                "adj_off_rushing_epa_per_offensive_snap": [
-                    season_bias / 2.0 + (row_id * 0.005) for row_id in row_ids
-                ],
-                "adj_def_passing_epa_per_offensive_snap": [
-                    season_bias / 3.0 + (row_id * 0.008) for row_id in row_ids
-                ],
-                "adj_def_rushing_epa_per_offensive_snap": [
-                    season_bias / 4.0 + (row_id * 0.004) for row_id in row_ids
-                ],
-            }
-        )
-
-    def build_special_teams_frame(team_count: int, *, season_bias: float) -> pl.DataFrame:
-        teams = [f"T{index:02d}" for index in range(team_count)]
-        return pl.DataFrame(
-            {
-                "team": teams,
-                "st_rating": [season_bias + (row_id * 0.003) for row_id in range(team_count)],
-            }
-        )
-
-    current_combined = build_combined_frame(32, season_bias=0.30).join(
-        build_special_teams_frame(32, season_bias=0.10),
-        on="team",
-        how="left",
-    )
-    build_combined_frame(31, season_bias=-0.20).write_parquet(tmp_path / "1999_combined.parquet")
-    build_special_teams_frame(31, season_bias=-0.05).write_parquet(
-        tmp_path / "1999_simultaneous_team_adjustments.parquet"
-    )
-    build_combined_frame(32, season_bias=0.05).write_parquet(tmp_path / "2024_combined.parquet")
-    build_special_teams_frame(32, season_bias=0.02).write_parquet(
-        tmp_path / "2024_simultaneous_team_adjustments.parquet"
-    )
-
-    reference_df = main._build_historical_reference_frame(
-        str(tmp_path),
-        2025,
-        "combined",
-        current_combined,
-    )
-    result = ratings.compute_ratings(current_combined, reference_df=reference_df)
-
-    assert reference_df.height == 95
-    assert reference_df.select(pl.col("st_rating").is_not_null().sum()).item() == 95
-    assert result.height == 32
-    assert result.columns == ["team", "SaOR", "SaDR", "SaSTR", "SaOvR", "SaCR"]
+    assert captured["team_reference_df"] is None
+    assert captured["qb_reference_df"] is None
 
 
 def test_main_returns_when_no_opponent_profiles(
