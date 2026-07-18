@@ -74,6 +74,13 @@ def _resolve_reference_df(df: pl.DataFrame, reference_df: pl.DataFrame | None) -
     return reference_df
 
 
+def _season_frames(df: pl.DataFrame) -> list[pl.DataFrame]:
+    """Partition a rating frame by season when a season column is present."""
+    if "season" not in df.columns or df.is_empty():
+        return [df]
+    return list(df.partition_by("season", maintain_order=True))
+
+
 def _reference_special_teams_values(reference_df: pl.DataFrame) -> np.ndarray | None:
     """Return pooled raw special-teams values when the reference frame covers every row."""
     if "st_rating" not in reference_df.columns:
@@ -225,69 +232,51 @@ def compute_ratings(
     reference_df: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
     """Compute team ratings from ridge-backed offense, defense, and special-teams components."""
-    resolved_reference_df = _resolve_reference_df(df, reference_df)
-    teams = df.select("team").to_series().to_list()
+    del reference_df
+    frames: list[pl.DataFrame] = []
 
-    raw_off = _build_ridge_epa_composite(df, _RIDGE_OFFENSE_COMPONENTS)
-    raw_def = _build_ridge_epa_composite(df, _RIDGE_DEFENSE_COMPONENTS)
-    reference_raw_off = _build_ridge_epa_composite(resolved_reference_df, _RIDGE_OFFENSE_COMPONENTS)
-    reference_raw_def = _build_ridge_epa_composite(resolved_reference_df, _RIDGE_DEFENSE_COMPONENTS)
-    raw_st = _col(df, "st_rating")
-    existing_sastr = _col(df, "SaSTR")
-    existing_reference_sastr = _col(resolved_reference_df, "SaSTR")
-    reference_raw_st = _reference_special_teams_values(resolved_reference_df)
+    for season_df in _season_frames(df):
+        teams = season_df.select("team").to_series().to_list()
 
-    saor = _zscore_against(raw_off.tolist(), reference_raw_off.tolist())
-    sadr = _zscore_against(raw_def.tolist(), reference_raw_def.tolist())
-    reference_saor = _zscore(reference_raw_off.tolist())
-    reference_sadr = _zscore(reference_raw_def.tolist())
+        raw_off = _build_ridge_epa_composite(season_df, _RIDGE_OFFENSE_COMPONENTS)
+        raw_def = _build_ridge_epa_composite(season_df, _RIDGE_DEFENSE_COMPONENTS)
+        raw_st = _col(season_df, "st_rating")
+        existing_sastr = _col(season_df, "SaSTR")
 
-    if raw_st is not None:
-        reference_st_source = reference_raw_st if reference_raw_st is not None else raw_st
-        sastr = _zscore_against(raw_st.tolist(), reference_st_source.tolist())
-        reference_sastr = _zscore(reference_st_source.tolist())
-    elif existing_sastr is not None:
-        sastr = existing_sastr
-        reference_sastr_source = (
-            existing_reference_sastr if existing_reference_sastr is not None else existing_sastr
+        saor = _zscore(raw_off.tolist())
+        sadr = _zscore(raw_def.tolist())
+
+        if raw_st is not None:
+            sastr = _zscore(raw_st.tolist())
+        elif existing_sastr is not None:
+            sastr = np.array(existing_sastr, dtype=np.float64)
+        else:
+            sastr = np.zeros(season_df.height, dtype=np.float64)
+
+        saovr = _zscore((saor + sadr + sastr).tolist())
+
+        composite_df = season_df
+        if "st_rating" not in composite_df.columns:
+            composite_df = composite_df.with_columns(pl.Series("st_rating", sastr.tolist()))
+
+        sacr_input = composite_weights.build_weighted_composite(
+            composite_df,
+            composite_weights.TEAM_SACR_FROZEN_SPEC,
+            composite_df,
         )
-        reference_sastr = np.array(reference_sastr_source, dtype=np.float64)
-    else:
-        sastr = np.zeros(df.height, dtype=np.float64)
-        reference_sastr = np.zeros(resolved_reference_df.height, dtype=np.float64)
+        sacr = _zscore(sacr_input.tolist())
 
-    saovr_input = saor + sadr + sastr
-    reference_saovr_input = reference_saor + reference_sadr + reference_sastr
-    saovr = _zscore_against(saovr_input.tolist(), reference_saovr_input.tolist())
-
-    composite_df = df
-    reference_composite_df = resolved_reference_df
-    if "st_rating" not in composite_df.columns:
-        composite_df = composite_df.with_columns(pl.Series("st_rating", sastr.tolist()))
-    if "st_rating" not in reference_composite_df.columns:
-        reference_composite_df = reference_composite_df.with_columns(
-            pl.Series("st_rating", reference_sastr.tolist())
+        frames.append(
+            pl.DataFrame(
+                {
+                    "team": teams,
+                    "SaOR": np.round(saor, 3).tolist(),
+                    "SaDR": np.round(sadr, 3).tolist(),
+                    "SaSTR": np.round(sastr, 3).tolist(),
+                    "SaOvR": np.round(saovr, 3).tolist(),
+                    "SaCR": np.round(sacr, 3).tolist(),
+                }
+            )
         )
 
-    sacr_input = composite_weights.build_weighted_composite(
-        composite_df,
-        composite_weights.TEAM_SACR_FROZEN_SPEC,
-        reference_composite_df,
-    )
-    reference_sacr_input = composite_weights.build_weighted_composite(
-        reference_composite_df,
-        composite_weights.TEAM_SACR_FROZEN_SPEC,
-        reference_composite_df,
-    )
-    sacr = _zscore_against(sacr_input.tolist(), reference_sacr_input.tolist())
-
-    return pl.DataFrame(
-        {
-            "team": teams,
-            "SaOR": np.round(saor, 3).tolist(),
-            "SaDR": np.round(sadr, 3).tolist(),
-            "SaSTR": np.round(sastr, 3).tolist(),
-            "SaOvR": np.round(saovr, 3).tolist(),
-            "SaCR": np.round(sacr, 3).tolist(),
-        }
-    ).sort("team")
+    return pl.concat(frames, how="vertical_relaxed").sort("team")
