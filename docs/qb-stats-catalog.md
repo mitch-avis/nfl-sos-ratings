@@ -76,7 +76,7 @@ team catalog all apply here; this document only restates what differs for indivi
 
 | View | Denominator | Additional Notes |
 | --- | --- | --- |
-| Ratings | none | Schedule-adjusted outputs (`QSaCR`, `QSaOR`, `QRaw`, `QSoS`, `QOutcome`). Every published project rating is standardized within its own season, so `0` means that season's average and `+1` means one standard deviation above that season's average. `QSaCR` is the published weighted QB composite over adjusted EPA/dropback, CPOE, sack rate, and TD-INT margin rate. `QRaw` and `QSaCR` are published for `2006+` only because CPOE is part of their formula; the `1999-2005` rows are intentionally null. This is a view, not a category. |
+| Ratings | none | Schedule-adjusted outputs (`QSaCR`, `QSaOR`, `QRaw`, `QSoS`, `faced_opp_SaCR`, `QOutcome`). Every published project rating is standardized within its own season, so `0` means that season's average and `+1` means one standard deviation above that season's average. `QSaCR` is the published weighted QB composite over adjusted EPA/dropback, CPOE, sack rate, and TD-INT margin rate. `QSoS` is the dropback-weighted pass-defense lens; `faced_opp_SaCR` is the equal-game overall-opponent-quality companion. `QRaw` and `QSaCR` are published for `2006+` only because CPOE is part of their formula; the `1999-2005` rows are intentionally null. This is a view, not a category. |
 | Raw Stat Totals | none | For **count** metrics only. **rate** and **avg** metrics keep the same value they show elsewhere. |
 | Per-Game Rates | games played (or games as primary QB — must be labeled) | For **count** metrics this is the per-game form. **rate** and **avg** metrics are unchanged. |
 | Per-Play Rates | play-specific denominators for the subcategory: dropback, attempt, carry, drive, series, etc. | For **count** metrics this uses each subcategory's natural denominator; **rate** and **avg** metrics are unchanged. |
@@ -120,7 +120,8 @@ as a ninth tab or category.
 
 The `Ratings` view now has two descriptive blocks:
 
-- the project's own schedule-adjusted ratings (`QSaCR`, `QSaOR`, `QRaw`, `QSoS`, `QOutcome`)
+- the project's own schedule-adjusted ratings (`QSaCR`, `QSaOR`, `QRaw`, `QSoS`,
+  `faced_opp_SaCR`, `QOutcome`)
 - external/reference ratings such as ESPN QBR and related ESPN reference columns
 
 For the project's own ratings, the displayed scale is always within-season. If a QB is `+2.0`, that
@@ -370,8 +371,10 @@ When any non-`Ratings` view is active, the secondary row is the eight-subcategor
 the taxonomy order above.
 
 Default sort `QSaCR`; qualification filter on `qb_is_eligible` with a "show all" toggle. The
-`Ratings` view keeps `QSaOR` as the ridge backbone, `QSaCR` as the published weighted composite, and
-`QOutcome` as descriptive-only context.
+`Ratings` view keeps `QSaOR` as the ridge backbone, `QSaCR` as the published weighted composite,
+`QSoS` as the dropback-weighted pass-defense schedule surface,
+`faced_opp_SaCR` as the equal-game overall-opponent-quality companion, and `QOutcome` as
+descriptive-only context.
 
 **QB Details page**: identical section order for cohesion, each section adding: percentile bars vs.
 qualified QBs (the existing `_pct` convention), the `qopp_` context and `diff_` comparison inline
