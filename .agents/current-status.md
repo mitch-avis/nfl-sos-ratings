@@ -24,6 +24,10 @@ current-status summary changes.
 - Active correctness blocker: none currently known in the published team/QB pipeline.
 - Active methodology blocker: none currently known. The recorded QB null results close that question
   with evidence unless a maintainer explicitly opens a new workstream.
+- Latest schedule-strength audit result: no evidence that QB faced-defense coefficients are
+  compressed relative to the team pass-defense coefficients. The 2025 Drake Maye versus Tyler
+  Shough discrepancy is now explained by construct plus weighting, with one smaller published-path
+  bug fixed for multi-team QBs.
 - Ratings methodology record: the archived validation history remains in
   `docs/validation-report.md`, while the reader-facing explanation is in `docs/methodology.md`.
 - Primary source of truth for metrics: `nfl_sos_ratings/metrics/`.
@@ -219,6 +223,32 @@ The current terminology/provenance cleanup adds an eighth theme.
       durable-language policy
     - folded the methodology workstream handoff into this file and removed the completed one-off
       methodology plan/prompt files per the repo file-keeping rule
+16. Schedule-strength audit and product follow-up:
+    - reproduced the 2025 four-QB Maye/Shough/Flacco/McCarthy opponent-quality anchor directly from
+      the published Parquet outputs and pinned it in `tests/test_qsos_audit.py`
+    - diagnosed one prompt-side data issue before code changes: the hand-entered `SaCR` / `SaDR`
+      values were transposed for Tyler Shough, Joe Flacco, and J.J. McCarthy relative to the
+      published Parquet files
+    - fixed a correctness bug in `main._build_qb_faced_defense_adjustments()`: multi-team QBs were
+      being grouped by QB-plus-team even though the published season surface is one row per QB,
+      which had understated Joe Flacco's 2025 schedule softness (`QSoS -2.026 -> -2.150` after the
+      fix and output refresh)
+    - hardened the same schedule helper to normalize opponent aliases before the join and fail
+      loudly on any unmatched opponent-defense row instead of silently diluting toward league
+      average
+    - aligned `validation.diagnostics.build_qb_adjustment_audit_frame()` with the same one-row-per-
+      QB grouping rule so the audit math matches the published surface
+    - recorded the calibration result: the QB defense coefficients are not compressed versus the
+      team pass-defense coefficients (`2025` raw SD ratio `1.633`, pooled `1999-2025` raw SD ratio
+      `1.626`), so the under-docking-by-compression hypothesis is not supported
+    - recorded the ranking explanation: `QSoS` tracks opponent `SaDR` / pass-defense much more
+      closely than opponent `SaCR` / `SRS`, and dropback weighting flips the Maye-vs-Shough
+      pass-defense ordering even before the overall-team-quality lens is considered
+    - published two new descriptive schedule-context surfaces: team `sos` (played-game mean
+      opponent `SaCR`) and QB `faced_opp_SaCR` (equal-game mean opponent `SaCR` over the games the
+      QB played)
+    - made the QSoS registry/UI description explicit that it is the dropback-weighted pass-defense
+      lens from the QB solve, not a general overall-opponent-strength measure
 
 ## QB composite-target closure
 
@@ -234,17 +264,15 @@ Recorded decision:
 
 Latest recorded green state across the current worktree:
 
-- `ruff format .`
-- `ruff check .`
-- `ty check .`
-- `pyright .`
-- `pytest`
+- `uv run ruff format .`
+- `uv run ruff check .`
+- `uv run ty check .`
+- `uv run pyright .`
+- `uv run pytest`
+- `uv run python -m nfl_sos_ratings.main`
 - `cd ui/web && npm run build`
-- `python -m nfl_sos_ratings.validation.walk_forward`
-- `python -m nfl_sos_ratings.pipeline`
 - `markdownlint README.md docs/methodology.md docs/stats-catalog.md docs/qb-stats-catalog.md`
   `docs/validation-report.md .agents/current-status.md`
-- `python -m nfl_sos_ratings.composite_weights`
 
 ## Completed workstreams
 
@@ -307,7 +335,7 @@ Still deferred in the registry:
 - `fg_pct_over_expected` model-based work
 - `avg_opponent_start_after_kickoff` next-drive linkage
 - `time_of_possession` family and `timeouts_used` clock parsing
-- `avg_rest_days`, `one_score_game_record`, `pythagorean_win_pct`, `sos`
+- `avg_rest_days`, `one_score_game_record`, `pythagorean_win_pct`
 - some tackle-accounting and duplicate display-only metrics
 
 ### B. Frontend/UI still open
