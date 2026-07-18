@@ -376,6 +376,130 @@ def test_compute_qb_playoff_validation_frame_canonicalizes_playoff_qb_ids_for_op
     assert validation.select("playoff_adjusted_epa_per_dropback").item() == pytest.approx(0.65)
 
 
+def test_compute_qb_playoff_validation_frame_handles_pre_2006_null_qsacr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Playoff validation should tolerate null pre-2006 QSaCR rows across seasons."""
+    pl.DataFrame(
+        {
+            "qb_id": ["canon-a"],
+            "qb_name": ["QB A"],
+            "team": ["TA"],
+            "qb_is_eligible": [True],
+            "QSaCR": [None],
+            "QSaOR": [0.5],
+            "QRaw": [None],
+            "qb_passer_rating": [92.0],
+            "qb_any_a": [6.8],
+        }
+    ).write_parquet(tmp_path / "2005_qb_combined.parquet")
+    pl.DataFrame(
+        {
+            "qb_id": ["canon-b"],
+            "qb_name": ["QB B"],
+            "team": ["TB"],
+            "qb_is_eligible": [True],
+            "QSaCR": [1.0],
+            "QSaOR": [0.8],
+            "QRaw": [0.7],
+            "qb_passer_rating": [100.0],
+            "qb_any_a": [7.5],
+        }
+    ).write_parquet(tmp_path / "2006_qb_combined.parquet")
+    pl.DataFrame(
+        {
+            "team": ["TB"],
+            "adj_def_passing_epa_per_offensive_snap": [0.20],
+        }
+    ).write_parquet(tmp_path / "2005_simultaneous_team_adjustments.parquet")
+    pl.DataFrame(
+        {
+            "team": ["TA"],
+            "adj_def_passing_epa_per_offensive_snap": [0.15],
+        }
+    ).write_parquet(tmp_path / "2006_simultaneous_team_adjustments.parquet")
+
+    playoff_frames = {
+        2005: pl.DataFrame(
+            {
+                "game_id": ["g1", "g1"],
+                "week": [20, 20],
+                "season_type": ["POST", "POST"],
+                "posteam": ["TA", "TB"],
+                "defteam": ["TB", "TA"],
+                "passer_player_id": ["canon-a", "canon-x"],
+                "passer_player_name": ["Q.A", "Q.X"],
+                "qb_dropback": [1, 1],
+                "pass": [1, 1],
+                "complete_pass": [1, 0],
+                "passing_yards": [10.0, 0.0],
+                "pass_touchdown": [0, 0],
+                "interception": [0, 0],
+                "sack": [0, 0],
+                "fumble_lost": [0, 0],
+                "qb_epa": [0.3, -0.2],
+                "cpoe": [None, None],
+                "yards_gained": [10.0, 0.0],
+            }
+        ),
+        2006: pl.DataFrame(
+            {
+                "game_id": ["g2", "g2"],
+                "week": [20, 20],
+                "season_type": ["POST", "POST"],
+                "posteam": ["TB", "TA"],
+                "defteam": ["TA", "TB"],
+                "passer_player_id": ["canon-b", "canon-y"],
+                "passer_player_name": ["Q.B", "Q.Y"],
+                "qb_dropback": [1, 1],
+                "pass": [1, 1],
+                "complete_pass": [1, 0],
+                "passing_yards": [12.0, 0.0],
+                "pass_touchdown": [0, 0],
+                "interception": [0, 0],
+                "sack": [0, 0],
+                "fumble_lost": [0, 0],
+                "qb_epa": [0.4, -0.1],
+                "cpoe": [2.0, -1.0],
+                "yards_gained": [12.0, 0.0],
+            }
+        ),
+    }
+    crosswalk_frames = {
+        2005: pl.DataFrame(
+            {
+                "qb_id": ["canon-a", "canon-x"],
+                "snap_player_id": [None, None],
+                "qb_name": ["QB A", "QB X"],
+                "qb_position": ["QB", "QB"],
+            }
+        ),
+        2006: pl.DataFrame(
+            {
+                "qb_id": ["canon-b", "canon-y"],
+                "snap_player_id": [None, None],
+                "qb_name": ["QB B", "QB Y"],
+                "qb_position": ["QB", "QB"],
+            }
+        ),
+    }
+
+    monkeypatch.setattr(
+        "nfl_sos_ratings.validation.diagnostics.load_playoff_pbp_data",
+        lambda season: playoff_frames[int(season)],
+    )
+    monkeypatch.setattr(
+        "nfl_sos_ratings.validation.diagnostics.load_qb_identity_crosswalk",
+        lambda season: crosswalk_frames[int(season)],
+    )
+
+    validation = compute_qb_playoff_validation_frame(tmp_path, [2005, 2006]).sort("season")
+
+    assert validation.height == 2
+    assert validation.select("QSaCR").to_series().to_list() == [None, 1.0]
+
+
 def test_build_qb_opponent_offense_frame_adjusts_for_defense_and_home_context() -> None:
     """Opponent-offense rows should keep game-level adjusted residuals and offense context."""
     qb_games = pl.DataFrame(
