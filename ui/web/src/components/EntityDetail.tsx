@@ -50,8 +50,8 @@ interface EntityDetailProps {
   viewState: ResolvedEntityViewState;
 }
 
-const TEAM_RATING_ORDER = ['SaCR', 'SRS', 'SaOvR', 'SaOR', 'SaDR'];
-const QB_RATING_ORDER = ['QSaCR', 'QSaOR', 'QOutcome', 'QRaw', 'QSoS'];
+const TEAM_RATING_ORDER = ['SaCR', 'sos', 'SRS', 'SaOvR', 'SaOR', 'SaDR'];
+const QB_RATING_ORDER = ['QSaCR', 'QSaOR', 'QSoS', 'faced_opp_SaCR', 'QOutcome', 'QRaw'];
 
 function buildRatingsColumns(kind: EntityConfig['kind'], columns: string[]): string[] {
   const preferredOrder = kind === 'teams' ? TEAM_RATING_ORDER : QB_RATING_ORDER;
