@@ -11,8 +11,7 @@ The short version:
 - The published scale is within-season. A rating of `+1.0` means one standard deviation above that
   season's peers, not one standard deviation above some pooled all-time baseline.
 
-See [validation-report.md](validation-report.md) for the current report output and
-[README.md](../README.md) for the pipeline overview.
+See [validation-report.md] for the current report output and [README.md] for the pipeline overview.
 
 ## What The Ratings Claim
 
@@ -23,11 +22,13 @@ For teams, the project publishes:
 - `SaSTR`: special teams after adjusting for special-teams context
 - `SaOvR`: overall team quality from those three adjusted pieces
 - `SaCR`: the published weighted team composite
+- `sos`: the played-game mean opponent `SaCR`, kept as descriptive schedule context
 
 For quarterbacks, the project publishes:
 
 - `QSaOR`: adjusted EPA per dropback from the simultaneous QB solve
-- `QSoS`: the difficulty of the defenses faced
+- `QSoS`: dropback-weighted pass-defense difficulty from the QB-level solve
+- `faced_opp_SaCR`: equal-game overall opponent team quality over the games played
 - `QRaw`: the raw-performance composite before schedule adjustment
 - `QSaCR`: the published weighted QB composite
 - `QOutcome`: descriptive outcome context only
@@ -94,6 +95,10 @@ The published team composite, `SaCR`, is a weighted blend of five standardized c
 The special-teams surface is published separately as `SaSTR` because it is a real part of team
 quality, but a smaller one than offense and defense.
 
+The team `sos` surface is descriptive-only. It is the played-game mean of opponent `SaCR`, so it
+answers a plain-language schedule question: how hard was the overall slate by the project's own
+headline team-quality measure? It does not feed the team grade itself.
+
 ## Quarterback Adjustment
 
 The quarterback system is built around QB-controlled passing outcomes, not team record.
@@ -119,7 +124,19 @@ Non-CPOE QB ratings still publish for every season:
 
 - `QSaOR`
 - `QSoS`
+- `faced_opp_SaCR`
 - `QOutcome`
+
+The schedule-context surfaces are intentionally split.
+
+- `QSoS` is the pass-defense lens: a dropback-weighted mean of the defense-side QB ridge
+  coefficients, then standardized within season.
+- `faced_opp_SaCR` is the overall-opponent-quality lens: the equal-game mean of opponent `SaCR`
+  over the games that QB played.
+
+That distinction matters because a team can be weak overall while still presenting a middling or
+even difficult pass-defense matchup, and because dropback weighting can change the schedule read
+when a QB's hardest and easiest defenses did not all carry the same volume.
 
 ## How The Weights Are Chosen
 
@@ -207,6 +224,15 @@ withstood every pre-registered challenge strongly enough that no new QB-path cha
 His edge also survived restriction to top-half defenses, so the final verdict did not depend on
 all-opponent averaging alone.
 
+The later schedule-strength audit tightened the interpretation further. By overall opponent quality,
+Maye's 2025 slate was the softest of the named QBs: equal-game `faced_opp_SaCR` was `-0.7009`, and
+the dropback-weighted overall-opponent mean was still `-0.6806`. But `QSoS` stayed behind Joe
+Flacco, Tyler Shough, and J.J. McCarthy because it measures pass-defense difficulty, not overall
+team quality, and because dropback weighting flipped the Maye-vs-Shough pass-defense ordering.
+The audit also fixed one outright bug: multi-team QBs were being grouped by QB-plus-team when
+building the faced-defense schedule input, which had slightly understated Flacco's softness before
+the fix.
+
 ## Subjective Choices That Remain
 
 Not every choice is purely mechanical. The project is explicit about the remaining judgment calls.
@@ -233,3 +259,6 @@ That means:
 
 That is the standard the current validation report follows, and it is the standard future revisions
 should keep.
+
+[README.md]: ../README.md
+[validation-report.md]: validation-report.md
