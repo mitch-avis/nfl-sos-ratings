@@ -309,6 +309,37 @@ class TestRatingPools:
             0.6687790473858877,
         )
 
+    def test_published_rating_descriptions_define_the_within_season_scale(
+        self, registry: MetricRegistry
+    ) -> None:
+        """Published rating tooltips should explain the within-season z-score scale."""
+        for column in (
+            "SaCR",
+            "SaOR",
+            "SaDR",
+            "SaSTR",
+            "SaOvR",
+            "QRaw",
+            "QSaOR",
+            "QSoS",
+            "QSaCR",
+            "QOutcome",
+        ):
+            resolved = registry.resolve_column(column)
+            assert resolved is not None
+            assert "that season" in resolved.description.lower(), column
+
+    def test_qb_cpoe_era_boundary_is_documented_on_published_composites(
+        self, registry: MetricRegistry
+    ) -> None:
+        """QRaw and QSaCR should explain the 2006 CPOE-era publication boundary."""
+        for column in ("QRaw", "QSaCR"):
+            resolved = registry.resolve_column(column)
+            assert resolved is not None
+            assert resolved.base.note is not None
+            assert "1999-2005" in resolved.base.note
+            assert "2006" in resolved.base.note
+
     def test_pool_members_are_ratings_eligible(self, registry: MetricRegistry) -> None:
         """Only ratings_eligible metrics may enter any pool."""
         for pool in registry.pools.values():
