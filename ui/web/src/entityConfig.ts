@@ -44,7 +44,7 @@ const ENTITY_CONFIG: Record<EntityKind, EntityConfig> = {
     labelKey: 'team',
     defaultSortColumn: 'SaCR',
     defaultGroups: ['identity', 'ratings', 'per_game_rates'],
-    compareColumns: ['SaCR', 'SRS', 'SaOvR', 'SaOR', 'SaDR'],
+    compareColumns: ['SaCR', 'sos', 'SRS', 'SaOvR', 'SaOR', 'SaDR'],
     detailGroups: ['ratings', 'per_game_rates', 'per_snap_rates', 'opponent_context'],
     identityColumns: ['team'],
     primaryRankingLabel: 'Primary overall team rank: SaCR',
@@ -53,6 +53,7 @@ const ENTITY_CONFIG: Record<EntityKind, EntityConfig> = {
       + 'reference and SaOR, SaDR, and SaOvR as supporting component views.',
     pageNotes: [
       'SaCR is the default team sort and the best current one-number summary of the schedule-adjusted team model.',
+      'SoS is the played-game mean opponent SaCR, which surfaces how hard the overall team slate was without changing the team grade itself.',
       'SRS remains a useful point-margin reference when you want a simpler whole-team baseline beside the composite.',
       'SaCR remains the multi-stat composite, while SaOR and SaDR are better offense-only and defense-only slices.',
     ],
@@ -65,7 +66,7 @@ const ENTITY_CONFIG: Record<EntityKind, EntityConfig> = {
     labelKey: 'qb_name',
     defaultSortColumn: 'QSaCR',
     defaultGroups: ['identity', 'ratings', 'per_game_rates'],
-    compareColumns: ['QSaCR', 'QSaOR', 'QSoS', 'QOutcome', 'QRaw'],
+    compareColumns: ['QSaCR', 'QSaOR', 'QSoS', 'faced_opp_SaCR', 'QOutcome', 'QRaw'],
     detailGroups: ['ratings', 'per_dropback_rates', 'per_game_rates', 'raw_totals', 'opponent_context'],
     identityColumns: ['qb_id', 'qb_name', 'team'],
     primaryRankingLabel: 'Primary overall QB rank: QSaCR',
@@ -75,7 +76,8 @@ const ENTITY_CONFIG: Record<EntityKind, EntityConfig> = {
     pageNotes: [
       'QSaCR is the final QB composite after opponent adjustment and a smaller outcome layer.',
       'QSaOR is the better choice when you want QB passing performance with opponent adjustment but without the extra outcome blend.',
-      'QSoS is schedule difficulty. Higher means the QB faced tougher defenses, not that he played better.',
+      'QSoS is dropback-weighted pass-defense difficulty. Higher means the QB faced tougher pass defenses, not that he played better.',
+      'Opp SaCR is the equal-game mean opponent team quality companion, so users can compare overall slate strength against the pass-defense-only QSoS lens.',
     ],
   },
 };
