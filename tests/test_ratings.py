@@ -247,28 +247,25 @@ def test_compute_ratings_uses_frozen_stage_two_component_weights(
     assert result.select("SaCR").to_series().to_list() == pytest.approx(expected)
 
 
-def test_compute_ratings_can_standardize_against_historical_reference() -> None:
-    """Verify team z-scores can be scaled against a wider historical reference frame."""
+def test_compute_ratings_standardize_within_the_current_season() -> None:
+    """Published team ratings should be centered and scaled within the current season."""
     current_df = pl.DataFrame(
         {
-            "team": ["A", "B"],
-            "adj_off_passing_epa_per_offensive_snap": [0.30, 0.10],
-            "adj_off_rushing_epa_per_offensive_snap": [0.18, 0.08],
-        }
-    )
-    historical_reference_df = pl.DataFrame(
-        {
-            "team": ["H1", "H2", "H3", "H4", "H5", "H6"],
-            "adj_off_passing_epa_per_offensive_snap": [0.00, 0.05, 0.10, 0.25, 0.35, 0.45],
-            "adj_off_rushing_epa_per_offensive_snap": [0.00, 0.03, 0.08, 0.15, 0.22, 0.30],
+            "team": ["A", "B", "C", "D"],
+            "adj_off_passing_epa_per_offensive_snap": [0.30, 0.12, -0.05, -0.20],
+            "adj_off_rushing_epa_per_offensive_snap": [0.15, 0.08, -0.01, -0.10],
+            "adj_def_passing_epa_per_offensive_snap": [0.22, 0.09, -0.04, -0.16],
+            "adj_def_rushing_epa_per_offensive_snap": [0.14, 0.05, -0.02, -0.08],
+            "st_rating": [0.11, 0.03, -0.02, -0.09],
         }
     )
 
-    season_scaled = ratings.compute_ratings(current_df)
-    historical_scaled = ratings.compute_ratings(current_df, reference_df=historical_reference_df)
+    result = ratings.compute_ratings(current_df)
 
-    assert season_scaled.filter(pl.col("team") == "A").select("SaOR").item() > 0
-    assert historical_scaled.filter(pl.col("team") == "A").select("SaOR").item() > 0
-    assert abs(historical_scaled.filter(pl.col("team") == "A").select("SaOR").item()) < abs(
-        season_scaled.filter(pl.col("team") == "A").select("SaOR").item()
-    )
+    for column in ("SaOR", "SaDR", "SaSTR", "SaOvR", "SaCR"):
+        values = np.asarray(
+            result.select(column).to_series().cast(pl.Float64).to_list(),
+            dtype=np.float64,
+        )
+        assert float(values.mean()) == pytest.approx(0.0, abs=0.001)
+        assert float(values.std(ddof=1)) == pytest.approx(1.0, abs=0.001)
