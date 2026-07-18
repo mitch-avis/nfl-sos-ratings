@@ -29,7 +29,8 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
             "The site's headline quarterback rating. It is a weighted blend of standardized "
             "adjusted EPA per dropback, completion percentage above expectation, sack rate, "
             "and TD-INT margin rate, while wins and late-game results stay in QOutcome only. "
-            "0 is league average; positive is better."
+            "0 is that season's average among qualifying quarterbacks, and positive is better "
+            "than that season's average."
         ),
         shape="score",
         polarity="higher",
@@ -58,6 +59,11 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
                 ("equal_weight_mae", 0.074351),
             ),
         ),
+        note=(
+            "Published only for 2006+ because adjusted CPOE is one of the four frozen "
+            "components. The 1999-2005 rows stay null instead of shipping a reduced-input "
+            "version of the headline QB composite."
+        ),
     ),
     _ratings(
         name="QSaOR",
@@ -66,7 +72,8 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "Passing performance after adjusting for the defenses actually faced, using the "
             "simultaneous ridge estimate of QB EPA per dropback. This is the published "
-            "opponent-adjusted QB quality signal."
+            "opponent-adjusted QB quality signal. 0 is that season's average qualifying QB; "
+            "positive means better than that season's average."
         ),
         shape="score",
         polarity="higher",
@@ -79,12 +86,17 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         full_name="QB Raw Performance Composite",
         description=(
             "The unadjusted composite of the core passing stat pool, before any schedule "
-            "context is applied."
+            "context is applied. 0 is that season's average qualifying QB before schedule "
+            "adjustment."
         ),
         shape="score",
         polarity="higher",
         source="D",
         since=1999,
+        note=(
+            "Published only for 2006+ because raw CPOE is part of the core stat pool. The "
+            "1999-2005 rows stay null instead of using a reduced-input version."
+        ),
     ),
     _ratings(
         name="QSoS",
@@ -93,7 +105,8 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "How tough the defenses this quarterback faced were, measured as the mean faced-"
             "defense coefficient from the simultaneous ridge QB solve. Higher means a harder "
-            "slate — it describes the schedule, not the quarterback's play."
+            "slate than that season's average faced-defense difficulty — it describes the "
+            "schedule, not the quarterback's play."
         ),
         shape="score",
         polarity="higher",
@@ -123,7 +136,8 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "A secondary signal built from wins and late-game results such as "
             "fourth-quarter comebacks and game-winning drives. Descriptive-only: kept "
-            "separate so results never contaminate the performance ratings."
+            "separate so results never contaminate the performance ratings. 0 is that "
+            "season's average outcome profile among qualifying quarterbacks."
         ),
         shape="score",
         polarity="higher",
