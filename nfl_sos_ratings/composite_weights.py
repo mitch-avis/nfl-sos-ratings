@@ -671,14 +671,17 @@ def main() -> None:
     seasons = range(START_YEAR, END_YEAR + 1)
 
     team_rows = build_team_training_rows(data_dir, seasons)
+    team_candidate_feature_columns = [
+        component.name for component in TEAM_SACR_COMPONENTS if component.name in team_rows.columns
+    ]
     team_candidate_weights = fit_linear_weights(
         team_rows,
-        feature_columns=[component.name for component in TEAM_SACR_COMPONENTS],
+        feature_columns=team_candidate_feature_columns,
         target_column="target",
     )
     team_candidate_diag = evaluate_leave_one_season_out(
         team_rows,
-        feature_columns=[component.name for component in TEAM_SACR_COMPONENTS],
+        feature_columns=team_candidate_feature_columns,
         target_column="target",
         holdout_column="season",
     )
@@ -718,7 +721,10 @@ def main() -> None:
     print("Composite-weight fit summary")
     print(f"Command: {COMPOSITE_WEIGHT_FITTING_COMMAND}")
     print()
-    print("Team candidate fit (includes turnover-creation test component):")
+    if "adj_def_takeaway_creation_rate_per_defensive_snap" in team_candidate_feature_columns:
+        print("Team candidate fit (includes turnover-creation test component):")
+    else:
+        print("Team candidate fit (available team component menu):")
     for name, weight in team_candidate_weights.items():
         print(f"  {name}: {weight:.12f}")
     print(
