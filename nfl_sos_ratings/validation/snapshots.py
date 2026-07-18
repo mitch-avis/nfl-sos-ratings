@@ -298,7 +298,6 @@ def build_team_rating_snapshot(
     weekly_team_rows: pl.DataFrame,
     cutoff_week: int,
     response_cols: Sequence[str] | None = None,
-    reference_df: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
     """Build a team rating snapshot using only games before ``cutoff_week``.
 
@@ -307,7 +306,6 @@ def build_team_rating_snapshot(
             ``is_home``, and the selected response columns.
         cutoff_week: Snapshot cutoff. Only rows with ``week < cutoff_week`` are used.
         response_cols: Optional override for the ridge response columns.
-        reference_df: Optional reference frame for rating standardization.
 
     Returns:
         A ``compute_ratings``-compatible team ratings table for the pre-cutoff games.
@@ -331,7 +329,7 @@ def build_team_rating_snapshot(
             .to_list()
         )
         return _empty_team_snapshot(teams)
-    return compute_ratings(adjusted, reference_df=reference_df)
+    return compute_ratings(adjusted)
 
 
 __all__ = [
