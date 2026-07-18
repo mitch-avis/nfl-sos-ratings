@@ -16,18 +16,16 @@ current-status summary changes.
 ## Current state
 
 - Status: code-health green, with the PBP-first pipeline, Parquet contract, metrics registry, and
-  analyst UI shell implemented. Stage 3c promoted the play-level T4 team backbone into the published
-  team ratings path. Block R is now fixed and the 1999-2025 back-catalog has been regenerated. Stage
-  3d evidence is in: D1 read `not_supported`, D2 was skipped by rule, and D3 is recorded in the
-  validation report. The D4 QB composite-target question is closed in favor of keeping the current
-  published QB composite unchanged, and the concluding Stage 3e opponent-context batch also returned
-  null results.
+  analyst UI shell implemented. The ratings-methodology workstream is closed: published team and QB
+  ratings now use within-season standardization, the pooled reference path is removed from the live
+  pipeline, the CPOE-bearing QB headline composites (`QRaw`, `QSaCR`) are intentionally null for
+  1999-2005, the public write-up lives in `docs/methodology.md`, and archived stage/block wording is
+  isolated to `nfl_sos_ratings/validation/history_strings.py` for validation-report continuity.
 - Active correctness blocker: none currently known in the published team/QB pipeline.
-- Active methodology blocker: none currently known. The recorded Stage 3e null results close the QB
-  question with evidence unless a maintainer explicitly opens a new workstream.
-- Ratings methodology overhaul: the Stage 3 through Stage 3c harness/report work are implemented in
-  the current worktree. They record the original negative Elo-leading headline, the intermediate
-  T1/T2 team improvements, and the final promoted T4 team backbone.
+- Active methodology blocker: none currently known. The recorded QB null results close that question
+  with evidence unless a maintainer explicitly opens a new workstream.
+- Ratings methodology record: the archived validation history remains in `docs/validation-report.md`,
+  while the reader-facing explanation is in `docs/methodology.md`.
 - Primary source of truth for metrics: `nfl_sos_ratings/metrics/`.
 - Human-readable metric companions: `docs/stats-catalog.md` and `docs/qb-stats-catalog.md`.
 - Active workstreams: remaining metric expansion work and UI/detail-page follow-up.
@@ -208,6 +206,19 @@ The current terminology/provenance cleanup adds an eighth theme.
     - rejected the leverage-filtered companion: year-over-year stability `0.4386 / 0.4222` versus
       published `QSaCR` `0.4978 / 0.4842`, and pooled playoff Spearman `0.3149` versus `QSaOR`
       `0.3226`
+15. Ratings methodology Stage 4 and closure:
+    - switched the published team and QB scales to within-season standardization and removed the
+      pooled historical-reference path from the live pipeline and validation snapshot path
+    - documented the explicit 2006+ publication boundary for the CPOE-bearing QB headline
+      composites; `QRaw` and `QSaCR` now stay null for 1999-2005 instead of silently renormalizing
+      a reduced-input formula
+    - added `docs/methodology.md` as the durable public methodology page and linked it from the
+      README and the existing glossary UI route
+    - moved archived validation-report stage/block wording into
+      `nfl_sos_ratings/validation/history_strings.py`, leaving the rest of the source tree under the
+      durable-language policy
+    - folded the methodology workstream handoff into this file and removed the completed one-off
+      methodology plan/prompt files per the repo file-keeping rule
 
 ## QB composite-target closure
 
@@ -228,9 +239,11 @@ Latest recorded green state across the current worktree:
 - `ty check .`
 - `pyright .`
 - `pytest`
+- `cd ui/web && npm run build`
 - `python -m nfl_sos_ratings.validation.walk_forward`
-- `markdownlint README.md docs/stats-catalog.md docs/qb-stats-catalog.md` `docs/validation-report.md
-  .agents/current-status.md` `.agents/ratings-methodology-overhaul-plan.md`
+- `python -m nfl_sos_ratings.pipeline`
+- `markdownlint README.md docs/methodology.md docs/stats-catalog.md docs/qb-stats-catalog.md`
+  `docs/validation-report.md .agents/current-status.md`
 - `python -m nfl_sos_ratings.composite_weights`
 
 ## Completed workstreams
@@ -259,65 +272,19 @@ Latest recorded green state across the current worktree:
 - Compare, filtering, sticky columns, and glossary/tooltip support are shipped.
 - Registry-backed category ordering and metric metadata are wired through the API and frontend.
 
+### Ratings methodology
+
+- Published team and QB ratings are standardized within their own season.
+- The live pipeline no longer uses a pooled all-time reference frame to scale published ratings.
+- The CPOE-bearing QB headline composites (`QRaw`, `QSaCR`) publish for 2006+ only; `QSaOR`,
+  `QSoS`, and `QOutcome` still publish across the full 1999-2025 span.
+- The durable reader-facing explanation lives in `docs/methodology.md`.
+- The archived experimental record lives in `docs/validation-report.md`.
+- New methodology challenges should follow the same pattern: define a falsifiable hypothesis,
+  pre-register the information set and gate, then compare against the published path and the
+  relevant baselines.
+
 ## Active backlog
-
-### 0. Ratings methodology overhaul
-
-Tracked in `.agents/ratings-methodology-overhaul-plan.md`.
-
-Current state:
-
-- Stage 0 is complete.
-- Stage 1 is complete in the current worktree.
-- Stage 2 is complete in the current worktree.
-- Stage 3 harness/report work is implemented in the current worktree.
-- Stage 3 headline finding is negative: overall walk-forward MAE favors Elo (`10.580`) over SRS
-  (`10.658`), RawEPA (`10.695`), and SaOvR (`10.701`).
-- Stage 3b is now the active methodology follow-up. The criterion has been re-registered into two
-  information-matched leagues because the failed Stage 3 headline compared prior-carrying Elo to
-  within-season-only backbones:
-  - League 1 is binding: within-season-only team backbones must beat SRS and RawEPA on held-out MAE,
-    with paired-bootstrap confidence intervals.
-  - League 2 is informative: a forecast-only previous-season prior can be compared against fixed-
-    constant Elo, but that is not the binding acceptance gate for the published within-season
-    ratings.
-- The original Elo-leading Stage 3 result stays recorded as history in the validation report and
-  remains part of the methodology record.
-- Stage 3b team experiment result: `T1Weighted` lowers overall MAE to `10.648`, and `T2Weighted`
-  lowers it further to `10.630`. `T2Weighted` beats RawEPA with a nonzero bootstrap edge but does
-  not clear the same bar against SRS, so League 1 remains a fail under the re-registered criterion.
-- Stage 3c is complete on the team side. The final recorded team promotion rule was:
-  - A candidate team backbone is promoted to the published ratings if, on the full held-out
-    walk-forward window: (1) it is significantly better than RawEPA and than the Stage 1 SaOvR (95%
-    paired-bootstrap CI excluding zero); (2) it is numerically better than SRS on both overall MAE
-    and overall RMSE, and not significantly worse than SRS; and (3) adopting it does not degrade
-    team year-over-year stability below the Stage 3 recorded value.
-  - Statistical parity with SRS plus the construct advantages (schedule-adjusted, outcome-free
-    components, unit-level decomposition) is sufficient and will be stated plainly, as parity, in
-    the methodology documentation. It must never be overclaimed as superiority.
-  - Rationale: the stricter "beat SRS with CI clearing zero" bar is statistically unattainable on
-    the available sample, and the current report already shows SRS itself does not separate from
-    RawEPA at 95%.
-  - The Stage 3 harness now carries paired-bootstrap probability-of-superiority output (`P(candidate
-  MAE <= SRS MAE)`) alongside the existing CI tables so Stage 3c can compare each candidate versus
-  SRS by split and overall.
-- Stage 3b QB experiment result: no adoption. Q1 fixed team-defense offsets and Q2 lighter defense
-  penalties did not produce a convincing enough eligible-QB schedule-adjustment gain to justify
-  changing the published QB backbone or refreezing QSaCR.
-- Stage 3d implementation is complete in the current worktree. D1 read `not_supported`, D2 was
-  skipped, and D3 favored `QRaw` first and `QSaCR` second on the pooled playoff check.
-- Stage 3e is complete in the current worktree. D5 was `not_supported`, and D6's leverage companion
-  gate was also `not_supported`, so the current published QB composite stands.
-- Stage 3 secondary findings are positive: QSaCR stability beats passer rating and ANY/A on the
-  matched QB population, and QSaCR tracks ESPN QBR strongly across 2006-2025.
-- Team-side Stage 3 is closed. The promoted published team path is the play-level T4 backbone with
-  `SaSTR` and the refrozen five-component `SaCR` blend.
-- Stage 1b play-level ridge fitting is no longer deferred for teams; the play-level team backbone
-  won the Stage 3c gate and is now the published path.
-- Turnover margin remains descriptive-only and is intentionally out of published quality ratings
-  unless a maintainer approves a later split into more causal sub-signals.
-- The approved team takeaway-creation candidate was tested in Stage 2 and excluded after a small
-  negative fitted weight, so the frozen SaCR blend stays EPA-only for now.
 
 ### A. Metric expansion still open
 
@@ -384,11 +351,11 @@ These are not active workstreams, but they are still useful context.
 
 ## What the next agent should do first
 
-1. Read this file and confirm whether the task belongs to the ratings-methodology, metric-expansion,
-  or frontend plan.
-2. If the task touches published rating methodology, continue from
-  `.agents/ratings-methodology-overhaul-plan.md`, read `docs/validation-report.md`, and start from
-  the recorded Stage 3e null results unless a maintainer directs otherwise.
+1. Read this file and confirm whether the task belongs to metric expansion, the analyst UI, or a
+  new methodology challenge.
+2. If the task challenges published rating methodology, start from `docs/methodology.md` and
+  `docs/validation-report.md`, then define a falsifiable protocol and decision gate before making
+  code changes.
 3. If the task touches planned metrics, continue from `.agents/metric-expansion-plan.md`.
 4. If the task touches the analyst UI, continue from `.agents/frontend-ui-kickoff-plan.md`.
 5. Keep `docs/stats-catalog.md` and `docs/qb-stats-catalog.md` synchronized with the registry when
