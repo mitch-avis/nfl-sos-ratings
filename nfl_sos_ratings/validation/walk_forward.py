@@ -21,11 +21,15 @@ from nfl_sos_ratings.validation import history_strings
 from nfl_sos_ratings.validation.diagnostics import (
     compute_qb_case_study,
     compute_qb_defense_spread_summary,
+    compute_qb_designed_rush_preview,
     compute_qb_experiment_sweep,
     compute_qb_leverage_diagnostics,
     compute_qb_metric_stability_from_history,
     compute_qb_opponent_offense_diagnostics,
     compute_qb_playoff_validation_frame,
+    compute_qb_schedule_lens_anchor,
+    compute_qb_schedule_lens_divergence,
+    compute_qb_schedule_lens_trace,
     compute_qb_season_audit_summary,
     compute_qb_split_half_diagnostics,
     compute_season_mae_deltas,
@@ -1014,7 +1018,7 @@ def build_team_decision_lines(
     t4_team_stability: dict[str, float | int] | None,
 ) -> list[str]:
     """Build the team decision-rule and outcome narrative for the validation report."""
-    return history_strings.build_team_decision_lines(
+    return history_strings.build_team_report_decision_lines(
         metrics,
         mae_deltas,
         base_team_stability=base_team_stability,
@@ -1026,7 +1030,7 @@ def build_team_decision_lines(
 
 def build_qb_status_lines() -> list[str]:
     """Return the current quarterback-methodology status note for the report."""
-    return history_strings.build_qb_status_lines()
+    return history_strings.build_qb_report_status_lines()
 
 
 def compute_stability_metrics(data_dir: Path, seasons: list[int]) -> pl.DataFrame:
@@ -1219,6 +1223,10 @@ def build_validation_report_text(
     qb_defense_spread: pl.DataFrame | None = None,
     qb_experiment_sweep: pl.DataFrame | None = None,
     qb_case_study: pl.DataFrame | None = None,
+    qb_schedule_anchor: pl.DataFrame | None = None,
+    qb_schedule_trace: pl.DataFrame | None = None,
+    qb_lens_divergence: pl.DataFrame | None = None,
+    qb_designed_rush_preview: pl.DataFrame | None = None,
     team_decision_lines: list[str] | None = None,
     qb_open_status_lines: list[str] | None = None,
     regression_note_lines: list[str] | None = None,
@@ -1247,7 +1255,7 @@ def build_validation_report_text(
     }
     stability_map = {str(row["metric"]): row for row in stability.iter_rows(named=True)}
 
-    history_lines = history_strings.stage_history_lines()
+    history_lines = history_strings.report_history_lines()
     acceptance_lines = [
         "## Acceptance Check",
         "",
@@ -1300,7 +1308,7 @@ def build_validation_report_text(
         )
     acceptance_lines.append("")
 
-    comparison_lines = history_strings.stage3b_criterion_lines()
+    comparison_lines = history_strings.report_league_criterion_lines()
 
     if comparison_metrics is not None and not comparison_metrics.is_empty():
         comparison_map = {
@@ -1336,7 +1344,7 @@ def build_validation_report_text(
                 and comparison_map.get(_ROLLING_EPA_ST_BASELINE, float("inf"))
                 < comparison_map.get("RawEPA", float("inf"))
             )
-            comparison_lines.append(history_strings.stage3b_acceptance_heading())
+            comparison_lines.append(history_strings.report_league_acceptance_heading())
             comparison_lines.append("")
             comparison_lines.append(
                 "- League 1 team headline:\n  "
@@ -1567,6 +1575,134 @@ def build_validation_report_text(
         ]
     )
 
+    if qb_schedule_anchor is not None and not qb_schedule_anchor.is_empty():
+        anchor_rows = [
+            [
+                row["qb_name"],
+                row["games"],
+                row["avg_opp_SaCR"],
+                row["avg_opp_SaDR"],
+                row["avg_opp_SRS"],
+            ]
+            for row in qb_schedule_anchor.iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## 2025 QB Schedule-Lens Anchor",
+                "",
+                _markdown_table(
+                    ["QB", "Games", "Avg Opp SaCR", "Avg Opp SaDR", "Avg Opp SRS"],
+                    anchor_rows,
+                ),
+                "",
+            ]
+        )
+
+    if qb_schedule_trace is not None and not qb_schedule_trace.is_empty():
+        trace_rows = [
+            [
+                row.get("qb_name"),
+                row.get("raw_value"),
+                row.get("adjusted_value"),
+                row.get("weighted_faced_defense"),
+                row.get("adjustment_delta"),
+                row.get("QSoS"),
+                row.get("faced_opp_SaCR"),
+                row.get("adj_def_qb_epa_per_dropback_faced"),
+            ]
+            for row in qb_schedule_trace.iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## QB Schedule-Lens Trace",
+                "",
+                _markdown_table(
+                    [
+                        "QB",
+                        "Raw EPA/DB",
+                        "Adjusted EPA/DB",
+                        "Weighted Faced Defense",
+                        "Adjustment Delta",
+                        "QSoS",
+                        "Faced Opp SaCR",
+                        "Faced Adj Def EPA/DB",
+                    ],
+                    trace_rows,
+                ),
+                "",
+            ]
+        )
+
+    if qb_lens_divergence is not None and not qb_lens_divergence.is_empty():
+        divergence_rows = [
+            [
+                row.get("qb_name"),
+                row.get("team"),
+                row.get("QSoS"),
+                row.get("faced_opp_SaCR"),
+                row.get("qsos_rank"),
+                row.get("overall_rank"),
+                row.get("rank_gap"),
+            ]
+            for row in qb_lens_divergence.iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## QB Lens-Divergence Rankings",
+                "",
+                _markdown_table(
+                    [
+                        "QB",
+                        "Team",
+                        "QSoS",
+                        "Faced Opp SaCR",
+                        "QSoS Rank",
+                        "Overall Rank",
+                        "Rank Gap",
+                    ],
+                    divergence_rows,
+                ),
+                "",
+            ]
+        )
+
+    if qb_designed_rush_preview is not None and not qb_designed_rush_preview.is_empty():
+        preview_rows = [
+            [
+                row.get("qb_name"),
+                row.get("team"),
+                row.get("qb_designed_carries_total"),
+                row.get("qb_designed_epa_per_carry"),
+                row.get("adj_def_rushing_epa_per_offensive_snap_faced"),
+                row.get("adj_qb_designed_rush_epa_per_carry"),
+                row.get("QSoS"),
+                row.get("adj_def_qb_epa_per_dropback_faced"),
+                row.get("faced_opp_SaCR"),
+            ]
+            for row in qb_designed_rush_preview.iter_rows(named=True)
+        ]
+        overview_lines.extend(
+            [
+                "## 2025 QB Designed-Rush Preview",
+                "",
+                _markdown_table(
+                    [
+                        "QB",
+                        "Team",
+                        "Designed Carries",
+                        "Designed EPA/Carry",
+                        "Faced Rush Defense",
+                        "Adj Designed Rush EPA/Carry",
+                        "QSoS",
+                        "Faced Adj Def EPA/DB",
+                        "Faced Opp SaCR",
+                    ],
+                    preview_rows,
+                ),
+                "",
+            ]
+        )
+
     if qb_season_audit is not None and not qb_season_audit.is_empty():
         audit_rows = [
             [
@@ -1676,7 +1812,7 @@ def build_validation_report_text(
         overview_lines.extend(qb_open_status_lines)
 
     if qb_opponent_offense_summary is not None and not qb_opponent_offense_summary.is_empty():
-        overview_lines.extend(history_strings.d5_heading_lines())
+        overview_lines.extend(history_strings.opponent_offense_report_heading_lines())
         if qb_opponent_offense_decision is not None:
             overview_lines.append(
                 f"- Gate reading: {qb_opponent_offense_decision.get('decision', 'not_supported')}."
@@ -1757,7 +1893,7 @@ def build_validation_report_text(
             )
 
     if qb_leverage_summary is not None and not qb_leverage_summary.is_empty():
-        overview_lines.extend(history_strings.d6_heading_lines())
+        overview_lines.extend(history_strings.leverage_report_heading_lines())
         if qb_leverage_decision is not None:
             overview_lines.append(
                 "- Moderate-leverage win-probability band: "
@@ -1848,7 +1984,7 @@ def build_validation_report_text(
             )
 
     if qb_split_half_primary is not None and not qb_split_half_primary.is_empty():
-        overview_lines.extend(history_strings.split_half_heading_lines())
+        overview_lines.extend(history_strings.split_half_report_heading_lines())
         if qb_split_half_decision is not None:
             decision_text = str(qb_split_half_decision.get("decision", "not_supported"))
             overview_lines.append(f"- Decision gate reading: {decision_text}.")
@@ -2001,7 +2137,7 @@ def build_validation_report_text(
             headers.extend(["Pearson CI Lower", "Pearson CI Upper"])
         overview_lines.extend(
             [
-                *history_strings.playoff_validation_intro_lines(),
+                *history_strings.playoff_validation_report_intro_lines(),
                 _markdown_table(
                     headers,
                     correlation_rows,
@@ -2010,7 +2146,7 @@ def build_validation_report_text(
             ]
         )
 
-    overview_lines.extend(history_strings.sacr_caveat_lines())
+    overview_lines.extend(history_strings.sacr_report_caveat_lines())
     return "\n".join(overview_lines).rstrip() + "\n"
 
 
@@ -2031,6 +2167,10 @@ def write_validation_report(
     qb_defense_spread: pl.DataFrame | None = None,
     qb_experiment_sweep: pl.DataFrame | None = None,
     qb_case_study: pl.DataFrame | None = None,
+    qb_schedule_anchor: pl.DataFrame | None = None,
+    qb_schedule_trace: pl.DataFrame | None = None,
+    qb_lens_divergence: pl.DataFrame | None = None,
+    qb_designed_rush_preview: pl.DataFrame | None = None,
     team_decision_lines: list[str] | None = None,
     qb_open_status_lines: list[str] | None = None,
     regression_note_lines: list[str] | None = None,
@@ -2063,6 +2203,10 @@ def write_validation_report(
         qb_defense_spread=qb_defense_spread,
         qb_experiment_sweep=qb_experiment_sweep,
         qb_case_study=qb_case_study,
+        qb_schedule_anchor=qb_schedule_anchor,
+        qb_schedule_trace=qb_schedule_trace,
+        qb_lens_divergence=qb_lens_divergence,
+        qb_designed_rush_preview=qb_designed_rush_preview,
         team_decision_lines=team_decision_lines,
         qb_open_status_lines=qb_open_status_lines,
         regression_note_lines=regression_note_lines,
@@ -2260,6 +2404,22 @@ def main(argv: list[str] | None = None) -> None:
     qb_defense_spread = compute_qb_defense_spread_summary(data_dir, seasons)
     qb_experiment_sweep = compute_qb_experiment_sweep(data_dir, seasons[-1])
     qb_case_study = compute_qb_case_study(data_dir, seasons[-1])
+    qb_schedule_anchor = compute_qb_schedule_lens_anchor(
+        data_dir,
+        seasons[-1],
+        qb_names=["Drake Maye", "Tyler Shough", "Joe Flacco", "J.J. McCarthy"],
+    )
+    qb_schedule_trace = compute_qb_schedule_lens_trace(
+        data_dir,
+        seasons[-1],
+        qb_names=["Drake Maye", "Tyler Shough", "Joe Flacco", "J.J. McCarthy"],
+    )
+    qb_lens_divergence = compute_qb_schedule_lens_divergence(data_dir, seasons[-1])
+    qb_designed_rush_preview = compute_qb_designed_rush_preview(
+        data_dir,
+        seasons[-1],
+        qb_names=["Drake Maye", "Lamar Jackson", "Josh Allen", "Matthew Stafford"],
+    )
     stability = compute_stability_metrics(data_dir, seasons=seasons)
     qb_variant_stability = compute_qb_metric_stability_from_history(
         qb_leverage_history,
@@ -2310,7 +2470,7 @@ def main(argv: list[str] | None = None) -> None:
         t4_team_stability=t4_team_stability,
     )
     qb_open_status_lines = build_qb_status_lines()
-    regression_note_lines = history_strings.regression_note_lines()
+    regression_note_lines = history_strings.report_regression_note_lines()
     qbr_correlations = compute_qbr_correlations(data_dir, seasons=seasons)
     write_validation_report(
         report_path,
@@ -2329,6 +2489,10 @@ def main(argv: list[str] | None = None) -> None:
         qb_defense_spread=qb_defense_spread,
         qb_experiment_sweep=qb_experiment_sweep,
         qb_case_study=qb_case_study,
+        qb_schedule_anchor=qb_schedule_anchor,
+        qb_schedule_trace=qb_schedule_trace,
+        qb_lens_divergence=qb_lens_divergence,
+        qb_designed_rush_preview=qb_designed_rush_preview,
         team_decision_lines=team_decision_lines,
         qb_open_status_lines=qb_open_status_lines,
         regression_note_lines=regression_note_lines,
