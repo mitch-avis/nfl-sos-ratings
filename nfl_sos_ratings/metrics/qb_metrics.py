@@ -66,6 +66,25 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         ),
     ),
     _ratings(
+        name="QSaCR_alltime",
+        label="QSaCR All-Time",
+        full_name="All-Time QSaCR Companion",
+        description=(
+            "The pooled-reference companion for QSaCR, scored against the published multi-season "
+            "distribution of the headline QB composite instead of just one season. Positive means "
+            "above that moving all-time baseline, but era context and newly added seasons shift it."
+        ),
+        shape="score",
+        polarity="higher",
+        source="D",
+        since=2006,
+        note=(
+            "Companion-only. The pooled baseline rewards era context, and the reference moves "
+            "slightly whenever a future season is added. Published only for 2006+ because the "
+            "headline composite itself requires adjusted CPOE."
+        ),
+    ),
+    _ratings(
         name="QSaOR",
         label="QSaOR",
         full_name="QB Schedule-Adjusted Offense Rating",
@@ -79,6 +98,25 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="D",
         since=1999,
+    ),
+    _ratings(
+        name="QSaOR_alltime",
+        label="QSaOR All-Time",
+        full_name="All-Time QSaOR Companion",
+        description=(
+            "The pooled-reference companion for QSaOR, scored against the published multi-season "
+            "distribution of adjusted QB EPA per dropback instead of only the current season. "
+            "Positive means above that moving all-time baseline, but era context and added seasons "
+            "shift the reference over time."
+        ),
+        shape="score",
+        polarity="higher",
+        source="D",
+        since=1999,
+        note=(
+            "Companion-only. The pooled baseline rewards era context, and the reference moves "
+            "slightly whenever a future season is added."
+        ),
     ),
     _ratings(
         name="QRaw",
@@ -132,13 +170,34 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         contextual=True,
     ),
     _ratings(
-        name="adj_def_qb_epa_per_dropback_faced",
-        label="Faced Adj Def EPA/DB",
-        full_name="Faced Defense Rating on QB EPA Per Dropback",
+        name="adj_qb_designed_rush_epa_per_carry",
+        label="Adj Designed EPA/Carry",
+        full_name="Adjusted QB Designed-Rush EPA Per Carry",
         description=(
-            "The dropback-weighted mean defense-side ridge coefficient, on QB EPA per "
-            "dropback, for the defenses this quarterback actually faced. This is the raw "
-            "pass-defense schedule-context input behind QSoS."
+            "Designed-run expected points added per carry after charging those carries against "
+            "the faced rush-defense coefficients from the team solve. Higher means more rushing "
+            "value after accounting for how tough the run-defense slate was."
+        ),
+        shape="score",
+        polarity="higher",
+        source="D",
+        denominator="designed carries",
+        since=1999,
+        ratings_eligible=True,
+        note=(
+            "Descriptive-only in the current published composite. This is the intended fair-trial "
+            "candidate for the next maintainer-reviewed QB refit menu."
+        ),
+    ),
+    _ratings(
+        name="adj_def_rushing_epa_per_offensive_snap_faced",
+        label="Faced Adj Rush Def",
+        full_name="Faced Rush-Defense Rating",
+        description=(
+            "The carry-weighted mean rush-defense coefficient, on adjusted rushing EPA per "
+            "offensive snap, for the defenses this quarterback actually faced on designed runs. "
+            "This is the raw rush-defense schedule-context input behind the adjusted designed-run "
+            "value surface."
         ),
         shape="score",
         polarity="higher",
@@ -160,6 +219,21 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="D",
         since=1999,
+    ),
+    _ratings(
+        name="adj_def_qb_epa_per_dropback_faced",
+        label="Faced Adj Def EPA/DB",
+        full_name="Faced Defense Rating on QB EPA Per Dropback",
+        description=(
+            "The dropback-weighted mean defense-side ridge coefficient, on QB EPA per "
+            "dropback, for the defenses this quarterback actually faced. This is the raw "
+            "pass-defense schedule-context input behind QSoS."
+        ),
+        shape="score",
+        polarity="higher",
+        source="D",
+        since=1999,
+        contextual=True,
     ),
 )
 
@@ -1137,7 +1211,6 @@ QB_PRESSURE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="dropbacks",
         since=1999,
-        status="planned",
     ),
     _pressure(
         name="qb_sack_rate_vs_pressure",
@@ -1238,7 +1311,6 @@ QB_RUSHING_METRICS: tuple[MetricDef, ...] = (
         polarity="neutral",
         source="PBP",
         since=1999,
-        status="planned",
     ),
     _rushing(
         name="qb_designed_rush_yards",
@@ -1249,7 +1321,44 @@ QB_RUSHING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP",
         since=1999,
-        status="planned",
+    ),
+    _rushing(
+        name="qb_designed_rush_epa",
+        label="Designed Rush EPA",
+        full_name="QB Designed Rush EPA",
+        description=(
+            "Expected points added on called quarterback runs, excluding scrambles and kneels."
+        ),
+        shape="count",
+        polarity="higher",
+        source="PBP",
+        since=1999,
+        formula=(
+            "sum(epa on rush plays where rusher_player_id == qb_id and qb_scramble == 0 and "
+            "qb_kneel == 0)"
+        ),
+    ),
+    _rushing(
+        name="qb_designed_yards_per_carry",
+        label="Designed Yds/Carry",
+        full_name="QB Designed-Rush Yards Per Carry",
+        description="Designed-run rushing yards divided by designed carries.",
+        shape="rate",
+        polarity="higher",
+        source="D",
+        denominator="designed carries",
+        since=1999,
+    ),
+    _rushing(
+        name="qb_designed_epa_per_carry",
+        label="Designed EPA/Carry",
+        full_name="QB Designed-Rush EPA Per Carry",
+        description="Designed-run expected points added divided by designed carries.",
+        shape="rate",
+        polarity="higher",
+        source="D",
+        denominator="designed carries",
+        since=1999,
     ),
     _rushing(
         name="qb_scrambles",
@@ -1260,7 +1369,6 @@ QB_RUSHING_METRICS: tuple[MetricDef, ...] = (
         polarity="neutral",
         source="PBP",
         since=1999,
-        status="planned",
     ),
     _rushing(
         name="qb_scramble_yards",
@@ -1271,7 +1379,6 @@ QB_RUSHING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP",
         since=1999,
-        status="planned",
     ),
     _rushing(
         name="qb_yards_per_scramble",
@@ -1283,7 +1390,6 @@ QB_RUSHING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="scrambles",
         since=1999,
-        status="planned",
     ),
     _rushing(
         name="qb_kneels",
@@ -1294,7 +1400,6 @@ QB_RUSHING_METRICS: tuple[MetricDef, ...] = (
         polarity="neutral",
         source="PBP",
         since=1999,
-        status="planned",
     ),
     _rushing(
         name="qb_rush_success_rate",
