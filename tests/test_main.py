@@ -76,10 +76,11 @@ def _srs_df() -> pl.DataFrame:
 def _team_adjustments_df() -> pl.DataFrame:
     return pl.DataFrame(
         {
-            "team": ["DEN"],
-            "adj_off_points_per_offensive_snap": [0.15],
-            "adj_def_points_allowed_per_defensive_snap": [0.20],
-            "st_rating": [0.25],
+            "team": ["DEN", "KC"],
+            "adj_off_points_per_offensive_snap": [0.15, 0.10],
+            "adj_def_points_allowed_per_defensive_snap": [0.20, 0.12],
+            "adj_def_rushing_epa_per_offensive_snap": [0.05, 0.30],
+            "st_rating": [0.25, 0.10],
         }
     )
 
@@ -520,6 +521,130 @@ def test_build_qb_faced_defense_adjustments_rejects_unmatched_opponents() -> Non
 
     with pytest.raises(ValueError, match="Missing QB defense adjustments"):
         main._build_qb_faced_defense_adjustments(qb_games, defense_adjustments)
+
+
+def test_build_qb_faced_rush_defense_adjustments_weights_by_designed_carries() -> None:
+    """Faced rush-defense context should weight opponents by designed carries."""
+    qb_games = pl.DataFrame(
+        {
+            "qb_id": ["QB1", "QB1"],
+            "qb_name": ["QB One", "QB One"],
+            "team_abbr": ["DEN", "DEN"],
+            "opponent_team": ["KC", "BUF"],
+            "qb_designed_carries": [8.0, 2.0],
+        }
+    )
+    team_adjustments = pl.DataFrame(
+        {
+            "team": ["KC", "BUF"],
+            "adj_def_rushing_epa_per_offensive_snap": [0.30, -0.10],
+        }
+    )
+
+    faced_rush_defense = main._build_qb_faced_rush_defense_adjustments(qb_games, team_adjustments)
+
+    assert faced_rush_defense.select(
+        "adj_def_rushing_epa_per_offensive_snap_faced"
+    ).item() == pytest.approx(0.22)
+
+
+def test_build_qb_adjusted_designed_rush_surface_uses_faced_rush_defense() -> None:
+    """Harder run-defense schedules should lift the adjusted designed-rush value surface."""
+    qb_combined = pl.DataFrame(
+        {
+            "qb_id": ["HARD", "SOFT"],
+            "qb_name": ["Hard Runner", "Soft Runner"],
+            "team": ["A", "B"],
+            "qb_designed_epa_per_carry": [0.20, 0.20],
+        }
+    )
+    faced_rush_defense = pl.DataFrame(
+        {
+            "qb_id": ["HARD", "SOFT"],
+            "qb_name": ["Hard Runner", "Soft Runner"],
+            "adj_def_rushing_epa_per_offensive_snap_faced": [0.30, -0.10],
+        }
+    )
+
+    adjusted = main._build_qb_adjusted_designed_rush_surface(qb_combined, faced_rush_defense)
+
+    assert adjusted.filter(pl.col("qb_id") == "HARD").select(
+        "adj_qb_designed_rush_epa_per_carry"
+    ).item() == pytest.approx(0.50)
+    assert adjusted.filter(pl.col("qb_id") == "SOFT").select(
+        "adj_qb_designed_rush_epa_per_carry"
+    ).item() == pytest.approx(0.10)
+
+
+def test_main_writes_qb_designed_rush_context_companions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Main should publish the adjusted designed-rush value and faced rush-defense lens."""
+    _patch_common(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        main,
+        "load_qb_stats",
+        lambda season: pl.DataFrame(
+            {
+                "qb_id": ["qb-1"],
+                "qb_name": ["QB One"],
+                "team_abbr": ["DEN"],
+                "week": [1],
+                "qb_passer_rating": [100.0],
+                "qb_designed_carries": [4],
+                "qb_designed_rush_epa": [1.7],
+                "qb_designed_epa_per_carry": [0.425],
+            }
+        ),
+    )
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(
+        main,
+        "compute_qb_season_stats",
+        lambda qb_df, weekly_df=None: pl.DataFrame(
+            {
+                "qb_id": ["qb-1"],
+                "qb_name": ["QB One"],
+                "team": ["DEN"],
+                "qb_is_eligible": [True],
+                "qb_attempts_total": [10],
+                "qb_win_pct": [1.0],
+                "qb_designed_carries_total": [4],
+                "qb_designed_epa_per_carry": [0.425],
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        main,
+        "compute_qb_adjusted_stats",
+        lambda qb_games, response_cols, ridge_lambda=1.0: (
+            pl.DataFrame({"qb_id": ["qb-1"], "adj_qb_epa_per_dropback": [0.12]}),
+            pl.DataFrame({"team": ["KC"], "adj_def_qb_epa_per_dropback": [-0.05]}),
+        ),
+    )
+    monkeypatch.setattr(
+        main,
+        "compute_all_opponent_profiles",
+        lambda weekly_df, qb_df, schedule_df: (
+            pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
+            pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
+            {},
+        ),
+    )
+
+    main.main()
+
+    qb_combined = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_combined.parquet")
+    qb_ratings = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_ratings.parquet")
+
+    assert qb_combined.select(
+        "adj_def_rushing_epa_per_offensive_snap_faced"
+    ).item() == pytest.approx(0.30)
+    assert qb_combined.select("adj_qb_designed_rush_epa_per_carry").item() == pytest.approx(0.725)
+    assert qb_ratings.select(
+        "adj_def_rushing_epa_per_offensive_snap_faced"
+    ).item() == pytest.approx(0.30)
+    assert qb_ratings.select("adj_qb_designed_rush_epa_per_carry").item() == pytest.approx(0.725)
 
 
 def test_main_skips_historical_qb_calibration(
