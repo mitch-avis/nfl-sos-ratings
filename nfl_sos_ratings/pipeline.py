@@ -17,7 +17,8 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import nfl_sos_ratings.visualize as visualize
-from nfl_sos_ratings.config import END_YEAR, START_YEAR
+from nfl_sos_ratings.alltime_companions import apply_alltime_rating_companions
+from nfl_sos_ratings.config import DATA_DIR, END_YEAR, START_YEAR
 from nfl_sos_ratings.main import run_season
 
 
@@ -44,6 +45,9 @@ def main() -> None:
         except Exception as exc:
             failed_data_seasons.append(season)
             print(f"\nERROR: season {season} data step failed — {exc}\n")
+
+    if not failed_data_seasons:
+        apply_alltime_rating_companions(Path(DATA_DIR), seasons)
 
     # Phase 2: visualizations for every season
     print(f"\n{'─' * 70}")
