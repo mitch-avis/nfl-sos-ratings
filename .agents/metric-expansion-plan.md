@@ -54,12 +54,16 @@ status, decisions, or next steps change.
   linkage).
 - **E3 Receiving display mirrors** — **complete** (14 alias metrics in
   `team_stats._add_receiving_display_mirrors` plus PBP receiving fumbles).
-- **E4 QB Tier 1** — **core complete** (11 metrics): official rushing family from weekly player
-  stats (`_OFFICIAL_QB_RUSHING_FIELDS` in data_loader), `qb_completion_pct`, `qb_yards_per_carry`,
-  `qb_epa_per_carry`, with season totals/per-game/rates in `qb_stats`. Remaining QB planned metrics
-  (scramble/designed splits, success rate, clutch extras, turnover aggregates,
-  `qb_games_started`/`qb_snap_share`/`qb_plays`) still `planned` — they need per-QB PBP rusher
-  attribution in `compute_qb_game_stats_from_pbp`.
+- **E4 QB Tier 1** — **expanded**. The official rushing family from weekly player stats remains in
+  place, and the per-QB PBP rusher attribution is now landed for designed runs, scrambles, and
+  kneels in `compute_qb_game_stats_from_pbp`: `qb_designed_carries`,
+  `qb_designed_rush_yards`, `qb_designed_rush_epa`, `qb_designed_yards_per_carry`,
+  `qb_designed_epa_per_carry`, `qb_scrambles`, `qb_scramble_yards`, `qb_yards_per_scramble`,
+  `qb_scramble_rate`, and `qb_kneels` all publish through `qb_stats` and `data_loader`. The new
+  descriptive ratings surfaces `adj_qb_designed_rush_epa_per_carry` and
+  `adj_def_rushing_epa_per_offensive_snap_faced` now ride through `main.py`. Remaining QB planned
+  metrics are the success/explosive splits, clutch extras, turnover aggregates, and
+  `qb_games_started` / `qb_snap_share` / `qb_plays`.
 - **E5 Tier 2 sources** — **not started**. NGS team passing aggregates (attempt-weighted, 2016+),
   PFR packs (weekly def file aggregates directly to team-week; season passing needs `2TM` handling
   via weekly rows), QBR QB columns (join by `espn_id` via `load_players()`; loader `load_espn_qbr()`
@@ -94,3 +98,6 @@ Deferred with reasons (still `planned` in the registry): `fg_pct_over_expected` 
 - 2026-07-14: E8 completed for the six-view taxonomy refactor and opponent-view registry/ETL
   alignment; validation green with `markdownlint`, `ruff format .`, `ruff check .`, `ty check .`,
   `pyright .`, and `pytest`.
+- 2026-07-19: the designed-run QB foundation is now implemented in the ETL, registry, UI ordering,
+  and validation helpers. Next agent: finish the remaining planned QB metrics under E4, then E2,
+  then E5.
