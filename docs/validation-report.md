@@ -1,7 +1,6 @@
 # Validation Report
 
 Evaluation seasons: 1999-2025.
-
 Prediction weeks start at 5.
 
 ## Command
@@ -12,63 +11,71 @@ uv run python -m nfl_sos_ratings.validation.walk_forward --data-dir data --start
 
 ## Block R Regression Note
 
-- A Stage 3c regression combined pooled offense/defense reference arrays with current-season-only
-  special-teams reference values, causing the team ratings path to raise a NumPy broadcast error
-  before `*_combined.parquet` and `*_ratings.parquet` wrote.
-- The fix backfills historical `st_rating` values from `*_simultaneous_team_adjustments.parquet`
-  when rebuilding pooled team references and makes the multi-season pipeline exit non-zero with a
-  failure summary if any season data step fails.
+- A Stage 3c regression combined pooled offense/defense reference arrays with
+  current-season-only special-teams reference values, causing the team ratings path
+  to raise a NumPy broadcast error before `*_combined.parquet` and
+  `*_ratings.parquet` wrote.
+- The fix backfills historical `st_rating` values from
+  `*_simultaneous_team_adjustments.parquet` when rebuilding pooled team references
+  and makes the multi-season pipeline exit non-zero with a failure summary if any
+  season data step fails.
 
 ## Stage 3 History
 
-The original Stage 3 headline compared prior-carrying Elo against within-season-only backbones. That
-result is preserved here as history rather than deleted or rewritten.
+The original Stage 3 headline compared prior-carrying Elo against within-season-only backbones.
+That result is preserved here as history rather than deleted or rewritten.
 
 ## Stage 3b Criterion
 
 Stage 3b re-registers the validation target into information-matched leagues.
 
-- League 1 is binding: within-season-only team backbones must beat SRS and RawEPA on held-out MAE,
-  with paired-bootstrap support.
-- League 2 is informative: prior-carrying forecast-only variants can be compared against Elo, but
-  that is not the binding published-rating gate.
+- League 1 is binding: within-season-only team backbones must beat SRS and RawEPA on held-out
+  MAE, with paired-bootstrap support.
+- League 2 is informative: prior-carrying forecast-only variants can be compared against Elo,
+  but that is not the binding published-rating gate.
 
 ## Stage 3b Acceptance Check
 
-- League 1 team headline: Fail. Rolling EPA Weights overall MAE 10.845; Rolling EPA Weights + ST
-  overall MAE 10.835; SRS 10.658; RawEPA 10.695.
+- League 1 team headline:
+  Fail. Rolling EPA Weights overall MAE 10.845;
+  Rolling EPA Weights + ST overall MAE 10.835;
+  SRS 10.658;
+  RawEPA 10.695.
 - League 1 bootstrap vs SRS: MAE delta 0.177 with 95% CI [0.111, 0.246].
 - League 1 bootstrap vs RawEPA: MAE delta 0.139 with 95% CI [0.061, 0.219].
-- QB revision sweep: not adopted. Current eligible-QB slope 0.505; fixed-defense slope 0.386; best
-  tested lighter-defense-penalty slope 0.557 (lighter_defense_penalty_x0).
+- QB revision sweep: not adopted. Current eligible-QB slope 0.505; fixed-defense slope 0.386;
+  best tested lighter-defense-penalty slope 0.557 (lighter_defense_penalty_x0).
 - League 2 forecast-only prior experiment: not evaluated in this worktree.
 
 ## Stage 3c Decision Rule
 
 > A candidate team backbone is promoted to the published ratings if, on the full held-out
-> walk-forward window: (1) it is significantly better than RawEPA and than the Stage 1 SaOvR (95%
-> paired-bootstrap CI excluding zero); (2) it is numerically better than SRS on both overall MAE and
-> overall RMSE, and not significantly worse than SRS; and (3) adopting it does not degrade team
-> year-over-year stability below the Stage 3 recorded value. Statistical parity with SRS plus the
-> construct advantages (schedule-adjusted, outcome-free components, unit-level decomposition) is
-> sufficient and will be stated plainly, as parity, in the methodology documentation — never
-> overclaimed as superiority.
+> walk-forward window: (1) it is significantly better than RawEPA and than the Stage 1
+> SaOvR (95% paired-bootstrap CI excluding zero); (2) it is numerically better than SRS
+> on both overall MAE and overall RMSE, and not significantly worse than SRS; and (3)
+> adopting it does not degrade team year-over-year stability below the Stage 3 recorded
+> value. Statistical parity with SRS plus the construct advantages (schedule-adjusted,
+> outcome-free components, unit-level decomposition) is sufficient and will be stated
+> plainly, as parity, in the methodology documentation — never overclaimed as
+> superiority.
 
-- Rationale: the stricter "beat SRS with CI clearing zero" bar is statistically unattainable on this
-  sample, and the current report already shows SRS itself does not separate from RawEPA at 95%.
+- Rationale: the stricter "beat SRS with CI clearing zero" bar is statistically
+  unattainable on this sample, and the current report already shows SRS itself does not
+  separate from RawEPA at 95%.
 
 ## Stage 3c Team Outcome
 
 - Candidate selected for the final Stage 3c gate: Play-Level EPA Weights + ST.
 - Play-level displacement check: Play-Level EPA Weights + ST overall MAE 10.813 and RMSE 13.885
-  versus Rolling EPA Weights + ST MAE 10.835 and RMSE 13.923. Bootstrap delta -0.022 with 95% CI
-  [-0.050, 0.005] and P(A<=B) 0.941.
-- Candidate vs RawEPA: MAE delta 0.117 with 95% CI [0.042, 0.197] and P(A<=B) 0.002.
-- Candidate vs Stage 1 SaOvR: MAE delta 0.112 with 95% CI [0.031, 0.189] and P(A<=B) 0.005.
-- Candidate vs SRS: overall MAE/RMSE 10.813/13.885 versus 10.658/13.746. Bootstrap delta 0.155 with
-  95% CI [0.089, 0.220] and P(A<=B) 0.000.
-- Stability guard: Play-Level EPA Weights + ST Pearson/Spearman 0.387/0.363 versus Stage 3 SaOvR
-  0.377/0.365.
+  versus Rolling EPA Weights + ST MAE 10.835 and RMSE 13.923.
+  Bootstrap delta -0.022 with 95% CI [-0.050, 0.005] and P(A<=B) 0.941.
+- Candidate vs RawEPA: MAE delta 0.117 with 95% CI [0.042, 0.197]
+  and P(A<=B) 0.002.
+- Candidate vs Stage 1 SaOvR: MAE delta 0.112 with 95% CI [0.031, 0.189]
+  and P(A<=B) 0.005.
+- Candidate vs SRS: overall MAE/RMSE 10.813/13.885 versus 10.658/13.746.
+  Bootstrap delta 0.155 with 95% CI [0.089, 0.220] and P(A<=B) 0.000.
+- Stability guard: Play-Level EPA Weights + ST Pearson/Spearman 0.387/0.363 versus Stage 3 SaOvR 0.377/0.365.
 - Promotion decision under the fixed Stage 3c rule: Fail.
 
 ## Acceptance Check
@@ -76,8 +83,7 @@ Stage 3b re-registers the validation target into information-matched leagues.
 - Leakage discipline: the snapshot perturbation test and prior-only fit test pass.
 - Team headline: Fail. SaOvR overall MAE 10.701; Elo 10.580; SRS 10.658; RawEPA 10.695.
 - Team late-season context: SaOvR late-week MAE 10.649; Elo 10.550; SRS 10.651; RawEPA 10.671.
-- QB stability: Pass. QSaCR Pearson/Spearman 0.479/0.466; passer rating 0.413/0.416; ANY/A
-  0.338/0.330.
+- QB stability: Pass. QSaCR Pearson/Spearman 0.479/0.466; passer rating 0.413/0.416; ANY/A 0.338/0.330.
 - External reference: mean QBR Pearson/Spearman correlation 0.891/0.870 across 20 seasons.
 
 ## Original Walk-Forward Summary
@@ -459,6 +465,48 @@ Stage 3b re-registers the validation target into information-matched leagues.
 | 2024 | 31 | 0.877 | 0.885 |
 | 2025 | 30 | 0.831 | 0.792 |
 
+## 2025 QB Schedule-Lens Anchor
+
+| QB | Games | Avg Opp SaCR | Avg Opp SaDR | Avg Opp SRS |
+| --- | --- | --- | --- | --- |
+| Drake Maye | 17 | -0.701 | -0.466 | -4.285 |
+| Tyler Shough | 11 | -0.328 | -0.202 | -1.567 |
+| Joe Flacco | 13 | -0.155 | -0.368 | -1.695 |
+| J.J. McCarthy | 10 | 0.127 | -0.534 | -0.995 |
+
+## QB Schedule-Lens Trace
+
+| QB | Raw EPA/DB | Adjusted EPA/DB | Weighted Faced Defense | Adjustment Delta | QSoS | Faced Opp SaCR | Faced Adj Def EPA/DB |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Drake Maye | 0.306 | 0.244 | -0.029 | -0.063 | -1.280 | -0.701 | -0.029 |
+| Tyler Shough | 0.006 | -0.024 | -0.048 | -0.029 | -2.122 | -0.328 | -0.048 |
+| Joe Flacco | -0.095 | -0.107 | -0.049 | -0.012 | -2.150 | -0.155 | -0.049 |
+| J.J. McCarthy | -0.198 | -0.169 | -0.045 | 0.029 | -1.994 | 0.127 | -0.045 |
+
+## QB Lens-Divergence Rankings
+
+| QB | Team | QSoS | Faced Opp SaCR | QSoS Rank | Overall Rank | Rank Gap |
+| --- | --- | --- | --- | --- | --- | --- |
+| Lamar Jackson | BAL | 0.386 | -0.336 | 8 | 30 | -22 |
+| J.J. McCarthy | MIN | -1.994 | 0.127 | 31 | 10 | 21 |
+| Joe Burrow | CIN | 1.073 | -0.228 | 5 | 26 | -21 |
+| Spencer Rattler | NO | -0.153 | 0.299 | 23 | 4 | 19 |
+| Michael Penix Jr. | ATL | -0.852 | 0.105 | 27 | 12 | 15 |
+| Jacoby Brissett | ARI | 0.212 | 0.416 | 14 | 2 | 12 |
+| Josh Allen | BUF | -0.006 | -0.343 | 19 | 31 | -12 |
+| Bryce Young | CAR | -0.997 | 0.009 | 28 | 17 | 11 |
+| Daniel Jones | IND | 0.295 | -0.106 | 10 | 21 | -11 |
+| Joe Flacco | CIN | -2.150 | -0.155 | 33 | 22 | 11 |
+
+## 2025 QB Designed-Rush Preview
+
+| QB | Team | Designed Carries | Designed EPA/Carry | Faced Rush Defense | Adj Designed Rush EPA/Carry | QSoS | Faced Adj Def EPA/DB | Faced Opp SaCR |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Drake Maye | NE | 20 | -0.390 | -0.004 | -0.394 | -1.280 | -0.029 | -0.701 |
+| Lamar Jackson | BAL | 28 | 0.293 | -0.005 | 0.288 | 0.386 | 0.007 | -0.336 |
+| Josh Allen | BUF | 46 | 0.436 | 0.007 | 0.443 | -0.006 | -0.001 | -0.343 |
+| Matthew Stafford | LAR | 5 | -2.824 | 0.017 | -2.807 | 0.346 | 0.007 | 0.243 |
+
 ## QB Adjustment Audit
 
 | Season | Eligible QBs | Slope | Correlation | Mean Abs Residual |
@@ -475,21 +523,21 @@ Stage 3b re-registers the validation target into information-matched leagues.
 | 2008 | 32 | 0.974 | 0.846 | 0.016 |
 | 2009 | 32 | 0.860 | 0.541 | 0.034 |
 | 2010 | 31 | 0.925 | 0.677 | 0.017 |
-| 2011 | 35 | 0.865 | 0.414 | 0.027 |
+| 2011 | 34 | 0.846 | 0.460 | 0.023 |
 | 2012 | 32 | 0.645 | 0.534 | 0.022 |
 | 2013 | 36 | 1.075 | 0.728 | 0.022 |
 | 2014 | 33 | 1.029 | 0.760 | 0.018 |
-| 2015 | 36 | 0.937 | 0.720 | 0.028 |
+| 2015 | 35 | 0.951 | 0.776 | 0.025 |
 | 2016 | 30 | 0.656 | 0.527 | 0.027 |
 | 2017 | 32 | 0.932 | 0.694 | 0.031 |
 | 2018 | 33 | 0.917 | 0.481 | 0.020 |
 | 2019 | 32 | 0.818 | 0.564 | 0.020 |
 | 2020 | 35 | 1.105 | 0.814 | 0.032 |
 | 2021 | 31 | 1.426 | 0.774 | 0.016 |
-| 2022 | 34 | 1.641 | 0.593 | 0.024 |
-| 2023 | 33 | 0.443 | 0.334 | 0.034 |
+| 2022 | 33 | 1.370 | 0.529 | 0.024 |
+| 2023 | 32 | 0.551 | 0.420 | 0.033 |
 | 2024 | 36 | 1.037 | 0.667 | 0.020 |
-| 2025 | 34 | 0.140 | 0.059 | 0.029 |
+| 2025 | 33 | 0.505 | 0.444 | 0.019 |
 
 ## QB Defense Spread Audit
 
@@ -523,203 +571,6 @@ Stage 3b re-registers the validation target into information-matched leagues.
 | 2024 | 0.026 | 0.062 | 2.391 |
 | 2025 | 0.042 | 0.101 | 2.419 |
 
-## Schedule-Strength Audit
-
-The 2025 Maye/Shough/Flacco/McCarthy discrepancy was audited from the published Parquet outputs
-first, then from the live codepath.
-
-The first pass found one source-data issue before any code change: the hand-entered audit table had
-`SaCR` and `SaDR` transposed for Tyler Shough, Joe Flacco, and J.J. McCarthy. The reproduced
-Parquet-backed table below is the ground-truth regression anchor now pinned in
-`tests/test_qsos_audit.py`.
-
-### Anchor Reproduction
-
-| QB | Games | Avg Opp SaCR | Avg Opp SaDR | Avg Opp SRS |
-| --- | ---: | ---: | ---: | ---: |
-| Drake Maye | 17 | -0.700882 | -0.466000 | -4.284944 |
-| Tyler Shough | 11 | -0.327727 | -0.201636 | -1.566831 |
-| Joe Flacco | 13 | -0.155385 | -0.367769 | -1.695016 |
-| J.J. McCarthy | 10 | 0.127100 | -0.533800 | -0.994624 |
-
-### Four-QB QSoS Trace
-
-`2025` had zero null opponent-defense joins across all `674` QB-game rows, and zero null joins for
-each of the four named QBs. The explicit join-integrity concern did not fire on the live data.
-
-One outright bug did surface: multi-team QBs were being grouped by QB-plus-team when building the
-faced-defense schedule input even though the published season surface is one row per QB. Joe
-Flacco's pre-fix `QSoS` was `-2.026`; after regrouping all `13` played games across his `CLE` and
-`CIN` stints, the refreshed 2025 output is `-2.150`.
-
-| QB | Published QSoS | Faced Def | Distinct Teams | Null Joins |
-| --- | ---: | ---: | ---: | ---: |
-| Joe Flacco | -2.150 | -0.048787 | 2 | 0 |
-| Tyler Shough | -2.122 | -0.048173 | 1 | 0 |
-| J.J. McCarthy | -1.994 | -0.045330 | 1 | 0 |
-| Drake Maye | -1.280 | -0.029482 | 1 | 0 |
-
-#### Drake Maye
-
-| Team | Week | Opp | Dropbacks | Def Coeff |
-| --- | ---: | --- | ---: | ---: |
-| NE | 1 | LV | 50 | -0.042174 |
-| NE | 2 | MIA | 26 | -0.099015 |
-| NE | 3 | PIT | 42 | -0.008111 |
-| NE | 4 | CAR | 18 | -0.039442 |
-| NE | 5 | BUF | 34 | 0.091081 |
-| NE | 6 | NO | 27 | 0.039951 |
-| NE | 7 | TEN | 27 | -0.133682 |
-| NE | 8 | CLE | 30 | 0.149503 |
-| NE | 9 | ATL | 35 | 0.035693 |
-| NE | 10 | TB | 32 | -0.036752 |
-| NE | 11 | NYJ | 35 | -0.184644 |
-| NE | 12 | CIN | 36 | -0.129175 |
-| NE | 13 | NYG | 34 | 0.024259 |
-| NE | 15 | BUF | 26 | 0.091081 |
-| NE | 16 | BAL | 47 | -0.032278 |
-| NE | 17 | NYJ | 22 | -0.184644 |
-| NE | 18 | MIA | 18 | -0.099015 |
-
-Equal-game defense mean: `-0.032786`
-
-Dropback-weighted defense mean: `-0.029482`
-
-#### Tyler Shough
-
-| Team | Week | Opp | Dropbacks | Def Coeff |
-| --- | ---: | --- | ---: | ---: |
-| NO | 3 | SEA | 2 | 0.095555 |
-| NO | 8 | TB | 32 | -0.036752 |
-| NO | 9 | LAR | 24 | 0.070429 |
-| NO | 10 | CAR | 29 | -0.039442 |
-| NO | 12 | ATL | 48 | 0.035693 |
-| NO | 13 | MIA | 43 | -0.099015 |
-| NO | 14 | TB | 23 | -0.036752 |
-| NO | 15 | CAR | 36 | -0.039442 |
-| NO | 16 | NYJ | 51 | -0.184644 |
-| NO | 17 | TEN | 29 | -0.133682 |
-| NO | 18 | ATL | 39 | 0.035693 |
-
-Equal-game defense mean: `-0.030214`
-
-Dropback-weighted defense mean: `-0.048173`
-
-#### Joe Flacco
-
-| Team | Week | Opp | Dropbacks | Def Coeff |
-| --- | ---: | --- | ---: | ---: |
-| CIN | 6 | GB | 45 | -0.063224 |
-| CIN | 7 | PIT | 49 | -0.008111 |
-| CIN | 8 | NYJ | 35 | -0.184644 |
-| CIN | 9 | CHI | 51 | -0.024047 |
-| CIN | 11 | PIT | 41 | -0.008111 |
-| CIN | 12 | NE | 37 | -0.007383 |
-| CIN | 16 | MIA | 1 | -0.099015 |
-| CIN | 17 | ARI | 5 | -0.075714 |
-| CIN | 18 | CLE | 0 | 0.149503 |
-| CLE | 1 | CIN | 47 | -0.129175 |
-| CLE | 2 | BAL | 47 | -0.032278 |
-| CLE | 3 | GB | 37 | -0.063224 |
-| CLE | 4 | DET | 37 | 0.023410 |
-
-Equal-game defense mean: `-0.040155`
-
-Dropback-weighted defense mean: `-0.048787`
-
-#### J.J. McCarthy
-
-| Team | Week | Opp | Dropbacks | Def Coeff |
-| --- | ---: | --- | ---: | ---: |
-| MIN | 1 | CHI | 25 | -0.024047 |
-| MIN | 2 | ATL | 27 | 0.035693 |
-| MIN | 9 | DET | 30 | 0.023410 |
-| MIN | 10 | BAL | 44 | -0.032278 |
-| MIN | 11 | CHI | 32 | -0.024047 |
-| MIN | 12 | GB | 24 | -0.063224 |
-| MIN | 14 | WAS | 27 | -0.148474 |
-| MIN | 15 | DAL | 24 | -0.195093 |
-| MIN | 16 | NYG | 17 | 0.024259 |
-| MIN | 18 | GB | 23 | -0.063224 |
-
-Equal-game defense mean: `-0.046703`
-
-Dropback-weighted defense mean: `-0.045330`
-
-The Maye-versus-Shough ordering is mostly construct plus weighting, not a hidden join issue.
-Maye's equal-game pass-defense mean is slightly softer than Shough's (`-0.032786` vs `-0.030214`),
-but dropback weighting flips the pair (`-0.029482` vs `-0.048173`) because Shough's hardest
-pass-defense games carried very little volume (`SEA`: `2` dropbacks, `LAR`: `24`) while his soft,
-high-volume games (`NYJ`: `51`, `MIA`: `43`, `TEN`: `29`) dominate the weighted mean.
-
-### Defense Coefficient Calibration
-
-Compression is not supported by the raw unit-comparable defense-coefficient spread. In both `2025`
-and pooled `1999-2025`, the QB defense coefficients are wider than the team pass-defense
-coefficients, not narrower.
-
-| Scope | Anchor | Pearson | QB SD | Anchor SD | SD Ratio |
-| --- | --- | ---: | ---: | ---: | ---: |
-| 2025 | Team pass-defense coeff | 0.979 | 0.100622 | 0.061626 | 1.633 |
-| 2025 | SaDR | 0.934 | 0.100622 | 1.000014 | 0.101 |
-| 2025 | SaCR | 0.496 | 0.100622 | 1.000015 | 0.101 |
-| 2025 | SRS | 0.567 | 0.100622 | 6.211806 | 0.016 |
-| 1999-2025 pooled | Team pass-defense coeff | 0.973 | 0.082252 | 0.050574 | 1.626 |
-| 1999-2025 pooled | SaDR | 0.899 | 0.082252 | 0.984776 | 0.084 |
-| 1999-2025 pooled | SaCR | 0.558 | 0.082252 | 0.984754 | 0.084 |
-| 1999-2025 pooled | SRS | 0.598 | 0.082252 | 6.112101 | 0.013 |
-
-`SaDR`, `SaCR`, and `SRS` are retained as external calibration anchors, but only the team
-pass-defense coefficient is truly unit-comparable to the QB defense coefficient. On that direct
-lens, the under-docking-by-compression hypothesis is rejected.
-
-### QSoS Rank Correlations
-
-`QSoS` behaves like a pass-defense schedule lens, not an overall opponent-quality lens.
-
-| Metric | 2025 Spearman | Mean 1999-2025 Spearman |
-| --- | ---: | ---: |
-| Equal-game opp SaCR | 0.447 | 0.465 |
-| Dropback-weighted opp SaCR | 0.366 | 0.504 |
-| Equal-game opp SaDR | 0.831 | 0.802 |
-| Dropback-weighted opp SaDR | 0.826 | 0.842 |
-| Equal-game opp SRS | 0.531 | 0.497 |
-| Dropback-weighted opp SRS | 0.475 | 0.538 |
-| Dropback-weighted team pass-defense coeff | 0.884 | 0.938 |
-
-### Largest 2025 Rank Gaps vs Overall Opponent Quality
-
-| QB | Team | QSoS | Equal Opp SaCR | QSoS Rank | Opp SaCR Rank | Abs Gap |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Lamar Jackson | BAL | 0.385 | -0.336 | 8.0 | 31.0 | 23.0 |
-| Joe Burrow | CIN | 1.079 | -0.228 | 5.0 | 26.0 | 21.0 |
-| J.J. McCarthy | MIN | -1.994 | 0.127 | 31.0 | 10.0 | 21.0 |
-| Spencer Rattler | NO | -0.159 | 0.299 | 23.0 | 5.0 | 18.0 |
-| Michael Penix Jr. | ATL | -0.865 | 0.105 | 27.0 | 12.0 | 15.0 |
-| Jacoby Brissett | ARI | 0.210 | 0.506 | 14.0 | 1.0 | 13.0 |
-| Joe Flacco | CIN | -2.150 | -0.048 | 32.0 | 19.0 | 13.0 |
-| Daniel Jones | IND | 0.293 | -0.106 | 10.0 | 22.0 | 12.0 |
-
-### Drake Maye's 2025 Opponent Placement
-
-Maye's schedule is soft on the pass-defense lens too, just much less extreme than on the overall
-team-quality lens.
-
-- Mean faced defense coefficient: `-0.032786`
-- Mean faced opponent `SaCR`: `-0.700882`
-- Mean faced opponent `SRS`: `-4.284944`
-
-That is the core explanation. The model was not hiding a neutral or hard Maye schedule. It was
-measuring a different thing: pass-defense difficulty with dropback weighting. Under that construct,
-Maye remains soft-scheduled, but not the softest named case.
-
-### Adjustment-Side Disposition
-
-No diagnostic rescaling variant was promoted or retained as a sign-off candidate. The audit found
-no evidence that the QB defense coefficients are compressed relative to the team pass-defense
-coefficients, so there is no quantitative basis here for an under-docking fix beyond the outright
-multi-team aggregation bug that was fixed in the live pipeline.
-
 ## QB Revision Sweep
 
 | Variant | Eligible QBs | Slope | Correlation | Defense Penalty Multiplier |
@@ -746,19 +597,19 @@ multi-team aggregation bug that was fixed in the live pipeline.
 
 ## QB Open Status
 
-- The published QB composite target and weights remain unchanged, and the split-half companion
-  metric is not promoted to a published surface.
-- The earlier QB audit continues to stand as a positive linear-adjustment result: the additive
-  adjustment operated at full strength in EPA units, the identity checks held, and the fixed-defense
-  and lighter-defense-penalty variants were correctly not adopted.
-- The only remaining QB follow-up is the opponent-context batch below. If those checks also come
-  back null, the current published composite stands as the system's answer.
-
+- The published QB composite target and weights remain unchanged, and the split-half
+  companion metric is not promoted to a published surface.
+- The earlier QB audit continues to stand as a positive linear-adjustment result:
+  the additive adjustment operated at full strength in EPA units, the identity checks
+  held, and the fixed-defense and lighter-defense-penalty variants were correctly not
+  adopted.
+- The only remaining QB follow-up is the opponent-context batch below. If those checks
+  also come back null, the current published composite stands as the system's answer.
 ## D5 Opponent-Offense Effect
 
 - Gate reading: not_supported.
-- Pooled weighted slope -0.041 with 95% CI [-0.134, 0.052] and 10 / 27 positive seasons (p = 0.939).
-
+- Pooled weighted slope -0.041 with 95% CI [-0.134, 0.052]
+  and 10 / 27 positive seasons (p = 0.939).
 | Scope | Season | QB Seasons | Dropbacks | Slope | Correlation | CI Lower | CI Upper | Positive Seasons | Season Count | Binomial P |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | pooled | - | 12415 | 425780.000 | -0.041 | -0.008 | -0.134 | 0.052 | 10 | 27 | 0.939 |
@@ -800,11 +651,11 @@ multi-team aggregation bug that was fixed in the live pipeline.
 - Moderate-leverage win-probability band: 0.05-0.95.
 - Gate reading: not_supported.
 - Companion gate: stability fail, playoff correlation pass.
-- Pooled weighted slope -0.026 with 95% CI [-0.202, 0.153] and 14 / 27 positive seasons (p = 0.500).
-
+- Pooled weighted slope -0.021 with 95% CI [-0.198, 0.157]
+  and 14 / 27 positive seasons (p = 0.500).
 | Scope | Season | QB Seasons | Dropbacks | Slope | Correlation | CI Lower | CI Upper | Positive Seasons | Season Count | Binomial P |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| pooled | - | 892 | 421518.000 | -0.026 | -0.010 | -0.202 | 0.153 | 14 | 27 | 0.500 |
+| pooled | - | 892 | 421518.000 | -0.021 | -0.008 | -0.198 | 0.157 | 14 | 27 | 0.500 |
 | season | 1999 | 38 | 14816.000 | 0.536 | 0.208 | - | - | - | - | - |
 | season | 2000 | 36 | 14724.000 | 0.286 | 0.132 | - | - | - | - | - |
 | season | 2001 | 30 | 15027.000 | -1.006 | -0.333 | - | - | - | - | - |
@@ -817,21 +668,21 @@ multi-team aggregation bug that was fixed in the live pipeline.
 | season | 2008 | 32 | 14996.000 | 0.434 | 0.233 | - | - | - | - | - |
 | season | 2009 | 32 | 15090.000 | 0.012 | 0.006 | - | - | - | - | - |
 | season | 2010 | 31 | 15048.000 | 0.327 | 0.111 | - | - | - | - | - |
-| season | 2011 | 34 | 15972.000 | 0.474 | 0.149 | - | - | - | - | - |
+| season | 2011 | 34 | 15972.000 | 0.503 | 0.156 | - | - | - | - | - |
 | season | 2012 | 32 | 16741.000 | 0.027 | 0.011 | - | - | - | - | - |
 | season | 2013 | 36 | 17144.000 | -0.493 | -0.194 | - | - | - | - | - |
 | season | 2014 | 33 | 16366.000 | -0.785 | -0.316 | - | - | - | - | - |
-| season | 2015 | 35 | 17049.000 | 0.148 | 0.059 | - | - | - | - | - |
+| season | 2015 | 35 | 17049.000 | 0.146 | 0.059 | - | - | - | - | - |
 | season | 2016 | 30 | 16684.000 | 0.781 | 0.259 | - | - | - | - | - |
 | season | 2017 | 32 | 15770.000 | -0.263 | -0.092 | - | - | - | - | - |
 | season | 2018 | 33 | 16551.000 | 0.310 | 0.089 | - | - | - | - | - |
 | season | 2019 | 32 | 16347.000 | -0.650 | -0.220 | - | - | - | - | - |
 | season | 2020 | 35 | 16736.000 | 0.341 | 0.170 | - | - | - | - | - |
 | season | 2021 | 31 | 16694.000 | -0.644 | -0.179 | - | - | - | - | - |
-| season | 2022 | 33 | 15717.000 | -1.037 | -0.175 | - | - | - | - | - |
-| season | 2023 | 32 | 15575.000 | 0.194 | 0.074 | - | - | - | - | - |
+| season | 2022 | 33 | 15717.000 | -0.807 | -0.134 | - | - | - | - | - |
+| season | 2023 | 32 | 15575.000 | 0.339 | 0.127 | - | - | - | - | - |
 | season | 2024 | 36 | 16389.000 | -0.781 | -0.223 | - | - | - | - | - |
-| season | 2025 | 33 | 15131.000 | -0.342 | -0.118 | - | - | - | - | - |
+| season | 2025 | 33 | 15131.000 | -0.334 | -0.116 | - | - | - | - | - |
 
 | Season | QB | Schedule Softness | Low-Leverage Share | Moderate-Leverage Share |
 | --- | --- | --- | --- | --- |
@@ -842,8 +693,7 @@ multi-team aggregation bug that was fixed in the live pipeline.
 
 - Decision gate reading: not_supported.
 - Primary top-half gate: passed.
-- Placebo check: bottom-half residuals showed a same-direction signal, so the
-  strong-defense-specific interpretation is not supported.
+- Placebo check: bottom-half residuals showed a same-direction signal, so the strong-defense-specific interpretation is not supported.
 
 Top-half residual regression summary:
 
@@ -920,9 +770,10 @@ Bottom-half placebo summary:
 
 ## Stage 3d D3 Playoff Validation
 
-- Interpretation rule: whichever metric best predicts playoff performance is evidence about that
-  metric, not about 2025 specifically. If QSaCR wins, that is vindicating evidence for the current
-  composite and must be recorded as such.
+- Interpretation rule: whichever metric best predicts playoff performance is evidence
+  about that metric, not about 2025 specifically.
+  If QSaCR wins, that is vindicating evidence for the current composite and must be
+  recorded as such.
 
 | Season | Metric | QB Seasons | Playoff Dropbacks | Spearman | Spearman CI Lower | Spearman CI Upper | Pearson | Pearson CI Lower | Pearson CI Upper |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -1111,7 +962,7 @@ Bottom-half placebo summary:
 
 ## SaCR Caveat
 
-SaCR may be evaluated as a secondary line with a caveat: its frozen Stage 2 weights were fit on the
-full 1999-2025 history. A walk-forward SaCR line over that same window has look-ahead in the
-weights. SaOvR is the headline walk-forward metric because it does not depend on a fitted Stage 2
-weight snapshot.
+SaCR may be evaluated as a secondary line with a caveat:
+its frozen Stage 2 weights were fit on the full 1999-2025 history.
+A walk-forward SaCR line over that same window has look-ahead in the weights.
+SaOvR is the headline walk-forward metric because it does not depend on a fitted Stage 2 weight snapshot.
