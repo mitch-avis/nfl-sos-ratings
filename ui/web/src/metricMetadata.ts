@@ -213,12 +213,12 @@ export const GLOSSARY_SECTIONS: Array<{ title: string; description: string; metr
   {
     title: 'Team Rankings',
     description: 'Use these first when comparing full-team quality against actual schedules.',
-    metrics: ['SaCR', 'sos', 'SRS', 'SaOR', 'SaDR', 'SaOvR'],
+    metrics: ['SaCR', 'SaCR_alltime', 'SaOvR', 'SaOvR_alltime', 'sos', 'SRS'],
   },
   {
     title: 'QB Rankings',
     description: 'Use these first when comparing QB quality against the defenses each QB faced.',
-    metrics: ['QSaCR', 'QSaOR', 'QSoS', 'faced_opp_SaCR', 'QRaw', 'QOutcome'],
+    metrics: ['QSaCR', 'QSaCR_alltime', 'QSaOR', 'QSaOR_alltime', 'QSoS', 'faced_opp_SaCR'],
   },
   {
     title: 'Key Supporting Stats',
