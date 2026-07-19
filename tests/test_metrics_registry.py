@@ -57,6 +57,11 @@ CURRENT_OUTPUT_COLUMN_SAMPLES = [
     "qb_epa_per_dropback",
     "qb_any_a",
     "qb_sack_rate",
+    "qb_designed_carries",
+    "qb_designed_rush_epa",
+    "qb_designed_epa_per_carry",
+    "qb_scrambles",
+    "qb_kneels",
     "qb_fourth_quarter_comeback",
     "qb_passer_rating",
     # QB season shapes
@@ -83,22 +88,30 @@ CURRENT_OUTPUT_COLUMN_SAMPLES = [
     "diff_passing_epa_per_offensive_snap",
     "diff_qb_any_a",
     "adj_qb_epa_per_dropback",
+    "adj_qb_designed_rush_epa_per_carry",
     "adj_def_qb_epa_per_dropback_faced",
+    "adj_def_rushing_epa_per_offensive_snap_faced",
     "adj_off_points_per_offensive_snap",
     "adj_def_passing_interceptions_per_offensive_snap",
     "adj_off_def_sacks_per_defensive_snap",
     # ratings and percentiles
     "SaCR",
+    "SaCR_alltime",
     "SaOR",
     "SaDR",
     "SaSTR",
     "SaOvR",
+    "SaOvR_alltime",
     "SRS",
     "sos",
+    "QSaCR_alltime",
+    "QSaOR",
+    "QSaOR_alltime",
     "QRaw",
     "QSoS",
     "faced_opp_SaCR",
-    "QSaOR",
+    "adj_qb_designed_rush_epa_per_carry",
+    "adj_def_rushing_epa_per_offensive_snap_faced",
     "QSaCR",
     "QOutcome",
     "QRaw_pct",
@@ -331,14 +344,27 @@ class TestRatingPools:
             assert resolved is not None
             assert "that season" in resolved.description.lower(), column
 
+    def test_alltime_companion_descriptions_carry_era_and_moving_baseline_caveats(
+        self, registry: MetricRegistry
+    ) -> None:
+        """All-time companion descriptions should warn about era context and moving baselines."""
+        for column in ("SaCR_alltime", "SaOvR_alltime", "QSaCR_alltime", "QSaOR_alltime"):
+            resolved = registry.resolve_column(column)
+            assert resolved is not None
+            text = f"{resolved.description} {resolved.base.note or ''}".lower()
+            assert "era context" in text
+            assert "future season" in text or "future seasons" in text
+
     def test_schedule_strength_entries_are_precise_and_visible(
         self, registry: MetricRegistry
     ) -> None:
         """Schedule-context surfaces should resolve with precise metric descriptions."""
         qsos = registry.resolve_column("QSoS")
         raw_qsos = registry.resolve_column("adj_def_qb_epa_per_dropback_faced")
+        rush_qsos = registry.resolve_column("adj_def_rushing_epa_per_offensive_snap_faced")
         team_sos = registry.resolve_column("sos")
         qb_overall = registry.resolve_column("faced_opp_SaCR")
+        adjusted_rush = registry.resolve_column("adj_qb_designed_rush_epa_per_carry")
 
         assert qsos is not None
         assert "dropback-weighted" in qsos.description.lower()
@@ -347,6 +373,10 @@ class TestRatingPools:
         assert raw_qsos is not None
         assert "dropback-weighted" in raw_qsos.description.lower()
 
+        assert rush_qsos is not None
+        assert "carry-weighted" in rush_qsos.description.lower()
+        assert "rush-defense" in rush_qsos.description.lower()
+
         assert team_sos is not None
         assert team_sos.category == "Schedule-Adjusted Ratings"
         assert team_sos.contextual is True
@@ -354,6 +384,10 @@ class TestRatingPools:
         assert qb_overall is not None
         assert qb_overall.category == "Schedule-Adjusted Ratings"
         assert qb_overall.contextual is True
+
+        assert adjusted_rush is not None
+        assert adjusted_rush.category == "Schedule-Adjusted Ratings"
+        assert adjusted_rush.base.ratings_eligible is True
 
     def test_qb_cpoe_era_boundary_is_documented_on_published_composites(
         self, registry: MetricRegistry
