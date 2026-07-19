@@ -958,8 +958,18 @@ def load_qb_stats(season: int) -> pl.DataFrame:
                 "qb_rushing_fumbles",
                 "qb_rushing_fumbles_lost",
                 "qb_rushing_2pt_conversions",
+                "qb_designed_carries",
+                "qb_designed_rush_yards",
+                "qb_designed_rush_epa",
+                "qb_scrambles",
+                "qb_scramble_yards",
+                "qb_kneels",
                 "qb_yards_per_carry",
                 "qb_epa_per_carry",
+                "qb_scramble_rate",
+                "qb_yards_per_scramble",
+                "qb_designed_yards_per_carry",
+                "qb_designed_epa_per_carry",
             )
             if column in qb_df.columns
         ]
