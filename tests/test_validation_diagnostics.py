@@ -10,8 +10,12 @@ from nfl_sos_ratings.validation.diagnostics import (
     build_qb_leverage_profile_frame,
     build_qb_opponent_offense_frame,
     build_qb_split_half_frame,
+    compute_qb_designed_rush_preview,
     compute_qb_playoff_season_summary,
     compute_qb_playoff_validation_frame,
+    compute_qb_schedule_lens_anchor,
+    compute_qb_schedule_lens_divergence,
+    compute_qb_schedule_lens_trace,
     compute_season_mae_deltas,
     compute_weekly_mae_curves,
     evaluate_qb_split_half_decision,
@@ -644,3 +648,110 @@ def test_summarize_qb_leverage_signal_reports_supported_direction() -> None:
     assert pooled["slope"] > 0.0
     assert pooled["ci_lower"] > 0.0
     assert pooled["direction_positive_count"] == 3
+
+
+def test_compute_qb_schedule_lens_anchor_matches_played_game_means(tmp_path: Path) -> None:
+    """Schedule-lens anchors should reproduce equal-game opponent means for named QBs."""
+    pl.DataFrame(
+        {
+            "qb_name": ["QB A", "QB A", "QB B"],
+            "week": [1, 2, 1],
+            "opponent_team": ["KC", "BUF", "KC"],
+        }
+    ).write_parquet(tmp_path / "2025_qb_game_logs.parquet")
+    pl.DataFrame(
+        {
+            "team": ["KC", "BUF"],
+            "SaCR": [0.8, -0.2],
+            "SaDR": [0.5, -0.1],
+            "SRS": [4.0, -1.0],
+        }
+    ).write_parquet(tmp_path / "2025_ratings.parquet")
+
+    anchor = compute_qb_schedule_lens_anchor(tmp_path, 2025, qb_names=["QB A", "QB B"])
+
+    assert anchor.select("qb_name").to_series().to_list() == ["QB A", "QB B"]
+    assert anchor.select("games").to_series().to_list() == [2, 1]
+    assert anchor.select("avg_opp_SaCR").to_series().to_list() == pytest.approx([0.3, 0.8])
+    assert anchor.select("avg_opp_SaDR").to_series().to_list() == pytest.approx([0.2, 0.5])
+    assert anchor.select("avg_opp_SRS").to_series().to_list() == pytest.approx([1.5, 4.0])
+
+
+def test_compute_qb_schedule_lens_trace_joins_reported_schedule_surfaces(tmp_path: Path) -> None:
+    """Schedule trace rows should carry the raw audit intermediates plus published lenses."""
+    pl.DataFrame(
+        {
+            "qb_id": ["qb-a", "qb-a", "qb-b", "qb-b"],
+            "qb_name": ["QB A", "QB A", "QB B", "QB B"],
+            "team": ["A", "A", "B", "B"],
+            "opponent_team": ["KC", "BUF", "KC", "BUF"],
+            "qb_dropbacks": [30.0, 10.0, 10.0, 30.0],
+            "qb_epa_per_dropback": [0.20, 0.00, -0.10, 0.10],
+        }
+    ).write_parquet(tmp_path / "2025_qb_game_logs.parquet")
+    pl.DataFrame(
+        {
+            "qb_id": ["qb-a", "qb-b"],
+            "qb_name": ["QB A", "QB B"],
+            "team": ["A", "B"],
+            "QSoS": [0.4, -0.2],
+            "faced_opp_SaCR": [0.3, -0.1],
+            "adj_def_qb_epa_per_dropback_faced": [0.15, -0.05],
+            "qb_is_eligible": [True, True],
+        }
+    ).write_parquet(tmp_path / "2025_qb_combined.parquet")
+
+    trace = compute_qb_schedule_lens_trace(tmp_path, 2025, qb_names=["QB A", "QB B"])
+
+    assert trace.select("qb_name").to_series().to_list() == ["QB A", "QB B"]
+    assert trace.select("weighted_faced_defense").null_count().item() == 0
+    assert trace.select("raw_value").null_count().item() == 0
+    assert trace.select("adjusted_value").null_count().item() == 0
+    assert trace.select("QSoS").to_series().to_list() == pytest.approx([0.4, -0.2])
+    assert trace.select("faced_opp_SaCR").to_series().to_list() == pytest.approx([0.3, -0.1])
+
+
+def test_compute_qb_schedule_lens_divergence_orders_by_rank_gap(tmp_path: Path) -> None:
+    """Lens-divergence rows should rank QBs by the largest pass-vs-overall gap."""
+    pl.DataFrame(
+        {
+            "qb_id": ["a", "b", "c"],
+            "qb_name": ["QB A", "QB B", "QB C"],
+            "team": ["A", "B", "C"],
+            "QSoS": [1.0, -1.0, 0.0],
+            "faced_opp_SaCR": [-1.0, 1.0, 0.0],
+            "qb_is_eligible": [True, True, True],
+        }
+    ).write_parquet(tmp_path / "2025_qb_combined.parquet")
+
+    divergence = compute_qb_schedule_lens_divergence(tmp_path, 2025, limit=2)
+
+    assert divergence.select("qb_name").to_series().to_list() == ["QB A", "QB B"]
+    assert divergence.select("rank_gap").to_series().to_list() == [-2, 2]
+
+
+def test_compute_qb_designed_rush_preview_pulls_rush_and_pass_lenses(tmp_path: Path) -> None:
+    """Designed-rush preview rows should carry the new rush surfaces plus the pass lens."""
+    pl.DataFrame(
+        {
+            "qb_id": ["qb-a", "qb-b"],
+            "qb_name": ["QB A", "QB B"],
+            "team": ["A", "B"],
+            "qb_designed_carries_total": [20, 10],
+            "qb_designed_epa_per_carry": [0.30, 0.10],
+            "adj_def_rushing_epa_per_offensive_snap_faced": [0.20, -0.10],
+            "adj_qb_designed_rush_epa_per_carry": [0.50, 0.00],
+            "QSoS": [0.40, -0.20],
+            "adj_def_qb_epa_per_dropback_faced": [0.15, -0.05],
+            "faced_opp_SaCR": [0.25, -0.15],
+        }
+    ).write_parquet(tmp_path / "2025_qb_combined.parquet")
+
+    preview = compute_qb_designed_rush_preview(tmp_path, 2025, qb_names=["QB A", "QB B"])
+
+    assert preview.select("qb_name").to_series().to_list() == ["QB A", "QB B"]
+    assert preview.select("qb_designed_carries_total").to_series().to_list() == [20, 10]
+    assert preview.select(
+        "adj_qb_designed_rush_epa_per_carry"
+    ).to_series().to_list() == pytest.approx([0.5, 0.0])
+    assert preview.select("QSoS").to_series().to_list() == pytest.approx([0.4, -0.2])
