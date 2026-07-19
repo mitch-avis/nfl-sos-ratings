@@ -23,7 +23,13 @@ _DURABLE_DOC_PATHS: tuple[Path, ...] = (
 )
 
 _SOURCE_ROOT = _REPO_ROOT / "nfl_sos_ratings"
+_TESTS_ROOT = _REPO_ROOT / "tests"
 _HISTORY_LANGUAGE_EXEMPT_SOURCE = _SOURCE_ROOT / "validation" / "history_strings.py"
+_POLICY_TEST_EXEMPT_SOURCE = Path(__file__).resolve()
+_LANGUAGE_SCAN_EXEMPT_SOURCES: tuple[Path, ...] = (
+    _HISTORY_LANGUAGE_EXEMPT_SOURCE,
+    _POLICY_TEST_EXEMPT_SOURCE,
+)
 
 _PUBLISHED_RATING_COLUMNS: tuple[str, ...] = (
     "SaOR",
@@ -82,6 +88,24 @@ def _find_banned_terms(text: str) -> list[str]:
             for pattern in _BANNED_METHODOLOGY_PATTERNS
             for match in pattern.finditer(text)
         }
+    )
+
+
+def _iter_language_scan_paths() -> list[Path]:
+    """Return all Python source files covered by the durable-language scan."""
+    return sorted(
+        [
+            *(
+                path
+                for path in _SOURCE_ROOT.rglob("*.py")
+                if path not in _LANGUAGE_SCAN_EXEMPT_SOURCES
+            ),
+            *(
+                path
+                for path in _TESTS_ROOT.rglob("*.py")
+                if path not in _LANGUAGE_SCAN_EXEMPT_SOURCES
+            ),
+        ]
     )
 
 
@@ -176,8 +200,7 @@ def test_durable_methodology_surfaces_avoid_campaign_terminology(
         "composite_weights_cli": _capture_composite_weight_cli_output(monkeypatch, capsys),
         **{
             path.relative_to(_REPO_ROOT).as_posix(): path.read_text(encoding="utf-8")
-            for path in sorted(_SOURCE_ROOT.rglob("*.py"))
-            if path != _HISTORY_LANGUAGE_EXEMPT_SOURCE
+            for path in _iter_language_scan_paths()
         },
         **{
             path.relative_to(_REPO_ROOT).as_posix(): path.read_text(encoding="utf-8")
@@ -190,3 +213,11 @@ def test_durable_methodology_surfaces_avoid_campaign_terminology(
     }
 
     assert matches == {}
+
+
+def test_durable_methodology_language_scan_exemptions_stay_explicit() -> None:
+    """The repo-wide language scan should keep only the approved source exemptions."""
+    assert {path.relative_to(_REPO_ROOT).as_posix() for path in _LANGUAGE_SCAN_EXEMPT_SOURCES} == {
+        "nfl_sos_ratings/validation/history_strings.py",
+        "tests/test_methodology_language_policy.py",
+    }
