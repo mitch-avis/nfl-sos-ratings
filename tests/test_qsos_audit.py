@@ -5,6 +5,8 @@ from pathlib import Path
 import polars as pl
 import pytest
 
+from nfl_sos_ratings.validation.diagnostics import compute_qb_schedule_lens_anchor
+
 _DATA_DIR = Path("data")
 
 _QB_OPPONENT_QUALITY_ANCHOR_2025: dict[str, dict[str, float | int]] = {
@@ -67,3 +69,19 @@ def test_2025_qsos_anchor_keeps_joe_flacco_all_played_games() -> None:
         "CIN",
         "CLE",
     ]
+
+
+def test_2025_qsos_anchor_helper_matches_published_fixture() -> None:
+    """The reusable audit helper should reproduce the pinned four-QB 2025 anchor table."""
+    anchor = compute_qb_schedule_lens_anchor(
+        _DATA_DIR,
+        2025,
+        qb_names=list(_QB_OPPONENT_QUALITY_ANCHOR_2025),
+    )
+
+    for row in anchor.iter_rows(named=True):
+        expected = _QB_OPPONENT_QUALITY_ANCHOR_2025[str(row["qb_name"])]
+        assert row["games"] == expected["games"]
+        assert row["avg_opp_SaCR"] == pytest.approx(expected["avg_opp_SaCR"])
+        assert row["avg_opp_SaDR"] == pytest.approx(expected["avg_opp_SaDR"])
+        assert row["avg_opp_SRS"] == pytest.approx(expected["avg_opp_SRS"])
