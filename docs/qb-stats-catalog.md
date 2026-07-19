@@ -76,7 +76,7 @@ team catalog all apply here; this document only restates what differs for indivi
 
 | View | Denominator | Additional Notes |
 | --- | --- | --- |
-| Ratings | none | Schedule-adjusted outputs (`QSaCR`, `QSaOR`, `QRaw`, `QSoS`, `faced_opp_SaCR`, `QOutcome`). Every published project rating is standardized within its own season, so `0` means that season's average and `+1` means one standard deviation above that season's average. `QSaCR` is the published weighted QB composite over adjusted EPA/dropback, CPOE, sack rate, and TD-INT margin rate. `QSoS` is the dropback-weighted pass-defense lens; `faced_opp_SaCR` is the equal-game overall-opponent-quality companion. `QRaw` and `QSaCR` are published for `2006+` only because CPOE is part of their formula; the `1999-2005` rows are intentionally null. This is a view, not a category. |
+| Ratings | none | Schedule-adjusted outputs (`QSaCR`, `QSaCR_alltime`, `QSaOR`, `QSaOR_alltime`, `QRaw`, `QSoS`, `faced_opp_SaCR`, `adj_qb_designed_rush_epa_per_carry`, `adj_def_rushing_epa_per_offensive_snap_faced`, `QOutcome`). Every flagship project rating is standardized within its own season, so `0` means that season's average and `+1` means one standard deviation above that season's average. `QSaCR` is the published weighted QB composite over adjusted EPA/dropback, CPOE, sack rate, and TD-INT margin rate. The three schedule lenses are split on purpose: `QSoS` is the pass-defense lens, `adj_def_rushing_epa_per_offensive_snap_faced` is the rush-defense lens, and `faced_opp_SaCR` is the equal-game overall-opponent-quality companion. The `_alltime` columns are pooled-reference companions only: they reward era context and their baseline moves slightly when future seasons are added. `QRaw` and `QSaCR` are published for `2006+` only because CPOE is part of their formula; the `1999-2005` rows are intentionally null. This is a view, not a category. |
 | Raw Stat Totals | none | For **count** metrics only. **rate** and **avg** metrics keep the same value they show elsewhere. |
 | Per-Game Rates | games played (or games as primary QB — must be labeled) | For **count** metrics this is the per-game form. **rate** and **avg** metrics are unchanged. |
 | Per-Play Rates | play-specific denominators for the subcategory: dropback, attempt, carry, drive, series, etc. | For **count** metrics this uses each subcategory's natural denominator; **rate** and **avg** metrics are unchanged. |
@@ -118,10 +118,13 @@ subcategory (a named gap in the current UI), covering both designed runs and scr
 context is expressed through the two opponent views applied to these same eight subcategories, not
 as a ninth tab or category.
 
-The `Ratings` view now has two descriptive blocks:
+The `Ratings` view now has three descriptive blocks:
 
-- the project's own schedule-adjusted ratings (`QSaCR`, `QSaOR`, `QRaw`, `QSoS`,
-  `faced_opp_SaCR`, `QOutcome`)
+- the flagship within-season ratings and their pooled-reference companions (`QSaCR`,
+  `QSaCR_alltime`, `QSaOR`, `QSaOR_alltime`, `QRaw`)
+- the three schedule-context lenses plus the descriptive designed-run adjustment surfaces (`QSoS`,
+  `faced_opp_SaCR`, `adj_def_rushing_epa_per_offensive_snap_faced`,
+  `adj_qb_designed_rush_epa_per_carry`)
 - external/reference ratings such as ESPN QBR and related ESPN reference columns
 
 For the project's own ratings, the displayed scale is always within-season. If a QB is `+2.0`, that
@@ -265,14 +268,23 @@ kneels; the designed/scramble split is the analytical view.
 | `qb_rushing_first_downs` | First downs on rushes | PLS | count | 1999 |
 | `qb_rushing_epa` | EPA on rush plays | PLS | count | 1999 |
 | `qb_epa_per_carry` | `rushing_epa / carries` | D | rate | 1999 |
-| `qb_designed_carries` / `qb_designed_rush_yards` | Excluding scrambles and kneels | PBP | count | 1999 |
-| `qb_scrambles` / `qb_scramble_yards` | Scramble volume (duplicated in Pocket) | PBP | count | 1999 |
-| `qb_yards_per_scramble` | `scramble_yards / scrambles` | PBP | rate | 1999 |
-| `qb_kneels` | Kneel-downs (excluded from analytic rates) | PBP | count | 1999 |
+| `qb_designed_carries` | Called QB runs, excluding scrambles and kneels | PBP | count | 1999 |
+| `qb_designed_rush_yards` | Yards gained on called QB runs | PBP | count | 1999 |
+| `qb_designed_rush_epa` | `sum(epa on designed QB runs)` | PBP | count | 1999 |
+| `qb_designed_yards_per_carry` | `designed_rush_yards / designed_carries` | D | rate | 1999 |
+| `qb_designed_epa_per_carry` | `designed_rush_epa / designed_carries` | D | rate | 1999 |
+| `qb_scrambles` / `qb_scramble_yards` / `qb_yards_per_scramble` | Scramble volume and rate | PBP / D | count / rate | 1999 |
+| `qb_kneels` | Kneel-downs excluded from designed-run efficiency | PBP | count | 1999 |
 | `qb_rush_success_rate` | Success rate on designed QB runs | PBP | rate | 1999 |
 | `qb_explosive_rush_rate` | 10+ yard runs / carries | PBP | rate | 1999 |
 | `qb_rushing_fumbles` / `qb_rushing_fumbles_lost` | Fumbles rushing / lost | PLS | count | 1999 |
 | `qb_rushing_2pt_conversions` | 2-pt runs | PLS | count | 1999 |
+
+The descriptive rushing companion in the `Ratings` view is `adj_qb_designed_rush_epa_per_carry`.
+It applies the faced rush-defense lens
+(`adj_def_rushing_epa_per_offensive_snap_faced`) to the raw designed-run EPA-per-carry surface and
+is published so the next fair-trial refit can evaluate QB rushing without double-counting scramble
+EPA.
 
 `qb_total_epa_per_play` = (passing EPA + rushing EPA) / (dropbacks + designed carries) is the
 dual-threat headline rate combining both subcategories.
