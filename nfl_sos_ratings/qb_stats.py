@@ -26,6 +26,12 @@ _QB_TOTAL_COLUMNS: dict[str, tuple[str, PolarsCastType]] = {
     "qb_rushing_fumbles": ("qb_rushing_fumbles_total", pl.Int64),
     "qb_rushing_fumbles_lost": ("qb_rushing_fumbles_lost_total", pl.Int64),
     "qb_rushing_2pt_conversions": ("qb_rushing_2pt_conversions_total", pl.Int64),
+    "qb_designed_carries": ("qb_designed_carries_total", pl.Int64),
+    "qb_designed_rush_yards": ("qb_designed_rush_yards_total", pl.Float64),
+    "qb_designed_rush_epa": ("qb_designed_rush_epa_total", pl.Float64),
+    "qb_scrambles": ("qb_scrambles_total", pl.Int64),
+    "qb_scramble_yards": ("qb_scramble_yards_total", pl.Float64),
+    "qb_kneels": ("qb_kneels_total", pl.Int64),
 }
 
 _QB_PER_GAME_COLUMNS: dict[str, str] = {
@@ -50,6 +56,12 @@ _QB_PER_GAME_COLUMNS: dict[str, str] = {
     "qb_rushing_fumbles": "qb_rushing_fumbles_per_game",
     "qb_rushing_fumbles_lost": "qb_rushing_fumbles_lost_per_game",
     "qb_rushing_2pt_conversions": "qb_rushing_2pt_conversions_per_game",
+    "qb_designed_carries": "qb_designed_carries_per_game",
+    "qb_designed_rush_yards": "qb_designed_rush_yards_per_game",
+    "qb_designed_rush_epa": "qb_designed_rush_epa_per_game",
+    "qb_scrambles": "qb_scrambles_per_game",
+    "qb_scramble_yards": "qb_scramble_yards_per_game",
+    "qb_kneels": "qb_kneels_per_game",
 }
 
 
@@ -382,11 +394,22 @@ def compute_qb_game_stats_from_pbp(
             pl.lit(0.0).alias("qb_sack_yards_lost"),
             pl.lit(0).cast(pl.Int64).alias("qb_sack_fumbles_lost"),
             pl.lit(0.0).alias("qb_passing_epa"),
+            pl.lit(0).cast(pl.Int64).alias("qb_designed_carries"),
+            pl.lit(0.0).alias("qb_designed_rush_yards"),
+            pl.lit(0.0).alias("qb_designed_rush_epa"),
+            pl.lit(0).cast(pl.Int64).alias("qb_scrambles"),
+            pl.lit(0.0).alias("qb_scramble_yards"),
+            pl.lit(0).cast(pl.Int64).alias("qb_kneels"),
             pl.lit(None, dtype=pl.Float64).alias("qb_completion_percentage_above_expectation"),
+            pl.lit(None, dtype=pl.Float64).alias("qb_scramble_rate"),
+            pl.lit(None, dtype=pl.Float64).alias("qb_yards_per_scramble"),
+            pl.lit(None, dtype=pl.Float64).alias("qb_designed_yards_per_carry"),
+            pl.lit(None, dtype=pl.Float64).alias("qb_designed_epa_per_carry"),
         )
 
+    pbp_columns = set(pbp_df.columns)
     sack_yards = (
-        pl.col("yards_gained").fill_null(0.0) if "yards_gained" in pbp_df.columns else pl.lit(0.0)
+        pl.col("yards_gained").fill_null(0.0) if "yards_gained" in pbp_columns else pl.lit(0.0)
     )
 
     pbp_stats = (
@@ -432,10 +455,143 @@ def compute_qb_game_stats_from_pbp(
         )
     )
     pbp_stats = _canonicalize_qb_rows(pbp_stats, qb_identity_df, join_key="qb_id")
+    pbp_stats = pbp_stats.select(
+        [
+            "game_id",
+            "week",
+            "team_abbr",
+            "qb_id",
+            "qb_attempts",
+            "qb_completions",
+            "qb_pass_yards",
+            "qb_pass_touchdowns",
+            "qb_interceptions",
+            "qb_sacks",
+            "qb_sack_yards_lost",
+            "qb_sack_fumbles_lost",
+            "qb_passing_epa",
+            "qb_completion_percentage_above_expectation",
+        ]
+    )
+
+    rushing_stats = pl.DataFrame(
+        schema={
+            "game_id": pl.String,
+            "week": pl.Int64,
+            "team_abbr": pl.String,
+            "qb_id": pl.String,
+            "qb_name": pl.String,
+            "snap_player_id": pl.String,
+            "qb_designed_carries": pl.Int64,
+            "qb_designed_rush_yards": pl.Float64,
+            "qb_designed_rush_epa": pl.Float64,
+            "qb_scrambles": pl.Int64,
+            "qb_scramble_yards": pl.Float64,
+            "qb_kneels": pl.Int64,
+        }
+    )
+    if {
+        "game_id",
+        "week",
+        "posteam",
+        "rusher_player_id",
+        "rush",
+    }.issubset(pbp_columns):
+        rush_flag = pl.col("rush").fill_null(0) > 0
+        scramble_flag = (
+            pl.col("qb_scramble").fill_null(0) > 0
+            if "qb_scramble" in pbp_columns
+            else pl.lit(False)
+        )
+        kneel_flag = (
+            pl.col("qb_kneel").fill_null(0) > 0 if "qb_kneel" in pbp_columns else pl.lit(False)
+        )
+        two_point_flag = (
+            pl.col("two_point_attempt").fill_null(0) > 0
+            if "two_point_attempt" in pbp_columns
+            else pl.lit(False)
+        )
+        designed_rush_flag = rush_flag & ~scramble_flag & ~kneel_flag & ~two_point_flag
+        rush_yards = (
+            pl.col("rushing_yards").fill_null(0.0)
+            if "rushing_yards" in pbp_columns
+            else (
+                pl.col("yards_gained").fill_null(0.0)
+                if "yards_gained" in pbp_columns
+                else pl.lit(0.0)
+            )
+        )
+        rush_epa = (
+            pl.col("epa").fill_null(0.0)
+            if "epa" in pbp_columns
+            else (pl.col("qb_epa").fill_null(0.0) if "qb_epa" in pbp_columns else pl.lit(0.0))
+        )
+        rusher_name = pl.coalesce(
+            [
+                pl.col("rusher_player_name").cast(pl.String)
+                if "rusher_player_name" in pbp_columns
+                else pl.lit(None, dtype=pl.String),
+                pl.col("passer_player_name").cast(pl.String)
+                if "passer_player_name" in pbp_columns
+                else pl.lit(None, dtype=pl.String),
+            ]
+        )
+        rushing_stats = (
+            pbp_df.filter(
+                pl.col("posteam").is_not_null()
+                & pl.col("rusher_player_id").is_not_null()
+                & rush_flag
+            )
+            .group_by(["game_id", "week", "posteam", "rusher_player_id"])
+            .agg(
+                rusher_name.drop_nulls().first().alias("qb_name"),
+                designed_rush_flag.cast(pl.Int64).sum().alias("qb_designed_carries"),
+                rush_yards.filter(designed_rush_flag)
+                .sum()
+                .fill_null(0.0)
+                .alias("qb_designed_rush_yards"),
+                rush_epa.filter(designed_rush_flag)
+                .sum()
+                .fill_null(0.0)
+                .alias("qb_designed_rush_epa"),
+                (scramble_flag & ~two_point_flag).cast(pl.Int64).sum().alias("qb_scrambles"),
+                rush_yards.filter(scramble_flag & ~two_point_flag)
+                .sum()
+                .fill_null(0.0)
+                .alias("qb_scramble_yards"),
+                (kneel_flag & ~two_point_flag).cast(pl.Int64).sum().alias("qb_kneels"),
+            )
+            .rename(
+                {
+                    "posteam": "team_abbr",
+                    "rusher_player_id": "qb_id",
+                }
+            )
+        )
+        rushing_stats = _canonicalize_qb_rows(rushing_stats, qb_identity_df, join_key="qb_id")
+        rushing_stats = rushing_stats.select(
+            [
+                "game_id",
+                "week",
+                "team_abbr",
+                "qb_id",
+                "qb_designed_carries",
+                "qb_designed_rush_yards",
+                "qb_designed_rush_epa",
+                "qb_scrambles",
+                "qb_scramble_yards",
+                "qb_kneels",
+            ]
+        )
 
     return (
         volumes.join(
             pbp_stats,
+            on=["game_id", "week", "team_abbr", "qb_id"],
+            how="left",
+        )
+        .join(
+            rushing_stats,
             on=["game_id", "week", "team_abbr", "qb_id"],
             how="left",
         )
@@ -449,6 +605,12 @@ def compute_qb_game_stats_from_pbp(
             pl.col("qb_sack_yards_lost").fill_null(0.0),
             pl.col("qb_sack_fumbles_lost").fill_null(0).cast(pl.Int64),
             pl.col("qb_passing_epa").fill_null(0.0),
+            pl.col("qb_designed_carries").fill_null(0).cast(pl.Int64),
+            pl.col("qb_designed_rush_yards").fill_null(0.0),
+            pl.col("qb_designed_rush_epa").fill_null(0.0),
+            pl.col("qb_scrambles").fill_null(0).cast(pl.Int64),
+            pl.col("qb_scramble_yards").fill_null(0.0),
+            pl.col("qb_kneels").fill_null(0).cast(pl.Int64),
         )
         .with_columns(
             pl.when(pl.col("qb_dropbacks") > 0)
@@ -481,6 +643,22 @@ def compute_qb_game_stats_from_pbp(
             )
             .otherwise(None)
             .alias("qb_any_a"),
+            pl.when(pl.col("qb_dropbacks") > 0)
+            .then(pl.col("qb_scrambles") / pl.col("qb_dropbacks"))
+            .otherwise(None)
+            .alias("qb_scramble_rate"),
+            pl.when(pl.col("qb_scrambles") > 0)
+            .then(pl.col("qb_scramble_yards") / pl.col("qb_scrambles"))
+            .otherwise(None)
+            .alias("qb_yards_per_scramble"),
+            pl.when(pl.col("qb_designed_carries") > 0)
+            .then(pl.col("qb_designed_rush_yards") / pl.col("qb_designed_carries"))
+            .otherwise(None)
+            .alias("qb_designed_yards_per_carry"),
+            pl.when(pl.col("qb_designed_carries") > 0)
+            .then(pl.col("qb_designed_rush_epa") / pl.col("qb_designed_carries"))
+            .otherwise(None)
+            .alias("qb_designed_epa_per_carry"),
         )
         .join(
             _compute_team_late_game_flags_from_pbp(pbp_df),
@@ -525,11 +703,21 @@ def compute_qb_game_stats_from_pbp(
                 "qb_sack_yards_lost",
                 "qb_sack_fumbles_lost",
                 "qb_passing_epa",
+                "qb_designed_carries",
+                "qb_designed_rush_yards",
+                "qb_designed_rush_epa",
+                "qb_scrambles",
+                "qb_scramble_yards",
+                "qb_kneels",
                 "qb_epa_per_dropback",
                 "qb_pass_yards_per_dropback",
                 "qb_td_int_margin_rate",
                 "qb_sack_rate",
                 "qb_any_a",
+                "qb_scramble_rate",
+                "qb_yards_per_scramble",
+                "qb_designed_yards_per_carry",
+                "qb_designed_epa_per_carry",
                 "qb_fourth_quarter_comeback",
                 "qb_game_winning_drive",
                 "qb_completion_percentage_above_expectation",
@@ -689,6 +877,32 @@ def compute_qb_season_stats(
                 .otherwise(None)
                 .alias(output_col)
             )
+    designed_carry_rate_inputs = [
+        ("qb_designed_rush_yards_total", "qb_designed_yards_per_carry"),
+        ("qb_designed_rush_epa_total", "qb_designed_epa_per_carry"),
+    ]
+    for numerator_col, output_col in designed_carry_rate_inputs:
+        if {numerator_col, "qb_designed_carries_total"}.issubset(set(season_stats.columns)):
+            rate_exprs.append(
+                pl.when(pl.col("qb_designed_carries_total") > 0)
+                .then(pl.col(numerator_col) / pl.col("qb_designed_carries_total"))
+                .otherwise(None)
+                .alias(output_col)
+            )
+    if {"qb_scramble_yards_total", "qb_scrambles_total"}.issubset(set(season_stats.columns)):
+        rate_exprs.append(
+            pl.when(pl.col("qb_scrambles_total") > 0)
+            .then(pl.col("qb_scramble_yards_total") / pl.col("qb_scrambles_total"))
+            .otherwise(None)
+            .alias("qb_yards_per_scramble")
+        )
+    if {"qb_scrambles_total", "qb_dropbacks_total"}.issubset(set(season_stats.columns)):
+        rate_exprs.append(
+            pl.when(pl.col("qb_dropbacks_total") > 0)
+            .then(pl.col("qb_scrambles_total") / pl.col("qb_dropbacks_total"))
+            .otherwise(None)
+            .alias("qb_scramble_rate")
+        )
     if {"qb_passing_epa_total", "qb_dropbacks_total"}.issubset(set(season_stats.columns)):
         rate_exprs.append(
             pl.when(pl.col("qb_dropbacks_total") > 0)
