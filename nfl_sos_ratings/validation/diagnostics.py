@@ -1854,16 +1854,194 @@ def compute_qb_case_study(
     return pl.concat([current_case, fixed_case, q2_case], how="vertical")
 
 
+def _matching_qb_keys(left: pl.DataFrame, right: pl.DataFrame) -> list[str]:
+    """Return the shared QB identity keys for diagnostics joins."""
+    return [
+        key
+        for key in ("qb_id", "qb_name", "team", "player_id", "player_display_name")
+        if key in left.columns and key in right.columns
+    ]
+
+
+def _sort_named_qb_frame(frame: pl.DataFrame, qb_names: Sequence[str]) -> pl.DataFrame:
+    """Return one QB frame sorted by the explicit audit-name order."""
+    if frame.is_empty() or "qb_name" not in frame.columns:
+        return frame
+    rank_map = {name: index for index, name in enumerate(qb_names)}
+    return (
+        frame.with_columns(
+            pl.col("qb_name").replace_strict(rank_map, default=len(rank_map)).alias("_qb_rank")
+        )
+        .sort("_qb_rank")
+        .drop("_qb_rank")
+    )
+
+
+def compute_qb_schedule_lens_anchor(
+    data_dir: Path,
+    season: int,
+    *,
+    qb_names: Sequence[str],
+) -> pl.DataFrame:
+    """Return equal-game opponent-quality means for one named-QB audit slice."""
+    qb_logs = pl.read_parquet(data_dir / f"{season}_qb_game_logs.parquet")
+    ratings_frame = pl.read_parquet(data_dir / f"{season}_ratings.parquet")
+    team_ratings = ratings_frame.select(
+        [column for column in ("team", "SaCR", "SaDR", "SRS") if column in ratings_frame.columns]
+    )
+    anchor = (
+        qb_logs.filter(pl.col("qb_name").is_in(list(qb_names)))
+        .select(["qb_name", "week", "opponent_team"])
+        .join(team_ratings, left_on="opponent_team", right_on="team", how="left")
+        .group_by("qb_name")
+        .agg(
+            pl.len().alias("games"),
+            pl.col("SaCR").mean().alias("avg_opp_SaCR"),
+            pl.col("SaDR").mean().alias("avg_opp_SaDR"),
+            pl.col("SRS").mean().alias("avg_opp_SRS"),
+        )
+    )
+    return _sort_named_qb_frame(anchor, qb_names)
+
+
+def compute_qb_schedule_lens_trace(
+    data_dir: Path,
+    season: int,
+    *,
+    qb_names: Sequence[str],
+    response_col: str = "qb_epa_per_dropback",
+    dropback_col: str = "qb_dropbacks",
+) -> pl.DataFrame:
+    """Return the raw schedule-adjustment intermediates for one named-QB audit slice."""
+    qb_games = pl.read_parquet(data_dir / f"{season}_qb_game_logs.parquet")
+    qb_combined = pl.read_parquet(data_dir / f"{season}_qb_combined.parquet")
+    trace = build_qb_adjustment_audit_frame(
+        qb_games,
+        response_col=response_col,
+        dropback_col=dropback_col,
+    )
+    join_keys = _matching_qb_keys(trace, qb_combined)
+    if join_keys:
+        trace = trace.join(
+            qb_combined.select(
+                [
+                    *join_keys,
+                    *[
+                        column
+                        for column in (
+                            "QSoS",
+                            "faced_opp_SaCR",
+                            "adj_def_qb_epa_per_dropback_faced",
+                            "qb_is_eligible",
+                        )
+                        if column in qb_combined.columns
+                    ],
+                ]
+            ),
+            on=join_keys,
+            how="left",
+        )
+    if "qb_is_eligible" in trace.columns:
+        trace = trace.filter(pl.col("qb_is_eligible"))
+    trace = trace.filter(pl.col("qb_name").is_in(list(qb_names)))
+    trace = trace.select(
+        [
+            column
+            for column in (
+                "qb_name",
+                "team",
+                "raw_value",
+                "adjusted_value",
+                "weighted_faced_defense",
+                "adjustment_delta",
+                "QSoS",
+                "faced_opp_SaCR",
+                "adj_def_qb_epa_per_dropback_faced",
+            )
+            if column in trace.columns
+        ]
+    )
+    return _sort_named_qb_frame(trace, qb_names)
+
+
+def compute_qb_schedule_lens_divergence(
+    data_dir: Path,
+    season: int,
+    *,
+    limit: int = 10,
+) -> pl.DataFrame:
+    """Return the largest pass-lens versus overall-quality rank gaps for eligible QBs."""
+    qb_combined = pl.read_parquet(data_dir / f"{season}_qb_combined.parquet")
+    frame = qb_combined
+    if "qb_is_eligible" in frame.columns:
+        frame = frame.filter(pl.col("qb_is_eligible"))
+    frame = frame.drop_nulls(["QSoS", "faced_opp_SaCR"])
+    if frame.is_empty():
+        return pl.DataFrame()
+    return (
+        frame.with_columns(
+            pl.col("QSoS")
+            .rank(method="ordinal", descending=True)
+            .cast(pl.Int64)
+            .alias("qsos_rank"),
+            pl.col("faced_opp_SaCR")
+            .rank(method="ordinal", descending=True)
+            .cast(pl.Int64)
+            .alias("overall_rank"),
+        )
+        .with_columns((pl.col("qsos_rank") - pl.col("overall_rank")).alias("rank_gap"))
+        .with_columns(pl.col("rank_gap").abs().alias("_abs_rank_gap"))
+        .sort(["_abs_rank_gap", "qb_name"], descending=[True, False])
+        .head(limit)
+        .drop("_abs_rank_gap")
+        .select(
+            ["qb_name", "team", "QSoS", "faced_opp_SaCR", "qsos_rank", "overall_rank", "rank_gap"]
+        )
+    )
+
+
+def compute_qb_designed_rush_preview(
+    data_dir: Path,
+    season: int,
+    *,
+    qb_names: Sequence[str],
+) -> pl.DataFrame:
+    """Return the named-QB designed-rush preview rows for the validation report."""
+    qb_combined = pl.read_parquet(data_dir / f"{season}_qb_combined.parquet")
+    preview = qb_combined.filter(pl.col("qb_name").is_in(list(qb_names))).select(
+        [
+            column
+            for column in (
+                "qb_name",
+                "team",
+                "qb_designed_carries_total",
+                "qb_designed_epa_per_carry",
+                "adj_def_rushing_epa_per_offensive_snap_faced",
+                "adj_qb_designed_rush_epa_per_carry",
+                "QSoS",
+                "adj_def_qb_epa_per_dropback_faced",
+                "faced_opp_SaCR",
+            )
+            if column in qb_combined.columns
+        ]
+    )
+    return _sort_named_qb_frame(preview, qb_names)
+
+
 __all__ = [
     "build_qb_split_half_frame",
     "build_qb_adjustment_audit_frame",
     "build_qb_leverage_profile_frame",
     "build_qb_opponent_offense_frame",
     "compute_qb_case_study",
+    "compute_qb_designed_rush_preview",
     "compute_qb_defense_spread_summary",
     "compute_qb_leverage_diagnostics",
     "compute_qb_metric_stability_from_history",
     "compute_qb_opponent_offense_diagnostics",
+    "compute_qb_schedule_lens_anchor",
+    "compute_qb_schedule_lens_divergence",
+    "compute_qb_schedule_lens_trace",
     "compute_qb_experiment_sweep",
     "compute_qb_playoff_season_summary",
     "compute_qb_playoff_validation_frame",
