@@ -22,15 +22,22 @@ For teams, the project publishes:
 - `SaSTR`: special teams after adjusting for special-teams context
 - `SaOvR`: overall team quality from those three adjusted pieces
 - `SaCR`: the published weighted team composite
+- `SaOvR_alltime` and `SaCR_alltime`: pooled-reference companion views for readers who want a
+  moving all-time baseline beside the flagship within-season scale
 - `sos`: the played-game mean opponent `SaCR`, kept as descriptive schedule context
 
 For quarterbacks, the project publishes:
 
 - `QSaOR`: adjusted EPA per dropback from the simultaneous QB solve
+- `QSaOR_alltime`: the pooled-reference companion to `QSaOR`
 - `QSoS`: dropback-weighted pass-defense difficulty from the QB-level solve
+- `adj_def_rushing_epa_per_offensive_snap_faced`: the carry-weighted rush-defense companion lens
 - `faced_opp_SaCR`: equal-game overall opponent team quality over the games played
+- `adj_qb_designed_rush_epa_per_carry`: designed-run EPA per carry after charging those carries
+  against the faced rush-defense lens
 - `QRaw`: the raw-performance composite before schedule adjustment
 - `QSaCR`: the published weighted QB composite
+- `QSaCR_alltime`: the pooled-reference companion to `QSaCR`
 - `QOutcome`: descriptive outcome context only
 
 These ratings try to answer:
@@ -69,6 +76,15 @@ claim is that each was two standard deviations better than his own contemporarie
 
 The important assumption is explicit: cross-season comparison here means within-era dominance, not a
 claim that the environment was identical across rules, strategy, and data eras.
+
+The `_alltime` companions are intentionally separate from that flagship claim.
+
+- They score the same underlying rating surfaces against the pooled published multi-season
+  distribution instead of only the current season.
+- They reward era context: modern offenses and older dominant defenses can look stronger on that
+  pooled baseline for environment reasons, not because every era was interchangeable.
+- Their baseline moves over time: adding a future season can nudge historical all-time values
+  slightly because the pooled reference distribution changed.
 
 ## Team Adjustment
 
@@ -131,8 +147,18 @@ The schedule-context surfaces are intentionally split.
 
 - `QSoS` is the pass-defense lens: a dropback-weighted mean of the defense-side QB ridge
   coefficients, then standardized within season.
+- `adj_def_rushing_epa_per_offensive_snap_faced` is the rush-defense lens: the carry-weighted mean
+  of the faced rush-defense coefficients from the team solve.
 - `faced_opp_SaCR` is the overall-opponent-quality lens: the equal-game mean of opponent `SaCR`
   over the games that QB played.
+
+The designed-run companion is intentionally descriptive for now.
+
+- `adj_qb_designed_rush_epa_per_carry` adjusts designed QB rushing value against the faced
+  rush-defense lens.
+- It is published so the next fair-trial refit can evaluate dual-threat rushing without
+  double-counting scramble EPA, but it does not enter the frozen QB composite in the current
+  release.
 
 That distinction matters because a team can be weak overall while still presenting a middling or
 even difficult pass-defense matchup, and because dropback weighting can change the schedule read
@@ -218,6 +244,10 @@ The answers were conservative. The strong-defense split produced a signal, but t
 moved the same way, so the interpretation was not defense-specific. The opponent-offense and
 leverage channels came back null in pooled tests. The leverage-filtered companion hurt both
 stability and playoff correlation, so it was not adopted.
+
+The same report now publishes the three QB schedule lenses together and adds a named-QB designed-run
+preview so readers can inspect whether rush-defense softness materially changes the rushing read
+before any future composite refit.
 
 The conclusion was not that Maye had no schedule help. It was that the current published composite
 withstood every pre-registered challenge strongly enough that no new QB-path change was justified.
