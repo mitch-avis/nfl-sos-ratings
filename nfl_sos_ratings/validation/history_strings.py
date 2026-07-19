@@ -11,6 +11,19 @@ from typing import cast
 
 import polars as pl
 
+TEAM_DECISION_RULE_HEADING = "## Stage 3c Decision Rule"
+TEAM_OUTCOME_HEADING = "## Stage 3c Team Outcome"
+QB_OPEN_STATUS_HEADING = "## QB Open Status"
+REPORT_HISTORY_HEADING = "## Stage 3 History"
+LEAGUE_CRITERION_HEADING = "## Stage 3b Criterion"
+LEAGUE_ACCEPTANCE_HEADING = "## Stage 3b Acceptance Check"
+OPPONENT_OFFENSE_SECTION_HEADING = "## D5 Opponent-Offense Effect"
+LEVERAGE_SECTION_HEADING = "## D6 Leverage Profile and Filtered Variant"
+SPLIT_HALF_DIAGNOSTICS_HEADING = "## Stage 3d D1 Split-Half Diagnostics"
+PLAYOFF_VALIDATION_HEADING = "## Stage 3d D3 Playoff Validation"
+SACR_CAVEAT_HEADING = "## SaCR Caveat"
+REGRESSION_NOTE_HEADING = "## Block R Regression Note"
+
 
 def _find_pairwise_mae_row(
     mae_deltas: pl.DataFrame,
@@ -37,7 +50,7 @@ def _row_bool(row: dict[str, object], key: str) -> bool:
     return bool(row[key])
 
 
-def build_team_decision_lines(
+def build_team_report_decision_lines(
     metrics: pl.DataFrame,
     mae_deltas: pl.DataFrame,
     *,
@@ -116,7 +129,7 @@ def build_team_decision_lines(
         )
 
     lines = [
-        "## Stage 3c Decision Rule",
+        TEAM_DECISION_RULE_HEADING,
         "",
         "> A candidate team backbone is promoted to the published ratings if, on the full held-out",
         "> walk-forward window: (1) it is significantly better than RawEPA and than the Stage 1",
@@ -132,7 +145,7 @@ def build_team_decision_lines(
         "  unattainable on this sample, and the current report already shows SRS itself does not",
         "  separate from RawEPA at 95%.",
         "",
-        "## Stage 3c Team Outcome",
+        TEAM_OUTCOME_HEADING,
         "",
         f"- Candidate selected for the final Stage 3c gate: {candidate}.",
         *t4_displacement_lines,
@@ -187,10 +200,10 @@ def build_team_decision_lines(
     return lines
 
 
-def build_qb_status_lines() -> list[str]:
+def build_qb_report_status_lines() -> list[str]:
     """Return the archived quarterback-methodology status note."""
     return [
-        "## QB Open Status",
+        QB_OPEN_STATUS_HEADING,
         "",
         "- The published QB composite target and weights remain unchanged, and the split-half",
         "  companion metric is not promoted to a published surface.",
@@ -203,10 +216,10 @@ def build_qb_status_lines() -> list[str]:
     ]
 
 
-def stage_history_lines() -> list[str]:
+def report_history_lines() -> list[str]:
     """Return the archived report-history heading and paragraph."""
     return [
-        "## Stage 3 History",
+        REPORT_HISTORY_HEADING,
         "",
         (
             "The original Stage 3 headline compared prior-carrying Elo against "
@@ -217,10 +230,10 @@ def stage_history_lines() -> list[str]:
     ]
 
 
-def stage3b_criterion_lines() -> list[str]:
+def report_league_criterion_lines() -> list[str]:
     """Return the archived league-split criterion language."""
     return [
-        "## Stage 3b Criterion",
+        LEAGUE_CRITERION_HEADING,
         "",
         "Stage 3b re-registers the validation target into information-matched leagues.",
         "",
@@ -236,30 +249,30 @@ def stage3b_criterion_lines() -> list[str]:
     ]
 
 
-def stage3b_acceptance_heading() -> str:
+def report_league_acceptance_heading() -> str:
     """Return the archived acceptance-check heading."""
-    return "## Stage 3b Acceptance Check"
+    return LEAGUE_ACCEPTANCE_HEADING
 
 
-def d5_heading_lines() -> list[str]:
+def opponent_offense_report_heading_lines() -> list[str]:
     """Return the archived opponent-offense heading."""
-    return ["## D5 Opponent-Offense Effect", ""]
+    return [OPPONENT_OFFENSE_SECTION_HEADING, ""]
 
 
-def d6_heading_lines() -> list[str]:
+def leverage_report_heading_lines() -> list[str]:
     """Return the archived leverage heading."""
-    return ["## D6 Leverage Profile and Filtered Variant", ""]
+    return [LEVERAGE_SECTION_HEADING, ""]
 
 
-def split_half_heading_lines() -> list[str]:
+def split_half_report_heading_lines() -> list[str]:
     """Return the archived split-half heading."""
-    return ["## Stage 3d D1 Split-Half Diagnostics", ""]
+    return [SPLIT_HALF_DIAGNOSTICS_HEADING, ""]
 
 
-def playoff_validation_intro_lines() -> list[str]:
+def playoff_validation_report_intro_lines() -> list[str]:
     """Return the archived playoff-validation heading and interpretation note."""
     return [
-        "## Stage 3d D3 Playoff Validation",
+        PLAYOFF_VALIDATION_HEADING,
         "",
         "- Interpretation rule: whichever metric best predicts playoff performance is evidence",
         "  about that metric, not about 2025 specifically.",
@@ -269,10 +282,10 @@ def playoff_validation_intro_lines() -> list[str]:
     ]
 
 
-def sacr_caveat_lines() -> list[str]:
+def sacr_report_caveat_lines() -> list[str]:
     """Return the archived caveat about the frozen composite evaluation line."""
     return [
-        "## SaCR Caveat",
+        SACR_CAVEAT_HEADING,
         "",
         "SaCR may be evaluated as a secondary line with a caveat:",
         "its frozen Stage 2 weights were fit on the full 1999-2025 history.",
@@ -285,10 +298,10 @@ def sacr_caveat_lines() -> list[str]:
     ]
 
 
-def regression_note_lines() -> list[str]:
+def report_regression_note_lines() -> list[str]:
     """Return the archived regression-note block for the validation report."""
     return [
-        "## Block R Regression Note",
+        REGRESSION_NOTE_HEADING,
         "",
         (
             "- A Stage 3c regression combined pooled offense/defense reference arrays with\n  "
