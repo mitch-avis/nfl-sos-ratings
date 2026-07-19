@@ -52,6 +52,8 @@ _TEAM_SIMULTANEOUS_COLS = get_registry().pool_columns("team_simultaneous")
 _QB_SIMULTANEOUS_COLS = get_registry().pool_columns("qb_simultaneous")
 
 _QB_FACED_DEFENSE_COLUMN = "adj_def_qb_epa_per_dropback_faced"
+_QB_FACED_RUSH_DEFENSE_COLUMN = "adj_def_rushing_epa_per_offensive_snap_faced"
+_QB_ADJUSTED_DESIGNED_RUSH_COLUMN = "adj_qb_designed_rush_epa_per_carry"
 _TEAM_SOS_COLUMN = "sos"
 _QB_FACED_OVERALL_QUALITY_COLUMN = "faced_opp_SaCR"
 
@@ -183,6 +185,98 @@ def _build_qb_faced_defense_adjustments(
     if "team_abbr" in schedule_strength.columns and "team" not in schedule_strength.columns:
         schedule_strength = schedule_strength.rename({"team_abbr": "team"})
     return schedule_strength
+
+
+def _build_qb_faced_rush_defense_adjustments(
+    qb_games: pl.DataFrame,
+    team_adjustments: pl.DataFrame,
+) -> pl.DataFrame:
+    """Average faced rush-defense coefficients, weighted by designed carries when available."""
+    defense_column = "adj_def_rushing_epa_per_offensive_snap"
+    if (
+        qb_games.is_empty()
+        or team_adjustments.is_empty()
+        or "opponent_team" not in qb_games.columns
+        or defense_column not in team_adjustments.columns
+    ):
+        return pl.DataFrame(schema={"team": pl.String, _QB_FACED_RUSH_DEFENSE_COLUMN: pl.Float64})
+
+    normalized_qb_games = _normalize_team_abbreviations(qb_games, ["opponent_team"])
+    normalized_team_adjustments = _normalize_team_abbreviations(team_adjustments, ["team"])
+
+    faced_rush_defenses = normalized_qb_games.join(
+        normalized_team_adjustments.rename(
+            {"team": "opponent_team", defense_column: _QB_FACED_RUSH_DEFENSE_COLUMN}
+        ),
+        on="opponent_team",
+        how="left",
+    )
+    _raise_on_unmatched_opponents(
+        faced_rush_defenses,
+        _QB_FACED_RUSH_DEFENSE_COLUMN,
+        "QB rush-defense adjustments",
+    )
+
+    group_keys = _qb_schedule_group_keys(faced_rush_defenses)
+    if not group_keys:
+        return pl.DataFrame(schema={"team": pl.String, _QB_FACED_RUSH_DEFENSE_COLUMN: pl.Float64})
+
+    if "qb_designed_carries" in faced_rush_defenses.columns:
+        schedule_strength = (
+            faced_rush_defenses.with_columns(
+                pl.col("qb_designed_carries").cast(pl.Float64).fill_null(0.0)
+            )
+            .group_by(group_keys)
+            .agg(
+                (pl.col(_QB_FACED_RUSH_DEFENSE_COLUMN) * pl.col("qb_designed_carries"))
+                .sum()
+                .alias("_weighted_defense"),
+                pl.col("qb_designed_carries").sum().alias("_carry_total"),
+                pl.col(_QB_FACED_RUSH_DEFENSE_COLUMN).mean().alias("_fallback_mean"),
+            )
+            .with_columns(
+                pl.when(pl.col("_carry_total") > 0.0)
+                .then(pl.col("_weighted_defense") / pl.col("_carry_total"))
+                .otherwise(pl.col("_fallback_mean"))
+                .alias(_QB_FACED_RUSH_DEFENSE_COLUMN)
+            )
+            .select([*group_keys, _QB_FACED_RUSH_DEFENSE_COLUMN])
+        )
+    else:
+        schedule_strength = faced_rush_defenses.group_by(group_keys).agg(
+            pl.col(_QB_FACED_RUSH_DEFENSE_COLUMN).mean().alias(_QB_FACED_RUSH_DEFENSE_COLUMN)
+        )
+    if "team_abbr" in schedule_strength.columns and "team" not in schedule_strength.columns:
+        schedule_strength = schedule_strength.rename({"team_abbr": "team"})
+    return schedule_strength
+
+
+def _build_qb_adjusted_designed_rush_surface(
+    qb_combined: pl.DataFrame,
+    faced_rush_defense: pl.DataFrame,
+) -> pl.DataFrame:
+    """Adjust designed-rush EPA per carry by the faced rush-defense coefficient."""
+    if qb_combined.is_empty() or "qb_designed_epa_per_carry" not in qb_combined.columns:
+        return pl.DataFrame(schema={_QB_ADJUSTED_DESIGNED_RUSH_COLUMN: pl.Float64})
+
+    join_keys = _matching_qb_join_keys(qb_combined, faced_rush_defense)
+    if not join_keys:
+        return pl.DataFrame(schema={_QB_ADJUSTED_DESIGNED_RUSH_COLUMN: pl.Float64})
+
+    return (
+        qb_combined.select([*join_keys, "qb_designed_epa_per_carry"])
+        .join(faced_rush_defense, on=join_keys, how="left")
+        .with_columns(
+            pl.when(
+                pl.col("qb_designed_epa_per_carry").is_not_null()
+                & pl.col(_QB_FACED_RUSH_DEFENSE_COLUMN).is_not_null()
+            )
+            .then(pl.col("qb_designed_epa_per_carry") + pl.col(_QB_FACED_RUSH_DEFENSE_COLUMN))
+            .otherwise(pl.col("qb_designed_epa_per_carry"))
+            .alias(_QB_ADJUSTED_DESIGNED_RUSH_COLUMN)
+        )
+        .select([*join_keys, _QB_ADJUSTED_DESIGNED_RUSH_COLUMN])
+    )
 
 
 def _build_team_schedule_strength(
@@ -333,6 +427,8 @@ def _write_qb_output_files(
             "qb_is_eligible",
             "qb_win_pct",
             _QB_FACED_OVERALL_QUALITY_COLUMN,
+            _QB_FACED_RUSH_DEFENSE_COLUMN,
+            _QB_ADJUSTED_DESIGNED_RUSH_COLUMN,
         ]
         if col in qb_combined.columns
     ]
@@ -542,6 +638,26 @@ def run_season(season: int) -> None:
 
     team_sos = _build_team_schedule_strength(weekly_df, ratings_df)
     combined = combined.join(team_sos, on="team", how="left")
+
+    qb_faced_rush_defense = _build_qb_faced_rush_defense_adjustments(qb_game_logs, team_adjusted_df)
+    qb_rush_join_keys = _matching_qb_join_keys(qb_combined, qb_faced_rush_defense)
+    if qb_rush_join_keys:
+        qb_adjusted_designed_rush = _build_qb_adjusted_designed_rush_surface(
+            qb_combined,
+            qb_faced_rush_defense,
+        )
+        qb_combined = qb_combined.join(
+            qb_faced_rush_defense,
+            on=qb_rush_join_keys,
+            how="left",
+        )
+        qb_adjusted_rush_join_keys = _matching_qb_join_keys(qb_combined, qb_adjusted_designed_rush)
+        if qb_adjusted_rush_join_keys:
+            qb_combined = qb_combined.join(
+                qb_adjusted_designed_rush,
+                on=qb_adjusted_rush_join_keys,
+                how="left",
+            )
 
     qb_faced_overall_quality = _build_qb_faced_overall_quality(qb_game_logs, ratings_df)
     qb_overall_join_keys = _matching_qb_join_keys(qb_combined, qb_faced_overall_quality)
