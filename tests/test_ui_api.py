@@ -28,17 +28,19 @@ def _seed_season_contract(data_dir: Path, season: int) -> None:
     )
     _write_table(
         data_dir / f"{season}_combined.parquet",
-        "team,points_for,points_per_offensive_snap,opp_points_for,SaCR,SaOR,SaDR,SaSTR,SaOvR,SRS",
-        "DET,510,0.42,390,1.2,1.1,0.9,0.3,1.0,7.4",
+        "team,points_for,points_per_offensive_snap,opp_points_for,SaCR,SaCR_alltime,SaOvR,SaOvR_alltime,SaOR,SaDR,SaSTR,SRS,sos",
+        "DET,510,0.42,390,1.2,0.9,1.0,0.8,1.1,0.9,0.3,7.4,0.5",
     )
     _write_table(data_dir / f"{season}_ratings.parquet", "team,SaCR,SaSTR", "DET,1.2,0.3")
     _write_table(
         data_dir / f"{season}_qb_combined.parquet",
         (
             "player_id,player_display_name,team,qb_attempts_total,qb_attempts_per_game,"
-            "qb_epa_per_dropback,opp_qb_any_a,QRaw,QSoS,QSaOR,QOutcome,QSaCR"
+            "qb_epa_per_dropback,opp_qb_any_a,QSaCR,QSaCR_alltime,QSaOR,QSaOR_alltime,"
+            "QRaw,QSoS,faced_opp_SaCR,adj_qb_designed_rush_epa_per_carry,"
+            "adj_def_rushing_epa_per_offensive_snap_faced,QOutcome"
         ),
-        "qb-1,Jared Goff,DET,605,35.6,0.18,6.5,1.0,0.2,1.1,0.4,1.3",
+        "qb-1,Jared Goff,DET,605,35.6,0.18,6.5,1.3,1.1,1.1,0.9,1.0,0.2,0.6,0.4,0.1,0.4",
     )
     _write_table(data_dir / f"{season}_qb_ratings.parquet", "player_id,QSaCR", "qb-1,1.3")
 
@@ -71,11 +73,14 @@ def test_get_season_returns_grouped_team_and_qb_tables(tmp_path: Path) -> None:
     assert payload["qbs"]["rows"][0]["player_display_name"] == "Jared Goff"
     assert payload["teams"]["column_groups"]["ratings"] == [
         "SaCR",
+        "SaCR_alltime",
+        "SaOvR",
+        "SaOvR_alltime",
         "SaOR",
         "SaDR",
         "SaSTR",
-        "SaOvR",
         "SRS",
+        "sos",
     ]
     assert payload["teams"]["column_groups"]["per_game_rates"] == ["points_for"]
     assert payload["qbs"]["column_groups"]["per_game_rates"] == ["qb_attempts_per_game"]
