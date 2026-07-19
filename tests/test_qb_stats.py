@@ -444,11 +444,21 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             "qb_sack_yards_lost": 0.0,
             "qb_sack_fumbles_lost": 0,
             "qb_passing_epa": -2.0,
+            "qb_designed_carries": 0,
+            "qb_designed_rush_yards": 0.0,
+            "qb_designed_rush_epa": 0.0,
+            "qb_scrambles": 0,
+            "qb_scramble_yards": 0.0,
+            "qb_kneels": 0,
             "qb_epa_per_dropback": -2.0,
             "qb_pass_yards_per_dropback": 0.0,
             "qb_td_int_margin_rate": -1.0,
             "qb_sack_rate": 0.0,
             "qb_any_a": -45.0,
+            "qb_scramble_rate": 0.0,
+            "qb_yards_per_scramble": None,
+            "qb_designed_yards_per_carry": None,
+            "qb_designed_epa_per_carry": None,
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": -6.0,
@@ -471,11 +481,21 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             "qb_sack_yards_lost": 0.0,
             "qb_sack_fumbles_lost": 0,
             "qb_passing_epa": 0.0,
+            "qb_designed_carries": 0,
+            "qb_designed_rush_yards": 0.0,
+            "qb_designed_rush_epa": 0.0,
+            "qb_scrambles": 0,
+            "qb_scramble_yards": 0.0,
+            "qb_kneels": 0,
             "qb_epa_per_dropback": None,
             "qb_pass_yards_per_dropback": None,
             "qb_td_int_margin_rate": None,
             "qb_sack_rate": None,
             "qb_any_a": None,
+            "qb_scramble_rate": None,
+            "qb_yards_per_scramble": None,
+            "qb_designed_yards_per_carry": None,
+            "qb_designed_epa_per_carry": None,
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": None,
@@ -498,16 +518,141 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             "qb_sack_yards_lost": 7.0,
             "qb_sack_fumbles_lost": 1,
             "qb_passing_epa": 0.5,
+            "qb_designed_carries": 0,
+            "qb_designed_rush_yards": 0.0,
+            "qb_designed_rush_epa": 0.0,
+            "qb_scrambles": 0,
+            "qb_scramble_yards": 0.0,
+            "qb_kneels": 0,
             "qb_epa_per_dropback": 1 / 6,
             "qb_pass_yards_per_dropback": 20.0 / 3.0,
             "qb_td_int_margin_rate": 1 / 3,
             "qb_sack_rate": 1 / 3,
             "qb_any_a": 11.0,
+            "qb_scramble_rate": 0.0,
+            "qb_yards_per_scramble": None,
+            "qb_designed_yards_per_carry": None,
+            "qb_designed_epa_per_carry": None,
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": 1.0,
         },
     ]
+
+
+def test_compute_qb_game_stats_from_pbp_splits_designed_runs_scrambles_and_kneels() -> None:
+    """Verify QB rushing PBP splits exclude scrambles and kneels from designed-run value."""
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2025_04_BUF_MIA"] * 5,
+            "week": [4] * 5,
+            "posteam": ["BUF"] * 5,
+            "passer_player_id": ["GSIS_A", "GSIS_A", None, "GSIS_A", "GSIS_A"],
+            "passer_player_name": [
+                "Dual Threat QB",
+                "Dual Threat QB",
+                None,
+                "Dual Threat QB",
+                "Dual Threat QB",
+            ],
+            "rusher_player_id": [None, None, "GSIS_A", "GSIS_A", "GSIS_A"],
+            "qb_dropback": [1, 1, 0, 1, 0],
+            "pass": [1, 0, 0, 0, 0],
+            "complete_pass": [1, 0, 0, 0, 0],
+            "passing_yards": [15.0, 0.0, 0.0, 0.0, 0.0],
+            "yards_gained": [15.0, 0.0, 8.0, 12.0, -1.0],
+            "pass_touchdown": [0, 0, 0, 0, 0],
+            "interception": [0, 0, 0, 0, 0],
+            "sack": [0, 0, 0, 0, 0],
+            "fumble_lost": [0, 0, 0, 0, 0],
+            "qb_epa": [1.5, 0.0, 1.2, 0.8, -0.9],
+            "cpoe": [4.0, None, None, None, None],
+            "rush": [0, 0, 1, 1, 1],
+            "qb_scramble": [0, 0, 0, 1, 0],
+            "qb_kneel": [0, 0, 0, 0, 1],
+            "qb_spike": [0, 1, 0, 0, 0],
+        }
+    )
+    snap_counts = pl.DataFrame(
+        {
+            "game_id": ["2025_04_BUF_MIA"],
+            "week": [4],
+            "team": ["BUF"],
+            "player": ["Dual Threat QB"],
+            "pfr_player_id": ["PFR_A"],
+            "position": ["QB"],
+            "offense_snaps": [58.0],
+        }
+    )
+    qb_identity = pl.DataFrame(
+        {
+            "qb_id": ["GSIS_A"],
+            "snap_player_id": ["PFR_A"],
+            "qb_name": ["Dual Threat QB"],
+            "qb_position": ["QB"],
+        }
+    )
+
+    result = qb_stats.compute_qb_game_stats_from_pbp(pbp, snap_counts, qb_identity)
+    row = result.row(0, named=True)
+
+    assert row["qb_dropbacks"] == 3
+    assert row["qb_passing_epa"] == pytest.approx(2.3)
+    assert row["qb_designed_carries"] == 1
+    assert row["qb_designed_rush_yards"] == 8.0
+    assert row["qb_designed_rush_epa"] == pytest.approx(1.2)
+    assert row["qb_scrambles"] == 1
+    assert row["qb_scramble_yards"] == 12.0
+    assert row["qb_kneels"] == 1
+    assert row["qb_scramble_rate"] == pytest.approx(1.0 / 3.0)
+    assert row["qb_yards_per_scramble"] == pytest.approx(12.0)
+    assert row["qb_designed_yards_per_carry"] == pytest.approx(8.0)
+    assert row["qb_designed_epa_per_carry"] == pytest.approx(1.2)
+
+
+def test_compute_qb_season_stats_reconciles_designed_rush_components_for_multi_team_qb() -> None:
+    """Verify designed-run splits aggregate by QB across teams and reconcile to official carries."""
+    qb_df = pl.DataFrame(
+        {
+            "game_id": ["g1", "g2", "g3"],
+            "week": [1, 2, 3],
+            "team_abbr": ["BAL", "BAL", "HOU"],
+            "qb_id": ["qb-1", "qb-1", "qb-1"],
+            "qb_name": ["Dual Threat QB", "Dual Threat QB", "Dual Threat QB"],
+            "qb_dropbacks": [30, 25, 20],
+            "qb_attempts": [28, 23, 18],
+            "qb_carries": [5, 4, 6],
+            "qb_rushing_yards": [31.0, 25.0, 40.0],
+            "qb_designed_carries": [2, 1, 3],
+            "qb_designed_rush_yards": [14.0, 7.0, 18.0],
+            "qb_designed_rush_epa": [1.0, 0.4, 1.6],
+            "qb_scrambles": [2, 2, 2],
+            "qb_scramble_yards": [18.0, 19.0, 24.0],
+            "qb_kneels": [1, 1, 1],
+        }
+    )
+
+    season = qb_stats.compute_qb_season_stats(qb_df)
+    row = season.to_dicts()[0]
+
+    assert season.height == 1
+    assert row["team"] == "BAL"
+    assert row["qb_carries_total"] == 15
+    assert row["qb_designed_carries_total"] == 6
+    assert row["qb_scrambles_total"] == 6
+    assert row["qb_kneels_total"] == 3
+    assert (
+        row["qb_designed_carries_total"] + row["qb_scrambles_total"] + row["qb_kneels_total"]
+        == row["qb_carries_total"]
+    )
+    assert row["qb_designed_rush_yards_total"] == 39.0
+    assert row["qb_designed_rush_epa_total"] == pytest.approx(3.0)
+    assert row["qb_designed_carries_per_game"] == pytest.approx(2.0)
+    assert row["qb_designed_rush_yards_per_game"] == pytest.approx(13.0)
+    assert row["qb_designed_yards_per_carry"] == pytest.approx(6.5)
+    assert row["qb_designed_epa_per_carry"] == pytest.approx(0.5)
+    assert row["qb_scramble_rate"] == pytest.approx(6.0 / 75.0)
+    assert row["qb_yards_per_scramble"] == pytest.approx(61.0 / 6.0)
 
 
 def test_compute_qb_game_stats_from_pbp_assigns_4qc_and_gwd_to_primary_qb() -> None:
