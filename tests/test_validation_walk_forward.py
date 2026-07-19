@@ -5,6 +5,7 @@ import math
 import polars as pl
 import pytest
 
+from nfl_sos_ratings.validation import history_strings
 from nfl_sos_ratings.validation.snapshots import build_team_rating_snapshot
 from nfl_sos_ratings.validation.walk_forward import (
     EloConfig,
@@ -642,14 +643,18 @@ def test_build_validation_report_text_can_render_team_decision_and_qb_status_sec
         seasons=[1999, 2000],
         start_week=5,
         command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
-        team_decision_lines=["## Stage 3c Decision Rule", "", "- Candidate rule line."],
-        qb_open_status_lines=["## QB Open Status", "", "- Stage 3d next."],
+        team_decision_lines=[
+            history_strings.TEAM_DECISION_RULE_HEADING,
+            "",
+            "- Candidate rule line.",
+        ],
+        qb_open_status_lines=[history_strings.QB_OPEN_STATUS_HEADING, "", "- Next archived note."],
     )
 
-    assert "## Stage 3c Decision Rule" in report
+    assert history_strings.TEAM_DECISION_RULE_HEADING in report
     assert "Candidate rule line." in report
-    assert "## QB Open Status" in report
-    assert "Stage 3d next." in report
+    assert history_strings.QB_OPEN_STATUS_HEADING in report
+    assert "Next archived note." in report
 
 
 def test_compute_playoff_metric_correlations_reports_weighted_per_season_and_pooled_rows() -> None:
@@ -795,14 +800,14 @@ def test_build_validation_report_text_includes_stage3d_sections() -> None:
         qb_playoff_correlations=d3_correlations,
     )
 
-    assert "## Stage 3d D1 Split-Half Diagnostics" in report
-    assert "## Stage 3d D3 Playoff Validation" in report
+    assert history_strings.SPLIT_HALF_DIAGNOSTICS_HEADING in report
+    assert history_strings.PLAYOFF_VALIDATION_HEADING in report
     assert "Drake Maye" in report
     assert "QSaCR" in report
 
 
 def test_build_validation_report_text_includes_qb_context_sections_and_playoff_cis() -> None:
-    """The validation report should render D5/D6 sections and playoff correlation intervals."""
+    """The validation report should render opponent-context sections and playoff intervals."""
     metrics = pl.DataFrame(
         {
             "baseline": ["SaOvR"],
@@ -915,9 +920,105 @@ def test_build_validation_report_text_includes_qb_context_sections_and_playoff_c
         qb_leverage_decision=qb_leverage_decision,
     )
 
-    assert "## D5 Opponent-Offense Effect" in report
-    assert "## D6 Leverage Profile and Filtered Variant" in report
+    assert history_strings.OPPONENT_OFFENSE_SECTION_HEADING in report
+    assert history_strings.LEVERAGE_SECTION_HEADING in report
     assert "Drake Maye" in report
     assert "0.05-0.95" in report
     assert "Spearman CI Lower" in report
     assert "Pearson CI Upper" in report
+
+
+def test_build_validation_report_text_includes_qb_schedule_audit_sections() -> None:
+    """The validation report should render the new QB schedule-audit and rush-preview sections."""
+    metrics = pl.DataFrame(
+        {
+            "baseline": ["SaOvR"],
+            "season": [None],
+            "split": ["overall"],
+            "games": [10],
+            "mae": [7.0],
+            "rmse": [9.0],
+        }
+    )
+    stability = pl.DataFrame(
+        {
+            "entity": ["team"],
+            "metric": ["SaOvR"],
+            "paired_rows": [200],
+            "pearson": [0.42],
+            "spearman": [0.40],
+        }
+    )
+    qbr = pl.DataFrame(
+        {
+            "season": [2006],
+            "joined_rows": [24],
+            "pearson": [0.72],
+            "spearman": [0.69],
+        }
+    )
+    qb_schedule_anchor = pl.DataFrame(
+        {
+            "qb_name": ["Drake Maye"],
+            "games": [17],
+            "avg_opp_SaCR": [-0.7],
+            "avg_opp_SaDR": [-0.46],
+            "avg_opp_SRS": [-4.28],
+        }
+    )
+    qb_schedule_trace = pl.DataFrame(
+        {
+            "qb_name": ["Drake Maye"],
+            "raw_value": [0.30],
+            "adjusted_value": [0.24],
+            "weighted_faced_defense": [-0.03],
+            "adjustment_delta": [-0.06],
+            "QSoS": [-0.1],
+            "faced_opp_SaCR": [-0.7],
+            "adj_def_qb_epa_per_dropback_faced": [-0.03],
+        }
+    )
+    qb_lens_divergence = pl.DataFrame(
+        {
+            "qb_name": ["Drake Maye"],
+            "team": ["NE"],
+            "QSoS": [-0.1],
+            "faced_opp_SaCR": [-0.7],
+            "qsos_rank": [22],
+            "overall_rank": [1],
+            "rank_gap": [21],
+        }
+    )
+    qb_designed_rush_preview = pl.DataFrame(
+        {
+            "qb_name": ["Drake Maye"],
+            "team": ["NE"],
+            "qb_designed_carries_total": [40],
+            "qb_designed_epa_per_carry": [0.12],
+            "adj_def_rushing_epa_per_offensive_snap_faced": [-0.08],
+            "adj_qb_designed_rush_epa_per_carry": [0.04],
+            "QSoS": [-0.1],
+            "adj_def_qb_epa_per_dropback_faced": [-0.03],
+            "faced_opp_SaCR": [-0.7],
+        }
+    )
+
+    report = build_validation_report_text(
+        metrics=metrics,
+        stability=stability,
+        qbr_correlations=qbr,
+        seasons=[1999, 2000],
+        start_week=5,
+        command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+        qb_schedule_anchor=qb_schedule_anchor,
+        qb_schedule_trace=qb_schedule_trace,
+        qb_lens_divergence=qb_lens_divergence,
+        qb_designed_rush_preview=qb_designed_rush_preview,
+    )
+
+    assert "## 2025 QB Schedule-Lens Anchor" in report
+    assert "## QB Schedule-Lens Trace" in report
+    assert "## QB Lens-Divergence Rankings" in report
+    assert "## 2025 QB Designed-Rush Preview" in report
+    assert "Drake Maye" in report
+    assert "Adj Designed Rush EPA/Carry" in report
