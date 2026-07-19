@@ -29,6 +29,7 @@ def test_pipeline_raises_on_failures_and_skips_visualization_for_failed_seasons(
             raise RuntimeError("plot boom")
 
     monkeypatch.setattr(pipeline, "run_season", fake_run_season)
+    monkeypatch.setattr(pipeline, "apply_alltime_rating_companions", lambda data_dir, seasons: None)
     monkeypatch.setattr(pipeline.visualize, "main", fake_visualize)
 
     with pytest.raises(SystemExit) as excinfo:
@@ -58,9 +59,45 @@ def test_pipeline_main_handles_windows_stdout(
     monkeypatch.setattr(pipeline, "START_YEAR", 2025)
     monkeypatch.setattr(pipeline, "END_YEAR", 2025)
     monkeypatch.setattr(pipeline, "run_season", lambda season: None)
+    monkeypatch.setattr(pipeline, "apply_alltime_rating_companions", lambda data_dir, seasons: None)
     monkeypatch.setattr(pipeline.visualize, "main", lambda season: None)
     monkeypatch.setattr(pipeline.sys, "platform", "win32")
     monkeypatch.setattr(pipeline.sys, "stdout", SimpleNamespace(buffer=io.BytesIO()))
     monkeypatch.setattr(pipeline.io, "TextIOWrapper", lambda buffer, encoding: io.StringIO())
 
     pipeline.main()
+
+
+def test_pipeline_applies_alltime_companions_after_successful_data_phase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The multi-season pipeline should run the all-time companion post-pass once per full run."""
+    calls: list[tuple[str, object]] = []
+
+    monkeypatch.setattr(pipeline, "START_YEAR", 2024)
+    monkeypatch.setattr(pipeline, "END_YEAR", 2025)
+    monkeypatch.setattr(
+        pipeline,
+        "run_season",
+        lambda season: calls.append(("data", season)),
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "apply_alltime_rating_companions",
+        lambda data_dir, seasons: calls.append(("companions", tuple(seasons))),
+    )
+    monkeypatch.setattr(
+        pipeline.visualize,
+        "main",
+        lambda season: calls.append(("viz", season)),
+    )
+
+    pipeline.main()
+
+    assert calls == [
+        ("data", 2024),
+        ("data", 2025),
+        ("companions", (2024, 2025)),
+        ("viz", 2024),
+        ("viz", 2025),
+    ]
