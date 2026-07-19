@@ -767,8 +767,18 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
         "qb_rushing_fumbles",
         "qb_rushing_fumbles_lost",
         "qb_rushing_2pt_conversions",
+        "qb_designed_carries",
+        "qb_designed_rush_yards",
+        "qb_designed_rush_epa",
+        "qb_scrambles",
+        "qb_scramble_yards",
+        "qb_kneels",
         "qb_yards_per_carry",
         "qb_epa_per_carry",
+        "qb_scramble_rate",
+        "qb_yards_per_scramble",
+        "qb_designed_yards_per_carry",
+        "qb_designed_epa_per_carry",
     ]
     assert result.to_dicts() == [
         {
@@ -807,8 +817,18 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_rushing_fumbles": 0,
             "qb_rushing_fumbles_lost": 0,
             "qb_rushing_2pt_conversions": 0,
+            "qb_designed_carries": 0,
+            "qb_designed_rush_yards": 0.0,
+            "qb_designed_rush_epa": 0.0,
+            "qb_scrambles": 0,
+            "qb_scramble_yards": 0.0,
+            "qb_kneels": 0,
             "qb_yards_per_carry": None,
             "qb_epa_per_carry": None,
+            "qb_scramble_rate": 0.0,
+            "qb_yards_per_scramble": None,
+            "qb_designed_yards_per_carry": None,
+            "qb_designed_epa_per_carry": None,
         },
         {
             "game_id": "2025_01_DEN_KC",
@@ -846,8 +866,18 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_rushing_fumbles": 0,
             "qb_rushing_fumbles_lost": 0,
             "qb_rushing_2pt_conversions": 0,
+            "qb_designed_carries": 0,
+            "qb_designed_rush_yards": 0.0,
+            "qb_designed_rush_epa": 0.0,
+            "qb_scrambles": 0,
+            "qb_scramble_yards": 0.0,
+            "qb_kneels": 0,
             "qb_yards_per_carry": None,
             "qb_epa_per_carry": None,
+            "qb_scramble_rate": None,
+            "qb_yards_per_scramble": None,
+            "qb_designed_yards_per_carry": None,
+            "qb_designed_epa_per_carry": None,
         },
         {
             "game_id": "2025_01_DEN_KC",
@@ -885,8 +915,18 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_rushing_fumbles": 0,
             "qb_rushing_fumbles_lost": 0,
             "qb_rushing_2pt_conversions": 0,
+            "qb_designed_carries": 0,
+            "qb_designed_rush_yards": 0.0,
+            "qb_designed_rush_epa": 0.0,
+            "qb_scrambles": 0,
+            "qb_scramble_yards": 0.0,
+            "qb_kneels": 0,
             "qb_yards_per_carry": None,
             "qb_epa_per_carry": None,
+            "qb_scramble_rate": 0.0,
+            "qb_yards_per_scramble": None,
+            "qb_designed_yards_per_carry": None,
+            "qb_designed_epa_per_carry": None,
         },
         {
             "game_id": "2025_01_DEN_KC",
@@ -924,8 +964,18 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_rushing_fumbles": 0,
             "qb_rushing_fumbles_lost": 0,
             "qb_rushing_2pt_conversions": 0,
+            "qb_designed_carries": 0,
+            "qb_designed_rush_yards": 0.0,
+            "qb_designed_rush_epa": 0.0,
+            "qb_scrambles": 0,
+            "qb_scramble_yards": 0.0,
+            "qb_kneels": 0,
             "qb_yards_per_carry": None,
             "qb_epa_per_carry": None,
+            "qb_scramble_rate": 0.0,
+            "qb_yards_per_scramble": None,
+            "qb_designed_yards_per_carry": None,
+            "qb_designed_epa_per_carry": None,
         },
     ]
 
@@ -1201,22 +1251,58 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
     """Verify official rushing fields and derived QB rates flow into game rows."""
     pbp = pl.DataFrame(
         {
-            "game_id": ["2025_01_DEN_KC"],
-            "season_type": ["REG"],
-            "week": [1],
-            "posteam": ["DEN"],
-            "passer_player_id": ["00-0031234"],
-            "passer_player_name": ["John Doe"],
-            "qb_dropback": [1],
-            "pass": [1],
-            "complete_pass": [1],
-            "passing_yards": [18.0],
-            "pass_touchdown": [0],
-            "interception": [0],
-            "sack": [0],
-            "fumble_lost": [0],
-            "qb_epa": [1.2],
-            "cpoe": [4.0],
+            "game_id": ["2025_01_DEN_KC"] * 6,
+            "season_type": ["REG"] * 6,
+            "week": [1] * 6,
+            "posteam": ["DEN"] * 6,
+            "passer_player_id": [
+                "00-0031234",
+                None,
+                None,
+                None,
+                "00-0031234",
+                None,
+            ],
+            "passer_player_name": [
+                "John Doe",
+                None,
+                None,
+                None,
+                "John Doe",
+                None,
+            ],
+            "rusher_player_id": [
+                None,
+                "00-0031234",
+                "00-0031234",
+                "00-0031234",
+                "00-0031234",
+                "00-0031234",
+            ],
+            "rusher_player_name": [
+                None,
+                "John Doe",
+                "John Doe",
+                "John Doe",
+                "John Doe",
+                "John Doe",
+            ],
+            "qb_dropback": [1, 0, 0, 0, 1, 0],
+            "pass": [1, 0, 0, 0, 0, 0],
+            "complete_pass": [1, 0, 0, 0, 0, 0],
+            "passing_yards": [18.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "yards_gained": [18.0, 10.0, 14.0, 0.0, 12.0, -1.0],
+            "pass_touchdown": [0, 0, 0, 0, 0, 0],
+            "interception": [0, 0, 0, 0, 0, 0],
+            "sack": [0, 0, 0, 0, 0, 0],
+            "fumble_lost": [0, 0, 0, 0, 0, 0],
+            "qb_epa": [1.2, 0.0, 0.0, 0.0, 0.7, 0.0],
+            "epa": [1.2, 0.6, 0.9, 0.0, 0.7, -0.2],
+            "cpoe": [4.0, None, None, None, None, None],
+            "rush": [0, 1, 1, 1, 1, 1],
+            "qb_scramble": [0, 0, 0, 0, 1, 0],
+            "qb_kneel": [0, 0, 0, 0, 0, 1],
+            "qb_spike": [0, 0, 0, 0, 0, 0],
         }
     )
     snap_counts = pl.DataFrame(
@@ -1305,6 +1391,16 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
     assert row["qb_rushing_epa"] == 1.5
     assert row["qb_rushing_fumbles"] == 1
     assert row["qb_rushing_fumbles_lost"] == 0
+    assert row["qb_designed_carries"] == 3
+    assert row["qb_designed_rush_yards"] == 24.0
+    assert row["qb_designed_rush_epa"] == pytest.approx(1.5)
+    assert row["qb_scrambles"] == 1
+    assert row["qb_scramble_yards"] == 12.0
+    assert row["qb_kneels"] == 1
     assert row["qb_completion_pct"] == 0.75
     assert row["qb_yards_per_carry"] == 7.0
     assert abs(row["qb_epa_per_carry"] - 0.3) < 1e-9
+    assert row["qb_scramble_rate"] == pytest.approx(0.5)
+    assert row["qb_yards_per_scramble"] == pytest.approx(12.0)
+    assert row["qb_designed_yards_per_carry"] == pytest.approx(8.0)
+    assert row["qb_designed_epa_per_carry"] == pytest.approx(0.5)
