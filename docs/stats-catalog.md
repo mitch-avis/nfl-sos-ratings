@@ -85,7 +85,7 @@ Rules:
 
 | View | Denominator | Additional Notes |
 | --- | --- | --- |
-| Ratings | none | Schedule-adjusted outputs (`SaCR`, `sos`, `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SRS`). Every published project rating is standardized within its own season, so `0` means that season's average and `+1` means one standard deviation above that season's average. `SaCR` is the published weighted team composite over ridge-adjusted passing EPA, rushing EPA, defense, and special teams. `sos` is the played-game mean opponent `SaCR`, kept as descriptive schedule context. This is a view, not a category. |
+| Ratings | none | Schedule-adjusted outputs (`SaCR`, `SaCR_alltime`, `SaOvR`, `SaOvR_alltime`, `SaOR`, `SaDR`, `SaSTR`, `SRS`, `sos`). Every flagship project rating is standardized within its own season, so `0` means that season's average and `+1` means one standard deviation above that season's average. `SaCR` is the published weighted team composite over ridge-adjusted passing EPA, rushing EPA, defense, and special teams. `sos` is the played-game mean opponent `SaCR`, kept as descriptive schedule context. The `_alltime` columns are pooled-reference companions only: they reward era context and their baseline moves slightly when future seasons are added. This is a view, not a category. |
 | Raw Stat Totals | none | For **count** metrics only. **rate** and **avg** metrics keep the same value they show elsewhere. |
 | Per-Game Rates | games played | For **count** metrics this is the per-game form. **rate** and **avg** metrics are unchanged. |
 | Per-Play Rates | play-specific denominators for the subcategory (dropback, attempt, carry, drive, series, etc.) | For **count** metrics this uses the stat's natural denominator suffix; **rate** and **avg** metrics are unchanged. |
