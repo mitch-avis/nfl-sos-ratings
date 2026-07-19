@@ -82,6 +82,57 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         ),
     ),
     _ratings(
+        name="SaCR_alltime",
+        label="SaCR All-Time",
+        full_name="All-Time SaCR Companion",
+        description=(
+            "The pooled-reference companion for SaCR, scored against the published multi-season "
+            "distribution instead of just one season. Positive means above that moving all-time "
+            "baseline, but era context and future-season additions can shift the value over time."
+        ),
+        shape="score",
+        polarity="higher",
+        source="D",
+        since=1999,
+        note=(
+            "Companion-only. The pooled baseline rewards era context, and the reference moves "
+            "slightly whenever a future season is added."
+        ),
+    ),
+    _ratings(
+        name="SaOvR",
+        label="SaOvR",
+        full_name="Schedule-Adjusted Overall Rating",
+        description=(
+            "The combined team quality signal. It adds the standardized SaOR, SaDR, and SaSTR "
+            "signals, so teams strong across offense, defense, and special teams rise to the "
+            "top while wins and turnover luck stay out of the formula. 0 is that season's "
+            "average overall profile."
+        ),
+        shape="score",
+        polarity="higher",
+        source="D",
+        since=1999,
+    ),
+    _ratings(
+        name="SaOvR_alltime",
+        label="SaOvR All-Time",
+        full_name="All-Time SaOvR Companion",
+        description=(
+            "The pooled-reference companion for SaOvR, scored against the published multi-season "
+            "distribution instead of only the current season. Positive means above that moving "
+            "all-time baseline, but era context and newly added seasons shift the baseline."
+        ),
+        shape="score",
+        polarity="higher",
+        source="D",
+        since=1999,
+        note=(
+            "Companion-only. The pooled baseline rewards era context, and the reference moves "
+            "slightly whenever a future season is added."
+        ),
+    ),
+    _ratings(
         name="SaOR",
         label="SaOR",
         full_name="Schedule-Adjusted Offense Rating",
@@ -119,21 +170,6 @@ RATING_METRICS: tuple[MetricDef, ...] = (
             "How good the team's special teams were after accounting for field-position and "
             "opponent context through the special-teams rating model. Positive means more "
             "special-teams value than that season's average team."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
-        since=1999,
-    ),
-    _ratings(
-        name="SaOvR",
-        label="SaOvR",
-        full_name="Schedule-Adjusted Overall Rating",
-        description=(
-            "The combined team quality signal. It adds the standardized SaOR, SaDR, and SaSTR "
-            "signals, so teams strong across offense, defense, and special teams rise to the "
-            "top while wins and turnover luck stay out of the formula. 0 is that season's "
-            "average overall profile."
         ),
         shape="score",
         polarity="higher",
