@@ -56,14 +56,13 @@ status, decisions, or next steps change.
   `team_stats._add_receiving_display_mirrors` plus PBP receiving fumbles).
 - **E4 QB Tier 1** — **expanded**. The official rushing family from weekly player stats remains in
   place, and the per-QB PBP rusher attribution is now landed for designed runs, scrambles, and
-  kneels in `compute_qb_game_stats_from_pbp`: `qb_designed_carries`,
-  `qb_designed_rush_yards`, `qb_designed_rush_epa`, `qb_designed_yards_per_carry`,
-  `qb_designed_epa_per_carry`, `qb_scrambles`, `qb_scramble_yards`, `qb_yards_per_scramble`,
-  `qb_scramble_rate`, and `qb_kneels` all publish through `qb_stats` and `data_loader`. The new
-  descriptive ratings surfaces `adj_qb_designed_rush_epa_per_carry` and
-  `adj_def_rushing_epa_per_offensive_snap_faced` now ride through `main.py`. Remaining QB planned
-  metrics are the success/explosive splits, clutch extras, turnover aggregates, and
-  `qb_games_started` / `qb_snap_share` / `qb_plays`.
+  kneels in `compute_qb_game_stats_from_pbp`: `qb_designed_carries`, `qb_designed_rush_yards`,
+  `qb_designed_rush_epa`, `qb_designed_yards_per_carry`, `qb_designed_epa_per_carry`,
+  `qb_scrambles`, `qb_scramble_yards`, `qb_yards_per_scramble`, `qb_scramble_rate`, and `qb_kneels`
+  all publish through `qb_stats` and `data_loader`. The new descriptive ratings surfaces
+  `adj_qb_designed_rush_epa_per_carry` and `adj_def_rushing_epa_per_offensive_snap_faced` now ride
+  through `main.py`. Remaining QB planned metrics are the success/explosive splits, clutch extras,
+  turnover aggregates, and `qb_games_started` / `qb_snap_share` / `qb_plays`.
 - **E5 Tier 2 sources** — **not started**. NGS team passing aggregates (attempt-weighted, 2016+),
   PFR packs (weekly def file aggregates directly to team-week; season passing needs `2TM` handling
   via weekly rows), QBR QB columns (join by `espn_id` via `load_players()`; loader `load_espn_qbr()`

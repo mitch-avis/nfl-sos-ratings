@@ -280,11 +280,10 @@ kneels; the designed/scramble split is the analytical view.
 | `qb_rushing_fumbles` / `qb_rushing_fumbles_lost` | Fumbles rushing / lost | PLS | count | 1999 |
 | `qb_rushing_2pt_conversions` | 2-pt runs | PLS | count | 1999 |
 
-The descriptive rushing companion in the `Ratings` view is `adj_qb_designed_rush_epa_per_carry`.
-It applies the faced rush-defense lens
-(`adj_def_rushing_epa_per_offensive_snap_faced`) to the raw designed-run EPA-per-carry surface and
-is published so the next fair-trial refit can evaluate QB rushing without double-counting scramble
-EPA.
+The descriptive rushing companion in the `Ratings` view is `adj_qb_designed_rush_epa_per_carry`. It
+applies the faced rush-defense lens (`adj_def_rushing_epa_per_offensive_snap_faced`) to the raw
+designed-run EPA-per-carry surface and is published so the next fair-trial refit can evaluate QB
+rushing without double-counting scramble EPA.
 
 `qb_total_epa_per_play` = (passing EPA + rushing EPA) / (dropbacks + designed carries) is the
 dual-threat headline rate combining both subcategories.
@@ -384,9 +383,8 @@ the taxonomy order above.
 
 Default sort `QSaCR`; qualification filter on `qb_is_eligible` with a "show all" toggle. The
 `Ratings` view keeps `QSaOR` as the ridge backbone, `QSaCR` as the published weighted composite,
-`QSoS` as the dropback-weighted pass-defense schedule surface,
-`faced_opp_SaCR` as the equal-game overall-opponent-quality companion, and `QOutcome` as
-descriptive-only context.
+`QSoS` as the dropback-weighted pass-defense schedule surface, `faced_opp_SaCR` as the equal-game
+overall-opponent-quality companion, and `QOutcome` as descriptive-only context.
 
 **QB Details page**: identical section order for cohesion, each section adding: percentile bars vs.
 qualified QBs (the existing `_pct` convention), the `qopp_` context and `diff_` comparison inline

@@ -25,29 +25,28 @@ current-status summary changes.
 - Active methodology blocker: none currently known. The recorded QB null results close that question
   with evidence unless a maintainer explicitly opens a new workstream.
 - Latest schedule-strength audit result: no evidence that QB faced-defense coefficients are
-  compressed relative to the team pass-defense coefficients. The 2025 Drake Maye versus Tyler
-  Shough discrepancy is now explained by construct plus weighting, with one smaller published-path
-  bug fixed for multi-team QBs.
+  compressed relative to the team pass-defense coefficients. The 2025 Drake Maye versus Tyler Shough
+  discrepancy is now explained by construct plus weighting, with one smaller published-path bug
+  fixed for multi-team QBs.
 - Latest QB rushing foundation result: designed QB runs are now split from scrambles and kneels in
   the PBP path, the descriptive rush-defense lens and adjusted designed-rush EPA/carry surface are
   published, and the pooled-reference companion columns are generated as a separate post-pass over
   written season files rather than feeding the within-season flagship path.
 - Latest regenerated headline validation snapshot: team overall MAE remains `SaOvR 10.701`, `Elo
   10.580`, `SRS 10.658`, `RawEPA 10.695`; late-week team MAE remains `SaOvR 10.649`, `Elo 10.550`,
-  `SRS 10.651`, `RawEPA 10.671`; QB stability now reads `QSaCR 0.479 / 0.466`, passer rating
-  `0.413 / 0.416`, ANY/A `0.338 / 0.330`; mean QBR correlation now reads `0.891 / 0.870`.
-- Latest named-QB designed-rush preview (`2025` report): Drake Maye `20` designed carries,
-  `-0.390` raw designed EPA/carry, faced rush defense `-0.004`, adjusted designed EPA/carry
-  `-0.394`; Lamar Jackson `28`, `0.293`, `-0.005`, `0.288`; Josh Allen `46`, `0.436`, `0.007`,
-  `0.443`; Matthew Stafford `5`, `-2.824`, `0.017`, `-2.807`.
-- Residual durable-language grep hits are limited to expected exempt locations only:
-  `.agents/`, `docs/validation-report.md`,
-  `nfl_sos_ratings/validation/history_strings.py`, and
+  `SRS 10.651`, `RawEPA 10.671`; QB stability now reads `QSaCR 0.479 / 0.466`, passer rating `0.413
+  / 0.416`, ANY/A `0.338 / 0.330`; mean QBR correlation now reads `0.891 / 0.870`.
+- Latest named-QB designed-rush preview (`2025` report): Drake Maye `20` designed carries, `-0.390`
+  raw designed EPA/carry, faced rush defense `-0.004`, adjusted designed EPA/carry `-0.394`; Lamar
+  Jackson `28`, `0.293`, `-0.005`, `0.288`; Josh Allen `46`, `0.436`, `0.007`, `0.443`; Matthew
+  Stafford `5`, `-2.824`, `0.017`, `-2.807`.
+- Residual durable-language grep hits are limited to expected exempt locations only: `.agents/`,
+  `docs/validation-report.md`, `nfl_sos_ratings/validation/history_strings.py`, and
   `tests/test_methodology_language_policy.py`.
 - Regeneration result: the `1999-2025` Parquet back-catalog is present on disk with the new
   companion columns and designed-run surfaces, and the validation report now contains the generated
-  `2025 QB Schedule-Lens Anchor`, `QB Schedule-Lens Trace`, `QB Lens-Divergence Rankings`, and
-  `2025 QB Designed-Rush Preview` sections.
+  `2025 QB Schedule-Lens Anchor`, `QB Schedule-Lens Trace`, `QB Lens-Divergence Rankings`, and `2025
+  QB Designed-Rush Preview` sections.
 - Ratings methodology record: the archived validation history remains in
   `docs/validation-report.md`, while the reader-facing explanation is in `docs/methodology.md`.
 - Primary source of truth for metrics: `nfl_sos_ratings/metrics/`.
@@ -264,22 +263,21 @@ The current terminology/provenance cleanup adds an eighth theme.
     - recorded the ranking explanation: `QSoS` tracks opponent `SaDR` / pass-defense much more
       closely than opponent `SaCR` / `SRS`, and dropback weighting flips the Maye-vs-Shough
       pass-defense ordering even before the overall-team-quality lens is considered
-    - published two new descriptive schedule-context surfaces: team `sos` (played-game mean
-      opponent `SaCR`) and QB `faced_opp_SaCR` (equal-game mean opponent `SaCR` over the games the
-      QB played)
+    - published two new descriptive schedule-context surfaces: team `sos` (played-game mean opponent
+      `SaCR`) and QB `faced_opp_SaCR` (equal-game mean opponent `SaCR` over the games the QB played)
     - made the QSoS registry/UI description explicit that it is the dropback-weighted pass-defense
       lens from the QB solve, not a general overall-opponent-strength measure
 17. QB designed-run foundation, ratings companions, and audit automation:
     - split QB rushing into designed carries, scrambles, and kneels in `qb_stats`, with focused
       reconciliation tests proving the season totals still match official rushing attempts once
       scrambles and kneels are added back in
-    - published the descriptive rush-defense lens `adj_def_rushing_epa_per_offensive_snap_faced`
-      and the adjusted designed-run value surface `adj_qb_designed_rush_epa_per_carry`, both wired
+    - published the descriptive rush-defense lens `adj_def_rushing_epa_per_offensive_snap_faced` and
+      the adjusted designed-run value surface `adj_qb_designed_rush_epa_per_carry`, both wired
       through `main.py`, the registry, the UI payload ordering, and the compact QB ratings output
-    - added pooled-reference companion columns `SaCR_alltime`, `SaOvR_alltime`, `QSaCR_alltime`,
-      and `QSaOR_alltime` via the new companion-only post-pass in
-      `nfl_sos_ratings/alltime_companions.py`, then hooked that pass into the multi-season
-      pipeline after all season files are written
+    - added pooled-reference companion columns `SaCR_alltime`, `SaOvR_alltime`, `QSaCR_alltime`, and
+      `QSaOR_alltime` via the new companion-only post-pass in
+      `nfl_sos_ratings/alltime_companions.py`, then hooked that pass into the multi-season pipeline
+      after all season files are written
     - expanded the validation/report path with reusable QB schedule-audit helpers: the four-QB
       anchor reproduction, schedule-trace intermediates, lens-divergence rankings, and the named-QB
       designed-rush preview now render as generated tables in the validation report and through the
@@ -429,11 +427,11 @@ These are not active workstreams, but they are still useful context.
 2. If the task challenges published rating methodology, start from `docs/methodology.md` and
   `docs/validation-report.md`, then define a falsifiable protocol and decision gate before making
   code changes.
-3. The next QB fair-trial menu starts from every `ratings_eligible` metric, with maintainer
-  strikes instead of pre-filtering. That menu now includes
-  `adj_qb_designed_rush_epa_per_carry`, and the open question of whether a composite-weighted
-  multi-lens schedule summary should sit beside `QSoS`,
-  `adj_def_rushing_epa_per_offensive_snap_faced`, and `faced_opp_SaCR` rides with that refit.
+3. The next QB fair-trial menu starts from every `ratings_eligible` metric, with maintainer strikes
+  instead of pre-filtering. That menu now includes `adj_qb_designed_rush_epa_per_carry`, and the
+  open question of whether a composite-weighted multi-lens schedule summary should sit beside
+  `QSoS`, `adj_def_rushing_epa_per_offensive_snap_faced`, and `faced_opp_SaCR` rides with that
+  refit.
 4. If the task touches planned metrics, continue from `.agents/metric-expansion-plan.md`.
 5. If the task touches the analyst UI, continue from `.agents/frontend-ui-kickoff-plan.md`.
 6. Keep `docs/stats-catalog.md` and `docs/qb-stats-catalog.md` synchronized with the registry when

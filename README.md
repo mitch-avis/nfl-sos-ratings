@@ -156,12 +156,11 @@ The QB path is:
     from the primary QB stat pool; `QSaOR` is the standardized ridge-adjusted
   `adj_qb_epa_per_dropback` signal; `QSoS` is the standardized dropback-weighted mean
   faced-pass-defense coefficient from the ridge solve, kept as descriptive schedule context;
-  `faced_opp_SaCR` is the equal-game mean opponent `SaCR` over the games that QB played, kept as
-  the overall-opponent-quality companion surface; `QSaCR` is the published weighted blend of
-  standardized `adj_qb_epa_per_dropback`,
-  `adj_qb_completion_percentage_above_expectation`, `adj_qb_sack_rate`, and
-  `adj_qb_td_int_margin_rate`, with published weights `0.6688 / 0.2146 / 0.0673 / 0.0493`; and
-  `QOutcome` remains a descriptive-only outcome context column.
+  `faced_opp_SaCR` is the equal-game mean opponent `SaCR` over the games that QB played, kept as the
+  overall-opponent-quality companion surface; `QSaCR` is the published weighted blend of
+  standardized `adj_qb_epa_per_dropback`, `adj_qb_completion_percentage_above_expectation`,
+  `adj_qb_sack_rate`, and `adj_qb_td_int_margin_rate`, with published weights `0.6688 / 0.2146 /
+  0.0673 / 0.0493`; and `QOutcome` remains a descriptive-only outcome context column.
 
 Published team and QB ratings are standardized within their own season. `0` means that season's
 average qualifying team or QB, and `+1` means one standard deviation above that season's average.
@@ -342,8 +341,8 @@ All files are written under `DATA_DIR` with a `{SEASON}_` prefix.
 - `{SEASON}_qb_opponent_profiles.parquet` QB opponent context built from only the primary-QB games
   each QB actually played, with unique faced defenses and no fabricated schedule fallback.
 - `{SEASON}_qb_combined.parquet` QB season rows joined to opponent context, `diff_qb_*` columns,
-  simultaneous QB adjustment columns, the faced-defense ridge schedule column,
-  `faced_opp_SaCR`, and final QB ratings.
+  simultaneous QB adjustment columns, the faced-defense ridge schedule column, `faced_opp_SaCR`, and
+  final QB ratings.
 - `{SEASON}_qb_ratings.parquet` Compact QB ratings summary for qualified passers, including
   `faced_opp_SaCR` as the overall-opponent-quality schedule companion.
 - `{SEASON}_simultaneous_qb_adjustments.parquet` Multi-stat simultaneous-adjustment QB output with

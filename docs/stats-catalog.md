@@ -308,13 +308,13 @@ Season identity and outcome summary. No subcategories.
 | `avg_rest_days` | Mean of schedule rest fields | SCH | avg | 1999 |
 
 All differentials are `duplicate_of` their components for ratings purposes. The app's own ratings
-(`SaCR`, `sos`, `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SRS`) belong to the separate
-`Ratings` view rather than to the `Overall` / `Offense` / `Defense` / `Special Teams`
-stat taxonomy. External/reference ratings such as `team_elo` live in that same top-level
-view as descriptive-only benchmarks. Within that view, `SaCR` is the published weighted
-composite, `sos` is the played-game mean opponent `SaCR`, `SaSTR` is the published
-special-teams backbone surface, and `SaOR` / `SaDR` / `SaOvR` remain the ridge-backbone
-component views.
+(`SaCR`, `sos`, `SaOR`, `SaDR`, `SaSTR`, `SaOvR`, `SRS`) belong to the separate `Ratings` view
+rather than to the `Overall` / `Offense` / `Defense` / `Special Teams` stat taxonomy.
+
+External/reference ratings such as `team_elo` live in that same top-level view as descriptive-only
+benchmarks. Within that view, `SaCR` is the published weighted composite, `sos` is the played-game
+mean opponent `SaCR`, `SaSTR` is the published special-teams backbone surface, and `SaOR` / `SaDR` /
+`SaOvR` remain the ridge-backbone component views.
 
 ## Catalog: Offense
 
