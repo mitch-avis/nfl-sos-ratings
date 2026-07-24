@@ -11,7 +11,14 @@ requires-python = ">=3.14"
 keywords = ["stats", "sports", "football", "machine learning"]
 authors = [{ name = "Mitch Avis", email = "mitchavis@gmail.com" }]
 license = { text = "MIT" }
-dependencies = ["nflreadpy", "polars", "matplotlib", "seaborn"]
+dependencies = [
+    "fastapi",
+    "httpx2",
+    "matplotlib",
+    "nflreadpy",
+    "polars",
+    "uvicorn",
+]
 classifiers = [
     "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: MIT License",
@@ -26,6 +33,20 @@ nfl-sos = "nfl_sos_ratings.main:main"
 nfl-sos-viz = "nfl_sos_ratings.visualize:main"
 nfl-sos-pipeline = "nfl_sos_ratings.pipeline:main"
 nfl-sos-ui-api = "nfl_sos_ratings.ui_api:main"
+
+[dependency-groups]
+dev = [
+    "colorama",
+    "pyright",
+    "pytest",
+    "pytest-cov",
+    "pytest-html",
+    "pytest-metadata",
+    "pytest-sugar",
+    "pytest-xdist",
+    "ruff",
+    "ty",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["nfl_sos_ratings"]

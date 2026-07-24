@@ -1,7 +1,0 @@
-fastapi
-httpx2
-matplotlib
-nflreadpy
-polars
-seaborn
-uvicorn
