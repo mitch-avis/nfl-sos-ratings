@@ -188,7 +188,7 @@ The current terminology/provenance cleanup adds an eighth theme.
       rebuilding pooled team references, so the published team ratings path no longer mixes
       current-season-only special teams with pooled offense/defense references
     - hardened the multi-season pipeline to fail loudly: season data-step failures now produce an
-      end-of-run summary, skip visualization for failed seasons, and exit non-zero instead of
+      end-of-run summary, skip the all-time companion post-pass, and exit non-zero instead of
       silently continuing on stale artifacts
     - regenerated the full 1999-2025 back-catalog and verified fresh `*_combined.parquet` and
       `*_ratings.parquet` outputs for every season; published team outputs now carry populated
@@ -327,7 +327,7 @@ Latest recorded green state across the current worktree:
 
 - The typed registry is the SSOT for labels, descriptions, category ordering, polarity,
   implementation status, and rating-pool membership.
-- Published outputs, UI loaders, and visualization readers use Parquet.
+- Published outputs, UI loaders, and validation/report readers use Parquet.
 - API metadata and per-column metadata are served from the registry.
 - Historical CSV files may still exist in `data/`, but they are legacy artifacts only.
 
