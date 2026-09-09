@@ -14,8 +14,8 @@ license = { text = "MIT" }
 dependencies = [
     "fastapi",
     "httpx2",
-    "matplotlib",
     "nflreadpy",
+    "numpy",
     "polars",
     "uvicorn",
 ]
@@ -30,7 +30,6 @@ Homepage = "https://github.com/mitch-avis/nfl-sos-ratings"
 
 [project.scripts]
 nfl-sos = "nfl_sos_ratings.main:main"
-nfl-sos-viz = "nfl_sos_ratings.visualize:main"
 nfl-sos-pipeline = "nfl_sos_ratings.pipeline:main"
 nfl-sos-ui-api = "nfl_sos_ratings.ui_api:main"
 
