@@ -23,42 +23,49 @@ There are two independent rating systems:
 - [Polars](https://pola.rs) for all dataframes. This project does **not** use pandas.
 - [nflreadpy](https://github.com/nflverse/nflreadpy) as the sole data source (nflverse datasets).
 - NumPy for the rating and linear-algebra math.
-- matplotlib and seaborn for plots.
+- FastAPI plus uvicorn for the local analyst API.
+
+There is no supported `nfl_sos_ratings.visualize` module or `nfl-sos-viz` entry point in the
+current tree. Treat any lingering plot-generation references as stale.
 
 ## Environment and commands
 
 Set up a local virtual environment at `.venv` with `uv`:
 
 ```bash
+uv python install 3.14  # optional if you do not already have a compatible interpreter
 uv venv .venv
 source .venv/bin/activate
-uv pip install -r requirements.txt
-uv pip install -r requirements-dev.txt
+uv sync --active
 ```
 
-Run these from the repo root. All four must pass before a task is complete:
+Run these from the repo root. All five must pass before a task is complete:
 
 ```bash
-ruff format .        # format
-ruff check .         # lint (strict; config in pyproject.toml)
-ty check .           # type-check (strict on nfl_sos_ratings/, standard on tests/)
-pyright .            # type-check (strict on nfl_sos_ratings/, standard on tests/)
-pytest               # tests plus branch coverage (config in pyproject.toml)
+uv run ruff format .        # format
+uv run ruff check .         # lint (strict; config in pyproject.toml)
+uv run ty check .           # type-check (strict on nfl_sos_ratings/, standard on tests/)
+uv run pyright .            # type-check (strict on nfl_sos_ratings/, standard on tests/)
+uv run pytest               # tests plus branch coverage (config in pyproject.toml)
 ```
 
 When a change touches repository-owned Markdown, run `markdownlint` on the Markdown files you
 touched as part of the normal validation flow and fix issues as you go. Do not lint vendored or
 generated directories such as `.venv/`, `ui/web/node_modules/`, or build outputs.
 
-Run the pipeline and the visualizations:
+Run the primary entry points:
 
 ```bash
-python -m nfl_sos_ratings.main        # writes Parquet outputs to data/
-python -m nfl_sos_ratings.visualize   # writes plots to data/plots/
+uv run nfl-sos            # single-season Parquet pipeline
+uv run nfl-sos-pipeline   # multi-season Parquet pipeline
+uv run nfl-sos-ui-api     # local analyst API
 ```
 
-Dependencies are compiled from `.in` files to pinned `.txt` files via `update_requirements.sh`. Edit
-the `.in` files and recompile; never hand-edit the pinned `.txt` files.
+Dependencies are declared in `pyproject.toml` and locked in `uv.lock`. For dependency changes,
+edit `pyproject.toml`, activate `.venv`, then run `./update_requirements.sh`. The script refreshes
+`uv.lock`, syncs the active environment, and only regenerates `requirements*.txt` compatibility
+exports if those files already exist. Never hand-edit `uv.lock` or any generated compatibility
+export.
 
 ## Repository layout
 
