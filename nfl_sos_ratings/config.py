@@ -5,10 +5,10 @@
 START_YEAR: int = 1999
 END_YEAR: int = 2025
 
-# Single-season target — used by main.py and visualize.py when invoked directly.
+# Single-season target — used by main.py when invoked directly.
 SEASON: int = END_YEAR
 
-# Data directory for generated Parquet files and plots
+# Data directory for generated Parquet files
 DATA_DIR: str = "data"
 
 # NFL division mapping
