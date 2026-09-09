@@ -138,3 +138,6 @@ ui/web/dist/
 
 # Generated prompt files
 *prompt.md
+
+# Bash history
+.bash_history
