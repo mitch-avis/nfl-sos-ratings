@@ -15,9 +15,10 @@ It currently produces:
 - A machine-readable metric registry (`nfl_sos_ratings/metrics/`) — the single source of truth for
   every published stat's label, layman description, polarity, category, source, and rating-pool
   eligibility, served to the web UI at `/api/metadata`
+- Team and QB game-log, season-summary, opponent-profile, and compact-ratings Parquet outputs for
+  downstream analysis and UI use
 - Intermediate Parquet artifacts for auditability (convert any file to CSV with
   `pl.read_parquet(...).write_csv(...)` for spreadsheet inspection)
-- Team and QB plots under `data/plots/`
 
 The registry-backed analyst surfaces use a six-view model:
 
@@ -51,13 +52,11 @@ opponent context is expressed through the two opponent views rather than through
   - [Data Files](#data-files)
     - [Team outputs](#team-outputs)
     - [QB outputs](#qb-outputs)
-    - [Plot outputs](#plot-outputs)
   - [Project Structure](#project-structure)
   - [Development Commands](#development-commands)
   - [Validation](#validation)
   - [Troubleshooting](#troubleshooting)
     - [Import path issues](#import-path-issues)
-    - [Missing plot files](#missing-plot-files)
     - [Missing QB opponent rows](#missing-qb-opponent-rows)
   - [Data Sources](#data-sources)
 
@@ -250,20 +249,31 @@ the head-to-head exclusion rule.
 ## Requirements
 
 - Python 3.14+
+- [uv](https://docs.astral.sh/uv/) for environment and dependency management
 - Linux, macOS, or Windows
 - Local virtual environment at `.venv`
 
-Runtime dependencies are pinned in `requirements.txt`.
+Dependencies are declared in `pyproject.toml` and locked in `uv.lock`.
+Compatibility exports such as `requirements.txt` are optional artifacts and may be absent.
 
 ## Installation
 
 ```bash
 cd nfl-sos-ratings
+uv python install 3.14  # optional if you do not already have a compatible interpreter
 uv venv .venv
 source .venv/bin/activate
-uv pip install -r requirements.txt
-uv pip install -r requirements-dev.txt
+uv sync --active
 ```
+
+For dependency changes, edit `pyproject.toml`, activate `.venv`, then run:
+
+```bash
+./update_requirements.sh
+```
+
+The script refreshes `uv.lock`, syncs the active environment, and only regenerates
+`requirements*.txt` compatibility exports if those files already exist.
 
 ## Configuration
 
@@ -275,32 +285,26 @@ DATA_DIR: str = "data"
 ```
 
 - `SEASON` selects the target season for `main.py`
-- `DATA_DIR` selects where Parquet outputs and plots are written
+- `DATA_DIR` selects where Parquet outputs are written
 
 ## How to Run
 
 Primary single-season pipeline:
 
 ```bash
-python -m nfl_sos_ratings.main
+uv run nfl-sos
 ```
 
 Full multi-season pipeline:
 
 ```bash
-python -m nfl_sos_ratings.pipeline
-```
-
-Visualization pass:
-
-```bash
-python -m nfl_sos_ratings.visualize
+uv run nfl-sos-pipeline
 ```
 
 Local analyst UI backend:
 
 ```bash
-python -m nfl_sos_ratings.ui_api
+uv run nfl-sos-ui-api
 ```
 
 Local analyst UI frontend:
@@ -313,12 +317,17 @@ npm run dev
 
 Detailed frontend usage and troubleshooting notes live in `ui/web/README.md`.
 
+The module-entry equivalents (`uv run python -m nfl_sos_ratings.main`, and so on) remain valid
+when you want the explicit module form.
+
 ## Data Files
 
 All files are written under `DATA_DIR` with a `{SEASON}_` prefix.
 
 ### Team outputs
 
+- `{SEASON}_team_game_logs.parquet` Additive team game logs for the UI contract, one row per
+  team-game with opponent and context columns first.
 - `{SEASON}_team_per_game_stats.parquet` PBP-derived team-game profile rolled to one season row per
   team. Includes per-game totals, per-snap rates, `win_value`, and `turnover_margin`.
 - `{SEASON}_opponent_profiles.parquet` Averaged opponent profile rows built from unique
@@ -332,6 +341,8 @@ All files are written under `DATA_DIR` with a `{SEASON}_` prefix.
 
 ### QB outputs
 
+- `{SEASON}_qb_game_logs.parquet` Additive QB game logs with opponent, score, and result context
+  for the UI contract.
 - `{SEASON}_qb_per_game_stats.parquet` QB season summary keyed by canonical QB identity and team
   context. Includes explicit season totals such as `qb_attempts_total`, `qb_completions_total`, and
   `qb_pass_yards_total`; explicit per-game fields such as `qb_attempts_per_game`,
@@ -348,27 +359,23 @@ All files are written under `DATA_DIR` with a `{SEASON}_` prefix.
 - `{SEASON}_simultaneous_qb_adjustments.parquet` Multi-stat simultaneous-adjustment QB output with
   `adj_*` columns plus `adj_def_qb_epa_per_dropback_faced`.
 
-### Plot outputs
-
-Under `data/plots/`:
-
-- `{SEASON}_adjusted_ratings_offense.png`
-- `{SEASON}_adjusted_ratings_defense.png`
-- `{SEASON}_adjusted_ratings_overall.png`
-- `{SEASON}_sos_composite_ranking.png`
-- `{SEASON}_qb_adjusted_ratings.png` when QB combined data exists
-- `{SEASON}_qb_raw_vs_schedule.png` when QB combined data exists
+Legacy `data/plots/` PNGs from older commits may still exist on disk, but the current repository
+does not ship a supported plot-generation module or command.
 
 ## Project Structure
 
 ```text
 nfl-sos-ratings/
 ├── nfl_sos_ratings/
+│   ├── alltime_companions.py
+│   ├── composite_weights.py
 │   ├── __init__.py
 │   ├── config.py
 │   ├── data_loader.py
 │   ├── main.py
+│   ├── metrics/
 │   ├── opponent_stats.py
+│   ├── pbp_expressions.py
 │   ├── pipeline.py
 │   ├── qb_opponent_stats.py
 │   ├── qb_ratings.py
@@ -376,7 +383,10 @@ nfl-sos-ratings/
 │   ├── ratings.py
 │   ├── simultaneous_adjustment.py
 │   ├── team_stats.py
-│   └── visualize.py
+│   ├── team_stats_expanded.py
+│   ├── ui_api.py
+│   ├── ui_data.py
+│   └── validation/
 ├── tests/
 ├── ui/
 │   └── web/
@@ -394,13 +404,20 @@ The active implementation handoff document for the repo's current state and back
 From repository root:
 
 ```bash
-ruff format .
-ruff check .
-ty check .
-pyright .
-pytest
-python -m nfl_sos_ratings.composite_weights
-python -m nfl_sos_ratings.validation.walk_forward
+uv run ruff format .
+uv run ruff check .
+uv run ty check .
+uv run pyright .
+uv run pytest
+uv run python -m nfl_sos_ratings.composite_weights
+uv run python -m nfl_sos_ratings.validation.walk_forward
+```
+
+Frontend build check:
+
+```bash
+source .venv/bin/activate
+./update_requirements.sh
 ```
 
 Frontend build check:
@@ -419,7 +436,7 @@ reference comparison.
 Run the full validation harness from the repo root:
 
 ```bash
-python -m nfl_sos_ratings.validation.walk_forward
+uv run python -m nfl_sos_ratings.validation.walk_forward
 ```
 
 The command writes [docs/validation-report.md]. That report is the authoritative summary of the
@@ -438,17 +455,12 @@ changing the published rating definitions.
 Use the module form when possible:
 
 ```bash
-python -m nfl_sos_ratings.main
+uv run python -m nfl_sos_ratings.main
 ```
 
-### Missing plot files
-
-Run the data pipeline first, then the visualization pass:
-
-```bash
-python -m nfl_sos_ratings.main
-python -m nfl_sos_ratings.visualize
-```
+Older checkouts may still contain `data/plots/` artifacts from the removed visualization module.
+Missing plot files are no longer a supported failure mode in the current tree; regenerate the
+Parquet outputs and use the analyst UI or downstream analysis code instead.
 
 ### Missing QB opponent rows
 
