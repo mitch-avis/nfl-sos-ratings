@@ -218,9 +218,16 @@ in standard mode with extra rules promoted to errors; strict mode is not enabled
   pass; commit secrets; edit `data/`, `uv.lock`, `requirements*.txt`, or
   `docs/validation-report.md` by hand (they are generated); write plan labels outside `.agents/`.
 
-When asking the user to decide, include a short recommendation unless the answer is plain: one line
-on what the component does today (name the file), the recommended option first with its main cost
-or risk, and how sure you are. A recommendation is advice, never consent.
+**Questions and decisions for the user.** Every question or pending decision carries enough plain,
+factual context for the user to recognize what it is about and decide without digging, plus the
+agent's recommendation unless the answer is plain from the question itself. The user may not
+remember the details of something built long ago, or may not know the area well, so write for a
+reader who cannot check it without digging: one line on what the component does today and why the
+decision comes up, from the code or docs (name the file), not from memory; the recommended option
+first, with its reason and its main cost or risk; how sure the agent is and what would change its
+mind. If the evidence is too thin to recommend, say so and name what would settle it. A
+recommendation is advice, never consent: the agent still waits for the answer on everything under
+"Ask first", and it never bends a written decision rule toward its own preference.
 
 ## Git
 
