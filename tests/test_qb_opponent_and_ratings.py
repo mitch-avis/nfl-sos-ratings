@@ -2,11 +2,11 @@
 
 import inspect
 
-import numpy as np
 import polars as pl
 import pytest
 
 from nfl_sos_ratings import qb_opponent_stats, qb_ratings
+from tests.stubs import unscaled, unscaled_against
 
 
 def test_compute_qb_opponent_profiles_excludes_head_to_head() -> None:
@@ -568,12 +568,12 @@ def test_compute_qb_ratings_uses_frozen_stage_two_component_weights(
     monkeypatch.setattr(
         qb_ratings,
         "_zscore",
-        lambda values: np.array(values, dtype=np.float64),
+        unscaled,
     )
     monkeypatch.setattr(
         qb_ratings.composite_weights,
         "_zscore_against",
-        lambda values, reference_values: np.array(values, dtype=np.float64),
+        unscaled_against,
     )
 
     ratings = qb_ratings.compute_qb_ratings(qb_combined).sort("qb_id")
@@ -900,10 +900,6 @@ def test_calibrate_qb_model_ignores_candidate_grids() -> None:
 def test_qb_rating_helpers_do_not_expose_dead_min_correlation_knobs() -> None:
     """Verify dead min-correlation parameters are removed from live QB helpers."""
     assert "min_correlation" not in inspect.signature(qb_ratings._derive_qb_weights).parameters
-    assert (
-        "min_correlation"
-        not in inspect.signature(qb_ratings._build_qb_adjusted_composite).parameters
-    )
     assert "min_correlation" not in inspect.signature(qb_ratings.compute_qb_ratings).parameters
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import re
 from pathlib import Path
+from typing import cast
 
 import polars as pl
 import pytest
@@ -12,6 +13,7 @@ import pytest
 from nfl_sos_ratings import composite_weights
 from nfl_sos_ratings.metrics import get_registry
 from nfl_sos_ratings.validation import walk_forward
+from tests.stubs import stub
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,16 +70,15 @@ def _collect_strings(value: object) -> list[str]:
     if isinstance(value, str):
         return [value]
     if isinstance(value, dict):
-        strings: list[str] = []
-        for nested in value.values():
-            strings.extend(_collect_strings(nested))
-        return strings
-    if isinstance(value, list):
-        strings: list[str] = []
-        for nested in value:
-            strings.extend(_collect_strings(nested))
-        return strings
-    return []
+        nested_values: list[object] = list(cast("dict[object, object]", value).values())
+    elif isinstance(value, list):
+        nested_values = list(cast("list[object]", value))
+    else:
+        return []
+    strings: list[str] = []
+    for nested in nested_values:
+        strings.extend(_collect_strings(nested))
+    return strings
 
 
 def _find_banned_terms(text: str) -> list[str]:
@@ -165,12 +166,8 @@ def _capture_composite_weight_cli_output(
             "equal_weight_rmse": 0.4,
         }
 
-    monkeypatch.setattr(
-        composite_weights, "build_team_training_rows", lambda data_dir, seasons: team_rows
-    )
-    monkeypatch.setattr(
-        composite_weights, "build_qb_training_rows", lambda data_dir, seasons: qb_rows
-    )
+    monkeypatch.setattr(composite_weights, "build_team_training_rows", stub(lambda: team_rows))
+    monkeypatch.setattr(composite_weights, "build_qb_training_rows", stub(lambda: qb_rows))
     monkeypatch.setattr(composite_weights, "fit_linear_weights", fake_fit)
     monkeypatch.setattr(composite_weights, "evaluate_leave_one_season_out", fake_eval)
 

@@ -129,39 +129,32 @@ extend-allowed-calls = ["polars.lit"]
 "nfl_sos_ratings/validation/walk_forward.py" = ["T201"]
 "nfl_sos_ratings/validation/qsos_audit.py" = ["T201"]
 
+# --------------------------------------------------------------------------------------------
+# Type checking: ty and pyright (strict)
+# --------------------------------------------------------------------------------------------
+[tool.ty.environment]
+# Pin ty to the repo venv so local and CI checks resolve the same interpreter.
+python = ".venv"
+python-version = "3.14"
+
+[tool.ty.src]
+include = ["nfl_sos_ratings", "tests"]
+
 [tool.pyright]
 pythonVersion = "3.14"
-# The whole tree (package and tests) runs in standard mode with the extra rules promoted below;
-# strict mode is not enabled for nfl_sos_ratings/.
-typeCheckingMode = "standard"
+typeCheckingMode = "strict"
 venvPath = "."
 venv = ".venv"
 pythonPlatform = "Linux"
-stubPath = "stubs"
-executionEnvironments = [{ root = "." }]
-# --- Standard-mode diagnostics promoted to errors (also surfaced by Pylance) ----------
-reportMissingImports = "error"
-reportMissingModuleSource = "warning"
-reportAttributeAccessIssue = "error"
-reportAssignmentType = "error"
-reportArgumentType = "error"
-reportReturnType = "error"
-reportCallIssue = "error"
-reportIndexIssue = "error"
-reportOperatorIssue = "error"
-reportOptionalSubscript = "error"
-reportOptionalMemberAccess = "error"
-reportOptionalCall = "error"
-reportOptionalIterable = "error"
-reportOptionalContextManager = "error"
-reportOptionalOperand = "error"
-reportGeneralTypeIssues = "error"
+include = ["nfl_sos_ratings", "tests"]
+exclude = ["**/__pycache__", "**/.*", ".venv", "**/node_modules", "data", "dist", "web", "ui"]
+# Tests may call private helpers directly (ruff's SLF001 is off there for the same reason).
+executionEnvironments = [
+    { root = "tests", extraPaths = ["."], reportPrivateUsage = false },
+    { root = "." },
+]
+# nflreadpy and a few scientific dependencies ship without stubs.
 reportMissingTypeStubs = false
-reportUnknownVariableType = "none"
-reportUnknownMemberType = "none"
-reportUnknownArgumentType = "none"
-reportUnknownParameterType = "none"
-reportUnknownLambdaType = "none"
 
 [tool.pytest.ini_options]
 minversion = "7.0"

@@ -425,24 +425,6 @@ def _filter_regular_season(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
-def _extract_points_per_team_week(schedule: pl.DataFrame) -> pl.DataFrame:
-    """Pivot schedule scores into one row per team per week with points_for/points_allowed."""
-    schedule = _normalize_team_abbreviations(schedule, ["home_team", "away_team"])
-    home = schedule.select(
-        pl.col("home_team").alias("team"),
-        pl.col("week"),
-        pl.col("home_score").alias("points_for"),
-        pl.col("away_score").alias("points_allowed"),
-    )
-    away = schedule.select(
-        pl.col("away_team").alias("team"),
-        pl.col("week"),
-        pl.col("away_score").alias("points_for"),
-        pl.col("home_score").alias("points_allowed"),
-    )
-    return pl.concat([home, away])
-
-
 def _fetch_release_parquet(url: str) -> pl.DataFrame:
     """Download one nflverse release Parquet asset into a dataframe."""
     with urllib.request.urlopen(url) as response:  # noqa: S310 - fixed https URLs above

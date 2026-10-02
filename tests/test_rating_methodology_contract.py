@@ -5,6 +5,7 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings import composite_weights, data_loader, qb_ratings, ratings
+from tests.stubs import stub
 
 
 def _pearson(values_a: np.ndarray, values_b: np.ndarray) -> float:
@@ -136,7 +137,7 @@ def test_published_rating_inputs_remain_regular_season_only_when_playoff_loader_
         }
     )
 
-    monkeypatch.setattr(data_loader.nfl, "load_pbp", lambda seasons: pbp)
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
 
     regular = data_loader.load_pbp_data(2025)
     postseason = data_loader.load_playoff_pbp_data(2025)

@@ -1,6 +1,7 @@
 """Tests for walk-forward validation helpers."""
 
 import math
+from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
@@ -26,6 +27,10 @@ from nfl_sos_ratings.validation.walk_forward import (
     run_walk_forward_backtest,
     score_prediction_rows,
 )
+from tests.stubs import stub
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _weekly_team_rows() -> pl.DataFrame:
@@ -362,7 +367,7 @@ def test_build_validation_report_text_includes_bootstrap_delta_section() -> None
     assert "| SaOvR | SRS | overall | 10 | -0.500 | -0.800 | -0.200 | 0.940 | True |" in report
 
 
-def test_run_walk_forward_backtest_stacks_all_team_baselines(tmp_path) -> None:
+def test_run_walk_forward_backtest_stacks_all_team_baselines(tmp_path: Path) -> None:
     """Verify the orchestration path evaluates SaOvR, SRS, raw EPA, and Elo together."""
     _weekly_team_rows().write_parquet(tmp_path / "2025_team_game_logs.parquet")
 
@@ -386,7 +391,7 @@ def test_run_walk_forward_backtest_stacks_all_team_baselines(tmp_path) -> None:
 
 
 def test_run_play_level_team_special_teams_backtest_builds_play_level_baseline(
-    tmp_path,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify the play-level path evaluates a play-level weighted team baseline."""
@@ -422,7 +427,7 @@ def test_run_play_level_team_special_teams_backtest_builds_play_level_baseline(
     )
     monkeypatch.setattr(
         "nfl_sos_ratings.validation.walk_forward.load_pbp_data",
-        lambda season: pbp,
+        stub(lambda: pbp),
     )
 
     predictions, metrics, weight_maps = run_play_level_team_special_teams_backtest(
@@ -442,7 +447,7 @@ def test_run_play_level_team_special_teams_backtest_builds_play_level_baseline(
 
 
 def test_build_play_level_team_training_rows_with_special_teams_uses_next_season_targets(
-    tmp_path,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Play-level training rows should pair current-season features with next-season targets."""
@@ -470,7 +475,7 @@ def test_build_play_level_team_training_rows_with_special_teams_uses_next_season
     )
     monkeypatch.setattr(
         "nfl_sos_ratings.validation.walk_forward.load_pbp_data",
-        lambda season: pbp,
+        stub(lambda: pbp),
     )
 
     training_rows = build_play_level_team_training_rows_with_special_teams(
@@ -483,7 +488,7 @@ def test_build_play_level_team_training_rows_with_special_teams_uses_next_season
     assert training_rows.select("target").to_series().to_list() == pytest.approx([0.5, -0.5])
 
 
-def test_compute_stability_metrics_matches_adjacent_season_pairs(tmp_path) -> None:
+def test_compute_stability_metrics_matches_adjacent_season_pairs(tmp_path: Path) -> None:
     """Verify stability metrics match consecutive-season team and QB joins."""
     pl.DataFrame(
         {
@@ -529,7 +534,9 @@ def test_compute_stability_metrics_matches_adjacent_season_pairs(tmp_path) -> No
     )
 
 
-def test_compute_qbr_correlations_joins_qbs_by_team_and_name(tmp_path, monkeypatch) -> None:
+def test_compute_qbr_correlations_joins_qbs_by_team_and_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Verify QBR correlations join season-end QB rows to the loaded ESPN reference."""
     pl.DataFrame(
         {
@@ -543,13 +550,15 @@ def test_compute_qbr_correlations_joins_qbs_by_team_and_name(tmp_path, monkeypat
 
     monkeypatch.setattr(
         "nfl_sos_ratings.validation.walk_forward.load_espn_qbr",
-        lambda level, seasons: pl.DataFrame(
-            {
-                "season": [2006, 2006],
-                "team_abb": ["KC", "WAS"],
-                "name_display": ["D.J. Smith", "Pat OBrien"],
-                "qbr_total": [80.0, 20.0],
-            }
+        stub(
+            lambda: pl.DataFrame(
+                {
+                    "season": [2006, 2006],
+                    "team_abb": ["KC", "WAS"],
+                    "name_display": ["D.J. Smith", "Pat OBrien"],
+                    "qbr_total": [80.0, 20.0],
+                }
+            )
         ),
     )
 

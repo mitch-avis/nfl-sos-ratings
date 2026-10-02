@@ -7,6 +7,7 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings import composite_weights
+from tests.stubs import stub
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -25,15 +26,17 @@ def test_build_team_training_rows_matches_aliases_and_standardizes_features(
     monkeypatch.setattr(
         composite_weights,
         "load_pbp_data",
-        lambda season: pl.DataFrame(
-            {
-                "game_id": ["g1", "g1", "g2", "g2", "g3", "g3"],
-                "week": [1, 1, 1, 1, 1, 1],
-                "posteam": ["LV", "LAC", "NE", "LV", "LAC", "NE"],
-                "defteam": ["LAC", "LV", "LV", "NE", "NE", "LAC"],
-                "special": [1, 1, 1, 1, 1, 1],
-                "epa": [0.4, -0.1, -0.3, 0.2, 0.1, -0.2],
-            }
+        stub(
+            lambda: pl.DataFrame(
+                {
+                    "game_id": ["g1", "g1", "g2", "g2", "g3", "g3"],
+                    "week": [1, 1, 1, 1, 1, 1],
+                    "posteam": ["LV", "LAC", "NE", "LV", "LAC", "NE"],
+                    "defteam": ["LAC", "LV", "LV", "NE", "NE", "LAC"],
+                    "special": [1, 1, 1, 1, 1, 1],
+                    "epa": [0.4, -0.1, -0.3, 0.2, 0.1, -0.2],
+                }
+            )
         ),
     )
     _write_parquet(
@@ -230,15 +233,17 @@ def test_build_team_training_rows_accepts_frozen_team_columns_without_retired_ca
     monkeypatch.setattr(
         composite_weights,
         "load_pbp_data",
-        lambda season: pl.DataFrame(
-            {
-                "game_id": ["g1", "g1"],
-                "week": [1, 1],
-                "posteam": ["A", "B"],
-                "defteam": ["B", "A"],
-                "special": [1, 1],
-                "epa": [0.2, -0.2],
-            }
+        stub(
+            lambda: pl.DataFrame(
+                {
+                    "game_id": ["g1", "g1"],
+                    "week": [1, 1],
+                    "posteam": ["A", "B"],
+                    "defteam": ["B", "A"],
+                    "special": [1, 1],
+                    "epa": [0.2, -0.2],
+                }
+            )
         ),
     )
     _write_parquet(
@@ -388,12 +393,8 @@ def test_main_prints_the_reproducible_composite_weight_report(
             "equal_weight_rmse": 0.4,
         }
 
-    monkeypatch.setattr(
-        composite_weights, "build_team_training_rows", lambda data_dir, seasons: team_rows
-    )
-    monkeypatch.setattr(
-        composite_weights, "build_qb_training_rows", lambda data_dir, seasons: qb_rows
-    )
+    monkeypatch.setattr(composite_weights, "build_team_training_rows", stub(lambda: team_rows))
+    monkeypatch.setattr(composite_weights, "build_qb_training_rows", stub(lambda: qb_rows))
     monkeypatch.setattr(composite_weights, "fit_linear_weights", fake_fit)
     monkeypatch.setattr(composite_weights, "evaluate_leave_one_season_out", fake_eval)
 

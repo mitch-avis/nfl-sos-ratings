@@ -15,6 +15,7 @@ from nfl_sos_ratings.validation.snapshots import (
     build_team_rating_snapshot,
     build_team_weighted_rating_snapshot,
 )
+from tests.stubs import stub
 
 _TEAM_RIDGE_RESPONSE_COLS: list[str] = [
     "passing_epa_per_offensive_snap",
@@ -112,7 +113,7 @@ def test_build_team_weighted_rating_snapshot_standardizes_components_before_weig
     )
     monkeypatch.setattr(
         "nfl_sos_ratings.validation.snapshots.build_team_adjusted_snapshot",
-        lambda weekly_team_rows, cutoff_week, response_cols=None: adjusted_snapshot,
+        stub(lambda: adjusted_snapshot),
     )
 
     result = build_team_weighted_rating_snapshot(

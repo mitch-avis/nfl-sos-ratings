@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from itertools import combinations, pairwise
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -247,7 +247,7 @@ def compute_playoff_metric_correlations(
 
     if "season" in joined.columns:
         for season_key, frame in joined.group_by("season", maintain_order=True):
-            season_value = season_key[0] if isinstance(season_key, tuple) else season_key
+            season_value = season_key[0]
             summarize_frame(frame, season_label=str(season_value))
     summarize_frame(joined, season_label="pooled")
     return pl.DataFrame(rows).sort(["season_label", "metric"])
@@ -550,28 +550,10 @@ def build_play_level_weighted_team_special_teams_feature_rows(
     )
 
 
-def _equal_team_weight_map() -> dict[str, float]:
-    """Return the default equal-weight team component map for rolling-weight fallbacks."""
-    equal_weight = 1.0 / len(_TEAM_T1_FEATURE_COLUMNS)
-    return dict.fromkeys(_TEAM_T1_FEATURE_COLUMNS, equal_weight)
-
-
 def _equal_weight_map(feature_columns: Sequence[str]) -> dict[str, float]:
     """Return equal weights over an arbitrary feature-column list."""
     equal_weight = 1.0 / len(feature_columns)
     return dict.fromkeys(feature_columns, equal_weight)
-
-
-def _normalize_team_weight_map(weight_map: dict[str, float]) -> dict[str, float]:
-    """Normalize a fitted team weight map by absolute weight while preserving signs."""
-    total_abs_weight = float(sum(abs(weight) for weight in weight_map.values()))
-    if total_abs_weight <= 0.0:
-        return _equal_team_weight_map()
-    return {
-        column: float(weight / total_abs_weight)
-        for column, weight in weight_map.items()
-        if column in _TEAM_T1_FEATURE_COLUMNS
-    }
 
 
 def _normalize_feature_weight_map(
@@ -994,33 +976,6 @@ def compute_team_rating_stability_from_history(
         "pearson": _pearson(x_values, y_values),
         "spearman": _spearman(x_values, y_values),
     }
-
-
-def _find_pairwise_mae_row(
-    mae_deltas: pl.DataFrame,
-    baseline_a: str,
-    baseline_b: str,
-    split: str,
-) -> dict[str, object] | None:
-    """Return one bootstrap delta row when the baseline ordering matches the stored table."""
-    if mae_deltas.is_empty():
-        return None
-    matched = mae_deltas.filter(
-        (pl.col("baseline_a") == baseline_a)
-        & (pl.col("baseline_b") == baseline_b)
-        & (pl.col("split") == split)
-    )
-    return matched.row(0, named=True) if not matched.is_empty() else None
-
-
-def _row_float(row: dict[str, object], key: str) -> float:
-    """Return one row value as a float for report rendering and comparisons."""
-    return float(cast("float | int | str", row[key]))
-
-
-def _row_bool(row: dict[str, object], key: str) -> bool:
-    """Return one row value as a bool for report rendering and comparisons."""
-    return bool(row[key])
 
 
 def build_team_decision_lines(

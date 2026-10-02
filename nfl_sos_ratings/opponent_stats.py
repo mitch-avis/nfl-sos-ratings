@@ -1,5 +1,7 @@
 """Core strength-of-schedule logic: compute opponent stat profiles."""
 
+from typing import TypedDict
+
 import polars as pl
 
 from nfl_sos_ratings.config import TEAM_TO_DIVISION
@@ -7,6 +9,17 @@ from nfl_sos_ratings.team_stats import (
     compute_qb_stats_excluding_opponent,
     compute_team_stats_excluding_opponent,
 )
+
+type OpponentDetail = dict[str, str | bool | int]
+
+
+class OpponentProfile(TypedDict):
+    """One team's averaged opponent profile and the per-opponent game counts behind it."""
+
+    team_stats: pl.DataFrame | None
+    qb_stats: pl.DataFrame | None
+    opponents: list[str]
+    opponent_details: list[OpponentDetail]
 
 
 def get_opponents(schedule_df: pl.DataFrame, team: str) -> list[str]:
@@ -30,7 +43,7 @@ def compute_opponent_profile(
     qb_df: pl.DataFrame,
     team: str,
     schedule_df: pl.DataFrame,
-) -> dict:
+) -> OpponentProfile:
     """Compute the averaged opponent stat profile for a given team.
 
     For each of the team's 14 unique opponents, compute that opponent's per-game
@@ -45,9 +58,9 @@ def compute_opponent_profile(
     """
     opponents = get_opponents(schedule_df, team)
 
-    team_stat_rows = []
-    qb_stat_rows = []
-    opponent_details = []
+    team_stat_rows: list[pl.DataFrame] = []
+    qb_stat_rows: list[pl.DataFrame] = []
+    opponent_details: list[OpponentDetail] = []
 
     for opp in opponents:
         # Team stats for this opponent, excluding games against `team`
@@ -56,7 +69,7 @@ def compute_opponent_profile(
         )
         if opp_team_stats is not None:
             team_stat_rows.append(opp_team_stats)
-            games = opp_team_stats.select("games_included").item()
+            games = int(opp_team_stats.select("games_included").item())
         else:
             games = 0
 
@@ -109,7 +122,7 @@ def compute_all_opponent_profiles(
     weekly_df: pl.DataFrame,
     qb_df: pl.DataFrame,
     schedule_df: pl.DataFrame,
-) -> tuple[pl.DataFrame | None, pl.DataFrame | None, dict]:
+) -> tuple[pl.DataFrame | None, pl.DataFrame | None, dict[str, list[OpponentDetail]]]:
     """Compute opponent profiles for all 32 teams.
 
     Returns:
@@ -118,11 +131,11 @@ def compute_all_opponent_profiles(
       - details: dict mapping team -> opponent_details list
 
     """
-    team_rows = []
-    qb_rows = []
-    details = {}
+    team_rows: list[pl.DataFrame] = []
+    qb_rows: list[pl.DataFrame] = []
+    details: dict[str, list[OpponentDetail]] = {}
 
-    teams = sorted(weekly_df.select("team").unique().to_series().to_list())
+    teams = sorted(str(team) for team in weekly_df.select("team").unique().to_series().to_list())
 
     for team in teams:
         print(f"  Computing opponent profile for {team}...")

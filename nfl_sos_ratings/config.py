@@ -24,7 +24,7 @@ DIVISIONS = {
 }
 
 # Build a team-to-division lookup
-TEAM_TO_DIVISION = {}
+TEAM_TO_DIVISION: dict[str, str] = {}
 for div, teams in DIVISIONS.items():
     for team in teams:
         TEAM_TO_DIVISION[team] = div

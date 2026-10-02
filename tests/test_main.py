@@ -8,6 +8,15 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings import main
+from tests.stubs import stub
+
+type _OpponentDetails = dict[str, list[dict[str, str | bool | int]]]
+
+
+def _details(details: _OpponentDetails | None = None) -> _OpponentDetails:
+    """Return a typed opponent-detail map for stubbed profile builders."""
+    return details if details is not None else {}
+
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -127,59 +136,59 @@ def _qb_ratings_df() -> pl.DataFrame:
 def _patch_common(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
     monkeypatch.setattr(main, "SEASON", 2025)
-    monkeypatch.setattr(main, "load_weekly_team_stats", lambda season: _weekly_df())
-    monkeypatch.setattr(main, "load_schedule", lambda season: _schedule_df())
-    monkeypatch.setattr(main, "load_qb_stats", lambda season: _qb_df())
-    monkeypatch.setattr(main, "compute_all_teams_per_game", lambda weekly_df: _team_per_game())
-    monkeypatch.setattr(main, "compute_win_totals", lambda weekly_df: _win_totals())
-    monkeypatch.setattr(main, "compute_ratings", lambda combined, **kwargs: _ratings_df())
-    monkeypatch.setattr(main, "solve_srs", lambda weekly_df, response_col: _srs_df())
-    monkeypatch.setattr(main, "load_pbp_data", lambda season: pl.DataFrame({"week": [1]}))
+    monkeypatch.setattr(main, "load_weekly_team_stats", stub(_weekly_df))
+    monkeypatch.setattr(main, "load_schedule", stub(_schedule_df))
+    monkeypatch.setattr(main, "load_qb_stats", stub(_qb_df))
+    monkeypatch.setattr(main, "compute_all_teams_per_game", stub(_team_per_game))
+    monkeypatch.setattr(main, "compute_win_totals", stub(_win_totals))
+    monkeypatch.setattr(main, "compute_ratings", stub(_ratings_df))
+    monkeypatch.setattr(main, "solve_srs", stub(_srs_df))
+    monkeypatch.setattr(main, "load_pbp_data", stub(lambda: pl.DataFrame({"week": [1]})))
     monkeypatch.setattr(
         main,
         "compute_team_adjusted_stats",
-        lambda weekly_df, response_cols, ridge_lambda=1.0: _team_adjustments_df(),
+        stub(_team_adjustments_df),
     )
     monkeypatch.setattr(
         main,
         "build_play_level_team_frame_from_pbp",
-        lambda pbp_df: pl.DataFrame({"team": ["DEN"], "week": [1]}),
+        stub(lambda: pl.DataFrame({"team": ["DEN"], "week": [1]})),
     )
     monkeypatch.setattr(
         main,
         "build_play_level_team_adjusted_snapshot",
-        lambda play_rows, cutoff_week: _team_adjustments_df(),
+        stub(_team_adjustments_df),
     )
     monkeypatch.setattr(
         main,
         "build_special_teams_game_frame_from_pbp",
-        lambda pbp_df: pl.DataFrame({"team": ["DEN"], "week": [1]}),
+        stub(lambda: pl.DataFrame({"team": ["DEN"], "week": [1]})),
     )
     monkeypatch.setattr(
         main,
         "build_special_teams_rating_snapshot",
-        lambda st_game_rows, cutoff_week: pl.DataFrame({"team": ["DEN"], "st_rating": [0.25]}),
+        stub(lambda: pl.DataFrame({"team": ["DEN"], "st_rating": [0.25]})),
     )
     monkeypatch.setattr(
         main,
         "compute_qb_adjusted_stats",
-        lambda qb_games, response_cols, ridge_lambda=1.0: _qb_adjustments_df(),
+        stub(_qb_adjustments_df),
     )
     monkeypatch.setattr(
         main,
         "compute_qb_opponent_profiles",
-        lambda weekly_df, qb_df, schedule_df, qb_season_df: (_qb_opp_profiles(), {"DEN": []}),
+        stub(lambda: (_qb_opp_profiles(), _details({"DEN": []}))),
     )
-    monkeypatch.setattr(main, "compute_qb_ratings", lambda qb_combined, **kwargs: _qb_ratings_df())
+    monkeypatch.setattr(main, "compute_qb_ratings", stub(_qb_ratings_df))
     monkeypatch.setattr(
         main,
         "_build_team_schedule_strength",
-        lambda team_games, team_ratings: pl.DataFrame({"team": ["DEN"], "sos": [1.0]}),
+        stub(lambda: pl.DataFrame({"team": ["DEN"], "sos": [1.0]})),
     )
     monkeypatch.setattr(
         main,
         "_build_qb_faced_overall_quality",
-        lambda qb_games, team_ratings: pl.DataFrame({"team": ["DEN"], "faced_opp_SaCR": [1.0]}),
+        stub(lambda: pl.DataFrame({"team": ["DEN"], "faced_opp_SaCR": [1.0]})),
     )
 
 
@@ -188,14 +197,16 @@ def test_main_uses_current_season_scaling_for_team_and_qb_ratings(
 ) -> None:
     """Published ratings should be scaled from the current season only."""
     _patch_common(monkeypatch, tmp_path)
-    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", stub(_qb_per_game))
     monkeypatch.setattr(
         main,
         "compute_all_opponent_profiles",
-        lambda weekly_df, qb_df, schedule_df: (
-            pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
-            pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
-            {},
+        stub(
+            lambda: (
+                pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
+                pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
+                _details(),
+            )
         ),
     )
 
@@ -235,11 +246,11 @@ def test_main_returns_when_no_opponent_profiles(
 ) -> None:
     """Verify main exits early with warning when opponent profiles are unavailable."""
     _patch_common(monkeypatch, tmp_path)
-    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", stub(_qb_per_game))
     monkeypatch.setattr(
         main,
         "compute_all_opponent_profiles",
-        lambda weekly_df, qb_df, schedule_df: (None, None, {}),
+        stub(lambda: (None, None, _details())),
     )
 
     main.main()
@@ -260,14 +271,16 @@ def test_main_handles_both_team_and_qb_profiles(
 ) -> None:
     """Verify main writes combined outputs when both team and QB profiles are present."""
     _patch_common(monkeypatch, tmp_path)
-    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", stub(_qb_per_game))
     monkeypatch.setattr(
         main,
         "compute_all_opponent_profiles",
-        lambda weekly_df, qb_df, schedule_df: (
-            pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
-            pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
-            {"DEN": [{"opponent": "KC", "division": True, "games_included": 1}]},
+        stub(
+            lambda: (
+                pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
+                pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
+                {"DEN": [{"opponent": "KC", "division": True, "games_included": 1}]},
+            )
         ),
     )
 
@@ -307,35 +320,39 @@ def test_main_preserves_distinct_opponent_per_game_and_per_play_series(
 ) -> None:
     """Team and QB opponent outputs keep per-game-like and per-play-like series distinct."""
     _patch_common(monkeypatch, tmp_path)
-    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", stub(_qb_per_game))
     monkeypatch.setattr(
         main,
         "compute_all_opponent_profiles",
-        lambda weekly_df, qb_df, schedule_df: (
-            pl.DataFrame(
-                {
-                    "team": ["DEN"],
-                    "points_for": [20.0],
-                    "points_per_offensive_snap": [0.33],
-                }
-            ),
-            None,
-            {},
+        stub(
+            lambda: (
+                pl.DataFrame(
+                    {
+                        "team": ["DEN"],
+                        "points_for": [20.0],
+                        "points_per_offensive_snap": [0.33],
+                    }
+                ),
+                None,
+                _details(),
+            )
         ),
     )
     monkeypatch.setattr(
         main,
         "compute_qb_opponent_profiles",
-        lambda weekly_df, qb_df, schedule_df, qb_season_df: (
-            pl.DataFrame(
-                {
-                    "team": ["DEN"],
-                    "qopp_points_allowed": [19.0],
-                    "qopp_qb_pass_yards": [240.0],
-                    "qopp_qb_pass_yards_per_dropback": [5.9],
-                }
-            ),
-            {"DEN": []},
+        stub(
+            lambda: (
+                pl.DataFrame(
+                    {
+                        "team": ["DEN"],
+                        "qopp_points_allowed": [19.0],
+                        "qopp_qb_pass_yards": [240.0],
+                        "qopp_qb_pass_yards_per_dropback": [5.9],
+                    }
+                ),
+                _details({"DEN": []}),
+            )
         ),
     )
 
@@ -369,52 +386,60 @@ def test_main_writes_team_and_qb_schedule_context_companions(
     monkeypatch.setattr(
         main,
         "load_qb_stats",
-        lambda season: pl.DataFrame(
-            {
-                "qb_id": ["qb-1"],
-                "qb_name": ["QB One"],
-                "team_abbr": ["DEN"],
-                "week": [1],
-                "qb_passer_rating": [100.0],
-            }
+        stub(
+            lambda: pl.DataFrame(
+                {
+                    "qb_id": ["qb-1"],
+                    "qb_name": ["QB One"],
+                    "team_abbr": ["DEN"],
+                    "week": [1],
+                    "qb_passer_rating": [100.0],
+                }
+            )
         ),
     )
-    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", stub(_qb_per_game))
     monkeypatch.setattr(
         main,
         "compute_qb_season_stats",
-        lambda qb_df, weekly_df=None: pl.DataFrame(
-            {
-                "qb_id": ["qb-1"],
-                "qb_name": ["QB One"],
-                "team": ["DEN"],
-                "qb_is_eligible": [True],
-                "qb_attempts_total": [10],
-                "qb_win_pct": [1.0],
-            }
+        stub(
+            lambda: pl.DataFrame(
+                {
+                    "qb_id": ["qb-1"],
+                    "qb_name": ["QB One"],
+                    "team": ["DEN"],
+                    "qb_is_eligible": [True],
+                    "qb_attempts_total": [10],
+                    "qb_win_pct": [1.0],
+                }
+            )
         ),
     )
     monkeypatch.setattr(
         main,
         "compute_all_opponent_profiles",
-        lambda weekly_df, qb_df, schedule_df: (
-            pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
-            pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
-            {},
+        stub(
+            lambda: (
+                pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
+                pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
+                _details(),
+            )
         ),
     )
     monkeypatch.setattr(
         main,
         "compute_ratings",
-        lambda combined, **kwargs: pl.DataFrame(
-            {
-                "team": ["DEN", "KC"],
-                "SaCR": [0.5, 1.0],
-                "SaOR": [0.8, 0.2],
-                "SaDR": [0.6, 0.1],
-                "SaSTR": [0.2, 0.0],
-                "SaOvR": [0.7, 0.3],
-            }
+        stub(
+            lambda: pl.DataFrame(
+                {
+                    "team": ["DEN", "KC"],
+                    "SaCR": [0.5, 1.0],
+                    "SaOR": [0.8, 0.2],
+                    "SaDR": [0.6, 0.1],
+                    "SaSTR": [0.2, 0.0],
+                    "SaOvR": [0.7, 0.3],
+                }
+            )
         ),
     )
     monkeypatch.setattr(main, "_build_team_schedule_strength", original_team_sos)
@@ -587,51 +612,59 @@ def test_main_writes_qb_designed_rush_context_companions(
     monkeypatch.setattr(
         main,
         "load_qb_stats",
-        lambda season: pl.DataFrame(
-            {
-                "qb_id": ["qb-1"],
-                "qb_name": ["QB One"],
-                "team_abbr": ["DEN"],
-                "week": [1],
-                "qb_passer_rating": [100.0],
-                "qb_designed_carries": [4],
-                "qb_designed_rush_epa": [1.7],
-                "qb_designed_epa_per_carry": [0.425],
-            }
+        stub(
+            lambda: pl.DataFrame(
+                {
+                    "qb_id": ["qb-1"],
+                    "qb_name": ["QB One"],
+                    "team_abbr": ["DEN"],
+                    "week": [1],
+                    "qb_passer_rating": [100.0],
+                    "qb_designed_carries": [4],
+                    "qb_designed_rush_epa": [1.7],
+                    "qb_designed_epa_per_carry": [0.425],
+                }
+            )
         ),
     )
-    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", stub(_qb_per_game))
     monkeypatch.setattr(
         main,
         "compute_qb_season_stats",
-        lambda qb_df, weekly_df=None: pl.DataFrame(
-            {
-                "qb_id": ["qb-1"],
-                "qb_name": ["QB One"],
-                "team": ["DEN"],
-                "qb_is_eligible": [True],
-                "qb_attempts_total": [10],
-                "qb_win_pct": [1.0],
-                "qb_designed_carries_total": [4],
-                "qb_designed_epa_per_carry": [0.425],
-            }
+        stub(
+            lambda: pl.DataFrame(
+                {
+                    "qb_id": ["qb-1"],
+                    "qb_name": ["QB One"],
+                    "team": ["DEN"],
+                    "qb_is_eligible": [True],
+                    "qb_attempts_total": [10],
+                    "qb_win_pct": [1.0],
+                    "qb_designed_carries_total": [4],
+                    "qb_designed_epa_per_carry": [0.425],
+                }
+            )
         ),
     )
     monkeypatch.setattr(
         main,
         "compute_qb_adjusted_stats",
-        lambda qb_games, response_cols, ridge_lambda=1.0: (
-            pl.DataFrame({"qb_id": ["qb-1"], "adj_qb_epa_per_dropback": [0.12]}),
-            pl.DataFrame({"team": ["KC"], "adj_def_qb_epa_per_dropback": [-0.05]}),
+        stub(
+            lambda: (
+                pl.DataFrame({"qb_id": ["qb-1"], "adj_qb_epa_per_dropback": [0.12]}),
+                pl.DataFrame({"team": ["KC"], "adj_def_qb_epa_per_dropback": [-0.05]}),
+            )
         ),
     )
     monkeypatch.setattr(
         main,
         "compute_all_opponent_profiles",
-        lambda weekly_df, qb_df, schedule_df: (
-            pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
-            pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
-            {},
+        stub(
+            lambda: (
+                pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
+                pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
+                _details(),
+            )
         ),
     )
 
@@ -656,15 +689,17 @@ def test_main_skips_historical_qb_calibration(
     """Verify main no longer runs historical QB calibration."""
     _patch_common(monkeypatch, tmp_path)
 
-    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", stub(_qb_per_game))
     assert not hasattr(main, "calibrate_qb_model")
     monkeypatch.setattr(
         main,
         "compute_all_opponent_profiles",
-        lambda weekly_df, qb_df, schedule_df: (
-            pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
-            pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
-            {},
+        stub(
+            lambda: (
+                pl.DataFrame({"team": ["DEN"], "points_for": [20.0]}),
+                pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
+                _details(),
+            )
         ),
     )
 
@@ -675,14 +710,16 @@ def test_main_skips_historical_qb_calibration(
 def test_main_handles_team_only_profiles(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Verify main still writes opponent profiles when only team-level profiles are present."""
     _patch_common(monkeypatch, tmp_path)
-    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _qb_per_game())
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", stub(_qb_per_game))
     monkeypatch.setattr(
         main,
         "compute_all_opponent_profiles",
-        lambda weekly_df, qb_df, schedule_df: (
-            pl.DataFrame({"team": ["DEN"], "points_for": [19.0]}),
-            None,
-            {},
+        stub(
+            lambda: (
+                pl.DataFrame({"team": ["DEN"], "points_for": [19.0]}),
+                None,
+                _details(),
+            )
         ),
     )
 
@@ -697,19 +734,21 @@ def test_main_handles_qb_only_profiles_and_windows_stdout(
 ) -> None:
     """Verify main handles QB-only profiles and executes Windows UTF-8 stdout path."""
     _patch_common(monkeypatch, tmp_path)
-    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", lambda qb_df: _empty_qb_per_game())
+    monkeypatch.setattr(main, "compute_all_teams_qb_per_game", stub(_empty_qb_per_game))
     monkeypatch.setattr(
         main,
         "compute_all_opponent_profiles",
-        lambda weekly_df, qb_df, schedule_df: (
-            None,
-            pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
-            {},
+        stub(
+            lambda: (
+                None,
+                pl.DataFrame({"team": ["DEN"], "qb_passer_rating": [90.0]}),
+                _details(),
+            )
         ),
     )
     monkeypatch.setattr(main.sys, "platform", "win32")
     monkeypatch.setattr(main.sys, "stdout", SimpleNamespace(buffer=io.BytesIO()))
-    monkeypatch.setattr(main.io, "TextIOWrapper", lambda buffer, encoding: io.StringIO())
+    monkeypatch.setattr(main.io, "TextIOWrapper", stub(io.StringIO))
 
     main.main()
 

@@ -216,7 +216,7 @@ def _summarize_weighted_signal_by_season(
     season_rows: list[dict[str, object]] = []
     if "season" in filtered.columns:
         for season_key, season_frame in filtered.group_by("season", maintain_order=True):
-            season_value = season_key[0] if isinstance(season_key, tuple) else season_key
+            season_value = season_key[0]
             season_rows.append(
                 summarize_one(season_frame, scope="season", season=int(season_value))
             )
@@ -1252,7 +1252,7 @@ def compute_qb_leverage_diagnostics(
             ]
         )
 
-    decision = {
+    decision: dict[str, object] = {
         "decision": "not_supported",
         "moderate_wp_band": f"{moderate_wp_low:.2f}-{moderate_wp_high:.2f}",
         "share_signal_supported": False,

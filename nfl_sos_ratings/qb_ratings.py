@@ -94,18 +94,6 @@ def _season_supports_cpoe(df: pl.DataFrame) -> bool:
     )
 
 
-def _safe_corr(x: FloatArray, y: FloatArray) -> float:
-    """Return Pearson correlation, or 0.0 when undefined/unstable."""
-    if len(x) <= 1 or len(y) <= 1 or len(x) != len(y):
-        return 0.0
-    x_std = float(x.std(ddof=1))
-    y_std = float(y.std(ddof=1))
-    if x_std <= 0.0 or y_std <= 0.0:
-        return 0.0
-    corr = float(np.corrcoef(x, y)[0, 1])
-    return 0.0 if np.isnan(corr) else corr
-
-
 def _percentile(values: FloatArray) -> FloatArray:
     """Return percentile ranks from 0 to 100 with higher values ranking better."""
     if len(values) <= 1:
@@ -160,72 +148,6 @@ def _build_qb_raw_composite(
         )
         composite += (zscore if higher_is_better else -zscore) * weight
     return composite
-
-
-def _build_paired_adjusted_frame(
-    df: pl.DataFrame,
-    reference_df: pl.DataFrame | None = None,
-) -> pl.DataFrame | None:
-    """Return standardized paired QB-vs-opponent columns when matched context exists."""
-    resolved_reference_df = _resolve_reference_df(df, reference_df)
-    payload: dict[str, list[float]] = {}
-    for stat, higher_is_better in _QB_PAIRED_STAT_POOL:
-        qopp_stat = f"qopp_{stat}"
-        values = _col(df, stat)
-        qopp_values = _col(df, qopp_stat)
-        if values is None or qopp_values is None:
-            continue
-
-        reference_values = _col(resolved_reference_df, stat)
-        reference_qopp_values = _col(resolved_reference_df, qopp_stat)
-        value_zscore = _zscore_against(
-            values.tolist(),
-            (reference_values if reference_values is not None else values).tolist(),
-        )
-        qopp_zscore = _zscore_against(
-            qopp_values.tolist(),
-            (reference_qopp_values if reference_qopp_values is not None else qopp_values).tolist(),
-        )
-        adjusted = value_zscore - qopp_zscore if higher_is_better else -value_zscore + qopp_zscore
-        payload[f"adj_{stat}"] = adjusted.tolist()
-
-    if not payload:
-        return None
-
-    for col_name in ("qb_win_pct", "win_pct"):
-        values = _col(df, col_name)
-        if values is not None:
-            payload[col_name] = values.tolist()
-            break
-    return pl.DataFrame(payload)
-
-
-def _build_qb_adjusted_composite(
-    df: pl.DataFrame,
-    reference_df: pl.DataFrame | None = None,
-) -> np.ndarray:
-    """Build the schedule-adjusted QB base from paired context or fallback differentials."""
-    resolved_reference_df = _resolve_reference_df(df, reference_df)
-    paired_df = _build_paired_adjusted_frame(df, resolved_reference_df)
-    if paired_df is not None:
-        reference_paired_df = _build_paired_adjusted_frame(
-            resolved_reference_df,
-            resolved_reference_df,
-        )
-        paired_pool = [
-            (f"adj_{stat}", True)
-            for stat, _ in _QB_PAIRED_STAT_POOL
-            if f"adj_{stat}" in paired_df.columns
-        ]
-        weights = _derive_qb_weights(paired_df, stat_pool=paired_pool)
-        return _build_qb_raw_composite(
-            paired_df,
-            weights,
-            reference_paired_df if reference_paired_df is not None else paired_df,
-        )
-
-    weights = _derive_qb_weights(df)
-    return _build_qb_raw_composite(df, weights, resolved_reference_df)
 
 
 def _build_qsos(df: pl.DataFrame, reference_df: pl.DataFrame | None = None) -> np.ndarray:

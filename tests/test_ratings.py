@@ -5,6 +5,7 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings import ratings
+from tests.stubs import unscaled, unscaled_against
 
 
 def test_rating_helpers_cover_edge_cases() -> None:
@@ -17,47 +18,6 @@ def test_rating_helpers_cover_edge_cases() -> None:
     assert value_col is not None
     assert np.allclose(value_col, np.array([1.5]))
     assert ratings._col(df, "missing") is None
-
-    composite = ratings._build_composite(
-        pl.DataFrame({"value": [1.0, 2.0, 3.0]}),
-        [("missing", 0.5, True), ("value", 0.5, True)],
-    )
-    assert np.allclose(composite, np.array([-0.5, 0.0, 0.5]))
-
-
-def test_derive_weights_builds_weighted_composite_and_fallback(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Verify stat pools are weighted equally across the present columns."""
-    df = pl.DataFrame(
-        {
-            "stat_a": [1.0, 2.0, 3.0, 4.0],
-            "stat_b": [4.0, 3.0, 2.0, 1.0],
-        }
-    )
-    win_pct = np.array([0.25, 0.5, 0.75, 1.0])
-
-    weighted = ratings._derive_weights(
-        df,
-        [("stat_a", True), ("stat_b", False)],
-        win_pct,
-        "Offensive",
-    )
-    composite = ratings._build_composite(df, weighted)
-
-    assert weighted == [("stat_a", 0.5, True), ("stat_b", 0.5, False)]
-    assert np.allclose(composite, np.array([-1.161895, -0.387298, 0.387298, 1.161895]))
-    assert capsys.readouterr().out == ""
-
-    fallback = ratings._derive_weights(
-        pl.DataFrame({"stat_c": [1.0, 2.0, 1.0]}),
-        [("stat_c", True)],
-        np.array([0.3, 0.5, 0.7]),
-        "Defensive",
-    )
-
-    assert fallback == [("stat_c", 1.0, True)]
-    assert capsys.readouterr().out == ""
 
 
 def test_compute_ratings_with_real_inputs() -> None:
@@ -164,16 +124,11 @@ def test_compute_ratings_builds_overall_and_composite_from_standardized_offense_
         }
     )
 
-    monkeypatch.setattr(ratings, "_zscore", lambda values: np.array(values, dtype=np.float64))
-    monkeypatch.setattr(
-        ratings,
-        "_zscore_against",
-        lambda values, reference_values: np.array(values, dtype=np.float64),
-    )
+    monkeypatch.setattr(ratings, "_zscore", unscaled)
     monkeypatch.setattr(
         ratings.composite_weights,
         "_zscore_against",
-        lambda values, reference_values: np.array(values, dtype=np.float64),
+        unscaled_against,
     )
 
     result = ratings.compute_ratings(df)
@@ -212,16 +167,11 @@ def test_compute_ratings_uses_frozen_stage_two_component_weights(
         }
     )
 
-    monkeypatch.setattr(ratings, "_zscore", lambda values: np.array(values, dtype=np.float64))
-    monkeypatch.setattr(
-        ratings,
-        "_zscore_against",
-        lambda values, reference_values: np.array(values, dtype=np.float64),
-    )
+    monkeypatch.setattr(ratings, "_zscore", unscaled)
     monkeypatch.setattr(
         ratings.composite_weights,
         "_zscore_against",
-        lambda values, reference_values: np.array(values, dtype=np.float64),
+        unscaled_against,
     )
 
     result = ratings.compute_ratings(df).sort("team")

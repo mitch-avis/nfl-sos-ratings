@@ -483,16 +483,17 @@ def test_compute_all_opponent_profiles_handles_missing_qb_rows(
     qb = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_passer_rating": [100.0]})
     schedule = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})
 
-    monkeypatch.setattr(
-        opponent_stats,
-        "compute_opponent_profile",
-        lambda weekly_df, qb_df, team, schedule_df: {
+    def fake_profile(
+        weekly_df: pl.DataFrame, qb_df: pl.DataFrame, team: str, schedule_df: pl.DataFrame
+    ) -> opponent_stats.OpponentProfile:
+        return {
             "team_stats": pl.DataFrame({"team": [team], "points_for": [20.0]}),
             "qb_stats": None,
             "opponents": ["KC"],
             "opponent_details": [],
-        },
-    )
+        }
+
+    monkeypatch.setattr(opponent_stats, "compute_opponent_profile", fake_profile)
 
     all_team, all_qb, details = opponent_stats.compute_all_opponent_profiles(weekly, qb, schedule)
 
@@ -509,16 +510,17 @@ def test_compute_all_opponent_profiles_handles_missing_team_rows(
     qb = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_passer_rating": [100.0]})
     schedule = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})
 
-    monkeypatch.setattr(
-        opponent_stats,
-        "compute_opponent_profile",
-        lambda weekly_df, qb_df, team, schedule_df: {
+    def fake_profile(
+        weekly_df: pl.DataFrame, qb_df: pl.DataFrame, team: str, schedule_df: pl.DataFrame
+    ) -> opponent_stats.OpponentProfile:
+        return {
             "team_stats": None,
             "qb_stats": pl.DataFrame({"team": [team], "qb_passer_rating": [95.0]}),
             "opponents": ["KC"],
             "opponent_details": [],
-        },
-    )
+        }
+
+    monkeypatch.setattr(opponent_stats, "compute_opponent_profile", fake_profile)
 
     all_team, all_qb, details = opponent_stats.compute_all_opponent_profiles(weekly, qb, schedule)
 

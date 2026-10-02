@@ -26,6 +26,7 @@ from nfl_sos_ratings.validation.diagnostics import (
     summarize_qb_opponent_offense_signal,
     summarize_qb_split_half_signal,
 )
+from tests.stubs import stub
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -396,11 +397,11 @@ def test_compute_qb_playoff_validation_frame_canonicalizes_playoff_qb_ids_for_op
 
     monkeypatch.setattr(
         "nfl_sos_ratings.validation.diagnostics.load_playoff_pbp_data",
-        lambda season: playoff_pbp,
+        stub(lambda: playoff_pbp),
     )
     monkeypatch.setattr(
         "nfl_sos_ratings.validation.diagnostics.load_qb_identity_crosswalk",
-        lambda season: crosswalk,
+        stub(lambda: crosswalk),
     )
 
     validation = compute_qb_playoff_validation_frame(tmp_path, [2025])
@@ -519,13 +520,17 @@ def test_compute_qb_playoff_validation_frame_handles_pre_2006_null_qsacr(
         ),
     }
 
+    def fake_playoff_pbp(season: int) -> pl.DataFrame:
+        return playoff_frames[int(season)]
+
+    def fake_crosswalk(season: int) -> pl.DataFrame:
+        return crosswalk_frames[int(season)]
+
     monkeypatch.setattr(
-        "nfl_sos_ratings.validation.diagnostics.load_playoff_pbp_data",
-        lambda season: playoff_frames[int(season)],
+        "nfl_sos_ratings.validation.diagnostics.load_playoff_pbp_data", fake_playoff_pbp
     )
     monkeypatch.setattr(
-        "nfl_sos_ratings.validation.diagnostics.load_qb_identity_crosswalk",
-        lambda season: crosswalk_frames[int(season)],
+        "nfl_sos_ratings.validation.diagnostics.load_qb_identity_crosswalk", fake_crosswalk
     )
 
     validation = compute_qb_playoff_validation_frame(tmp_path, [2005, 2006]).sort("season")
