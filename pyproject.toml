@@ -1,54 +1,60 @@
 [build-system]
-requires = ["hatchling>=1.26"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"
 
 [project]
 name = "nfl-sos-ratings"
 version = "0.1.0"
-description = "NFL Strength of Schedule Ratings"
-readme = "README.md"
-requires-python = ">=3.14"
+description = "Schedule-strength-adjusted NFL team and quarterback ratings from nflverse data."
 keywords = ["stats", "sports", "football", "machine learning"]
+readme = "README.md"
 authors = [{ name = "Mitch Avis", email = "mitchavis@gmail.com" }]
-license = { text = "MIT" }
+requires-python = ">=3.14"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
-    "fastapi",
-    "httpx2",
-    "nflreadpy",
-    "numpy",
-    "polars",
-    "uvicorn",
+    "fastapi>=0.142",
+    "nflreadpy>=0.1",
+    "numpy>=2.5",
+    "polars>=1.44",
+    "uvicorn>=0.54",
 ]
 classifiers = [
     "Programming Language :: Python :: 3.14",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
 ]
-
-[project.urls]
-Homepage = "https://github.com/mitch-avis/nfl-sos-ratings"
 
 [project.scripts]
 nfl-sos = "nfl_sos_ratings.main:main"
 nfl-sos-pipeline = "nfl_sos_ratings.pipeline:main"
 nfl-sos-ui-api = "nfl_sos_ratings.ui_api:main"
 
+[project.urls]
+Homepage = "https://github.com/mitch-avis/nfl-sos-ratings"
+
 [dependency-groups]
 dev = [
-    "colorama",
-    "pyright",
-    "pytest",
-    "pytest-cov",
-    "pytest-html",
-    "pytest-metadata",
-    "pytest-sugar",
-    "pytest-xdist",
-    "ruff",
-    "ty",
+    "colorama>=0.4",
+    "httpx2>=2.13",
+    "pre-commit>=4.6",
+    "pyright>=1.1",
+    "pytest>=9.1",
+    "pytest-cov>=7.1",
+    "pytest-html>=4.2",
+    "pytest-metadata>=3.1",
+    "pytest-sugar>=1.1",
+    "pytest-xdist>=3.8",
+    "ruff>=0.16",
+    "ty>=0.0.84",
 ]
 
-[tool.hatch.build.targets.wheel]
-packages = ["nfl_sos_ratings"]
+[tool.uv]
+default-groups = ["dev"]
+required-version = ">=0.12"
+
+# The package sits at the repo root (flat layout), not under src/.
+[tool.uv.build-backend]
+module-root = ""
 
 [tool.ruff]
 line-length = 100
