@@ -198,16 +198,25 @@ The most important comparisons are information-matched baselines:
 - SRS
 - Elo as an external reference baseline
 
-The current team result is best described as parity with SRS, not a clean victory over it.
+The current team result is statistical parity with SRS and raw EPA, not a victory over either.
 
-The current report records that the published play-level team backbone plus special teams:
+On the full held-out window (1999-2025, week 5 onward), the current report records an overall
+margin MAE of `10.700` for the published `SaOvR`, against `10.658` for SRS, `10.695` for raw EPA,
+and `10.580` for Elo. `SaOvR` is numerically slightly behind both information-matched baselines,
+but neither gap is distinguishable from zero in the paired bootstrap:
 
-- beats raw EPA on held-out MAE
-- improves year-over-year stability over the earlier team path
-- reaches practical parity with SRS, with `P(backbone <= SRS) = 0.965`
+- SRS minus `SaOvR`: `-0.042` MAE, 95% CI `[-0.105, 0.021]`
+- raw EPA minus `SaOvR`: `-0.004` MAE, 95% CI `[-0.050, 0.042]`
 
-That is why the methodology page uses the word parity. The result is strong enough to support the
-construct, but not strong enough to justify a superiority claim.
+The report also tested a replacement backbone built from play-level EPA weights plus special teams.
+It was significantly worse than both raw EPA and SRS on overall MAE, so it failed the promotion
+rule and is not published.
+
+That is why the methodology page uses the word parity. The result supports the construct
+(schedule-adjusted, outcome-free components that decompose into offense, defense, and special
+teams), not a claim that `SaOvR` predicts margins better than simpler baselines. These numbers come
+from the Acceptance Check and Paired Bootstrap MAE Deltas sections of `docs/validation-report.md`,
+which records the command that generates it.
 
 On the QB side, the important checks are different. The current report shows that `QSaCR`:
 
@@ -225,10 +234,10 @@ really was, even after the linear schedule adjustment?
 The 2025 Drake Maye versus Matthew Stafford comparison was used as the named example. In the current
 report's case-study table:
 
-- Drake Maye: raw EPA/dropback `0.306`, adjusted EPA/dropback `0.244`
-- Matthew Stafford: raw EPA/dropback `0.244`, adjusted EPA/dropback `0.226`
+- Drake Maye: raw EPA/dropback `0.308`, adjusted EPA/dropback `0.245`
+- Matthew Stafford: raw EPA/dropback `0.244`, adjusted EPA/dropback `0.225`
 
-Maye's schedule was softer. The faced-defense coefficient was `-0.029` for Maye versus `0.007` for
+Maye's schedule was softer. The faced-defense coefficient was `-0.029` for Maye versus `0.006` for
 Stafford, so the model already penalized him more.
 
 The follow-up program then asked whether some missing channel still favored soft-schedule QBs. The
@@ -255,8 +264,10 @@ His edge also survived restriction to top-half defenses, so the final verdict di
 all-opponent averaging alone.
 
 The later schedule-strength audit tightened the interpretation further. By overall opponent quality,
-Maye's 2025 slate was the softest of the named QBs: equal-game `faced_opp_SaCR` was `-0.7009`, and
-the dropback-weighted overall-opponent mean was still `-0.6806`. But `QSoS` stayed behind Joe
+Maye's 2025 slate was the softest of the named QBs: equal-game `faced_opp_SaCR` was `-0.701`,
+against `-0.329` for Tyler Shough, `-0.155` for Joe Flacco, and `0.127` for J.J. McCarthy (the
+anchor table of `nfl-sos-ratings qsos-audit --data-dir data --start-season 1999 --end-season
+2025`). But `QSoS` (`-1.273`) stayed behind Joe
 Flacco, Tyler Shough, and J.J. McCarthy because it measures pass-defense difficulty, not overall
 team quality, and because dropback weighting flipped the Maye-vs-Shough pass-defense ordering.
 The audit also fixed one outright bug: multi-team QBs were being grouped by QB-plus-team when
