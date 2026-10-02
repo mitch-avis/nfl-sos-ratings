@@ -15,9 +15,8 @@ current-status summary changes.
 
 ## Current state
 
-- Status: code health is green except for two pending items as of 2026-10-02 (see "Validation
-  snapshot"): the committed `docs/validation-report.md` must be regenerated from the refreshed
-  data, and the `scripts/gate.sh --web` step still points at the removed `ui/web/`. The PBP-first
+- Status: code health is green as of 2026-10-02 (`scripts/gate.sh --web` passes; see "Validation
+  snapshot"). The PBP-first
   pipeline, Parquet contract, metrics registry, `nfl-sos-ratings` front-door CLI, and analyst web
   app (`web/`) are implemented. The ratings-methodology workstream is
   closed: published team and QB ratings now use within-season standardization, the pooled
@@ -36,10 +35,14 @@ current-status summary changes.
   the PBP path, the descriptive rush-defense lens and adjusted designed-rush EPA/carry surface are
   published, and the pooled-reference companion columns are generated as a separate post-pass over
   written season files rather than feeding the within-season flagship path.
-- Latest regenerated headline validation snapshot: team overall MAE remains `SaOvR 10.701`, `Elo
-  10.580`, `SRS 10.658`, `RawEPA 10.695`; late-week team MAE remains `SaOvR 10.649`, `Elo 10.550`,
-  `SRS 10.651`, `RawEPA 10.671`; QB stability now reads `QSaCR 0.479 / 0.466`, passer rating `0.413
-  / 0.416`, ANY/A `0.338 / 0.330`; mean QBR correlation now reads `0.891 / 0.870`.
+- Latest regenerated headline validation snapshot (2026-10-02, `nfl-sos-ratings validate --data-dir
+  data --start-season 1999 --end-season 2025 --start-week 5 --report-path
+  docs/validation-report.md`): team overall MAE `SaOvR 10.700`, `Elo 10.580`, `SRS 10.658`, `RawEPA
+  10.695`; late-week team MAE `SaOvR 10.646`, `Elo 10.550`, `SRS 10.651`, `RawEPA 10.671`; QB
+  stability `QSaCR 0.479 / 0.466`, passer rating `0.413 / 0.416`, ANY/A `0.338 / 0.330`; mean QBR
+  correlation `0.891 / 0.869`. `SaOvR` is not distinguishable from SRS or RawEPA in the paired
+  bootstrap (`docs/methodology.md` now states this as parity; its earlier `P(backbone <= SRS) =
+  0.965` claim had no source in either report and was removed on 2026-10-02).
 - Latest named-QB designed-rush preview (`2025` report): Drake Maye `20` designed carries, `-0.390`
   raw designed EPA/carry, faced rush defense `-0.004`, adjusted designed EPA/carry `-0.394`; Lamar
   Jackson `28`, `0.293`, `-0.005`, `0.288`; Josh Allen `46`, `0.436`, `0.007`, `0.443`; Matthew
@@ -52,7 +55,7 @@ current-status summary changes.
   the 2026-09-08 single-season run. Season 2001 first failed on a transient nflverse HTTP 500 for
   `stats_player_week_2001.parquet` and was rebuilt in a follow-up run before the companion pass
   (`data/2001_*` timestamps are the latest). The validation report was regenerated from that data
-  but is not committed yet: see "Validation snapshot".
+  and committed the same day; it passes markdownlint with no hand edits.
 - Ratings methodology record: the archived validation history remains in
   `docs/validation-report.md`, while the reader-facing explanation is in `docs/methodology.md`.
 - Primary source of truth for metrics: `nfl_sos_ratings/metrics/`.
@@ -295,19 +298,14 @@ Recorded decision:
 
 ## Validation snapshot
 
-Current gate state (2026-10-02, `scripts/gate.sh` on commit c4e3d3d; `--web` run separately):
-lock and sync checks, ruff format, ruff (`select = ["ALL"]`), ty, pyright (strict), and pytest
-pass: 352 passed, 2 deselected (`published_data`), total coverage 77.83% against the enforced 75%
-floor. Two steps fail, both known:
-
-- markdownlint: `docs/validation-report.md:699` (MD013, 134 characters). The working-tree report
-  is the refreshed-data output of the generator before the line-wrap fixes (d7d4206, 664f222).
-  Regenerate it with `.venv/bin/nfl-sos-ratings validate --data-dir data --start-season 1999
-  --end-season 2025 --start-week 5 --report-path docs/validation-report.md` (detached, about 12
-  minutes); it must then pass markdownlint with no hand edits.
-- web build: `scripts/gate.sh` still runs `cd ui/web`. The frontend itself is green when its steps
-  run by hand in `web/`: `npm ci`, `npm run lint` (one inherent TanStack `useReactTable` warning),
-  `npm run typecheck`, `npx vitest run` (33 tests), and `npm run build`.
+Current gate state (2026-10-02, `scripts/gate.sh --web` on the final tree of branch
+`chore/strict-tooling-and-web`): every step passes. Lock and sync checks, ruff format, ruff
+(`select = ["ALL"]`), ty, pyright (strict), pytest (352 passed, 2 deselected `published_data`,
+total coverage 77.83% against the enforced 75% floor), the `nfl-sos-ratings` `--help` smoke check
+over every command in `nfl_sos_ratings.cli.COMMANDS`, markdownlint, and the `web/` checks (`npm
+ci`, `npm run lint` with the one inherent TanStack `useReactTable` warning, `npm run typecheck`,
+`npx vitest run` with 33 tests, `npm run build`). `.venv/bin/pre-commit run --all-files` also
+passes.
 
 Other notes:
 
@@ -317,8 +315,13 @@ Other notes:
 - Coverage: the floor is 75% (`fail_under`), the goal 90%. The largest gaps are in
   `validation/diagnostics.py`, `validation/walk_forward.py`, `validation/qsos_audit.py`, and
   `ratings.py` (see the pytest coverage table).
-- The refreshed report moves some quoted numbers slightly (2025 nflverse revisions); see
-  "What the next agent should do first" for the docs that quote them.
+- The refreshed report moved some quoted numbers slightly (2025 nflverse revisions); the
+  quotes in `docs/methodology.md` and this file were refreshed from it on 2026-10-02.
+- `docs/methodology.md`'s QSoS paragraph now quotes `faced_opp_SaCR` from the `qsos-audit`
+  anchor table (`-0.701`, three decimals). Its earlier `-0.7009` and "dropback-weighted
+  overall-opponent mean `-0.6806`" came from no repo command (hand-written in 730dfbc) and were
+  removed; if that weighted mean matters, add it to `nfl_sos_ratings/validation/qsos_audit.py`
+  first.
 
 Last recorded full regeneration and green state (the `data/` and report file timestamps are
 2026-07-19):
@@ -452,25 +455,25 @@ Landed on 2026-10-02 (branch `chore/strict-tooling-and-web`):
 - The analyst UI moved from `ui/web/` to `web/` on nfl-predictor's stack, which also untracked the
   old `tsc -b` outputs (see `.agents/frontend-ui-kickoff-plan.md`).
 - Full `data/` refresh; report-generator line wrapping so the regenerated report passes
-  markdownlint.
+  markdownlint; the regenerated report committed.
+- `scripts/gate.sh --web` checks `web/` (`npm ci`, lint, typecheck, `vitest run`, build), and the
+  default gate adds a `cli --help` step over every command in `nfl_sos_ratings.cli.COMMANDS`.
+- `.pre-commit-config.yaml` (pre-commit-hooks v6.0.0 hygiene, conventional-pre-commit v4.4.0
+  limited to the repo's commit types, local `.venv` ruff format and check, `scripts/gate.sh
+  --quick` on pre-push). It needs the `pre-commit-uv` dev dependency: pip 26.2.1, which
+  virtualenv 21.14.5 bundles, fails to import its vendored `requests` (`JSONDecodeError`), so
+  plain pre-commit cannot build Python hook environments; `pre-commit-uv` builds them with uv.
+  Revisit once a fixed pip ships.
+- `.github/workflows/validation.yml`: a gate job (`scripts/gate.sh`, Python 3.14, uv,
+  `markdownlint-cli2` on Node 26) and a `web/` job. Not yet exercised on GitHub (nothing pushed).
+- `.claude/settings.json` asks before `nfl-sos-ratings season`, `pipeline`, `validate`,
+  `weights`, and `qsos-audit` (the last two match the existing module-path ask rules), and denies
+  edits to `/web/package-lock.json`; `CLAUDE.md` matches.
 
 Open:
 
-- Point the `scripts/gate.sh --web` step at `web/` and run `npm ci`, `npm run lint`,
-  `npm run typecheck`, `npx vitest run`, and `npm run build` there, plus a step that runs
-  `nfl-sos-ratings --help` and each command's `--help` (names from `nfl_sos_ratings.cli.COMMANDS`).
-  Needs the user's go-ahead in the session that does it: an agent's edit was blocked on
-  2026-10-02 as a gate change.
-- Add `.pre-commit-config.yaml` (pre-commit-hooks hygiene, conventional-pre-commit, local ruff
-  format and check, `scripts/gate.sh --quick` on pre-push; exclude `.venv/`, `data/`,
-  `web/node_modules/`, `web/dist/`) and `.github/workflows/validation.yml` (gate job plus web job,
-  Node 26, `markdownlint-cli2`). The user approved both on 2026-10-02, but the agent's tooling
-  blocked config changes of this kind; confirm before starting. `pre-commit` is already a dev
-  dependency; the global Claude Code Stop hook runs it once the config exists, so it must pass.
-- `.claude/settings.json`: add ask rules for `.venv/bin/nfl-sos-ratings season *`, `pipeline *`,
-  and `validate *`; change the deny path `/ui/web/package-lock.json` to `/web/package-lock.json`;
-  then update the matching sentence in `CLAUDE.md` (and its "no `.pre-commit-config.yaml`" note
-  once that file lands).
+- Watch the first CI run after the branch is pushed; fix anything the hosted runner disagrees
+  with.
 - Add a colored project logger like nfl-predictor's (`coloredlogs`), keeping `colorama`; it would
   also retire the per-file `T201` (print) ignores in `pyproject.toml`.
 - Raise coverage toward the 90% goal, and raise `fail_under` as it grows.
@@ -491,26 +494,8 @@ These are not active workstreams, but they are still useful context.
 
 ## What the next agent should do first
 
-0. Finish the 2026-10-02 branch work (`chore/strict-tooling-and-web`), with the user's go-ahead
-   for each command-running or config step:
-   - Regenerate the report (command under "Validation snapshot"), confirm markdownlint passes, and
-     commit it as `docs(validation): regenerate the report from refreshed data`.
-   - Then refresh numbers quoted from it, citing the command. Pre-regeneration values from the
-     refreshed working-tree report: SaOvR overall MAE `10.701` to `10.700`, late `10.649` to
-     `10.646`; mean QBR Spearman `0.870` to `0.869` (this file's "Current state"). In
-     `docs/methodology.md`, the 2025 case-study table: Maye raw/adjusted EPA per dropback `0.306 /
-     0.244` to `0.308 / 0.245`, Stafford `0.244 / 0.226` to `0.244 / 0.225`, Stafford's
-     faced-defense coefficient `0.007` to `0.006`. Read these from the regenerated report, not from
-     this list.
-   - `docs/methodology.md` also quotes `faced_opp_SaCR` `-0.7009` and a dropback-weighted mean
-     `-0.6806` from the QSoS audit (`nfl-sos-ratings qsos-audit`, ask first); the refreshed report's
-     anchor table shows Maye at `-0.701`.
-   - `docs/methodology.md` says the team backbone "beats raw EPA" and "reaches practical parity with
-     SRS, with `P(backbone <= SRS) = 0.965`". Neither the July report nor the refreshed one contains
-     `0.965`, and both report the play-level candidate as significantly worse than RawEPA and SRS on
-     overall MAE (Stage 3c promotion: Fail). That is a methodology-claim question for the user, not
-     a number refresh.
-   - The open items under backlog D.
+0. Branch `chore/strict-tooling-and-web` is complete and gate-green; it awaits the user's review,
+   push, and merge. Then check its first CI run (backlog D).
 1. Read this file and confirm whether the task belongs to metric expansion, the analyst UI, or a new
   methodology challenge.
 2. If the task challenges published rating methodology, start from `docs/methodology.md` and
