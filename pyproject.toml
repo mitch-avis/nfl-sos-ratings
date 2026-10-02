@@ -96,9 +96,8 @@ docstring-code-format = true
 
 [tool.pyright]
 pythonVersion = "3.14"
-# Production code under nfl_sos_ratings/ runs in strict mode (matches Pylance "Strict" in VS Code).
-# Tests stay on the standard-mode baseline below — they make heavy use of fixtures, Mock objects,
-# and monkeypatching where Unknown types are normal.
+# The whole tree (package and tests) runs in standard mode with the extra rules promoted below;
+# strict mode is not enabled for nfl_sos_ratings/.
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"

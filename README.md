@@ -280,11 +280,14 @@ The script refreshes `uv.lock`, syncs the active environment, and only regenerat
 Edit `nfl_sos_ratings/config.py`.
 
 ```python
-SEASON: int = 2025
+START_YEAR: int = 1999
+END_YEAR: int = 2025
+SEASON: int = END_YEAR
 DATA_DIR: str = "data"
 ```
 
-- `SEASON` selects the target season for `main.py`
+- `START_YEAR` and `END_YEAR` bound the seasons the multi-season pipeline processes
+- `SEASON` selects the target season for the single-season pipeline (`main.py`)
 - `DATA_DIR` selects where Parquet outputs are written
 
 ## How to Run
@@ -388,20 +391,38 @@ nfl-sos-ratings/
 │   ├── ui_data.py
 │   └── validation/
 ├── tests/
+├── docs/
+├── scripts/
+│   └── gate.sh
 ├── ui/
 │   └── web/
 ├── data/
 ├── .agents/
+├── .claude/
+├── AGENTS.md
+├── CLAUDE.md
 ├── pyproject.toml
+├── update_requirements.sh
 └── README.md
 ```
+
+`AGENTS.md` holds the working rules for AI coding agents; `CLAUDE.md` imports it for Claude Code,
+and `.claude/settings.json` holds the shared Claude Code permissions.
 
 The active implementation handoff document for the repo's current state and backlog is in
 `.agents/current-status.md`.
 
 ## Development Commands
 
-From repository root:
+From repository root, the full validation gate (lock and sync checks, formatting, lint, both type
+checkers, tests, and Markdown lint) is one command. Add `--quick` to skip the tests while
+iterating, or `--web` to also build the frontend:
+
+```bash
+scripts/gate.sh
+```
+
+The individual tools and report commands:
 
 ```bash
 uv run ruff format .
@@ -413,7 +434,7 @@ uv run python -m nfl_sos_ratings.composite_weights
 uv run python -m nfl_sos_ratings.validation.walk_forward
 ```
 
-Frontend build check:
+Dependency refresh:
 
 ```bash
 source .venv/bin/activate
@@ -470,13 +491,16 @@ participation context.
 
 ## Data Sources
 
-All data is loaded through [nflreadpy] from [nflverse] sources.
+All data comes from [nflverse] sources, loaded through [nflreadpy]. The one exception is ESPN
+QBR, which nflreadpy does not expose; it is downloaded directly from the nflverse release assets
+and used only as a validation reference.
 
 Current live inputs:
 
 - Play-by-play data
-- Weekly player stats
+- Weekly player and team stats
 - Snap counts
+- Player and weekly roster metadata (QB identity crosswalk)
 - Schedules and scores
 
 [docs/methodology.md]: docs/methodology.md

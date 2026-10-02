@@ -7,7 +7,8 @@ methodology blockers are cleared.
 
 The goal is to turn the generated team and QB outputs into a browsable, polished interface that can
 show raw totals, per-game/per-snap/per-dropback rates, opponent context, ratings, and rankings in a
-way that is much easier to interpret than the current static plots.
+way that is much easier to interpret than the static plots the repo used to generate (that module
+has since been removed).
 
 ## Current status
 
@@ -475,7 +476,8 @@ Design direction inspired by the nfelo screenshots, but not copied:
 
 ### Phase 4. High-value charts
 
-Goal: replace the current static plots with interactive views that answer real questions.
+Goal: interactive chart views that answer real questions (the old static plot module is gone, so
+there is nothing left to replace).
 
 Status: not started.
 

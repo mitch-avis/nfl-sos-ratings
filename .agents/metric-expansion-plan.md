@@ -28,8 +28,8 @@ status, decisions, or next steps change.
   dependency policy allows it; assessment: YAML would add a dependency, a parse step, and a
   runtime-only validation layer while losing pyright-strict checking of every entry, with no
   consumer that benefits — declined, documented 2026-07-14).
-- AGENTS.md dependency policy relaxed: new dependencies allowed with good reason via `.in` files +
-  `update_requirements.sh`.
+- AGENTS.md dependency policy relaxed: new dependencies allowed with good reason via
+  `pyproject.toml` plus `uv.lock` refreshes through `update_requirements.sh`.
 - Season aggregation convention: season values are per-game means of weekly values (existing
   pipeline behavior), except `longest_*`/`fg_long` which aggregate with max.
 - Weekly team metrics are added in `team_stats.compute_team_game_stats_from_pbp` (plus new helper
