@@ -689,8 +689,8 @@ def _split_half_decision_lines(decision: dict[str, object] | None) -> list[str]:
         )
     if decision.get("placebo_is_symmetric"):
         lines.append(
-            "- Placebo check: bottom-half residuals showed a same-direction signal, so"
-            " the strong-defense-specific interpretation is not supported."
+            "- Placebo check: bottom-half residuals showed a same-direction signal,"
+            "\n  so the strong-defense-specific interpretation is not supported."
         )
     lines.append("")
     return lines

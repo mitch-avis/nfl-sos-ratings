@@ -195,8 +195,8 @@ def build_team_report_decision_lines(
     ):
         lines.append(
             f"- Stability guard: {play_level_epa_st_baseline} Pearson/Spearman "
-            f"{float(t4_team_stability['pearson']):.3f}/{float(t4_team_stability['spearman']):.3f} "
-            f"versus Stage 3 SaOvR {_row_float(base_team_stability, 'pearson'):.3f}/"
+            f"{float(t4_team_stability['pearson']):.3f}/{float(t4_team_stability['spearman']):.3f}"
+            f"\n  versus Stage 3 SaOvR {_row_float(base_team_stability, 'pearson'):.3f}/"
             f"{_row_float(base_team_stability, 'spearman'):.3f}."
         )
 
@@ -296,10 +296,8 @@ def sacr_report_caveat_lines() -> list[str]:
         "SaCR may be evaluated as a secondary line with a caveat:",
         "its frozen Stage 2 weights were fit on the full 1999-2025 history.",
         "A walk-forward SaCR line over that same window has look-ahead in the weights.",
-        (
-            "SaOvR is the headline walk-forward metric because it does not depend on "
-            "a fitted Stage 2 weight snapshot."
-        ),
+        "SaOvR is the headline walk-forward metric because it does not depend on",
+        "a fitted Stage 2 weight snapshot.",
         "",
     ]
 
