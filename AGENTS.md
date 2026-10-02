@@ -53,7 +53,9 @@ scripts/gate.sh --web      # also check web/ (npm ci, lint, typecheck, vitest, b
   `data/`. Run them with `.venv/bin/pytest -m published_data` after a data refresh.
 - After any `pyproject.toml` edit, even a comment, run `uv sync`: uv rebuilds the project
   package, and until then the gate's `uv sync --check` step fails.
-- `.pre-commit-config.yaml` is a fast subset, not the gate.
+- `.pre-commit-config.yaml` is a fast subset, not the gate. CI
+  (`.github/workflows/validation.yml`) runs `scripts/gate.sh` plus the `web/` checks on every
+  push and pull request.
 - If the gate fails on something your change did not touch, check "Validation snapshot" in
   `.agents/current-status.md` for known failures, and say so in the report instead of quietly
   fixing or ignoring it.

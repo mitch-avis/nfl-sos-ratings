@@ -416,6 +416,7 @@ nfl-sos-ratings/
 ├── docs/
 ├── scripts/
 │   └── gate.sh
+├── .github/workflows/
 ├── web/
 ├── data/
 ├── .agents/
@@ -445,7 +446,8 @@ scripts/gate.sh
 ```
 
 Optional git hooks run file hygiene, ruff, and a Conventional Commits message check on commit, and
-`scripts/gate.sh --quick` on push.
+`scripts/gate.sh --quick` on push. CI (`.github/workflows/validation.yml`) runs the full gate and
+the frontend checks on every push and pull request.
 
 ```bash
 uv run pre-commit install
