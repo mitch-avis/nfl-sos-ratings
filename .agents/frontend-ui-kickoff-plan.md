@@ -12,10 +12,32 @@ has since been removed).
 
 ## Current status
 
-- Status: in progress, with the analyst shell shipped, index-page compare/reset behavior now stable,
-  and detail pages upgraded from a simple season snapshot into a first real analyst-facing profile
-  surface.
-- Last updated: 2026-07-14.
+- Status: in progress. The analyst shell, compare/reset behavior, and detail pages are shipped, and
+  the whole frontend now lives in `web/` on nfl-predictor's stack.
+- Last updated: 2026-10-02.
+- Port to `web/` (landed 2026-10-02, commits 298da87 and 68d39ac on
+  `chore/strict-tooling-and-web`):
+  - the frontend moved from `ui/web/` (plain CSS, hand-rolled components) to `web/`: React 19,
+    TypeScript 6, Vite 8, Tailwind 4 with shadcn/ui (Radix) primitives, TanStack Query and Table,
+    React Router 8, oxlint, and Vitest with Testing Library
+  - every existing view was ported (sidebar shell with season, theme, and palette controls; Teams
+    and QBs indexes with six-view controls, search, sticky heat-mapped sortable tables, ranks, and
+    URL-backed compare; detail pages with grouped season values, weekly highlights, game log, and
+    unique-opponent ledger; glossary)
+  - new: a week-by-week line chart on detail pages (`WeeklyTrendChart`, Recharts), with a metric
+    picker over the current view's numeric columns and the season mean as a reference line
+  - the old `node --test` helper suites now run under Vitest in `web/src/domain/`, beside new
+    app-level tests (33 tests); tsc build info lives under `node_modules/.tmp`, so builds no longer
+    dirty the tree
+  - `nfl-sos-ratings web` (FastAPI in `nfl_sos_ratings/ui_api.py`) serves the built `web/dist`
+    with a client-side-routing fallback plus the API on port 8080; the Vite dev server runs on 5280
+    and proxies `/api` to 8080, so the app can run beside nfl-predictor (8000 and 5173)
+  - checks: `npm run lint` (one inherent oxlint warning about TanStack `useReactTable`),
+    `npm run typecheck`, `npx vitest run`, and `npm run build` all pass; screenshots were checked
+    against real 2025 data
+  - frontend docs: `web/README.md` (usage) and `web/AGENTS.md` (agent rules)
+- Historical record below: entries before the port describe the `ui/web/` app, and the validation
+  commands listed there (`tsconfig.detail-tests.json`, `node --test`) no longer exist.
 - No new methodology blocker was found in `.agents/current-status.md`; late-game QB outcome work
   remains green for UI purposes.
 - Current queued scope for this session:
@@ -33,11 +55,11 @@ has since been removed).
     the down arrow when both are visible and each button staying in a stable position when hidden
   - a tested Parquet-backed backend contract in `nfl_sos_ratings.ui_data`
   - a thin FastAPI app in `nfl_sos_ratings.ui_api`
-  - a first-pass React + Vite shell in `ui/web/` with season-aware Teams and QBs index routes,
-    sortable/filterable TanStack tables, and column-group toggles
+  - a first-pass React + Vite shell (then in `ui/web/`) with season-aware Teams and QBs index
+    routes, sortable/filterable TanStack tables, and column-group toggles
   - deep-linkable team and QB detail routes backed by the normalized season payload
   - a first compare workflow driven by URL query state and contract-backed rating columns
-  - dedicated frontend documentation in `ui/web/README.md`
+  - dedicated frontend documentation (now `web/README.md`)
   - built-in light/dark theme controls and a Broncos-inspired palette toggle for color-blind-
     friendlier viewing
   - glossary route plus header/detail tooltips for rating and metric explanations
@@ -205,14 +227,13 @@ Phase status summary:
 - Phase 2. Comparison UX: partial.
 - Phase 3. Ratings explanation layer: partial.
 - Phase 3b. Detail-page enrichment: in progress.
-- Phase 4. High-value charts: not started.
+- Phase 4. High-value charts: started (weekly trend chart on detail pages).
 - Phase 5. Design polish: in progress.
 
 Outstanding follow-ups explicitly queued for the next agent session:
 
-1. Keep strengthening the weekly-log detail pages now that the shell/index cleanup and the new
-  control-model refactor are complete, especially if another compact trend primitive still feels
-  justified after the new recent-form card, but keep it table-first and dependency-light.
+1. Keep strengthening the weekly-log detail pages now that the weekly trend chart has landed;
+  keep them table-first, and check the chart against live use before adding more chart types.
 2. Refine the new grouped opponent ledgers after live use, especially if one team or QB weekly
   surface wants a different primary performance metric or a tighter default column mix.
 3. Add opponent-strength or rating-delta context to the weekly views carefully, without implying
@@ -271,7 +292,8 @@ Recommended stack for the first pass:
 1. Backend/API layer: Python + FastAPI.
 2. Frontend: React + Vite.
 3. Data transport: preloaded JSON from the existing Parquet outputs, served by the API.
-4. Tables/charts: TanStack Table plus a charting library with good tooltip/brush support.
+4. Tables/charts: TanStack Table plus a charting library with good tooltip/brush support
+   (chosen: Recharts, with the port to `web/`).
 
 Why this direction:
 
@@ -479,7 +501,8 @@ Design direction inspired by the nfelo screenshots, but not copied:
 Goal: interactive chart views that answer real questions (the old static plot module is gone, so
 there is nothing left to replace).
 
-Status: not started.
+Status: started. The weekly trend line chart on detail pages (item 5) landed with the port to
+`web/`; items 1-4 are not started.
 
 Recommended first chart set:
 
@@ -558,22 +581,22 @@ Alternative:
 - Keep FastAPI under `nfl_sos_ratings/` if the team wants one Python package.
 - Put the Vite app in `web/` at repo root.
 
-Chosen structure for the current scaffold:
+Chosen structure (the Vite app moved from `ui/web/` to `web/` on 2026-10-02):
 
 ```text
 nfl_sos_ratings/
+   cli.py       # nfl-sos-ratings front door, including `web`
    ui_api.py
    ui_data.py
-ui/
-   web/
+web/
 ```
 
 Reasoning:
 
 - Backend logic stays inside the Python package so the repo's existing test, type-check, and
   coverage workflow can validate it directly.
-- The frontend remains isolated under `ui/web/`, which keeps Node tooling out of the core Python
-  package.
+- The frontend remains isolated under `web/`, which keeps Node tooling out of the core Python
+  package and matches nfl-predictor's layout.
 
 ## Risks to watch
 
@@ -593,8 +616,8 @@ Reasoning:
 ## What the next agent should do first
 
 1. Read `.agents/current-status.md` and confirm no new methodology blocker has appeared.
-2. Inspect the current detail-page weekly surfaces first and pick one compact trend primitive to
-   land cleanly without adding a charting dependency.
+2. Read `web/AGENTS.md`, then try the weekly trend chart against real data and refine its default
+   metric and labels before adding another chart.
 3. In the same session, upgrade the grouped opponent-breakdown tables so their default columns are
    more analytical and less dump-like.
 4. If there is room after that, add opponent-strength or rating-delta context to the weekly views,
@@ -602,7 +625,7 @@ Reasoning:
 5. Prefer subject-season baseline deltas over any cross-unit subtraction, and prefer
    offense-versus-defense matched context (`opp_SaDR`, `opp_SaOR`) over generic overall context when
    the view is reading a specific side of the ball.
-6. Choose the first charting library only when the next detail-page chart is ready to implement, and
-   ask before adding that new dependency.
+6. Build further charts with Recharts, which is already a dependency; ask before adding another
+   charting library.
 7. Revisit the compare panel after the richer detail pages settle, with a pinned side-by-side
    workflow as the next comparison upgrade rather than more patching on the compact strip.
