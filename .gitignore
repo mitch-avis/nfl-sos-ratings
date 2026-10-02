@@ -133,8 +133,8 @@ cython_debug/
 data/
 
 # Frontend UI
-ui/web/node_modules/
-ui/web/dist/
+web/node_modules/
+web/dist/
 
 # Generated prompt files
 *prompt.md
