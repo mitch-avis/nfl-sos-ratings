@@ -37,9 +37,10 @@ Agents run Python tools as `.venv/bin/<tool>`, never bare `python`, `pytest`, or
 ```bash
 uv venv .venv && uv sync   # one-time setup
 scripts/gate.sh            # the gate: lock/sync checks, ruff format, ruff, ty, pyright, pytest,
-                           # markdownlint
+                           # every nfl-sos-ratings command's --help, markdownlint
 scripts/gate.sh --quick    # static checks only, for iteration
-scripts/gate.sh --web      # also build web/; use when web/ or the API payloads change
+scripts/gate.sh --web      # also check web/ (npm ci, lint, typecheck, vitest, build); use when
+                           # web/ or the API payloads change
 ```
 
 - `scripts/gate.sh` defines "checks pass". No task is reported done until it exits 0 on the final

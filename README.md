@@ -436,8 +436,9 @@ The active implementation handoff document for the repo's current state and back
 ## Development Commands
 
 From repository root, the full validation gate (lock and sync checks, formatting, lint, both type
-checkers, tests, and Markdown lint) is one command. Add `--quick` to skip the tests while
-iterating, or `--web` to also build the frontend:
+checkers, tests, a `--help` check of every `nfl-sos-ratings` command, and Markdown lint) is one
+command. Add `--quick` to skip the tests and the CLI check while iterating, or `--web` to also lint,
+type-check, test, and build the frontend in `web/`:
 
 ```bash
 scripts/gate.sh

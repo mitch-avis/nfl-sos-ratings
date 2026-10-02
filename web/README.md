@@ -51,7 +51,7 @@ npx vitest run      # unit and component tests
 npm run build       # tsc -b, then the Vite production build into dist/
 ```
 
-`scripts/gate.sh --web` from the repository root runs the Python gate plus the frontend build.
+`scripts/gate.sh --web` from the repository root runs the Python gate plus these frontend checks.
 Run it whenever `web/` or the API payloads change.
 
 ## Data contract

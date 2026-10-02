@@ -6,9 +6,11 @@
 #
 # Usage:
 #   scripts/gate.sh          lock and sync checks, ruff format, ruff, ty, pyright, pytest,
-#                            markdownlint
-#   scripts/gate.sh --quick  skip pytest (static checks only; for iteration, never the report)
-#   scripts/gate.sh --web    also run the frontend build in ui/web (npm ci, npm run build)
+#                            CLI --help smoke check, markdownlint
+#   scripts/gate.sh --quick  skip pytest and the CLI smoke check (static checks only; for
+#                            iteration, never the report)
+#   scripts/gate.sh --web    also check the frontend in web/ (npm ci, lint, typecheck, vitest,
+#                            build)
 #
 # Exit status is 0 only when every selected step passed.
 
@@ -24,7 +26,7 @@ for arg in "$@"; do
 	--quick) RUN_TESTS=0 ;;
 	--web) RUN_WEB=1 ;;
 	-h | --help)
-		sed -n '2,13p' "$0"
+		sed -n '2,15p' "$0"
 		exit 0
 		;;
 	*)
@@ -60,7 +62,7 @@ run_step() {
 
 markdownlint_step() {
 	# Lint every tracked or untracked-but-not-ignored Markdown file, so .gitignore keeps .venv/,
-	# data/, and ui/web/node_modules/ out. markdownlint-cli2 picks up .markdownlint.json itself.
+	# data/, and web/node_modules/ out. markdownlint-cli2 picks up .markdownlint.json itself.
 	local -a files
 	if ! command -v markdownlint-cli2 >/dev/null 2>&1; then
 		echo "markdownlint-cli2 is not installed" >&2
@@ -78,7 +80,36 @@ web_step() {
 		# shellcheck disable=SC1091  # nvm lives outside the repo
 		. "$HOME/.nvm/nvm.sh"
 	fi
-	(cd ui/web && npm ci --no-audit --no-fund && npm run build)
+	(
+		cd web &&
+			npm ci --no-audit --no-fund &&
+			npm run lint &&
+			npm run typecheck &&
+			npx vitest run &&
+			npm run build
+	)
+}
+
+cli_help_step() {
+	# Every front-door command must print its usage and exit 0 without running anything. The
+	# command names come from nfl_sos_ratings.cli.COMMANDS, so a new command is covered here too.
+	local -a commands
+	mapfile -t commands < <(
+		.venv/bin/python -c \
+			'from nfl_sos_ratings.cli import COMMANDS; print("\n".join(c.name for c in COMMANDS))'
+	) || return 1
+	if [[ ${#commands[@]} -eq 0 ]]; then
+		echo "no commands found in nfl_sos_ratings.cli.COMMANDS" >&2
+		return 1
+	fi
+	.venv/bin/nfl-sos-ratings --help >/dev/null || return 1
+	local command
+	for command in "${commands[@]}"; do
+		if ! .venv/bin/nfl-sos-ratings "$command" --help >/dev/null; then
+			echo "nfl-sos-ratings ${command} --help failed" >&2
+			return 1
+		fi
+	done
 }
 
 run_step "uv lock --check" uv lock --check
@@ -89,10 +120,11 @@ run_step "ty check" .venv/bin/ty check .
 run_step "pyright" .venv/bin/pyright .
 if [[ "$RUN_TESTS" -eq 1 ]]; then
 	run_step "pytest" .venv/bin/pytest -q -p no:sugar
+	run_step "cli --help" cli_help_step
 fi
 run_step "markdownlint" markdownlint_step
 if [[ "$RUN_WEB" -eq 1 ]]; then
-	run_step "web build" web_step
+	run_step "web" web_step
 fi
 
 echo
