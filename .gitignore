@@ -141,3 +141,7 @@ ui/web/dist/
 
 # Bash history
 .bash_history
+
+# Claude Code personal settings and worktrees (project settings in .claude/settings.json are shared)
+.claude/settings.local.json
+.claude/worktrees/
