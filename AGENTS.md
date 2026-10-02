@@ -41,6 +41,8 @@ scripts/gate.sh            # the gate: lock/sync checks, ruff format, ruff, ty, 
 scripts/gate.sh --quick    # static checks only, for iteration
 scripts/gate.sh --web      # also check web/ (npm ci, lint, typecheck, vitest, build); use when
                            # web/ or the API payloads change
+.venv/bin/pre-commit install  # one-time: commit hygiene, ruff, commit-message check, and
+                              # gate.sh --quick on pre-push
 ```
 
 - `scripts/gate.sh` defines "checks pass". No task is reported done until it exits 0 on the final
@@ -51,6 +53,7 @@ scripts/gate.sh --web      # also check web/ (npm ci, lint, typecheck, vitest, b
   `data/`. Run them with `.venv/bin/pytest -m published_data` after a data refresh.
 - After any `pyproject.toml` edit, even a comment, run `uv sync`: uv rebuilds the project
   package, and until then the gate's `uv sync --check` step fails.
+- `.pre-commit-config.yaml` is a fast subset, not the gate.
 - If the gate fails on something your change did not touch, check "Validation snapshot" in
   `.agents/current-status.md` for known failures, and say so in the report instead of quietly
   fixing or ignoring it.

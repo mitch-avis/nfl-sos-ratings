@@ -1,0 +1,54 @@
+# Fast commit-time hygiene. scripts/gate.sh stays the full gate; pre-push runs its static half.
+# Install once with: .venv/bin/pre-commit install
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+default_stages: [pre-commit]
+exclude: ^(\.venv/|data/|web/node_modules/|web/dist/)
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        # tsconfig files are JSON with comments, which check-json rejects.
+        exclude: ^web/tsconfig.*\.json$
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: detect-private-key
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [feat, fix, docs, test, refactor, perf, build, ci, chore]
+
+  - repo: local
+    hooks:
+      # The repo's own .venv tools, so the versions match uv.lock and the gate.
+      - id: ruff-format
+        name: ruff format
+        entry: .venv/bin/ruff format
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-check
+        name: ruff check
+        entry: .venv/bin/ruff check --output-format concise
+        language: system
+        types_or: [python, pyi]
+      - id: gate-quick
+        name: scripts/gate.sh --quick
+        entry: scripts/gate.sh --quick
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

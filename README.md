@@ -444,6 +444,13 @@ type-check, test, and build the frontend in `web/`:
 scripts/gate.sh
 ```
 
+Optional git hooks run file hygiene, ruff, and a Conventional Commits message check on commit, and
+`scripts/gate.sh --quick` on push.
+
+```bash
+uv run pre-commit install
+```
+
 The individual tools:
 
 ```bash

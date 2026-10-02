@@ -38,6 +38,7 @@ dev = [
     "colorama>=0.4",
     "httpx2>=2.13",
     "pre-commit>=4.6",
+    "pre-commit-uv>=4.3.0",
     "pyright>=1.1",
     "pytest>=9.1",
     "pytest-cov>=7.1",
