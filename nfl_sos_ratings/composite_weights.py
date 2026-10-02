@@ -12,9 +12,10 @@ established starters.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import itertools
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -22,6 +23,9 @@ import polars as pl
 from nfl_sos_ratings.config import DATA_DIR, END_YEAR, START_YEAR, TEAM_ABBR_ALIASES
 from nfl_sos_ratings.data_loader import load_pbp_data
 from nfl_sos_ratings.simultaneous_adjustment import solve_srs
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
 
 QB_COMPOSITE_START_SEASON = 2006
 
@@ -203,7 +207,8 @@ def _validate_component_columns(
     )
     if missing:
         detail = ", ".join(missing)
-        raise ValueError(f"{frame_name} is missing required composite columns: {detail}")
+        msg = f"{frame_name} is missing required composite columns: {detail}"
+        raise ValueError(msg)
 
 
 def _zscore(values: np.ndarray) -> np.ndarray:
@@ -320,7 +325,7 @@ def _build_special_teams_rating_frame(season: int, teams: list[str]) -> pl.DataF
     zero_frame = pl.DataFrame({"team": teams, "st_rating": [0.0] * len(teams)})
     try:
         pbp_df = load_pbp_data(season)
-    except Exception:
+    except Exception:  # noqa: BLE001 - any season without loadable PBP rates every team 0.0
         return zero_frame
 
     st_game_rows = _build_special_teams_game_frame_from_pbp(pbp_df)
@@ -351,7 +356,7 @@ def build_team_training_rows(data_dir: Path, seasons: Iterable[int]) -> pl.DataF
     feature_names = [component.name for component in feature_components]
     rows: list[pl.DataFrame] = []
 
-    for season, next_season in zip(season_list, season_list[1:], strict=False):
+    for season, next_season in itertools.pairwise(season_list):
         current = _canonicalize_team_codes(_read_back_catalog_frame(data_dir, season, "combined"))
         current = _attach_special_teams_rating(current, season)
         upcoming = _canonicalize_team_codes(
@@ -359,7 +364,8 @@ def build_team_training_rows(data_dir: Path, seasons: Iterable[int]) -> pl.DataF
         )
         _validate_component_columns(current, feature_components, frame_name=f"{season}_combined")
         if "SaOvR" not in upcoming.columns:
-            raise ValueError(f"{next_season}_combined is missing required composite columns: SaOvR")
+            msg = f"{next_season}_combined is missing required composite columns: SaOvR"
+            raise ValueError(msg)
 
         features = current.select(
             pl.col("team"), *[_component_expr(component) for component in feature_components]
@@ -395,7 +401,8 @@ def _resolve_qb_weight_column(df: pl.DataFrame) -> str:
     for column in ("qb_dropbacks", "qb_dropbacks_total"):
         if column in df.columns:
             return column
-    raise ValueError("QB training rows require qb_dropbacks or qb_dropbacks_total")
+    msg = "QB training rows require qb_dropbacks or qb_dropbacks_total"
+    raise ValueError(msg)
 
 
 def build_qb_training_rows(data_dir: Path, seasons: Iterable[int]) -> pl.DataFrame:
@@ -404,17 +411,18 @@ def build_qb_training_rows(data_dir: Path, seasons: Iterable[int]) -> pl.DataFra
     feature_names = [component.name for component in QB_QSACR_COMPONENTS]
     rows: list[pl.DataFrame] = []
 
-    for season, next_season in zip(season_list, season_list[1:], strict=False):
+    for season, next_season in itertools.pairwise(season_list):
         current = _read_back_catalog_frame(data_dir, season, "qb_combined")
         upcoming = _read_back_catalog_frame(data_dir, next_season, "qb_combined")
         _validate_component_columns(
             current, QB_QSACR_COMPONENTS, frame_name=f"{season}_qb_combined"
         )
         if "adj_qb_epa_per_dropback" not in upcoming.columns:
-            raise ValueError(
+            msg = (
                 f"{next_season}_qb_combined is missing required composite columns: "
                 "adj_qb_epa_per_dropback"
             )
+            raise ValueError(msg)
 
         if "qb_is_eligible" in current.columns:
             current = current.filter(pl.col("qb_is_eligible"))
@@ -767,8 +775,6 @@ if __name__ == "__main__":
 
 
 __all__ = [
-    "CompositeComponent",
-    "FrozenCompositeSpec",
     "COMPOSITE_WEIGHT_FITTING_COMMAND",
     "COMPOSITE_WEIGHT_REFIT_POLICY",
     "QB_COMPOSITE_START_SEASON",
@@ -777,9 +783,11 @@ __all__ = [
     "TEAM_SACR_COMPONENTS",
     "TEAM_SACR_FROZEN_SPEC",
     "TEAM_TAKEAWAY_CREATION_CANDIDATE_WEIGHT",
-    "build_weighted_composite",
+    "CompositeComponent",
+    "FrozenCompositeSpec",
     "build_qb_training_rows",
     "build_team_training_rows",
+    "build_weighted_composite",
     "evaluate_leave_one_season_out",
     "fit_linear_weights",
     "main",

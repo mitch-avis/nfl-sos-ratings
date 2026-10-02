@@ -96,10 +96,11 @@ def _reference_special_teams_values(reference_df: pl.DataFrame) -> np.ndarray | 
     if values.size == 0:
         return None
     if values.size != reference_df.height:
-        raise ValueError(
+        msg = (
             "reference_df must provide st_rating for every team row when special teams are "
             "part of the published rating reference"
         )
+        raise ValueError(msg)
     return values
 
 

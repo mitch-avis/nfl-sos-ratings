@@ -1,11 +1,12 @@
 """Tests for validation diagnostics helpers."""
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
 
 from nfl_sos_ratings.validation.diagnostics import (
+    BootstrapSettings,
     build_qb_adjustment_audit_frame,
     build_qb_leverage_profile_frame,
     build_qb_opponent_offense_frame,
@@ -25,6 +26,9 @@ from nfl_sos_ratings.validation.diagnostics import (
     summarize_qb_opponent_offense_signal,
     summarize_qb_split_half_signal,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_compute_weekly_mae_curves_aggregates_by_baseline_and_week() -> None:
@@ -280,15 +284,13 @@ def test_summarize_qb_split_half_signal_and_placebo_gate() -> None:
         split_frame,
         residual_col="vs_top_half_residual",
         weight_col="vs_top_half_dropbacks",
-        resamples=256,
-        seed=0,
+        bootstrap=BootstrapSettings(resamples=256, seed=0),
     )
     placebo = summarize_qb_split_half_signal(
         split_frame,
         residual_col="vs_bottom_half_residual",
         weight_col="vs_bottom_half_dropbacks",
-        resamples=256,
-        seed=0,
+        bootstrap=BootstrapSettings(resamples=256, seed=0),
     )
     decision = evaluate_qb_split_half_decision(primary, placebo)
 
@@ -592,7 +594,9 @@ def test_summarize_qb_opponent_offense_signal_reports_ci_and_sign_consistency() 
         }
     )
 
-    summary = summarize_qb_opponent_offense_signal(frame, resamples=256, seed=0)
+    summary = summarize_qb_opponent_offense_signal(
+        frame, bootstrap=BootstrapSettings(resamples=256, seed=0)
+    )
     pooled = summary.filter(pl.col("scope") == "pooled").row(0, named=True)
 
     assert pooled["slope"] > 0.0
@@ -642,7 +646,9 @@ def test_summarize_qb_leverage_signal_reports_supported_direction() -> None:
         }
     )
 
-    summary = summarize_qb_leverage_signal(profile, resamples=256, seed=0)
+    summary = summarize_qb_leverage_signal(
+        profile, bootstrap=BootstrapSettings(resamples=256, seed=0)
+    )
     pooled = summary.filter(pl.col("scope") == "pooled").row(0, named=True)
 
     assert pooled["slope"] > 0.0

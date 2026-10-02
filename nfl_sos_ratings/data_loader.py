@@ -138,7 +138,7 @@ def load_qb_identity_crosswalk(season: int) -> pl.DataFrame:
     )
 
 
-_OFFICIAL_QB_RUSHING_FIELDS: dict[str, tuple[str, type[pl.Int64] | type[pl.Float64]]] = {
+_OFFICIAL_QB_RUSHING_FIELDS: dict[str, tuple[str, type[pl.Int64 | pl.Float64]]] = {
     "carries": ("official_qb_carries", pl.Int64),
     "rushing_yards": ("official_qb_rushing_yards", pl.Float64),
     "rushing_tds": ("official_qb_rushing_tds", pl.Int64),
@@ -462,7 +462,8 @@ def load_espn_qbr(
     """
     if level not in ESPN_QBR_RELEASE_URLS:
         valid_levels = ", ".join(sorted(ESPN_QBR_RELEASE_URLS))
-        raise ValueError(f"Unknown QBR level {level!r}; expected one of: {valid_levels}")
+        msg = f"Unknown QBR level {level!r}; expected one of: {valid_levels}"
+        raise ValueError(msg)
 
     qbr_df = _fetch_release_parquet(ESPN_QBR_RELEASE_URLS[level])
     if "season_type" in qbr_df.columns:
@@ -650,7 +651,7 @@ def _override_team_game_stats_with_official_weekly(
         pl.col("official_passing_cpoe").alias("official_passing_cpoe_allowed"),
     )
 
-    result = (
+    return (
         team_df.join(official_offense, on=["game_id", "week", "team", "opponent_team"], how="left")
         .join(official_allowed, on=["game_id", "week", "team", "opponent_team"], how="left")
         .with_columns(
@@ -856,8 +857,6 @@ def _override_team_game_stats_with_official_weekly(
             ]
         )
     )
-
-    return result
 
 
 def load_weekly_team_stats(season: int) -> pl.DataFrame:

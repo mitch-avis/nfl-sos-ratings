@@ -1,6 +1,6 @@
 """Partial-season rating snapshot helpers."""
 
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -8,6 +8,9 @@ import polars as pl
 from nfl_sos_ratings.pbp_expressions import scrimmage_snap_expr, value_expr
 from nfl_sos_ratings.ratings import compute_ratings
 from nfl_sos_ratings.simultaneous_adjustment import compute_team_adjusted_stats, solve_srs
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 _DEFAULT_TEAM_RESPONSE_COLS: tuple[str, str] = (
     "passing_epa_per_offensive_snap",
@@ -96,7 +99,8 @@ def build_special_teams_game_frame_from_pbp(pbp_df: pl.DataFrame) -> pl.DataFram
     missing = sorted(required_columns - set(pbp_df.columns))
     if missing:
         detail = ", ".join(missing)
-        raise ValueError(f"pbp_df is missing required special-teams columns: {detail}")
+        msg = f"pbp_df is missing required special-teams columns: {detail}"
+        raise ValueError(msg)
 
     special_plays = pbp_df.filter(pl.col(special_flag).cast(pl.Int64) == 1).drop_nulls(
         ["posteam", "defteam"]
@@ -147,14 +151,16 @@ def build_play_level_team_frame_from_pbp(pbp_df: pl.DataFrame) -> pl.DataFrame:
     missing = sorted(required_columns - set(pbp_df.columns))
     if missing:
         detail = ", ".join(missing)
-        raise ValueError(f"pbp_df is missing required play-level team columns: {detail}")
+        msg = f"pbp_df is missing required play-level team columns: {detail}"
+        raise ValueError(msg)
 
     if "posteam_type" in pbp_df.columns:
         is_home_expr = pl.col("posteam_type").cast(pl.String) == "home"
     elif "home_team" in pbp_df.columns:
         is_home_expr = pl.col("posteam").cast(pl.String) == pl.col("home_team").cast(pl.String)
     else:
-        raise ValueError("pbp_df must include either posteam_type or home_team for is_home")
+        msg = "pbp_df must include either posteam_type or home_team for is_home"
+        raise ValueError(msg)
 
     scrimmage_rows = pbp_df.filter(
         pl.col("posteam").is_not_null()
@@ -187,7 +193,8 @@ def build_special_teams_rating_snapshot(
 ) -> pl.DataFrame:
     """Build a pre-cutoff special-teams rating snapshot from team-game ST margins."""
     if "week" not in st_game_rows.columns:
-        raise ValueError("st_game_rows must include a week column")
+        msg = "st_game_rows must include a week column"
+        raise ValueError(msg)
 
     filtered_rows = st_game_rows.filter(pl.col("week") < cutoff_week)
     if filtered_rows.is_empty():
@@ -208,7 +215,8 @@ def build_team_adjusted_snapshot(
 ) -> pl.DataFrame:
     """Build the pre-cutoff adjusted team component frame used by the team ridge backbone."""
     if "week" not in weekly_team_rows.columns:
-        raise ValueError("weekly_team_rows must include a week column")
+        msg = "weekly_team_rows must include a week column"
+        raise ValueError(msg)
 
     selected_response_cols = list(response_cols or _DEFAULT_TEAM_RESPONSE_COLS)
     filtered_rows = weekly_team_rows.filter(pl.col("week") < cutoff_week)
@@ -240,7 +248,8 @@ def build_play_level_team_adjusted_snapshot(
 ) -> pl.DataFrame:
     """Build a pre-cutoff adjusted team component frame from play-level offensive snaps."""
     if "week" not in play_rows.columns:
-        raise ValueError("play_rows must include a week column")
+        msg = "play_rows must include a week column"
+        raise ValueError(msg)
 
     selected_response_cols = list(response_cols or _DEFAULT_TEAM_RESPONSE_COLS)
     filtered_rows = play_rows.filter(pl.col("week") < cutoff_week)
@@ -312,7 +321,8 @@ def build_team_rating_snapshot(
 
     """
     if "week" not in weekly_team_rows.columns:
-        raise ValueError("weekly_team_rows must include a week column")
+        msg = "weekly_team_rows must include a week column"
+        raise ValueError(msg)
 
     adjusted = build_team_adjusted_snapshot(
         weekly_team_rows,

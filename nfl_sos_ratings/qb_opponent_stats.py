@@ -37,6 +37,82 @@ def _normalize_team_abbreviations(df: pl.DataFrame, columns: list[str]) -> pl.Da
     return df.with_columns(exprs) if exprs else df
 
 
+def _qb_allowed_rate_exprs(columns: set[str]) -> list[pl.Expr]:
+    """Return the defense-allowed rate aggregations whose inputs are present, in output order."""
+    exprs: list[pl.Expr] = []
+    rate_inputs = [
+        ("qb_pass_yards", "qopp_qb_yards_per_attempt"),
+        ("qb_pass_touchdowns", "qopp_qb_touchdown_rate"),
+        ("qb_interceptions", "qopp_qb_interception_rate"),
+    ]
+    if "qb_attempts" in columns:
+        attempts_sum = pl.col("qb_attempts").sum()
+        for numerator_col, output_col in rate_inputs:
+            if numerator_col in columns:
+                exprs.append(
+                    pl.when(attempts_sum > 0)
+                    .then(pl.col(numerator_col).sum() / attempts_sum)
+                    .otherwise(None)
+                    .alias(output_col)
+                )
+    if "qb_dropbacks" in columns:
+        dropbacks_sum = pl.col("qb_dropbacks").sum()
+        if "qb_passing_epa" in columns:
+            exprs.append(
+                pl.when(dropbacks_sum > 0)
+                .then(pl.col("qb_passing_epa").sum() / dropbacks_sum)
+                .otherwise(None)
+                .alias("qopp_qb_epa_per_dropback")
+            )
+        if "qb_pass_yards" in columns:
+            exprs.append(
+                pl.when(dropbacks_sum > 0)
+                .then(pl.col("qb_pass_yards").sum() / dropbacks_sum)
+                .otherwise(None)
+                .alias("qopp_qb_pass_yards_per_dropback")
+            )
+        if "qb_sacks" in columns:
+            exprs.append(
+                pl.when(dropbacks_sum > 0)
+                .then(pl.col("qb_sacks").sum() / dropbacks_sum)
+                .otherwise(None)
+                .alias("qopp_qb_sack_rate")
+            )
+        if {"qb_pass_touchdowns", "qb_interceptions"}.issubset(columns):
+            exprs.append(
+                pl.when(dropbacks_sum > 0)
+                .then(
+                    (pl.col("qb_pass_touchdowns").sum() - pl.col("qb_interceptions").sum())
+                    / dropbacks_sum
+                )
+                .otherwise(None)
+                .alias("qopp_qb_td_int_margin_rate")
+            )
+    if {
+        "qb_pass_yards",
+        "qb_pass_touchdowns",
+        "qb_interceptions",
+        "qb_sack_yards_lost",
+        "qb_sacks",
+    }.issubset(columns):
+        denominator = pl.col("qb_attempts").sum() + pl.col("qb_sacks").sum()
+        exprs.append(
+            pl.when(denominator > 0)
+            .then(
+                (
+                    pl.col("qb_pass_yards").sum()
+                    + (20.0 * pl.col("qb_pass_touchdowns").sum())
+                    - (45.0 * pl.col("qb_interceptions").sum())
+                    - pl.col("qb_sack_yards_lost").sum()
+                )
+                / denominator
+            )
+            .otherwise(None)
+            .alias("qopp_qb_any_a")
+        )
+    return exprs
+
+
 def _compute_qb_allowed_stats_excluding_team(
     weekly_df: pl.DataFrame,
     qb_df: pl.DataFrame,
@@ -68,78 +144,9 @@ def _compute_qb_allowed_stats_excluding_team(
         return None
 
     agg_exprs = [pl.col(col).mean().alias(f"qopp_{col}") for col in qb_stat_cols]
-    rate_inputs = [
-        ("qb_pass_yards", "qopp_qb_yards_per_attempt"),
-        ("qb_pass_touchdowns", "qopp_qb_touchdown_rate"),
-        ("qb_interceptions", "qopp_qb_interception_rate"),
-    ]
-    if "qb_attempts" in qb_allowed.columns:
-        attempts_sum = pl.col("qb_attempts").sum()
-        for numerator_col, output_col in rate_inputs:
-            if numerator_col in qb_allowed.columns:
-                agg_exprs.append(
-                    pl.when(attempts_sum > 0)
-                    .then(pl.col(numerator_col).sum() / attempts_sum)
-                    .otherwise(None)
-                    .alias(output_col)
-                )
-    if "qb_dropbacks" in qb_allowed.columns:
-        dropbacks_sum = pl.col("qb_dropbacks").sum()
-        if "qb_passing_epa" in qb_allowed.columns:
-            agg_exprs.append(
-                pl.when(dropbacks_sum > 0)
-                .then(pl.col("qb_passing_epa").sum() / dropbacks_sum)
-                .otherwise(None)
-                .alias("qopp_qb_epa_per_dropback")
-            )
-        if "qb_pass_yards" in qb_allowed.columns:
-            agg_exprs.append(
-                pl.when(dropbacks_sum > 0)
-                .then(pl.col("qb_pass_yards").sum() / dropbacks_sum)
-                .otherwise(None)
-                .alias("qopp_qb_pass_yards_per_dropback")
-            )
-        if "qb_sacks" in qb_allowed.columns:
-            agg_exprs.append(
-                pl.when(dropbacks_sum > 0)
-                .then(pl.col("qb_sacks").sum() / dropbacks_sum)
-                .otherwise(None)
-                .alias("qopp_qb_sack_rate")
-            )
-        if {"qb_pass_touchdowns", "qb_interceptions"}.issubset(set(qb_allowed.columns)):
-            agg_exprs.append(
-                pl.when(dropbacks_sum > 0)
-                .then(
-                    (pl.col("qb_pass_touchdowns").sum() - pl.col("qb_interceptions").sum())
-                    / dropbacks_sum
-                )
-                .otherwise(None)
-                .alias("qopp_qb_td_int_margin_rate")
-            )
-    if {
-        "qb_pass_yards",
-        "qb_pass_touchdowns",
-        "qb_interceptions",
-        "qb_sack_yards_lost",
-        "qb_sacks",
-    }.issubset(set(qb_allowed.columns)):
-        denominator = pl.col("qb_attempts").sum() + pl.col("qb_sacks").sum()
-        agg_exprs.append(
-            pl.when(denominator > 0)
-            .then(
-                (
-                    pl.col("qb_pass_yards").sum()
-                    + (20.0 * pl.col("qb_pass_touchdowns").sum())
-                    - (45.0 * pl.col("qb_interceptions").sum())
-                    - pl.col("qb_sack_yards_lost").sum()
-                )
-                / denominator
-            )
-            .otherwise(None)
-            .alias("qopp_qb_any_a")
-        )
+    agg_exprs.extend(_qb_allowed_rate_exprs(set(qb_allowed.columns)))
 
-    return qb_allowed.select([pl.lit(defense_team).alias("opponent")] + agg_exprs)
+    return qb_allowed.select([pl.lit(defense_team).alias("opponent"), *agg_exprs])
 
 
 def _select_primary_qb_games(qb_df: pl.DataFrame) -> pl.DataFrame:
@@ -190,11 +197,70 @@ def _qb_identity_filter(qb_row: dict[str, object], qb_keys: list[str]) -> pl.Exp
     return pl.lit(False)
 
 
+def _qb_opponent_rows(
+    weekly_df: pl.DataFrame,
+    primary_qb_df: pl.DataFrame,
+    opponents: list[str],
+    evaluated_team: str,
+) -> tuple[list[pl.DataFrame], list[dict[str, str | bool | int]]]:
+    """Return one head-to-head-excluded profile row per faced opponent, plus detail records."""
+    opp_rows: list[pl.DataFrame] = []
+    team_details: list[dict[str, str | bool | int]] = []
+    for opponent_value in opponents:
+        opponent = str(opponent_value)
+        opp_stats = compute_team_stats_excluding_opponent(weekly_df, opponent, evaluated_team)
+        games_included = (
+            int(opp_stats.select("games_included").item()) if opp_stats is not None else 0
+        )
+        team_details.append(
+            {
+                "opponent": opponent,
+                "division": is_division_opponent(evaluated_team, opponent),
+                "games_included": games_included,
+            }
+        )
+        if opp_stats is None:
+            continue
+
+        opp_qb_allowed = _compute_qb_allowed_stats_excluding_team(
+            weekly_df, primary_qb_df, opponent, evaluated_team
+        )
+        opp_row = opp_stats.rename({"team": "opponent"}).with_columns(
+            pl.lit(evaluated_team).alias("team"),
+            pl.lit(opponent).alias("opponent"),
+        )
+        if opp_qb_allowed is not None:
+            opp_row = opp_row.join(opp_qb_allowed, on="opponent", how="left")
+        opp_rows.append(opp_row)
+    return opp_rows, team_details
+
+
+def _qb_profile_agg_exprs(combined: pl.DataFrame, *, weighted: bool) -> list[pl.Expr]:
+    """Return the opponent-profile averages, weighted by games included when requested."""
+    available_cols = [col for col in DEFENSIVE_CONTEXT_COLS if col in combined.columns]
+    available_cols.extend(
+        col for col in combined.columns if col.startswith("qopp_qb_") and col not in available_cols
+    )
+    if weighted:
+        denominator = pl.col("games_included").sum()
+        return [
+            ((pl.col(col) * pl.col("games_included")).sum() / denominator).alias(
+                col if col.startswith("qopp_") else f"qopp_{col}"
+            )
+            for col in available_cols
+        ]
+    return [
+        pl.col(col).mean().alias(col if col.startswith("qopp_") else f"qopp_{col}")
+        for col in available_cols
+    ]
+
+
 def compute_qb_opponent_profiles(
     weekly_df: pl.DataFrame,
     qb_df: pl.DataFrame,
     schedule_df: pl.DataFrame,
     qb_season_df: pl.DataFrame,
+    *,
     weighted: bool = False,
 ) -> tuple[pl.DataFrame | None, dict[str, list[dict[str, str | bool | int]]]]:
     """Compute QB opponent profiles for each individual quarterback season row."""
@@ -210,7 +276,7 @@ def compute_qb_opponent_profiles(
     details: dict[str, list[dict[str, str | bool | int]]] = {}
     profile_rows: list[pl.DataFrame] = []
 
-    qb_rows = qb_season_df.select(qb_keys + ["team"]).to_dicts()
+    qb_rows = qb_season_df.select([*qb_keys, "team"]).to_dicts()
     primary_qb_df = _select_primary_qb_games(qb_df)
 
     qb_games_with_opponents = primary_qb_df.join(
@@ -232,80 +298,19 @@ def compute_qb_opponent_profiles(
             details[qb_label] = []
             continue
 
-        opp_rows: list[pl.DataFrame] = []
-        team_details: list[dict[str, str | bool | int]] = []
-
-        for opponent_value in opponents:
-            evaluated_team = team_label
-            opponent = str(opponent_value)
-            opp_stats = compute_team_stats_excluding_opponent(
-                weekly_df,
-                opponent,
-                evaluated_team,
-            )
-            games_included = (
-                int(opp_stats.select("games_included").item()) if opp_stats is not None else 0
-            )
-
-            team_details.append(
-                {
-                    "opponent": opponent,
-                    "division": is_division_opponent(evaluated_team, opponent),
-                    "games_included": games_included,
-                }
-            )
-
-            if opp_stats is None:
-                continue
-
-            opp_qb_allowed = _compute_qb_allowed_stats_excluding_team(
-                weekly_df,
-                primary_qb_df,
-                opponent,
-                evaluated_team,
-            )
-
-            opp_row = opp_stats.rename({"team": "opponent"}).with_columns(
-                pl.lit(evaluated_team).alias("team"),
-                pl.lit(opponent).alias("opponent"),
-            )
-            if opp_qb_allowed is not None:
-                opp_row = opp_row.join(opp_qb_allowed, on="opponent", how="left")
-
-            opp_rows.append(opp_row)
-
+        opp_rows, team_details = _qb_opponent_rows(weekly_df, primary_qb_df, opponents, team_label)
         details[qb_label] = team_details
 
         if not opp_rows:
             continue
-
         combined = pl.concat(opp_rows)
-        available_cols = [col for col in DEFENSIVE_CONTEXT_COLS if col in combined.columns]
-        available_cols.extend(
-            col
-            for col in combined.columns
-            if col.startswith("qopp_qb_") and col not in available_cols
-        )
-        if not available_cols:
+        agg_exprs = _qb_profile_agg_exprs(combined, weighted=weighted)
+        if not agg_exprs:
             continue
-
-        if weighted:
-            denominator = pl.col("games_included").sum()
-            agg_exprs = [
-                ((pl.col(col) * pl.col("games_included")).sum() / denominator).alias(
-                    col if col.startswith("qopp_") else f"qopp_{col}"
-                )
-                for col in available_cols
-            ]
-        else:
-            agg_exprs = [
-                pl.col(col).mean().alias(col if col.startswith("qopp_") else f"qopp_{col}")
-                for col in available_cols
-            ]
 
         key_exprs = [pl.lit(qb_row[key]).alias(key) for key in qb_keys]
         profile_rows.append(
-            combined.select(key_exprs + [pl.lit(team_label).alias("team")] + agg_exprs)
+            combined.select([*key_exprs, pl.lit(team_label).alias("team"), *agg_exprs])
         )
 
     if not profile_rows:

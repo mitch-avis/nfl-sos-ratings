@@ -7,14 +7,17 @@ for the requested companion surfaces, and write the augmented files back out.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
 
 from nfl_sos_ratings import composite_weights
 from nfl_sos_ratings.metrics import get_registry
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+    from pathlib import Path
 
 TEAM_RATINGS_ORDER = (
     "team",

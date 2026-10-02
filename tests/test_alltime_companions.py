@@ -1,6 +1,6 @@
 """Tests for the all-time rating companion post-pass."""
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -8,6 +8,9 @@ import pytest
 
 from nfl_sos_ratings import composite_weights
 from nfl_sos_ratings.alltime_companions import apply_alltime_rating_companions
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_team_files(

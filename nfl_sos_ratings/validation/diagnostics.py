@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import itertools
 import math
-from collections.abc import Sequence
-from pathlib import Path
-from typing import cast
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import polars as pl
@@ -17,11 +17,38 @@ from nfl_sos_ratings.data_loader import (
 )
 from nfl_sos_ratings.qb_stats import compute_qb_game_stats_from_pbp
 from nfl_sos_ratings.simultaneous_adjustment import (
+    QB_GAME_COLUMNS,
+    QbGameColumns,
     solve_qb_stat_ridge,
     solve_qb_stat_with_fixed_defense_offsets,
     solve_team_stat_ridge,
     tune_ridge_lambda,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from pathlib import Path
+
+# A weighted slope or correlation needs at least two paired observations.
+_MIN_REGRESSION_SAMPLES = 2
+# Two-sided decision gates read a p-value below this level as significant.
+_SIGNIFICANCE_LEVEL = 0.05
+# The opponent-offense diagnostics read EPA per dropback, weighted by dropbacks, with the home
+# side flagged in `is_home`.
+_QB_RESPONSE_COL = "qb_epa_per_dropback"
+_QB_DROPBACK_COL = "qb_dropbacks"
+_HOME_FIELD_COL = "is_home"
+
+
+@dataclass(frozen=True, slots=True)
+class BootstrapSettings:
+    """Resample count and RNG seed for a bootstrap confidence interval."""
+
+    resamples: int = 2000
+    seed: int = 0
+
+
+DEFAULT_BOOTSTRAP = BootstrapSettings()
 
 
 def _ensure_error_column(predictions: pl.DataFrame) -> pl.DataFrame:
@@ -42,7 +69,7 @@ def _weighted_mean_frame(
     alias: str,
 ) -> pl.DataFrame:
     """Return grouped weighted means with a simple-mean fallback for zero total weight."""
-    weighted = (
+    return (
         frame.with_columns(pl.col(weight_col).cast(pl.Float64).fill_null(0.0))
         .group_by(list(group_keys))
         .agg(
@@ -58,7 +85,6 @@ def _weighted_mean_frame(
         )
         .select([*group_keys, alias, pl.col("_total_weight").alias("total_dropbacks")])
     )
-    return weighted
 
 
 def _qb_entity_group_keys(
@@ -109,7 +135,7 @@ def _one_sided_binomial_tail(successes: int, trials: int) -> float:
 
 def _weighted_slope(x_values: np.ndarray, y_values: np.ndarray, weights: np.ndarray) -> float:
     """Return the weighted least-squares slope for one predictor and response."""
-    if x_values.size < 2 or y_values.size < 2 or weights.size < 2:
+    if min(x_values.size, y_values.size, weights.size) < _MIN_REGRESSION_SAMPLES:
         return 0.0
     x_mean = float(np.average(x_values, weights=weights))
     y_mean = float(np.average(y_values, weights=weights))
@@ -122,7 +148,7 @@ def _weighted_slope(x_values: np.ndarray, y_values: np.ndarray, weights: np.ndar
 
 def _weighted_correlation(x_values: np.ndarray, y_values: np.ndarray, weights: np.ndarray) -> float:
     """Return a weighted Pearson correlation, or 0.0 when undefined."""
-    if x_values.size < 2 or y_values.size < 2 or weights.size < 2:
+    if min(x_values.size, y_values.size, weights.size) < _MIN_REGRESSION_SAMPLES:
         return 0.0
     x_mean = float(np.average(x_values, weights=weights))
     y_mean = float(np.average(y_values, weights=weights))
@@ -142,8 +168,7 @@ def _summarize_weighted_signal_by_season(
     predictor_col: str,
     value_col: str,
     weight_col: str,
-    resamples: int = 2000,
-    seed: int = 0,
+    bootstrap: BootstrapSettings = DEFAULT_BOOTSTRAP,
 ) -> pl.DataFrame:
     """Return pooled and per-season weighted slopes, correlations, and pooled CIs."""
     required_columns = {predictor_col, value_col, weight_col}
@@ -197,14 +222,14 @@ def _summarize_weighted_signal_by_season(
             )
 
     pooled_row = summarize_one(filtered, scope="pooled", season=None)
-    positive_slopes = sum(1 for row in season_rows if cast(float, row["slope"]) > 0.0)
+    positive_slopes = sum(1 for row in season_rows if cast("float", row["slope"]) > 0.0)
     pooled_row["direction_positive_count"] = positive_slopes
     pooled_row["direction_total_count"] = len(season_rows)
     pooled_row["direction_p_value"] = _one_sided_binomial_tail(positive_slopes, len(season_rows))
 
-    rng = np.random.default_rng(seed)
-    bootstrap_slopes = np.empty(resamples, dtype=np.float64)
-    for sample_index in range(resamples):
+    rng = np.random.default_rng(bootstrap.seed)
+    bootstrap_slopes = np.empty(bootstrap.resamples, dtype=np.float64)
+    for sample_index in range(bootstrap.resamples):
         sample = filtered[rng.integers(0, filtered.height, size=filtered.height).tolist()]
         x_values = np.asarray(
             sample.select(predictor_col).to_series().cast(pl.Float64).to_list(),
@@ -385,8 +410,7 @@ def summarize_qb_split_half_signal(
     *,
     residual_col: str,
     weight_col: str,
-    resamples: int = 2000,
-    seed: int = 0,
+    bootstrap: BootstrapSettings = DEFAULT_BOOTSTRAP,
 ) -> pl.DataFrame:
     """Summarize one split-half residual signal with pooled and per-season weighted slopes."""
     summary = _summarize_weighted_signal_by_season(
@@ -394,8 +418,7 @@ def summarize_qb_split_half_signal(
         predictor_col="faced_difficulty",
         value_col=residual_col,
         weight_col=weight_col,
-        resamples=resamples,
-        seed=seed,
+        bootstrap=bootstrap,
     )
     if summary.is_empty():
         return summary
@@ -419,7 +442,8 @@ def evaluate_qb_split_half_decision(
     primary_row = primary_pooled.row(0, named=True)
     placebo_row = placebo_pooled.row(0, named=True)
     primary_gate_supported = bool(
-        float(primary_row["ci_lower"]) > 0.0 and float(primary_row["direction_p_value"]) < 0.05
+        float(primary_row["ci_lower"]) > 0.0
+        and float(primary_row["direction_p_value"]) < _SIGNIFICANCE_LEVEL
     )
     placebo_is_symmetric = bool(float(placebo_row["ci_lower"]) > 0.0)
     return {
@@ -437,12 +461,10 @@ def build_qb_opponent_offense_frame(
     defense_ratings: pl.DataFrame,
     *,
     qb_meta: pl.DataFrame | None = None,
-    response_col: str = "qb_epa_per_dropback",
-    dropback_col: str = "qb_dropbacks",
-    home_field_col: str = "is_home",
     home_field_advantage: float = 0.0,
 ) -> pl.DataFrame:
     """Return QB-game rows with opponent-offense context and adjusted residuals."""
+    response_col, dropback_col, home_field_col = _QB_RESPONSE_COL, _QB_DROPBACK_COL, _HOME_FIELD_COL
     required_columns = {"qb_id", "qb_name", "team", "opponent_team", response_col, dropback_col}
     if not required_columns.issubset(set(qb_games.columns)):
         return pl.DataFrame()
@@ -546,8 +568,7 @@ def summarize_qb_opponent_offense_signal(
     predictor_col: str = "opponent_offense_coefficient",
     value_col: str = "adjusted_residual",
     weight_col: str = "qb_dropbacks",
-    resamples: int = 2000,
-    seed: int = 0,
+    bootstrap: BootstrapSettings = DEFAULT_BOOTSTRAP,
 ) -> pl.DataFrame:
     """Return pooled and per-season support for the opponent-offense residual effect."""
     return _summarize_weighted_signal_by_season(
@@ -555,8 +576,7 @@ def summarize_qb_opponent_offense_signal(
         predictor_col=predictor_col,
         value_col=value_col,
         weight_col=weight_col,
-        resamples=resamples,
-        seed=seed,
+        bootstrap=bootstrap,
     )
 
 
@@ -620,8 +640,7 @@ def summarize_qb_leverage_signal(
     predictor_col: str = "schedule_softness",
     value_col: str = "low_leverage_share",
     weight_col: str = "total_dropbacks",
-    resamples: int = 2000,
-    seed: int = 0,
+    bootstrap: BootstrapSettings = DEFAULT_BOOTSTRAP,
 ) -> pl.DataFrame:
     """Return pooled and per-season support for the leverage-softness hypothesis."""
     return _summarize_weighted_signal_by_season(
@@ -629,8 +648,7 @@ def summarize_qb_leverage_signal(
         predictor_col=predictor_col,
         value_col=value_col,
         weight_col=weight_col,
-        resamples=resamples,
-        seed=seed,
+        bootstrap=bootstrap,
     )
 
 
@@ -905,7 +923,7 @@ def compute_qb_metric_stability_from_history(
 
     season_frames: list[pl.DataFrame] = []
     seasons = sorted(history.select("season").to_series().cast(pl.Int64).unique().to_list())
-    for season, next_season in zip(seasons, seasons[1:], strict=False):
+    for season, next_season in itertools.pairwise(seasons):
         current = history.filter(pl.col("season") == int(season)).select(
             "qb_id", pl.col(value_col).alias("value_t")
         )
@@ -934,7 +952,7 @@ def compute_qb_metric_stability_from_history(
     x_ranks = np.asarray(pl.Series(x_values).rank(method="average").to_list(), dtype=np.float64)
     y_ranks = np.asarray(pl.Series(y_values).rank(method="average").to_list(), dtype=np.float64)
     return {
-        "paired_rows": int(len(x_values)),
+        "paired_rows": len(x_values),
         "pearson": _weighted_correlation(x_values, y_values, weights),
         "spearman": _weighted_correlation(x_ranks, y_ranks, weights),
     }
@@ -945,11 +963,10 @@ def compute_qb_opponent_offense_diagnostics(
     seasons: Sequence[int],
     *,
     qb_names: Sequence[str] = ("Drake Maye", "Matthew Stafford"),
-    response_col: str = "qb_epa_per_dropback",
-    dropback_col: str = "qb_dropbacks",
     team_response_col: str = "passing_epa_per_offensive_snap",
 ) -> tuple[pl.DataFrame, pl.DataFrame, dict[str, object]]:
     """Return opponent-offense summary rows, named cases, and the support decision."""
+    response_col, dropback_col = _QB_RESPONSE_COL, _QB_DROPBACK_COL
     rows: list[pl.DataFrame] = []
     latest_season = max(seasons) if seasons else None
 
@@ -996,15 +1013,13 @@ def compute_qb_opponent_offense_diagnostics(
             offense_ratings.select(["team", "offense_rating"]),
             defense_ratings.select(["team", "defense_rating"]),
             qb_meta=qb_meta,
-            response_col=response_col,
-            dropback_col=dropback_col,
             home_field_advantage=home_field,
         )
         if not frame.is_empty():
             rows.append(frame)
 
     all_rows = pl.concat(rows, how="vertical") if rows else pl.DataFrame()
-    summary = summarize_qb_opponent_offense_signal(all_rows, seed=0)
+    summary = summarize_qb_opponent_offense_signal(all_rows)
 
     cases = pl.DataFrame()
     if latest_season is not None and not all_rows.is_empty():
@@ -1044,7 +1059,7 @@ def compute_qb_opponent_offense_diagnostics(
         consistent_p = _one_sided_binomial_tail(consistent, total)
         supported = (
             float(pooled_row["ci_lower"]) * float(pooled_row["ci_upper"]) > 0.0
-            and consistent_p < 0.05
+            and consistent_p < _SIGNIFICANCE_LEVEL
         )
         decision = {
             "decision": "supported" if supported else "not_supported",
@@ -1054,6 +1069,120 @@ def compute_qb_opponent_offense_diagnostics(
         }
 
     return summary, cases, decision
+
+
+def _qb_dropback_play_filter() -> pl.Expr:
+    """Return the filter that keeps credited QB dropbacks with an offense and a named passer."""
+    return (
+        pl.col("posteam").is_not_null()
+        & pl.col("passer_player_id").is_not_null()
+        & pl.col("passer_player_name").is_not_null()
+        & (pl.col("qb_dropback").fill_null(0) > 0)
+    )
+
+
+def _leverage_dropback_plays(
+    pbp: pl.DataFrame, season: int, qb_identity: pl.DataFrame
+) -> pl.DataFrame:
+    """Return one row per QB dropback with win probability and canonical QB names."""
+    dropback_plays = pbp.filter(_qb_dropback_play_filter()).select(
+        pl.lit(season).cast(pl.Int64).alias("season"),
+        pl.col("passer_player_id").cast(pl.String).alias("qb_id"),
+        pl.col("passer_player_name").cast(pl.String).alias("qb_name"),
+        pl.col("posteam").cast(pl.String).alias("team"),
+        pl.col("wp").cast(pl.Float64).alias("wp"),
+    )
+    if qb_identity.is_empty():
+        return dropback_plays
+    return (
+        dropback_plays.join(
+            qb_identity.select(["qb_id", "qb_name"]).rename({"qb_name": "canonical_qb_name"}),
+            on="qb_id",
+            how="left",
+        )
+        .with_columns(
+            pl.coalesce([pl.col("canonical_qb_name"), pl.col("qb_name")]).alias("qb_name")
+        )
+        .drop("canonical_qb_name")
+    )
+
+
+def _leverage_schedule_frame(regular_metrics: pl.DataFrame) -> pl.DataFrame:
+    """Return QB-season keys with schedule softness (0.0 when the faced-defense lens is absent)."""
+    key_columns = [
+        column
+        for column in ("season", "qb_id", "qb_name", "team", "qb_is_eligible")
+        if column in regular_metrics.columns
+    ]
+    if "adj_def_qb_epa_per_dropback_faced" not in regular_metrics.columns:
+        return regular_metrics.select(key_columns).with_columns(
+            pl.lit(0.0).alias("schedule_softness")
+        )
+    return regular_metrics.with_columns(
+        (-pl.col("adj_def_qb_epa_per_dropback_faced").cast(pl.Float64)).alias("schedule_softness")
+    ).select([*key_columns, "schedule_softness"])
+
+
+def _moderate_leverage_history(
+    pbp: pl.DataFrame,
+    season: int,
+    qb_identity: pl.DataFrame,
+    regular_metrics: pl.DataFrame,
+    wp_band: tuple[float, float],
+) -> pl.DataFrame:
+    """Return eligible QBs' ridge-adjusted EPA/dropback from moderate-win-probability plays only."""
+    wp_low, wp_high = wp_band
+    filtered_pbp = pbp.filter(
+        _qb_dropback_play_filter()
+        & (pl.col("wp").cast(pl.Float64) > wp_low)
+        & (pl.col("wp").cast(pl.Float64) < wp_high)
+    )
+    filtered_games = _build_qb_game_frame_from_pbp(
+        filtered_pbp,
+        season=season,
+        qb_identity_df=qb_identity,
+    )
+    if filtered_games.is_empty():
+        return pl.DataFrame()
+
+    filtered_qb_ratings, _ = solve_qb_stat_ridge(
+        filtered_games,
+        response_col="qb_epa_per_dropback",
+    )
+    history_frame = (
+        filtered_qb_ratings.rename(
+            {"offense_rating": "moderate_leverage_adjusted_epa_per_dropback"}
+        )
+        .with_columns(pl.lit(season).cast(pl.Int64).alias("season"))
+        .join(
+            regular_metrics.select(
+                [
+                    column
+                    for column in ("season", "qb_id", "qb_name", "team", "qb_is_eligible")
+                    if column in regular_metrics.columns
+                ]
+            ),
+            on=[column for column in ("season", "qb_id") if column in regular_metrics.columns],
+            how="left",
+        )
+    )
+    if "qb_is_eligible" in history_frame.columns:
+        history_frame = history_frame.filter(pl.col("qb_is_eligible"))
+    if history_frame.is_empty():
+        return history_frame
+    return history_frame.select(
+        [
+            column
+            for column in (
+                "season",
+                "qb_id",
+                "qb_name",
+                "team",
+                "moderate_leverage_adjusted_epa_per_dropback",
+            )
+            if column in history_frame.columns
+        ]
+    )
 
 
 def compute_qb_leverage_diagnostics(
@@ -1080,64 +1209,9 @@ def compute_qb_leverage_diagnostics(
                 pl.lit(int(season)).cast(pl.Int64).alias("season")
             )
 
-        dropback_plays = pbp.filter(
-            pl.col("posteam").is_not_null()
-            & pl.col("passer_player_id").is_not_null()
-            & pl.col("passer_player_name").is_not_null()
-            & (pl.col("qb_dropback").fill_null(0) > 0)
-        ).select(
-            pl.lit(int(season)).cast(pl.Int64).alias("season"),
-            pl.col("passer_player_id").cast(pl.String).alias("qb_id"),
-            pl.col("passer_player_name").cast(pl.String).alias("qb_name"),
-            pl.col("posteam").cast(pl.String).alias("team"),
-            pl.col("wp").cast(pl.Float64).alias("wp"),
-        )
-        if not qb_identity.is_empty():
-            dropback_plays = (
-                dropback_plays.join(
-                    qb_identity.select(["qb_id", "qb_name"]).rename(
-                        {"qb_name": "canonical_qb_name"}
-                    ),
-                    on="qb_id",
-                    how="left",
-                )
-                .with_columns(
-                    pl.coalesce([pl.col("canonical_qb_name"), pl.col("qb_name")]).alias("qb_name")
-                )
-                .drop("canonical_qb_name")
-            )
-
-        if "adj_def_qb_epa_per_dropback_faced" in regular_metrics.columns:
-            schedule_frame = regular_metrics.with_columns(
-                (-pl.col("adj_def_qb_epa_per_dropback_faced").cast(pl.Float64)).alias(
-                    "schedule_softness"
-                )
-            ).select(
-                [
-                    column
-                    for column in (
-                        "season",
-                        "qb_id",
-                        "qb_name",
-                        "team",
-                        "qb_is_eligible",
-                        "schedule_softness",
-                    )
-                    if column in regular_metrics.columns or column == "schedule_softness"
-                ]
-            )
-        else:
-            schedule_frame = regular_metrics.select(
-                [
-                    column
-                    for column in ("season", "qb_id", "qb_name", "team", "qb_is_eligible")
-                    if column in regular_metrics.columns
-                ]
-            ).with_columns(pl.lit(0.0).alias("schedule_softness"))
-
         profile = build_qb_leverage_profile_frame(
-            dropback_plays,
-            schedule_frame,
+            _leverage_dropback_plays(pbp, int(season), qb_identity),
+            _leverage_schedule_frame(regular_metrics),
             moderate_wp_low=moderate_wp_low,
             moderate_wp_high=moderate_wp_high,
         )
@@ -1146,64 +1220,18 @@ def compute_qb_leverage_diagnostics(
         if not profile.is_empty():
             profile_rows.append(profile)
 
-        filtered_pbp = pbp.filter(
-            pl.col("posteam").is_not_null()
-            & pl.col("passer_player_id").is_not_null()
-            & pl.col("passer_player_name").is_not_null()
-            & (pl.col("qb_dropback").fill_null(0) > 0)
-            & (pl.col("wp").cast(pl.Float64) > moderate_wp_low)
-            & (pl.col("wp").cast(pl.Float64) < moderate_wp_high)
+        history_frame = _moderate_leverage_history(
+            pbp,
+            int(season),
+            qb_identity,
+            regular_metrics,
+            (moderate_wp_low, moderate_wp_high),
         )
-        filtered_games = _build_qb_game_frame_from_pbp(
-            filtered_pbp,
-            season=int(season),
-            qb_identity_df=qb_identity,
-        )
-        if filtered_games.is_empty():
-            continue
-
-        filtered_qb_ratings, _ = solve_qb_stat_ridge(
-            filtered_games,
-            response_col="qb_epa_per_dropback",
-        )
-        history_frame = (
-            filtered_qb_ratings.rename(
-                {"offense_rating": "moderate_leverage_adjusted_epa_per_dropback"}
-            )
-            .with_columns(pl.lit(int(season)).cast(pl.Int64).alias("season"))
-            .join(
-                regular_metrics.select(
-                    [
-                        column
-                        for column in ("season", "qb_id", "qb_name", "team", "qb_is_eligible")
-                        if column in regular_metrics.columns
-                    ]
-                ),
-                on=[column for column in ("season", "qb_id") if column in regular_metrics.columns],
-                how="left",
-            )
-        )
-        if "qb_is_eligible" in history_frame.columns:
-            history_frame = history_frame.filter(pl.col("qb_is_eligible"))
         if not history_frame.is_empty():
-            variant_rows.append(
-                history_frame.select(
-                    [
-                        column
-                        for column in (
-                            "season",
-                            "qb_id",
-                            "qb_name",
-                            "team",
-                            "moderate_leverage_adjusted_epa_per_dropback",
-                        )
-                        if column in history_frame.columns
-                    ]
-                )
-            )
+            variant_rows.append(history_frame)
 
     profiles = pl.concat(profile_rows, how="vertical") if profile_rows else pl.DataFrame()
-    summary = summarize_qb_leverage_signal(profiles, seed=0)
+    summary = summarize_qb_leverage_signal(profiles)
     variant_history = pl.concat(variant_rows, how="vertical") if variant_rows else pl.DataFrame()
 
     cases = pl.DataFrame()
@@ -1235,7 +1263,8 @@ def compute_qb_leverage_diagnostics(
     if not pooled.is_empty():
         pooled_row = pooled.row(0, named=True)
         share_signal_supported = bool(
-            float(pooled_row["ci_lower"]) > 0.0 and float(pooled_row["direction_p_value"]) < 0.05
+            float(pooled_row["ci_lower"]) > 0.0
+            and float(pooled_row["direction_p_value"]) < _SIGNIFICANCE_LEVEL
         )
         decision["share_signal_supported"] = share_signal_supported
 
@@ -1333,14 +1362,12 @@ def build_qb_adjustment_audit_frame(
     qb_games: pl.DataFrame,
     *,
     response_col: str,
-    qb_col: str = "qb_id",
-    qb_name_col: str = "qb_name",
-    team_col: str = "team",
-    defense_col: str = "opponent_team",
-    dropback_col: str = "qb_dropbacks",
+    columns: QbGameColumns = QB_GAME_COLUMNS,
     ridge_lambda: float | None = None,
 ) -> pl.DataFrame:
     """Reconstruct raw, adjusted, and faced-defense QB values in common EPA units."""
+    qb_col, defense_col, dropback_col = columns.qb, columns.defense, columns.dropbacks
+    qb_name_col, team_col = "qb_name", "team"
     filtered_games = qb_games.drop_nulls([qb_col, defense_col, response_col])
     if filtered_games.is_empty():
         return pl.DataFrame(
@@ -1360,9 +1387,7 @@ def build_qb_adjustment_audit_frame(
     qb_ratings, defense_ratings = solve_qb_stat_ridge(
         filtered_games,
         response_col=response_col,
-        qb_col=qb_col,
-        defense_col=defense_col,
-        dropback_col=dropback_col,
+        columns=columns,
         ridge_lambda=ridge_lambda,
     )
 
@@ -1547,7 +1572,7 @@ def compute_qb_season_audit_summary(
         audit = build_qb_adjustment_audit_frame(
             qb_games,
             response_col=response_col,
-            dropback_col=dropback_col,
+            columns=QbGameColumns(dropbacks=dropback_col),
         ).join(qb_meta, on="qb_id", how="left")
         if "qb_is_eligible" in audit.columns:
             audit = audit.filter(pl.col("qb_is_eligible"))
@@ -1918,7 +1943,7 @@ def compute_qb_schedule_lens_trace(
     trace = build_qb_adjustment_audit_frame(
         qb_games,
         response_col=response_col,
-        dropback_col=dropback_col,
+        columns=QbGameColumns(dropbacks=dropback_col),
     )
     join_keys = _matching_qb_keys(trace, qb_combined)
     if join_keys:
@@ -2029,30 +2054,30 @@ def compute_qb_designed_rush_preview(
 
 
 __all__ = [
-    "build_qb_split_half_frame",
     "build_qb_adjustment_audit_frame",
     "build_qb_leverage_profile_frame",
     "build_qb_opponent_offense_frame",
+    "build_qb_split_half_frame",
     "compute_qb_case_study",
-    "compute_qb_designed_rush_preview",
     "compute_qb_defense_spread_summary",
+    "compute_qb_designed_rush_preview",
+    "compute_qb_experiment_sweep",
     "compute_qb_leverage_diagnostics",
     "compute_qb_metric_stability_from_history",
     "compute_qb_opponent_offense_diagnostics",
+    "compute_qb_playoff_season_summary",
+    "compute_qb_playoff_validation_frame",
     "compute_qb_schedule_lens_anchor",
     "compute_qb_schedule_lens_divergence",
     "compute_qb_schedule_lens_trace",
-    "compute_qb_experiment_sweep",
-    "compute_qb_playoff_season_summary",
-    "compute_qb_playoff_validation_frame",
     "compute_qb_season_audit_summary",
     "compute_qb_split_half_diagnostics",
     "compute_season_mae_deltas",
     "compute_weekly_mae_curves",
     "evaluate_qb_split_half_decision",
-    "summarize_qb_split_half_signal",
     "summarize_defense_spread",
     "summarize_qb_adjustment_slopes",
     "summarize_qb_leverage_signal",
     "summarize_qb_opponent_offense_signal",
+    "summarize_qb_split_half_signal",
 ]

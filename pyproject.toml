@@ -56,10 +56,13 @@ required-version = ">=0.12"
 [tool.uv.build-backend]
 module-root = ""
 
+# --------------------------------------------------------------------------------------------
+# Ruff: format + lint (strict)
+# --------------------------------------------------------------------------------------------
 [tool.ruff]
 line-length = 100
 target-version = "py314"
-src = ["."]
+src = [".", "tests"]
 extend-exclude = [
     ".venv",
     ".git",
@@ -68,37 +71,63 @@ extend-exclude = [
     ".mypy_cache",
     "build",
     "dist",
+    "data",
+    "web",
+    "ui",
 ]
 
-[tool.ruff.lint]
-select = [
-    "B",   # flake8-bugbear rules
-    "C4",  # flake8-comprehensions rules
-    "D",   # pydocstyle rules
-    "E",   # pycodestyle errors
-    "F",   # pyflakes rules
-    "I",   # isort rules
-    "N",   # pep8-naming rules
-    "S",   # bandit security rules
-    "SIM", # flake8-simplify rules
-    "UP",  # pyupgrade rules
-    "W",   # pycodestyle warnings
-    "NPY", # numpy docstring rules
-    "PGH", # pygrep-hooks rules
-]
-ignore = [
-    "D203", # Conflicts with D211 (no-blank-line-before-class)
-    "D213", # Conflicts with D212 (multi-line-summary-first-line)
-]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101"] # Use of assert is standard in pytest
+[tool.ruff.format]
+docstring-code-format = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["nfl_sos_ratings"]
 
-[tool.ruff.format]
-docstring-code-format = true
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D203",   # Conflicts with D211 (no-blank-line-before-class)
+    "D213",   # Conflicts with D212 (multi-line-summary-first-line)
+    "COM812", # Conflicts with `ruff format`, which owns trailing commas
+    "ISC001", # Conflicts with `ruff format`, which joins implicit concatenations
+    "CPY001", # The license is declared once in pyproject.toml, not per file
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+# FastAPI reads route signatures at runtime, so the types they name must stay real imports rather
+# than moving under TYPE_CHECKING.
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-decorators = [
+    "fastapi.FastAPI.get",
+    "fastapi.APIRouter.get",
+]
+
+# `pl.lit(True)` builds a literal from a value; the boolean is data, not a behavior flag.
+[tool.ruff.lint.flake8-boolean-trap]
+extend-allowed-calls = ["polars.lit"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101",    # assert is the point of tests
+    "PLR2004", # magic numbers in expectations are fine
+    "D",       # test names document themselves
+    "ANN",     # fixtures/params don't need annotations everywhere
+    "SLF001",  # tests may poke private helpers
+    "INP001",  # tests/ is not a package
+    "ARG001",  # fixtures and monkeypatched fakes keep the signature they replace
+    "ARG002",
+    "ARG005",
+    "PLC0415", # tests may import inside a test to scope a monkeypatch
+]
+# Command-line progress and report output goes to stdout with print until a project logger
+# replaces it in these modules.
+"nfl_sos_ratings/main.py" = ["T201"]
+"nfl_sos_ratings/pipeline.py" = ["T201"]
+"nfl_sos_ratings/opponent_stats.py" = ["T201"]
+"nfl_sos_ratings/composite_weights.py" = ["T201"]
+"nfl_sos_ratings/validation/walk_forward.py" = ["T201"]
+"nfl_sos_ratings/validation/qsos_audit.py" = ["T201"]
 
 [tool.pyright]
 pythonVersion = "3.14"

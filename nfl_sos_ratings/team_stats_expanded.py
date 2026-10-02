@@ -18,6 +18,17 @@ from nfl_sos_ratings.pbp_expressions import rate_expr, scrimmage_snap_expr, valu
 _GROUP_KEY_CANDIDATES = ("game_id", "season", "season_type", "week")
 
 _PRESNAP_PENALTY_TYPES = ("False Start", "Delay of Game")
+_THIRD_DOWN = 3
+_FOURTH_DOWN = 4
+# First and second down are the "early" downs.
+_LAST_EARLY_DOWN = 2
+# A fourth down with this many yards to go or fewer is short yardage.
+_SHORT_YARDAGE = 2
+# Explosive-play thresholds: completions of 20+ yards and rushes of 10+ yards.
+_EXPLOSIVE_PASS_YARDS = 20
+_EXPLOSIVE_RUSH_YARDS = 10
+# Drives that start at or inside the offense's own 25 face a long field.
+_LONG_FIELD_START_YARDLINE = 25
 
 # Offense-row column -> opponent's defense-row column.
 _DEFENSE_MIRROR_RENAMES = {
@@ -118,7 +129,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     two_pt_success = (
         pl.col("two_point_conv_result") == "success"
         if "two_point_conv_result" in columns
-        else pl.lit(False)  # noqa: FBT003
+        else pl.lit(False)
     )
     td_team = pl.col("td_team") if "td_team" in columns else pl.lit(None, dtype=pl.String)
     is_touchdown = value_expr(columns, "touchdown") > 0
@@ -134,7 +145,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     is_go_try = (
         value_expr(columns, "fourth_down_converted") + value_expr(columns, "fourth_down_failed")
     ) > 0
-    fourth_down_faced = (down == 4) & (
+    fourth_down_faced = (down == _FOURTH_DOWN) & (
         scrimmage
         | (value_expr(columns, "punt_attempt") > 0)
         | (value_expr(columns, "field_goal_attempt") > 0)
@@ -229,15 +240,18 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             .mean()
             .alias("pass_rate_over_expected"),
             _count(scrimmage, "aux_off_snaps"),
-            _count(scrimmage & (down <= 2), "aux_early_snaps"),
-            _count(is_dropback & (down <= 2), "aux_early_dropbacks"),
-            _count(is_complete & (yards >= 20), "aux_explosive_passes"),
-            _count(is_rush_attempt & ~is_two_point & (yards >= 10), "aux_explosive_rushes"),
+            _count(scrimmage & (down <= _LAST_EARLY_DOWN), "aux_early_snaps"),
+            _count(is_dropback & (down <= _LAST_EARLY_DOWN), "aux_early_dropbacks"),
+            _count(is_complete & (yards >= _EXPLOSIVE_PASS_YARDS), "aux_explosive_passes"),
+            _count(
+                is_rush_attempt & ~is_two_point & (yards >= _EXPLOSIVE_RUSH_YARDS),
+                "aux_explosive_rushes",
+            ),
             _count(is_rush_attempt & ~is_two_point & (yards <= 0), "aux_stuffed_rushes"),
             _count(
                 is_pass_attempt & ~is_two_point & (pl.col("pass_length") == "deep")
                 if "pass_length" in columns
-                else pl.lit(False),  # noqa: FBT003
+                else pl.lit(False),
                 "aux_deep_attempts",
             ),
             # Turnovers.
@@ -268,12 +282,14 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
                 > 0,
                 "third_down_attempts",
             ),
-            ydstogo.filter(scrimmage & (down == 3)).mean().alias("third_down_avg_distance"),
+            ydstogo.filter(scrimmage & (down == _THIRD_DOWN))
+            .mean()
+            .alias("third_down_avg_distance"),
             _count(value_expr(columns, "fourth_down_converted") > 0, "fourth_down_conversions"),
             _count(is_go_try, "fourth_down_attempts"),
             _count(fourth_down_faced, "aux_fourth_downs_faced"),
-            _count(is_go_try & (ydstogo <= 2), "aux_fourth_short_go"),
-            _count(fourth_down_faced & (ydstogo <= 2), "aux_fourth_short_faced"),
+            _count(is_go_try & (ydstogo <= _SHORT_YARDAGE), "aux_fourth_short_go"),
+            _count(fourth_down_faced & (ydstogo <= _SHORT_YARDAGE), "aux_fourth_short_faced"),
             _count(value_expr(columns, "fourth_down_failed") > 0, "turnovers_on_downs"),
             # Scoring extras.
             _count(is_two_point, "two_pt_attempts"),
@@ -303,7 +319,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
                     | (
                         pl.col("pass_defense_1_player_id").is_not_null()
                         if "pass_defense_1_player_id" in columns
-                        else pl.lit(False)  # noqa: FBT003
+                        else pl.lit(False)
                     ),
                     "aux_havoc_events",
                 )
@@ -359,7 +375,7 @@ def _aggregate_series_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFram
         (
             (pl.col("series_result") == "Touchdown").max()
             if "series_result" in columns
-            else pl.lit(False).max()  # noqa: FBT003
+            else pl.lit(False).max()
         ).alias("touchdown"),
     )
     return (
@@ -449,7 +465,7 @@ def _aggregate_drive_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame
             .alias("points_per_red_zone_trip"),
             pl.col("start_from_own_goal").mean().alias("avg_starting_field_position"),
             pl.col("scored")
-            .filter(pl.col("start_from_own_goal") <= 25)
+            .filter(pl.col("start_from_own_goal") <= _LONG_FIELD_START_YARDLINE)
             .mean()
             .alias("long_field_score_pct"),
             pl.col("yards_penalized").sum().alias("drive_penalty_yards"),

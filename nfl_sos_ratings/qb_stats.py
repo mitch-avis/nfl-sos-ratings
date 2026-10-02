@@ -2,7 +2,10 @@
 
 import polars as pl
 
-type PolarsCastType = type[pl.Int64] | type[pl.Float64]
+type PolarsCastType = type[pl.Int64 | pl.Float64]
+
+# Comebacks and game-winning drives count plays from the fourth quarter on (overtime included).
+_FOURTH_QUARTER = 4
 
 _QB_TOTAL_COLUMNS: dict[str, tuple[str, PolarsCastType]] = {
     "qb_attempts": ("qb_attempts_total", pl.Int64),
@@ -150,14 +153,14 @@ def _compute_team_late_game_flags_from_pbp(pbp_df: pl.DataFrame) -> pl.DataFrame
         .select(["game_id", "team_abbr", "final_points_for", "final_points_allowed"])
     )
     trailing_late = (
-        offense.filter((pl.col("qtr") >= 4) & (pl.col("score_differential") < 0))
+        offense.filter((pl.col("qtr") >= _FOURTH_QUARTER) & (pl.col("score_differential") < 0))
         .group_by(["game_id", "posteam"])
         .agg(pl.lit(1).alias("had_fourth_quarter_deficit"))
         .rename({"posteam": "team_abbr"})
     )
     lead_taking = (
         offense.filter(
-            (pl.col("qtr") >= 4)
+            (pl.col("qtr") >= _FOURTH_QUARTER)
             & (pl.col("posteam_score_post") > pl.col("posteam_score"))
             & (pl.col("score_differential") <= 0)
             & (pl.col("score_differential_post") > 0)
@@ -727,6 +730,157 @@ def compute_qb_game_stats_from_pbp(
     )
 
 
+# (numerator, denominator, output) season rates, each null when the denominator is zero. The
+# order fixes the output column order.
+_QB_SEASON_RATIOS: tuple[tuple[str, str, str], ...] = (
+    ("qb_pass_yards_total", "qb_attempts_total", "qb_yards_per_attempt"),
+    ("qb_pass_touchdowns_total", "qb_attempts_total", "qb_touchdown_rate"),
+    ("qb_interceptions_total", "qb_attempts_total", "qb_interception_rate"),
+    ("qb_completions_total", "qb_attempts_total", "qb_completion_pct"),
+    ("qb_rushing_yards_total", "qb_carries_total", "qb_yards_per_carry"),
+    ("qb_rushing_epa_total", "qb_carries_total", "qb_epa_per_carry"),
+    ("qb_designed_rush_yards_total", "qb_designed_carries_total", "qb_designed_yards_per_carry"),
+    ("qb_designed_rush_epa_total", "qb_designed_carries_total", "qb_designed_epa_per_carry"),
+    ("qb_scramble_yards_total", "qb_scrambles_total", "qb_yards_per_scramble"),
+    ("qb_scrambles_total", "qb_dropbacks_total", "qb_scramble_rate"),
+    ("qb_passing_epa_total", "qb_dropbacks_total", "qb_epa_per_dropback"),
+    ("qb_pass_yards_total", "qb_dropbacks_total", "qb_pass_yards_per_dropback"),
+)
+_ANY_A_INPUTS = frozenset(
+    {
+        "qb_pass_yards_total",
+        "qb_pass_touchdowns_total",
+        "qb_interceptions_total",
+        "qb_sack_yards_lost_total",
+        "qb_sacks_total",
+    }
+)
+# ANY/A credits 20 yards per passing touchdown and charges 45 per interception.
+_ANY_A_TD_BONUS = 20.0
+_ANY_A_INT_PENALTY = 45.0
+
+
+def _guarded_ratio(numerator: pl.Expr, denominator: str, output: str) -> pl.Expr:
+    """Return ``numerator / denominator``, or null when the denominator is not positive."""
+    return (
+        pl.when(pl.col(denominator) > 0)
+        .then(numerator / pl.col(denominator))
+        .otherwise(None)
+        .alias(output)
+    )
+
+
+def _qb_season_rate_exprs(columns: set[str]) -> list[pl.Expr]:
+    """Return every season rate whose inputs are present, in output-column order."""
+    exprs = [
+        _guarded_ratio(pl.col(numerator), denominator, output)
+        for numerator, denominator, output in _QB_SEASON_RATIOS
+        if {numerator, denominator} <= columns
+    ]
+    td_int_margin = pl.col("qb_pass_touchdowns_total") - pl.col("qb_interceptions_total")
+    if {"qb_pass_touchdowns_total", "qb_interceptions_total"} <= columns:
+        exprs.append(td_int_margin.alias("qb_td_int_differential"))
+    if {"qb_pass_touchdowns_total", "qb_interceptions_total", "qb_dropbacks_total"} <= columns:
+        exprs.append(_guarded_ratio(td_int_margin, "qb_dropbacks_total", "qb_td_int_margin_rate"))
+    if {"qb_sacks_total", "qb_dropbacks_total"} <= columns:
+        exprs.append(_guarded_ratio(pl.col("qb_sacks_total"), "qb_dropbacks_total", "qb_sack_rate"))
+    if columns >= _ANY_A_INPUTS:
+        exprs.append(
+            pl.when((pl.col("qb_attempts_total") + pl.col("qb_sacks_total")) > 0)
+            .then(
+                (
+                    pl.col("qb_pass_yards_total")
+                    + (_ANY_A_TD_BONUS * pl.col("qb_pass_touchdowns_total"))
+                    - (_ANY_A_INT_PENALTY * pl.col("qb_interceptions_total"))
+                    - pl.col("qb_sack_yards_lost_total")
+                )
+                / (pl.col("qb_attempts_total") + pl.col("qb_sacks_total"))
+            )
+            .otherwise(None)
+            .alias("qb_any_a")
+        )
+    return exprs
+
+
+def _qb_season_agg_exprs(qb_df: pl.DataFrame) -> list[pl.Expr]:
+    """Return games played, per-game means of numeric stats, and season totals."""
+    qb_stat_cols = [
+        col
+        for col, dtype in zip(qb_df.columns, qb_df.dtypes, strict=True)
+        if dtype.is_numeric() and col not in {"week", *set(_QB_PER_GAME_COLUMNS)}
+    ]
+    agg_exprs: list[pl.Expr] = [pl.len().alias("qb_games_played")]
+    agg_exprs.extend(pl.col(col).mean().alias(col) for col in qb_stat_cols)
+    for source_col, (total_col, total_dtype) in _QB_TOTAL_COLUMNS.items():
+        if source_col in qb_df.columns:
+            agg_exprs.append(pl.col(source_col).sum().cast(total_dtype).alias(total_col))
+        elif total_col == "qb_attempts_total":
+            agg_exprs.append(pl.lit(0).cast(pl.Int64).alias(total_col))
+    return agg_exprs
+
+
+def _qb_primary_team_map(qb_df: pl.DataFrame, qb_keys: list[str]) -> pl.DataFrame:
+    """Return each QB's most frequent team, kept for schedule and label context."""
+    return (
+        qb_df.group_by([*qb_keys, "team_abbr"])
+        .len()
+        .sort("len", descending=True)
+        .group_by(qb_keys)
+        .first()
+        .select([*qb_keys, pl.col("team_abbr").alias("team")])
+    )
+
+
+def _with_qb_results(
+    season_stats: pl.DataFrame,
+    qb_df: pl.DataFrame,
+    weekly_df: pl.DataFrame | None,
+    qb_keys: list[str],
+) -> pl.DataFrame:
+    """Add primary-QB wins, losses, ties, and win percentage (0.5 when results are unknown)."""
+    required_weekly_cols = {"team", "week", "points_for", "points_allowed"}
+    if weekly_df is None or not required_weekly_cols.issubset(set(weekly_df.columns)):
+        return season_stats.with_columns(pl.lit(0.5).alias("qb_win_pct"))
+
+    decisions = pl.col("qb_wins") + pl.col("qb_losses") + pl.col("qb_ties")
+    qb_results = (
+        _select_primary_qb_rows(qb_df)
+        .join(
+            weekly_df.select(["team", "week", "points_for", "points_allowed"]),
+            left_on=["team_abbr", "week"],
+            right_on=["team", "week"],
+            how="left",
+        )
+        .with_columns(
+            [
+                (pl.col("points_for") > pl.col("points_allowed")).cast(pl.Int64).alias("qb_win"),
+                (pl.col("points_for") < pl.col("points_allowed")).cast(pl.Int64).alias("qb_loss"),
+                (pl.col("points_for") == pl.col("points_allowed")).cast(pl.Int64).alias("qb_tie"),
+            ]
+        )
+        .group_by(qb_keys)
+        .agg(
+            [
+                pl.col("qb_win").sum().alias("qb_wins"),
+                pl.col("qb_loss").sum().alias("qb_losses"),
+                pl.col("qb_tie").sum().alias("qb_ties"),
+            ]
+        )
+        .with_columns(
+            pl.when(decisions > 0)
+            .then((pl.col("qb_wins") + 0.5 * pl.col("qb_ties")) / decisions)
+            .otherwise(0.5)
+            .alias("qb_win_pct")
+        )
+    )
+    return season_stats.join(qb_results, on=qb_keys, how="left").with_columns(
+        pl.col("qb_wins").fill_null(0).cast(pl.Int64),
+        pl.col("qb_losses").fill_null(0).cast(pl.Int64),
+        pl.col("qb_ties").fill_null(0).cast(pl.Int64),
+        pl.col("qb_win_pct").fill_null(0.5),
+    )
+
+
 def compute_qb_season_stats(
     qb_df: pl.DataFrame,
     weekly_df: pl.DataFrame | None = None,
@@ -757,87 +911,14 @@ def compute_qb_season_stats(
         if min_attempts is not None
         else _compute_default_qb_attempt_qualifier(weekly_df)
     )
-
     qb_keys = _resolve_qb_keys(qb_df)
 
-    qb_stat_cols = [
-        col
-        for col, dtype in zip(qb_df.columns, qb_df.dtypes, strict=True)
-        if dtype.is_numeric() and col not in {"week", *set(_QB_PER_GAME_COLUMNS)}
-    ]
-
-    agg_exprs: list[pl.Expr] = [
-        pl.len().alias("qb_games_played"),
-    ]
-    agg_exprs.extend(pl.col(col).mean().alias(col) for col in qb_stat_cols)
-    for source_col, (total_col, total_dtype) in _QB_TOTAL_COLUMNS.items():
-        if source_col in qb_df.columns:
-            agg_exprs.append(pl.col(source_col).sum().cast(total_dtype).alias(total_col))
-        elif total_col == "qb_attempts_total":
-            agg_exprs.append(pl.lit(0).cast(pl.Int64).alias(total_col))
-
-    season_stats = qb_df.group_by(qb_keys).agg(agg_exprs)
-
-    # Keep the player's most frequent team for schedule/label context.
-    team_map = (
-        qb_df.group_by(qb_keys + ["team_abbr"])
-        .len()
-        .sort("len", descending=True)
-        .group_by(qb_keys)
-        .first()
-        .select(qb_keys + [pl.col("team_abbr").alias("team")])
+    season_stats = (
+        qb_df.group_by(qb_keys)
+        .agg(_qb_season_agg_exprs(qb_df))
+        .join(_qb_primary_team_map(qb_df, qb_keys), on=qb_keys, how="left")
     )
-    season_stats = season_stats.join(team_map, on=qb_keys, how="left")
-
-    required_weekly_cols = {"team", "week", "points_for", "points_allowed"}
-    if weekly_df is not None and required_weekly_cols.issubset(set(weekly_df.columns)):
-        primary_qb_df = _select_primary_qb_rows(qb_df)
-        qb_results = (
-            primary_qb_df.join(
-                weekly_df.select(["team", "week", "points_for", "points_allowed"]),
-                left_on=["team_abbr", "week"],
-                right_on=["team", "week"],
-                how="left",
-            )
-            .with_columns(
-                [
-                    (pl.col("points_for") > pl.col("points_allowed"))
-                    .cast(pl.Int64)
-                    .alias("qb_win"),
-                    (pl.col("points_for") < pl.col("points_allowed"))
-                    .cast(pl.Int64)
-                    .alias("qb_loss"),
-                    (pl.col("points_for") == pl.col("points_allowed"))
-                    .cast(pl.Int64)
-                    .alias("qb_tie"),
-                ]
-            )
-            .group_by(qb_keys)
-            .agg(
-                [
-                    pl.col("qb_win").sum().alias("qb_wins"),
-                    pl.col("qb_loss").sum().alias("qb_losses"),
-                    pl.col("qb_tie").sum().alias("qb_ties"),
-                ]
-            )
-            .with_columns(
-                pl.when((pl.col("qb_wins") + pl.col("qb_losses") + pl.col("qb_ties")) > 0)
-                .then(
-                    (pl.col("qb_wins") + 0.5 * pl.col("qb_ties"))
-                    / (pl.col("qb_wins") + pl.col("qb_losses") + pl.col("qb_ties"))
-                )
-                .otherwise(0.5)
-                .alias("qb_win_pct")
-            )
-        )
-        season_stats = season_stats.join(qb_results, on=qb_keys, how="left").with_columns(
-            pl.col("qb_wins").fill_null(0).cast(pl.Int64),
-            pl.col("qb_losses").fill_null(0).cast(pl.Int64),
-            pl.col("qb_ties").fill_null(0).cast(pl.Int64),
-            pl.col("qb_win_pct").fill_null(0.5),
-        )
-    else:
-        season_stats = season_stats.with_columns(pl.lit(0.5).alias("qb_win_pct"))
+    season_stats = _with_qb_results(season_stats, qb_df, weekly_df, qb_keys)
 
     per_game_exprs = [
         pl.when(pl.col("qb_games_played") > 0)
@@ -850,119 +931,7 @@ def compute_qb_season_stats(
     if per_game_exprs:
         season_stats = season_stats.with_columns(per_game_exprs)
 
-    rate_exprs: list[pl.Expr] = []
-    rate_inputs = [
-        ("qb_pass_yards_total", "qb_yards_per_attempt"),
-        ("qb_pass_touchdowns_total", "qb_touchdown_rate"),
-        ("qb_interceptions_total", "qb_interception_rate"),
-        ("qb_completions_total", "qb_completion_pct"),
-    ]
-    for numerator_col, output_col in rate_inputs:
-        if numerator_col in season_stats.columns:
-            rate_exprs.append(
-                pl.when(pl.col("qb_attempts_total") > 0)
-                .then(pl.col(numerator_col) / pl.col("qb_attempts_total"))
-                .otherwise(None)
-                .alias(output_col)
-            )
-    carry_rate_inputs = [
-        ("qb_rushing_yards_total", "qb_yards_per_carry"),
-        ("qb_rushing_epa_total", "qb_epa_per_carry"),
-    ]
-    for numerator_col, output_col in carry_rate_inputs:
-        if {numerator_col, "qb_carries_total"}.issubset(set(season_stats.columns)):
-            rate_exprs.append(
-                pl.when(pl.col("qb_carries_total") > 0)
-                .then(pl.col(numerator_col) / pl.col("qb_carries_total"))
-                .otherwise(None)
-                .alias(output_col)
-            )
-    designed_carry_rate_inputs = [
-        ("qb_designed_rush_yards_total", "qb_designed_yards_per_carry"),
-        ("qb_designed_rush_epa_total", "qb_designed_epa_per_carry"),
-    ]
-    for numerator_col, output_col in designed_carry_rate_inputs:
-        if {numerator_col, "qb_designed_carries_total"}.issubset(set(season_stats.columns)):
-            rate_exprs.append(
-                pl.when(pl.col("qb_designed_carries_total") > 0)
-                .then(pl.col(numerator_col) / pl.col("qb_designed_carries_total"))
-                .otherwise(None)
-                .alias(output_col)
-            )
-    if {"qb_scramble_yards_total", "qb_scrambles_total"}.issubset(set(season_stats.columns)):
-        rate_exprs.append(
-            pl.when(pl.col("qb_scrambles_total") > 0)
-            .then(pl.col("qb_scramble_yards_total") / pl.col("qb_scrambles_total"))
-            .otherwise(None)
-            .alias("qb_yards_per_scramble")
-        )
-    if {"qb_scrambles_total", "qb_dropbacks_total"}.issubset(set(season_stats.columns)):
-        rate_exprs.append(
-            pl.when(pl.col("qb_dropbacks_total") > 0)
-            .then(pl.col("qb_scrambles_total") / pl.col("qb_dropbacks_total"))
-            .otherwise(None)
-            .alias("qb_scramble_rate")
-        )
-    if {"qb_passing_epa_total", "qb_dropbacks_total"}.issubset(set(season_stats.columns)):
-        rate_exprs.append(
-            pl.when(pl.col("qb_dropbacks_total") > 0)
-            .then(pl.col("qb_passing_epa_total") / pl.col("qb_dropbacks_total"))
-            .otherwise(None)
-            .alias("qb_epa_per_dropback")
-        )
-    if {"qb_pass_yards_total", "qb_dropbacks_total"}.issubset(set(season_stats.columns)):
-        rate_exprs.append(
-            pl.when(pl.col("qb_dropbacks_total") > 0)
-            .then(pl.col("qb_pass_yards_total") / pl.col("qb_dropbacks_total"))
-            .otherwise(None)
-            .alias("qb_pass_yards_per_dropback")
-        )
-    if {"qb_pass_touchdowns_total", "qb_interceptions_total"}.issubset(set(season_stats.columns)):
-        rate_exprs.append(
-            (pl.col("qb_pass_touchdowns_total") - pl.col("qb_interceptions_total")).alias(
-                "qb_td_int_differential"
-            )
-        )
-    if {"qb_pass_touchdowns_total", "qb_interceptions_total", "qb_dropbacks_total"}.issubset(
-        set(season_stats.columns)
-    ):
-        rate_exprs.append(
-            pl.when(pl.col("qb_dropbacks_total") > 0)
-            .then(
-                (pl.col("qb_pass_touchdowns_total") - pl.col("qb_interceptions_total"))
-                / pl.col("qb_dropbacks_total")
-            )
-            .otherwise(None)
-            .alias("qb_td_int_margin_rate")
-        )
-    if {"qb_sacks_total", "qb_dropbacks_total"}.issubset(set(season_stats.columns)):
-        rate_exprs.append(
-            pl.when(pl.col("qb_dropbacks_total") > 0)
-            .then(pl.col("qb_sacks_total") / pl.col("qb_dropbacks_total"))
-            .otherwise(None)
-            .alias("qb_sack_rate")
-        )
-    if {
-        "qb_pass_yards_total",
-        "qb_pass_touchdowns_total",
-        "qb_interceptions_total",
-        "qb_sack_yards_lost_total",
-        "qb_sacks_total",
-    }.issubset(set(season_stats.columns)):
-        rate_exprs.append(
-            pl.when((pl.col("qb_attempts_total") + pl.col("qb_sacks_total")) > 0)
-            .then(
-                (
-                    pl.col("qb_pass_yards_total")
-                    + (20.0 * pl.col("qb_pass_touchdowns_total"))
-                    - (45.0 * pl.col("qb_interceptions_total"))
-                    - pl.col("qb_sack_yards_lost_total")
-                )
-                / (pl.col("qb_attempts_total") + pl.col("qb_sacks_total"))
-            )
-            .otherwise(None)
-            .alias("qb_any_a")
-        )
+    rate_exprs = _qb_season_rate_exprs(set(season_stats.columns))
     if rate_exprs:
         season_stats = season_stats.with_columns(rate_exprs)
 

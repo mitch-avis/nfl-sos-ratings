@@ -76,7 +76,7 @@ def compute_opponent_profile(
         numeric_cols = [
             c
             for c, d in zip(combined_team.columns, combined_team.dtypes, strict=True)
-            if d.is_numeric() and c not in {"games_included"}
+            if d.is_numeric() and c != "games_included"
         ]
         avg_team = combined_team.select(
             [pl.lit(team).alias("team")] + [pl.col(c).mean().alias(c) for c in numeric_cols]

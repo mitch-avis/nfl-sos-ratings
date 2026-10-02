@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -85,8 +86,6 @@ app = create_app()
 
 def main() -> None:
     """Run the local analyst UI API with Uvicorn."""
-    import uvicorn
-
     uvicorn.run(
         "nfl_sos_ratings.ui_api:app",
         host="0.0.0.0",  # noqa: S104

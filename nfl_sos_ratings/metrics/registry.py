@@ -8,8 +8,7 @@ direction from it.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
-from functools import lru_cache
+from typing import TYPE_CHECKING
 
 from nfl_sos_ratings.metrics.schema import (
     CategoryDef,
@@ -23,10 +22,16 @@ from nfl_sos_ratings.metrics.schema import (
     SuffixRule,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+
 
 class RegistryValidationError(ValueError):
     """Raised when the registry data violates a structural invariant."""
 
+
+# A layman description shorter than this is a label, not a sentence.
+_MIN_DESCRIPTION_LENGTH = 20
 
 # Longest prefixes first so adj_off_/adj_def_ win over the bare adj_ rule.
 DEFAULT_PREFIX_RULES: tuple[PrefixRule, ...] = (
@@ -182,7 +187,8 @@ class MetricRegistry:
         self.metrics: dict[str, MetricDef] = {}
         for metric in metrics:
             if metric.name in self.metrics:
-                raise RegistryValidationError(f"Metric defined twice: {metric.name}")
+                msg = f"Metric defined twice: {metric.name}"
+                raise RegistryValidationError(msg)
             self.metrics[metric.name] = metric
         self._categories: tuple[CategoryDef, ...] = tuple(categories)
         self.pools: dict[str, RatingPool] = {pool.name: pool for pool in pools}
@@ -229,7 +235,8 @@ class MetricRegistry:
         for member in self.pools[pool_name].members:
             resolved = self.resolve_column(member)
             if resolved is None:  # pragma: no cover - guarded by _validate
-                raise RegistryValidationError(f"Pool {pool_name} member unknown: {member}")
+                msg = f"Pool {pool_name} member unknown: {member}"
+                raise RegistryValidationError(msg)
             stats.append((member, resolved.polarity == "higher"))
         return stats
 
@@ -397,25 +404,23 @@ class MetricRegistry:
         """Check one metric's links, denominator rule, and description."""
         category = category_index.get((metric.entity, metric.category))
         if category is None:
-            raise RegistryValidationError(
-                f"Metric {metric.name} references unknown category {metric.category!r}"
-            )
+            msg = f"Metric {metric.name} references unknown category {metric.category!r}"
+            raise RegistryValidationError(msg)
         if metric.subcategory is not None and metric.subcategory not in category.subcategories:
-            raise RegistryValidationError(
-                f"Metric {metric.name} references unknown subcategory {metric.subcategory!r}"
-            )
+            msg = f"Metric {metric.name} references unknown subcategory {metric.subcategory!r}"
+            raise RegistryValidationError(msg)
         if metric.duplicate_of is not None and metric.duplicate_of not in self.metrics:
-            raise RegistryValidationError(
-                f"Metric {metric.name} duplicates unknown metric {metric.duplicate_of!r}"
-            )
+            msg = f"Metric {metric.name} duplicates unknown metric {metric.duplicate_of!r}"
+            raise RegistryValidationError(msg)
         if metric.shape in ("rate", "avg") and not metric.denominator:
-            raise RegistryValidationError(
-                f"Metric {metric.name} is a {metric.shape} but declares no denominator"
-            )
-        if not metric.description.endswith(".") or len(metric.description) < 20:
-            raise RegistryValidationError(
-                f"Metric {metric.name} needs a full-sentence layman description"
-            )
+            msg = f"Metric {metric.name} is a {metric.shape} but declares no denominator"
+            raise RegistryValidationError(msg)
+        if (
+            not metric.description.endswith(".")
+            or len(metric.description) < _MIN_DESCRIPTION_LENGTH
+        ):
+            msg = f"Metric {metric.name} needs a full-sentence layman description"
+            raise RegistryValidationError(msg)
 
     def _validate_pool(self, pool: RatingPool) -> None:
         """Check pool members exist, are eligible, and never double count."""
@@ -423,20 +428,19 @@ class MetricRegistry:
         for member in pool.members:
             resolved = self.resolve_column(member)
             if resolved is None:
-                raise RegistryValidationError(
-                    f"Rating pool {pool.name} references unknown column {member!r}"
-                )
+                msg = f"Rating pool {pool.name} references unknown column {member!r}"
+                raise RegistryValidationError(msg)
             base = resolved.base
             if not base.ratings_eligible:
-                raise RegistryValidationError(
-                    f"Rating pool {pool.name} member {member} is not ratings_eligible"
-                )
+                msg = f"Rating pool {pool.name} member {member} is not ratings_eligible"
+                raise RegistryValidationError(msg)
             canonical = base.duplicate_of or base.name
             if canonical in canonical_bases:
-                raise RegistryValidationError(
+                msg = (
                     f"Rating pool {pool.name} double counts {canonical!r} via "
                     f"{canonical_bases[canonical]!r} and {member!r} (duplicate)"
                 )
+                raise RegistryValidationError(msg)
             canonical_bases[canonical] = member
 
 
@@ -497,11 +501,3 @@ def _map_team_metric_to_qb_taxonomy(base: MetricDef) -> tuple[str, str | None]:
     if base.subcategory == "Rushing":
         return "Rushing", None
     return "Passing Efficiency", None
-
-
-@lru_cache(maxsize=1)
-def get_registry() -> MetricRegistry:
-    """Build, validate, and cache the project registry."""
-    from nfl_sos_ratings.metrics.catalog import build_registry
-
-    return build_registry()

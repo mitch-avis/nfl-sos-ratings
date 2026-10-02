@@ -22,7 +22,7 @@ def scrimmage_snap_expr(columns: list[str]) -> pl.Expr:
     return (_flag("qb_dropback") + _flag("rush") + _flag("qb_kneel") + _flag("qb_spike")) > 0
 
 
-def value_expr(columns: list[str], column: str, default: int | float = 0) -> pl.Expr:
+def value_expr(columns: list[str], column: str, default: float = 0) -> pl.Expr:
     """Return a null-safe column expression or a literal default when absent."""
     if column in columns:
         return pl.col(column).fill_null(default)

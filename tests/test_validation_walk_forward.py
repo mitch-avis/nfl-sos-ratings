@@ -6,6 +6,7 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings.validation import history_strings
+from nfl_sos_ratings.validation.report import ValidationReportInputs, build_validation_report_text
 from nfl_sos_ratings.validation.snapshots import build_team_rating_snapshot
 from nfl_sos_ratings.validation.walk_forward import (
     EloConfig,
@@ -15,7 +16,6 @@ from nfl_sos_ratings.validation.walk_forward import (
     build_rolling_team_weight_maps,
     build_snapshot_feature_rows,
     build_srs_feature_rows,
-    build_validation_report_text,
     build_weighted_team_feature_rows,
     compute_pairwise_mae_bootstrap,
     compute_playoff_metric_correlations,
@@ -343,13 +343,15 @@ def test_build_validation_report_text_includes_bootstrap_delta_section() -> None
     )
 
     report = build_validation_report_text(
-        metrics=metrics,
-        stability=stability,
-        qbr_correlations=qbr,
-        mae_deltas=deltas,
-        seasons=[1999, 2000],
-        start_week=5,
-        command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+        ValidationReportInputs(
+            metrics=metrics,
+            stability=stability,
+            qbr_correlations=qbr,
+            mae_deltas=deltas,
+            seasons=[1999, 2000],
+            start_week=5,
+            command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+        )
     )
 
     assert "## Paired Bootstrap MAE Deltas" in report
@@ -589,12 +591,14 @@ def test_build_validation_report_text_includes_command_tables_and_sacr_caveat() 
     )
 
     report = build_validation_report_text(
-        metrics=metrics,
-        stability=stability,
-        qbr_correlations=qbr,
-        seasons=[1999, 2000],
-        start_week=5,
-        command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+        ValidationReportInputs(
+            metrics=metrics,
+            stability=stability,
+            qbr_correlations=qbr,
+            seasons=[1999, 2000],
+            start_week=5,
+            command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+        )
     )
 
     assert "# Validation Report" in report
@@ -637,18 +641,24 @@ def test_build_validation_report_text_can_render_team_decision_and_qb_status_sec
     )
 
     report = build_validation_report_text(
-        metrics=metrics,
-        stability=stability,
-        qbr_correlations=qbr,
-        seasons=[1999, 2000],
-        start_week=5,
-        command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
-        team_decision_lines=[
-            history_strings.TEAM_DECISION_RULE_HEADING,
-            "",
-            "- Candidate rule line.",
-        ],
-        qb_open_status_lines=[history_strings.QB_OPEN_STATUS_HEADING, "", "- Next archived note."],
+        ValidationReportInputs(
+            metrics=metrics,
+            stability=stability,
+            qbr_correlations=qbr,
+            seasons=[1999, 2000],
+            start_week=5,
+            command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+            team_decision_lines=[
+                history_strings.TEAM_DECISION_RULE_HEADING,
+                "",
+                "- Candidate rule line.",
+            ],
+            qb_open_status_lines=[
+                history_strings.QB_OPEN_STATUS_HEADING,
+                "",
+                "- Next archived note.",
+            ],
+        )
     )
 
     assert history_strings.TEAM_DECISION_RULE_HEADING in report
@@ -787,17 +797,19 @@ def test_build_validation_report_text_includes_stage3d_sections() -> None:
     }
 
     report = build_validation_report_text(
-        metrics=metrics,
-        stability=stability,
-        qbr_correlations=qbr,
-        seasons=[1999, 2000],
-        start_week=5,
-        command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
-        qb_split_half_primary=d1_primary,
-        qb_split_half_placebo=d1_placebo,
-        qb_split_half_cases=d1_cases,
-        qb_split_half_decision=d1_decision,
-        qb_playoff_correlations=d3_correlations,
+        ValidationReportInputs(
+            metrics=metrics,
+            stability=stability,
+            qbr_correlations=qbr,
+            seasons=[1999, 2000],
+            start_week=5,
+            command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+            qb_split_half_primary=d1_primary,
+            qb_split_half_placebo=d1_placebo,
+            qb_split_half_cases=d1_cases,
+            qb_split_half_decision=d1_decision,
+            qb_playoff_correlations=d3_correlations,
+        )
     )
 
     assert history_strings.SPLIT_HALF_DIAGNOSTICS_HEADING in report
@@ -905,19 +917,21 @@ def test_build_validation_report_text_includes_qb_context_sections_and_playoff_c
     }
 
     report = build_validation_report_text(
-        metrics=metrics,
-        stability=stability,
-        qbr_correlations=qbr,
-        seasons=[1999, 2000],
-        start_week=5,
-        command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
-        qb_playoff_correlations=qb_playoff_correlations,
-        qb_opponent_offense_summary=qb_opponent_offense_summary,
-        qb_opponent_offense_cases=qb_opponent_offense_cases,
-        qb_opponent_offense_decision={"decision": "supported"},
-        qb_leverage_summary=qb_leverage_summary,
-        qb_leverage_cases=qb_leverage_cases,
-        qb_leverage_decision=qb_leverage_decision,
+        ValidationReportInputs(
+            metrics=metrics,
+            stability=stability,
+            qbr_correlations=qbr,
+            seasons=[1999, 2000],
+            start_week=5,
+            command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+            qb_playoff_correlations=qb_playoff_correlations,
+            qb_opponent_offense_summary=qb_opponent_offense_summary,
+            qb_opponent_offense_cases=qb_opponent_offense_cases,
+            qb_opponent_offense_decision={"decision": "supported"},
+            qb_leverage_summary=qb_leverage_summary,
+            qb_leverage_cases=qb_leverage_cases,
+            qb_leverage_decision=qb_leverage_decision,
+        )
     )
 
     assert history_strings.OPPONENT_OFFENSE_SECTION_HEADING in report
@@ -1004,16 +1018,18 @@ def test_build_validation_report_text_includes_qb_schedule_audit_sections() -> N
     )
 
     report = build_validation_report_text(
-        metrics=metrics,
-        stability=stability,
-        qbr_correlations=qbr,
-        seasons=[1999, 2000],
-        start_week=5,
-        command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
-        qb_schedule_anchor=qb_schedule_anchor,
-        qb_schedule_trace=qb_schedule_trace,
-        qb_lens_divergence=qb_lens_divergence,
-        qb_designed_rush_preview=qb_designed_rush_preview,
+        ValidationReportInputs(
+            metrics=metrics,
+            stability=stability,
+            qbr_correlations=qbr,
+            seasons=[1999, 2000],
+            start_week=5,
+            command="uv run python -m nfl_sos_ratings.validation.walk_forward --start-week 5",
+            qb_schedule_anchor=qb_schedule_anchor,
+            qb_schedule_trace=qb_schedule_trace,
+            qb_lens_divergence=qb_lens_divergence,
+            qb_designed_rush_preview=qb_designed_rush_preview,
+        )
     )
 
     assert "## 2025 QB Schedule-Lens Anchor" in report

@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import argparse
 import re
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from itertools import combinations
+from itertools import combinations, pairwise
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import polars as pl
@@ -18,7 +17,14 @@ from nfl_sos_ratings.config import DATA_DIR, END_YEAR, START_YEAR
 from nfl_sos_ratings.data_loader import load_espn_qbr, load_pbp_data
 from nfl_sos_ratings.simultaneous_adjustment import solve_srs
 from nfl_sos_ratings.validation import history_strings
+from nfl_sos_ratings.validation.baselines import (
+    PLAY_LEVEL_EPA_ST_BASELINE,
+    ROLLING_EPA_BASELINE,
+    ROLLING_EPA_ST_BASELINE,
+)
 from nfl_sos_ratings.validation.diagnostics import (
+    DEFAULT_BOOTSTRAP,
+    BootstrapSettings,
     compute_qb_case_study,
     compute_qb_defense_spread_summary,
     compute_qb_designed_rush_preview,
@@ -37,6 +43,10 @@ from nfl_sos_ratings.validation.diagnostics import (
     evaluate_qb_split_half_decision,
     summarize_qb_split_half_signal,
 )
+from nfl_sos_ratings.validation.report import (
+    ValidationReportInputs,
+    write_validation_report,
+)
 from nfl_sos_ratings.validation.snapshots import (
     build_play_level_team_adjusted_snapshot,
     build_play_level_team_frame_from_pbp,
@@ -47,10 +57,10 @@ from nfl_sos_ratings.validation.snapshots import (
     build_team_weighted_rating_snapshot,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
 _NORMALIZED_NAME_RE = re.compile(r"[^a-z0-9]+")
-_ROLLING_EPA_BASELINE = "Rolling EPA Weights"
-_ROLLING_EPA_ST_BASELINE = "Rolling EPA Weights + ST"
-_PLAY_LEVEL_EPA_ST_BASELINE = "Play-Level EPA Weights + ST"
 _PLAY_LEVEL_EPA_ST_COLUMN = "play_level_weighted_team_rating"
 _TEAM_T1_FEATURE_COLUMNS = [
     "adj_off_passing_epa_per_offensive_snap",
@@ -59,6 +69,12 @@ _TEAM_T1_FEATURE_COLUMNS = [
     "adj_def_rushing_epa_per_offensive_snap",
 ]
 _TEAM_T2_FEATURE_COLUMNS = [*_TEAM_T1_FEATURE_COLUMNS, "st_rating"]
+# A correlation needs at least two paired observations.
+_MIN_CORRELATION_SAMPLES = 2
+# ESPN QBR (and the CPOE-bearing QSaCR it is compared against) starts in 2006.
+_QBR_FIRST_SEASON = 2006
+# Weeks before this one form the "early" evaluation split; the rest form "late".
+_LATE_SEASON_FIRST_WEEK = 8
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,7 +95,7 @@ def _normalize_person_name(name: str) -> str:
 
 def _pearson(x_values: np.ndarray, y_values: np.ndarray) -> float:
     """Return Pearson correlation, or 0 when either series is constant."""
-    if x_values.size < 2 or y_values.size < 2:
+    if min(x_values.size, y_values.size) < _MIN_CORRELATION_SAMPLES:
         return 0.0
     x_centered = x_values - float(x_values.mean())
     y_centered = y_values - float(y_values.mean())
@@ -99,7 +115,7 @@ def _spearman(x_values: np.ndarray, y_values: np.ndarray) -> float:
 
 def _weighted_pearson(x_values: np.ndarray, y_values: np.ndarray, weights: np.ndarray) -> float:
     """Return a weighted Pearson correlation, or 0.0 when undefined."""
-    if x_values.size < 2 or y_values.size < 2 or weights.size < 2:
+    if min(x_values.size, y_values.size, weights.size) < _MIN_CORRELATION_SAMPLES:
         return 0.0
     x_mean = float(np.average(x_values, weights=weights))
     y_mean = float(np.average(y_values, weights=weights))
@@ -126,17 +142,16 @@ def _bootstrap_weighted_correlation_interval(
     weights: np.ndarray,
     *,
     correlation_fn: Callable[[np.ndarray, np.ndarray, np.ndarray], float],
-    resamples: int,
-    seed: int,
+    bootstrap: BootstrapSettings,
 ) -> tuple[float, float]:
     """Return a bootstrap confidence interval for a weighted correlation."""
     if x_values.size <= 1 or y_values.size <= 1 or weights.size <= 1:
         point_estimate = correlation_fn(x_values, y_values, weights)
         return point_estimate, point_estimate
 
-    rng = np.random.default_rng(seed)
-    bootstrap_values = np.empty(resamples, dtype=np.float64)
-    for sample_index in range(resamples):
+    rng = np.random.default_rng(bootstrap.seed)
+    bootstrap_values = np.empty(bootstrap.resamples, dtype=np.float64)
+    for sample_index in range(bootstrap.resamples):
         indices = rng.integers(0, x_values.size, size=x_values.size)
         bootstrap_values[sample_index] = correlation_fn(
             x_values[indices],
@@ -151,12 +166,14 @@ def compute_playoff_metric_correlations(
     regular_metrics: pl.DataFrame,
     *,
     metric_columns: Sequence[str],
-    target_col: str = "playoff_adjusted_epa_per_dropback",
-    weight_col: str = "playoff_dropbacks",
-    resamples: int = 2000,
-    seed: int = 0,
+    bootstrap: BootstrapSettings = DEFAULT_BOOTSTRAP,
 ) -> pl.DataFrame:
-    """Return per-season and pooled weighted playoff validation correlations by metric."""
+    """Return per-season and pooled weighted playoff validation correlations by metric.
+
+    Each metric is correlated with playoff ridge-adjusted EPA per dropback, weighted by playoff
+    dropbacks.
+    """
+    target_col, weight_col = "playoff_adjusted_epa_per_dropback", "playoff_dropbacks"
     join_keys = [
         column
         for column in ("season", "qb_id", "qb_name", "team")
@@ -198,22 +215,20 @@ def compute_playoff_metric_correlations(
             )
             spearman = _weighted_spearman(x_values, y_values, weights)
             pearson = _weighted_pearson(x_values, y_values, weights)
-            row_seed = seed + len(rows)
+            row_seed = bootstrap.seed + len(rows)
             spearman_ci_lower, spearman_ci_upper = _bootstrap_weighted_correlation_interval(
                 x_values,
                 y_values,
                 weights,
                 correlation_fn=_weighted_spearman,
-                resamples=resamples,
-                seed=row_seed,
+                bootstrap=BootstrapSettings(bootstrap.resamples, row_seed),
             )
             pearson_ci_lower, pearson_ci_upper = _bootstrap_weighted_correlation_interval(
                 x_values,
                 y_values,
                 weights,
                 correlation_fn=_weighted_pearson,
-                resamples=resamples,
-                seed=row_seed + 10_000,
+                bootstrap=BootstrapSettings(bootstrap.resamples, row_seed + 10_000),
             )
             rows.append(
                 {
@@ -244,7 +259,8 @@ def _build_home_game_frame(weekly_team_rows: pl.DataFrame, season: int) -> pl.Da
     missing = sorted(required_columns - set(weekly_team_rows.columns))
     if missing:
         detail = ", ".join(missing)
-        raise ValueError(f"weekly_team_rows is missing required columns: {detail}")
+        msg = f"weekly_team_rows is missing required columns: {detail}"
+        raise ValueError(msg)
 
     return (
         weekly_team_rows.filter(pl.col("is_home"))
@@ -390,7 +406,7 @@ def build_weighted_team_feature_rows(
     weekly_team_rows: pl.DataFrame,
     season: int,
     weight_map: dict[str, float],
-    baseline_name: str = _ROLLING_EPA_BASELINE,
+    baseline_name: str = ROLLING_EPA_BASELINE,
 ) -> pl.DataFrame:
     """Build walk-forward rows from a weighted pregame team component snapshot."""
     weighted_column = "weighted_team_rating"
@@ -468,7 +484,7 @@ def build_weighted_team_special_teams_feature_rows(
     st_game_rows: pl.DataFrame,
     season: int,
     weight_map: dict[str, float],
-    baseline_name: str = _ROLLING_EPA_ST_BASELINE,
+    baseline_name: str = ROLLING_EPA_ST_BASELINE,
 ) -> pl.DataFrame:
     """Build walk-forward rows from a weighted team-plus-special-teams snapshot."""
     weighted_column = "weighted_team_rating"
@@ -497,14 +513,16 @@ def build_weighted_team_special_teams_feature_rows(
 
 def build_play_level_weighted_team_special_teams_feature_rows(
     weekly_team_rows: pl.DataFrame,
-    play_rows: pl.DataFrame,
-    st_game_rows: pl.DataFrame,
+    pbp: pl.DataFrame,
+    *,
     season: int,
     weight_map: dict[str, float],
-    baseline_name: str = _PLAY_LEVEL_EPA_ST_BASELINE,
+    baseline_name: str = PLAY_LEVEL_EPA_ST_BASELINE,
 ) -> pl.DataFrame:
     """Build walk-forward rows from a play-level weighted team-plus-special-teams snapshot."""
     weighted_column = "weighted_team_rating"
+    play_rows = build_play_level_team_frame_from_pbp(pbp)
+    st_game_rows = build_special_teams_game_frame_from_pbp(pbp)
 
     def snapshot_builder(frame: pl.DataFrame, cutoff_week: int) -> pl.DataFrame:
         del frame
@@ -700,7 +718,7 @@ def run_weighted_team_backtest(
     data_dir: Path,
     seasons: list[int],
     start_week: int = 5,
-    baseline_name: str = _ROLLING_EPA_BASELINE,
+    baseline_name: str = ROLLING_EPA_BASELINE,
 ) -> tuple[pl.DataFrame, pl.DataFrame, dict[int, dict[str, float]]]:
     """Run the rolling weighted-team walk-forward backtest with prior-season weights."""
     training_rows = composite_weights.build_team_training_rows(data_dir, seasons)
@@ -777,7 +795,7 @@ def build_play_level_team_training_rows_with_special_teams(
     season_list = sorted(seasons)
     rows: list[pl.DataFrame] = []
 
-    for season, next_season in zip(season_list, season_list[1:], strict=False):
+    for season, next_season in pairwise(season_list):
         pbp = load_pbp_data(int(season))
         play_rows = build_play_level_team_frame_from_pbp(pbp)
         if play_rows.is_empty():
@@ -828,7 +846,7 @@ def run_weighted_team_special_teams_backtest(
     data_dir: Path,
     seasons: list[int],
     start_week: int = 5,
-    baseline_name: str = _ROLLING_EPA_ST_BASELINE,
+    baseline_name: str = ROLLING_EPA_ST_BASELINE,
 ) -> tuple[pl.DataFrame, pl.DataFrame, dict[int, dict[str, float]]]:
     """Run the weighted-team walk-forward backtest with a special-teams component."""
     training_rows = build_team_training_rows_with_special_teams(data_dir, seasons)
@@ -866,7 +884,7 @@ def run_play_level_team_special_teams_backtest(
     data_dir: Path,
     seasons: list[int],
     start_week: int = 5,
-    baseline_name: str = _PLAY_LEVEL_EPA_ST_BASELINE,
+    baseline_name: str = PLAY_LEVEL_EPA_ST_BASELINE,
 ) -> tuple[pl.DataFrame, pl.DataFrame, dict[int, dict[str, float]]]:
     """Run the play-level weighted-team backtest with the same ST component as the rolling blend."""
     training_rows = build_play_level_team_training_rows_with_special_teams(data_dir, seasons)
@@ -879,14 +897,10 @@ def run_play_level_team_special_teams_backtest(
     feature_frames: list[pl.DataFrame] = []
     for season in sorted(seasons):
         weekly_team_rows = pl.read_parquet(data_dir / f"{season}_team_game_logs.parquet")
-        pbp = load_pbp_data(int(season))
-        play_rows = build_play_level_team_frame_from_pbp(pbp)
-        st_game_rows = build_special_teams_game_frame_from_pbp(pbp)
         feature_frames.append(
             build_play_level_weighted_team_special_teams_feature_rows(
                 weekly_team_rows,
-                play_rows=play_rows,
-                st_game_rows=st_game_rows,
+                load_pbp_data(int(season)),
                 season=season,
                 weight_map=weight_maps[int(season)],
                 baseline_name=baseline_name,
@@ -904,7 +918,6 @@ def run_play_level_team_special_teams_backtest(
 
 
 def build_play_level_team_season_ratings(
-    data_dir: Path,
     seasons: Sequence[int],
     weight_maps: dict[int, dict[str, float]],
     output_col: str = _PLAY_LEVEL_EPA_ST_COLUMN,
@@ -953,7 +966,7 @@ def compute_team_rating_stability_from_history(
 
     seasons = sorted(rating_history.select("season").to_series().cast(pl.Int64).unique().to_list())
     pair_frames: list[pl.DataFrame] = []
-    for season, next_season in zip(seasons, seasons[1:], strict=False):
+    for season, next_season in pairwise(seasons):
         current = rating_history.filter(pl.col("season") == int(season)).select(
             "team", pl.col(rating_column).alias("rating_t")
         )
@@ -977,7 +990,7 @@ def compute_team_rating_stability_from_history(
         dtype=np.float64,
     )
     return {
-        "paired_rows": int(len(x_values)),
+        "paired_rows": len(x_values),
         "pearson": _pearson(x_values, y_values),
         "spearman": _spearman(x_values, y_values),
     }
@@ -1002,7 +1015,7 @@ def _find_pairwise_mae_row(
 
 def _row_float(row: dict[str, object], key: str) -> float:
     """Return one row value as a float for report rendering and comparisons."""
-    return float(cast(float | int | str, row[key]))
+    return float(cast("float | int | str", row[key]))
 
 
 def _row_bool(row: dict[str, object], key: str) -> bool:
@@ -1023,8 +1036,7 @@ def build_team_decision_lines(
         mae_deltas,
         base_team_stability=base_team_stability,
         t4_team_stability=t4_team_stability,
-        rolling_epa_st_baseline=_ROLLING_EPA_ST_BASELINE,
-        play_level_epa_st_baseline=_PLAY_LEVEL_EPA_ST_BASELINE,
+        baselines=(ROLLING_EPA_ST_BASELINE, PLAY_LEVEL_EPA_ST_BASELINE),
     )
 
 
@@ -1040,7 +1052,7 @@ def compute_stability_metrics(data_dir: Path, seasons: list[int]) -> pl.DataFram
     qb_pairs: list[pl.DataFrame] = []
     team_pairs: list[pl.DataFrame] = []
 
-    for season, next_season in zip(sorted_seasons, sorted_seasons[1:], strict=False):
+    for season, next_season in pairwise(sorted_seasons):
         current_qb = pl.read_parquet(data_dir / f"{season}_qb_combined.parquet")
         next_qb = pl.read_parquet(data_dir / f"{next_season}_qb_combined.parquet")
         if "qb_is_eligible" in current_qb.columns:
@@ -1089,7 +1101,7 @@ def compute_stability_metrics(data_dir: Path, seasons: list[int]) -> pl.DataFram
                 {
                     "entity": "qb",
                     "metric": metric,
-                    "paired_rows": int(len(x_values)),
+                    "paired_rows": len(x_values),
                     "pearson": _pearson(x_values, y_values),
                     "spearman": _spearman(x_values, y_values),
                 }
@@ -1111,7 +1123,7 @@ def compute_stability_metrics(data_dir: Path, seasons: list[int]) -> pl.DataFram
             {
                 "entity": "team",
                 "metric": "SaOvR",
-                "paired_rows": int(len(x_values)),
+                "paired_rows": len(x_values),
                 "pearson": _pearson(x_values, y_values),
                 "spearman": _spearman(x_values, y_values),
             }
@@ -1122,7 +1134,7 @@ def compute_stability_metrics(data_dir: Path, seasons: list[int]) -> pl.DataFram
 
 def compute_qbr_correlations(data_dir: Path, seasons: list[int]) -> pl.DataFrame:
     """Compute per-season QSaCR versus ESPN QBR correlations on matched QBs."""
-    eligible_seasons = sorted(season for season in seasons if season >= 2006)
+    eligible_seasons = sorted(season for season in seasons if season >= _QBR_FIRST_SEASON)
     if not eligible_seasons:
         return pl.DataFrame(
             schema={
@@ -1179,1050 +1191,13 @@ def compute_qbr_correlations(data_dir: Path, seasons: list[int]) -> pl.DataFrame
         rows.append(
             {
                 "season": season,
-                "joined_rows": int(len(x_values)),
+                "joined_rows": len(x_values),
                 "pearson": _pearson(x_values, y_values),
                 "spearman": _spearman(x_values, y_values),
             }
         )
 
     return pl.DataFrame(rows).sort("season")
-
-
-def _format_markdown_value(value: object) -> str:
-    """Format one scalar value for a Markdown table cell."""
-    if value is None:
-        return "-"
-    if isinstance(value, float):
-        return f"{value:.3f}"
-    return str(value)
-
-
-def _markdown_table(headers: Sequence[str], rows: Sequence[Sequence[object | None]]) -> str:
-    """Render a simple GitHub-flavored Markdown table."""
-    header_row = "| " + " | ".join(headers) + " |"
-    separator_row = "| " + " | ".join("---" for _ in headers) + " |"
-    body_rows = [
-        "| " + " | ".join(_format_markdown_value(value) for value in row) + " |" for row in rows
-    ]
-    return "\n".join([header_row, separator_row, *body_rows])
-
-
-def build_validation_report_text(
-    metrics: pl.DataFrame,
-    stability: pl.DataFrame,
-    qbr_correlations: pl.DataFrame,
-    seasons: list[int],
-    start_week: int,
-    command: str,
-    mae_deltas: pl.DataFrame | None = None,
-    comparison_metrics: pl.DataFrame | None = None,
-    weekly_curves: pl.DataFrame | None = None,
-    saovr_vs_srs: pl.DataFrame | None = None,
-    t2_vs_srs: pl.DataFrame | None = None,
-    qb_season_audit: pl.DataFrame | None = None,
-    qb_defense_spread: pl.DataFrame | None = None,
-    qb_experiment_sweep: pl.DataFrame | None = None,
-    qb_case_study: pl.DataFrame | None = None,
-    qb_schedule_anchor: pl.DataFrame | None = None,
-    qb_schedule_trace: pl.DataFrame | None = None,
-    qb_lens_divergence: pl.DataFrame | None = None,
-    qb_designed_rush_preview: pl.DataFrame | None = None,
-    team_decision_lines: list[str] | None = None,
-    qb_open_status_lines: list[str] | None = None,
-    regression_note_lines: list[str] | None = None,
-    qb_opponent_offense_summary: pl.DataFrame | None = None,
-    qb_opponent_offense_cases: pl.DataFrame | None = None,
-    qb_opponent_offense_decision: dict[str, object] | None = None,
-    qb_leverage_summary: pl.DataFrame | None = None,
-    qb_leverage_cases: pl.DataFrame | None = None,
-    qb_leverage_decision: dict[str, object] | None = None,
-    qb_split_half_primary: pl.DataFrame | None = None,
-    qb_split_half_placebo: pl.DataFrame | None = None,
-    qb_split_half_cases: pl.DataFrame | None = None,
-    qb_split_half_decision: dict[str, object] | None = None,
-    qb_playoff_correlations: pl.DataFrame | None = None,
-) -> str:
-    """Render the validation report as Markdown."""
-    overall_metrics = metrics.filter(pl.col("split") != "season").sort(["baseline", "split"])
-    season_metrics = metrics.filter(pl.col("split") == "season").sort(["season", "baseline"])
-    overall_map = {
-        str(row["baseline"]): float(row["mae"])
-        for row in metrics.filter(pl.col("split") == "overall").iter_rows(named=True)
-    }
-    late_map = {
-        str(row["baseline"]): float(row["mae"])
-        for row in metrics.filter(pl.col("split") == "late").iter_rows(named=True)
-    }
-    stability_map = {str(row["metric"]): row for row in stability.iter_rows(named=True)}
-
-    history_lines = history_strings.report_history_lines()
-    acceptance_lines = [
-        "## Acceptance Check",
-        "",
-        "- Leakage discipline: the snapshot perturbation test and prior-only fit test pass.",
-    ]
-
-    if {"SaOvR", "Elo", "SRS", "RawEPA"} <= set(overall_map):
-        saovr_mae = overall_map["SaOvR"]
-        elo_mae = overall_map["Elo"]
-        srs_mae = overall_map["SRS"]
-        raw_epa_mae = overall_map["RawEPA"]
-        team_pass = saovr_mae < elo_mae and saovr_mae < srs_mae and saovr_mae < raw_epa_mae
-        acceptance_lines.append(
-            "- Team headline: "
-            f"{'Pass' if team_pass else 'Fail'}. SaOvR overall MAE {saovr_mae:.3f}; "
-            f"Elo {elo_mae:.3f}; SRS {srs_mae:.3f}; RawEPA {raw_epa_mae:.3f}."
-        )
-        if {"SaOvR", "Elo", "SRS", "RawEPA"} <= set(late_map) and not team_pass:
-            acceptance_lines.append(
-                "- Team late-season context: SaOvR late-week MAE "
-                f"{late_map['SaOvR']:.3f}; Elo {late_map['Elo']:.3f}; "
-                f"SRS {late_map['SRS']:.3f}; RawEPA {late_map['RawEPA']:.3f}."
-            )
-
-    if {"QSaCR", "qb_passer_rating", "qb_any_a"} <= set(stability_map):
-        qsacr_row = stability_map["QSaCR"]
-        passer_row = stability_map["qb_passer_rating"]
-        any_a_row = stability_map["qb_any_a"]
-        qb_pass = (
-            float(qsacr_row["pearson"]) > float(passer_row["pearson"])
-            and float(qsacr_row["pearson"]) > float(any_a_row["pearson"])
-            and float(qsacr_row["spearman"]) > float(passer_row["spearman"])
-            and float(qsacr_row["spearman"]) > float(any_a_row["spearman"])
-        )
-        acceptance_lines.append(
-            "- QB stability: "
-            f"{'Pass' if qb_pass else 'Fail'}. QSaCR Pearson/Spearman "
-            f"{float(qsacr_row['pearson']):.3f}/{float(qsacr_row['spearman']):.3f}; "
-            "passer rating "
-            f"{float(passer_row['pearson']):.3f}/{float(passer_row['spearman']):.3f}; "
-            f"ANY/A {float(any_a_row['pearson']):.3f}/{float(any_a_row['spearman']):.3f}."
-        )
-
-    if not qbr_correlations.is_empty():
-        pearson_mean = float(qbr_correlations.select(pl.col("pearson").mean()).item())
-        spearman_mean = float(qbr_correlations.select(pl.col("spearman").mean()).item())
-        acceptance_lines.append(
-            "- External reference: mean QBR Pearson/Spearman correlation "
-            f"{pearson_mean:.3f}/{spearman_mean:.3f} across {qbr_correlations.height} seasons."
-        )
-    acceptance_lines.append("")
-
-    comparison_lines = history_strings.report_league_criterion_lines()
-
-    if comparison_metrics is not None and not comparison_metrics.is_empty():
-        comparison_map = {
-            str(row["baseline"]): float(row["mae"])
-            for row in comparison_metrics.filter(pl.col("split") == "overall").iter_rows(named=True)
-        }
-        t2_vs_srs_row = None
-        t2_vs_raw_row = None
-        if mae_deltas is not None and not mae_deltas.is_empty():
-            t2_vs_srs_match = mae_deltas.filter(
-                (pl.col("baseline_a") == _ROLLING_EPA_ST_BASELINE)
-                & (pl.col("baseline_b") == "SRS")
-                & (pl.col("split") == "overall")
-            )
-            if not t2_vs_srs_match.is_empty():
-                t2_vs_srs_row = t2_vs_srs_match.row(0, named=True)
-            t2_vs_raw_match = mae_deltas.filter(
-                (pl.col("baseline_a") == _ROLLING_EPA_ST_BASELINE)
-                & (pl.col("baseline_b") == "RawEPA")
-                & (pl.col("split") == "overall")
-            )
-            if not t2_vs_raw_match.is_empty():
-                t2_vs_raw_row = t2_vs_raw_match.row(0, named=True)
-
-        if {_ROLLING_EPA_BASELINE, _ROLLING_EPA_ST_BASELINE} <= set(comparison_map):
-            league1_pass = (
-                t2_vs_srs_row is not None
-                and bool(t2_vs_srs_row["distinguishable_from_zero"])
-                and t2_vs_raw_row is not None
-                and bool(t2_vs_raw_row["distinguishable_from_zero"])
-                and comparison_map.get(_ROLLING_EPA_ST_BASELINE, float("inf"))
-                < comparison_map.get("SRS", float("inf"))
-                and comparison_map.get(_ROLLING_EPA_ST_BASELINE, float("inf"))
-                < comparison_map.get("RawEPA", float("inf"))
-            )
-            comparison_lines.append(history_strings.report_league_acceptance_heading())
-            comparison_lines.append("")
-            comparison_lines.append(
-                "- League 1 team headline:\n  "
-                f"{'Pass' if league1_pass else 'Fail'}. "
-                f"{_ROLLING_EPA_BASELINE} overall MAE "
-                f"{comparison_map[_ROLLING_EPA_BASELINE]:.3f};\n  "
-                f"{_ROLLING_EPA_ST_BASELINE} overall MAE "
-                f"{comparison_map[_ROLLING_EPA_ST_BASELINE]:.3f};\n  "
-                f"SRS {comparison_map.get('SRS', float('nan')):.3f};\n  "
-                f"RawEPA {comparison_map.get('RawEPA', float('nan')):.3f}."
-            )
-            if t2_vs_srs_row is not None:
-                comparison_lines.append(
-                    "- League 1 bootstrap vs SRS: "
-                    f"MAE delta {float(t2_vs_srs_row['mae_delta']):.3f} with 95% CI "
-                    f"[{float(t2_vs_srs_row['ci_lower']):.3f}, "
-                    f"{float(t2_vs_srs_row['ci_upper']):.3f}]."
-                )
-            if t2_vs_raw_row is not None:
-                comparison_lines.append(
-                    "- League 1 bootstrap vs RawEPA: "
-                    f"MAE delta {float(t2_vs_raw_row['mae_delta']):.3f} with 95% CI "
-                    f"[{float(t2_vs_raw_row['ci_lower']):.3f}, "
-                    f"{float(t2_vs_raw_row['ci_upper']):.3f}]."
-                )
-
-    if qb_experiment_sweep is not None and not qb_experiment_sweep.is_empty():
-        current_row = qb_experiment_sweep.filter(pl.col("variant") == "current")
-        fixed_defense_row = qb_experiment_sweep.filter(pl.col("variant") == "fixed_team_defense")
-        lighter_penalty_row = qb_experiment_sweep.sort("slope", descending=True).head(1)
-        if (
-            not current_row.is_empty()
-            and not fixed_defense_row.is_empty()
-            and not lighter_penalty_row.is_empty()
-        ):
-            current_variant = current_row.row(0, named=True)
-            fixed_variant = fixed_defense_row.row(0, named=True)
-            lighter_variant = lighter_penalty_row.row(0, named=True)
-            comparison_lines.append(
-                "- QB revision sweep: not adopted. "
-                f"Current eligible-QB slope {float(current_variant['slope']):.3f}; "
-                f"fixed-defense slope {float(fixed_variant['slope']):.3f};\n  "
-                "best tested lighter-defense-penalty slope "
-                f"{float(lighter_variant['slope']):.3f} ({lighter_variant['variant']})."
-            )
-            comparison_lines.append(
-                "- League 2 forecast-only prior experiment: not evaluated in this worktree."
-            )
-            comparison_lines.append("")
-
-    overview_lines = [
-        "# Validation Report",
-        "",
-        f"Evaluation seasons: {min(seasons)}-{max(seasons)}.",
-        f"Prediction weeks start at {start_week}.",
-        "",
-        "## Command",
-        "",
-        "```bash",
-        command,
-        "```",
-        "",
-        *(regression_note_lines or []),
-        *history_lines,
-        *comparison_lines,
-        *(team_decision_lines or []),
-        *acceptance_lines,
-    ]
-
-    if not overall_metrics.is_empty():
-        overall_rows = [
-            [row["baseline"], row["split"], row["games"], row["mae"], row["rmse"]]
-            for row in overall_metrics.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## Original Walk-Forward Summary",
-                "",
-                _markdown_table(["Baseline", "Split", "Games", "MAE", "RMSE"], overall_rows),
-                "",
-            ]
-        )
-
-    if comparison_metrics is not None and not comparison_metrics.is_empty():
-        comparison_rows = [
-            [row["baseline"], row["split"], row["games"], row["mae"], row["rmse"]]
-            for row in comparison_metrics.filter(pl.col("split") != "season").iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## League 1 Team Experiments",
-                "",
-                _markdown_table(["Baseline", "Split", "Games", "MAE", "RMSE"], comparison_rows),
-                "",
-            ]
-        )
-
-    if mae_deltas is not None and not mae_deltas.is_empty():
-        delta_rows = [
-            [
-                row["baseline_a"],
-                row["baseline_b"],
-                row["split"],
-                row["games"],
-                row["mae_delta"],
-                row["ci_lower"],
-                row["ci_upper"],
-                row["probability_baseline_a_not_worse"],
-                row["distinguishable_from_zero"],
-            ]
-            for row in mae_deltas.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## Paired Bootstrap MAE Deltas",
-                "",
-                _markdown_table(
-                    [
-                        "Baseline A",
-                        "Baseline B",
-                        "Split",
-                        "Games",
-                        "MAE Delta",
-                        "CI Lower",
-                        "CI Upper",
-                        "P(A<=B)",
-                        "Distinguishable",
-                    ],
-                    delta_rows,
-                ),
-                "",
-            ]
-        )
-
-    if weekly_curves is not None and not weekly_curves.is_empty():
-        weekly_rows = [
-            [row["week"], row["baseline"], row["games"], row["mae"], row["rmse"]]
-            for row in weekly_curves.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## Weekly MAE Curves",
-                "",
-                _markdown_table(["Week", "Baseline", "Games", "MAE", "RMSE"], weekly_rows),
-                "",
-            ]
-        )
-
-    if not season_metrics.is_empty():
-        season_rows = [
-            [row["season"], row["baseline"], row["games"], row["mae"], row["rmse"]]
-            for row in season_metrics.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## Original Per-Season Walk-Forward",
-                "",
-                _markdown_table(["Season", "Baseline", "Games", "MAE", "RMSE"], season_rows),
-                "",
-            ]
-        )
-
-    if saovr_vs_srs is not None and not saovr_vs_srs.is_empty():
-        delta_rows = [
-            [row["season"], row["mae_a"], row["mae_b"], row["mae_delta"], row["rmse_delta"]]
-            for row in saovr_vs_srs.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## Per-Season SaOvR vs SRS",
-                "",
-                _markdown_table(
-                    ["Season", "SaOvR MAE", "SRS MAE", "MAE Delta", "RMSE Delta"],
-                    delta_rows,
-                ),
-                "",
-            ]
-        )
-
-    if t2_vs_srs is not None and not t2_vs_srs.is_empty():
-        delta_rows = [
-            [row["season"], row["mae_a"], row["mae_b"], row["mae_delta"], row["rmse_delta"]]
-            for row in t2_vs_srs.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                f"## Per-Season {_ROLLING_EPA_ST_BASELINE} vs SRS",
-                "",
-                _markdown_table(
-                    [
-                        "Season",
-                        f"{_ROLLING_EPA_ST_BASELINE} MAE",
-                        "SRS MAE",
-                        "MAE Delta",
-                        "RMSE Delta",
-                    ],
-                    delta_rows,
-                ),
-                "",
-            ]
-        )
-
-    stability_rows = [
-        [row["metric"], row["entity"], row["paired_rows"], row["pearson"], row["spearman"]]
-        for row in stability.iter_rows(named=True)
-    ]
-    overview_lines.extend(
-        [
-            "## Stability",
-            "",
-            _markdown_table(
-                ["Metric", "Entity", "Paired Rows", "Pearson", "Spearman"], stability_rows
-            ),
-            "",
-        ]
-    )
-
-    qbr_rows = [
-        [row["season"], row["joined_rows"], row["pearson"], row["spearman"]]
-        for row in qbr_correlations.iter_rows(named=True)
-    ]
-    overview_lines.extend(
-        [
-            "## QBR Correlations",
-            "",
-            _markdown_table(["Season", "Joined Rows", "Pearson", "Spearman"], qbr_rows),
-            "",
-        ]
-    )
-
-    if qb_schedule_anchor is not None and not qb_schedule_anchor.is_empty():
-        anchor_rows = [
-            [
-                row["qb_name"],
-                row["games"],
-                row["avg_opp_SaCR"],
-                row["avg_opp_SaDR"],
-                row["avg_opp_SRS"],
-            ]
-            for row in qb_schedule_anchor.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## 2025 QB Schedule-Lens Anchor",
-                "",
-                _markdown_table(
-                    ["QB", "Games", "Avg Opp SaCR", "Avg Opp SaDR", "Avg Opp SRS"],
-                    anchor_rows,
-                ),
-                "",
-            ]
-        )
-
-    if qb_schedule_trace is not None and not qb_schedule_trace.is_empty():
-        trace_rows = [
-            [
-                row.get("qb_name"),
-                row.get("raw_value"),
-                row.get("adjusted_value"),
-                row.get("weighted_faced_defense"),
-                row.get("adjustment_delta"),
-                row.get("QSoS"),
-                row.get("faced_opp_SaCR"),
-                row.get("adj_def_qb_epa_per_dropback_faced"),
-            ]
-            for row in qb_schedule_trace.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## QB Schedule-Lens Trace",
-                "",
-                _markdown_table(
-                    [
-                        "QB",
-                        "Raw EPA/DB",
-                        "Adjusted EPA/DB",
-                        "Weighted Faced Defense",
-                        "Adjustment Delta",
-                        "QSoS",
-                        "Faced Opp SaCR",
-                        "Faced Adj Def EPA/DB",
-                    ],
-                    trace_rows,
-                ),
-                "",
-            ]
-        )
-
-    if qb_lens_divergence is not None and not qb_lens_divergence.is_empty():
-        divergence_rows = [
-            [
-                row.get("qb_name"),
-                row.get("team"),
-                row.get("QSoS"),
-                row.get("faced_opp_SaCR"),
-                row.get("qsos_rank"),
-                row.get("overall_rank"),
-                row.get("rank_gap"),
-            ]
-            for row in qb_lens_divergence.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## QB Lens-Divergence Rankings",
-                "",
-                _markdown_table(
-                    [
-                        "QB",
-                        "Team",
-                        "QSoS",
-                        "Faced Opp SaCR",
-                        "QSoS Rank",
-                        "Overall Rank",
-                        "Rank Gap",
-                    ],
-                    divergence_rows,
-                ),
-                "",
-            ]
-        )
-
-    if qb_designed_rush_preview is not None and not qb_designed_rush_preview.is_empty():
-        preview_rows = [
-            [
-                row.get("qb_name"),
-                row.get("team"),
-                row.get("qb_designed_carries_total"),
-                row.get("qb_designed_epa_per_carry"),
-                row.get("adj_def_rushing_epa_per_offensive_snap_faced"),
-                row.get("adj_qb_designed_rush_epa_per_carry"),
-                row.get("QSoS"),
-                row.get("adj_def_qb_epa_per_dropback_faced"),
-                row.get("faced_opp_SaCR"),
-            ]
-            for row in qb_designed_rush_preview.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## 2025 QB Designed-Rush Preview",
-                "",
-                _markdown_table(
-                    [
-                        "QB",
-                        "Team",
-                        "Designed Carries",
-                        "Designed EPA/Carry",
-                        "Faced Rush Defense",
-                        "Adj Designed Rush EPA/Carry",
-                        "QSoS",
-                        "Faced Adj Def EPA/DB",
-                        "Faced Opp SaCR",
-                    ],
-                    preview_rows,
-                ),
-                "",
-            ]
-        )
-
-    if qb_season_audit is not None and not qb_season_audit.is_empty():
-        audit_rows = [
-            [
-                row["season"],
-                row["rows"],
-                row["slope"],
-                row["correlation"],
-                row["mean_abs_identity_residual"],
-            ]
-            for row in qb_season_audit.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## QB Adjustment Audit",
-                "",
-                _markdown_table(
-                    ["Season", "Eligible QBs", "Slope", "Correlation", "Mean Abs Residual"],
-                    audit_rows,
-                ),
-                "",
-            ]
-        )
-
-    if qb_defense_spread is not None and not qb_defense_spread.is_empty():
-        spread_rows = [
-            [
-                row["season"],
-                row["team_defense_sd"],
-                row["qb_defense_sd"],
-                row["qb_to_team_spread_ratio"],
-            ]
-            for row in qb_defense_spread.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## QB Defense Spread Audit",
-                "",
-                _markdown_table(
-                    ["Season", "Team Defense SD", "QB Defense SD", "QB/Team Ratio"],
-                    spread_rows,
-                ),
-                "",
-            ]
-        )
-
-    if qb_experiment_sweep is not None and not qb_experiment_sweep.is_empty():
-        experiment_rows = [
-            [
-                row["variant"],
-                row["eligible_rows"],
-                row["slope"],
-                row["correlation"],
-                row.get("defense_penalty_multiplier"),
-            ]
-            for row in qb_experiment_sweep.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## QB Revision Sweep",
-                "",
-                _markdown_table(
-                    [
-                        "Variant",
-                        "Eligible QBs",
-                        "Slope",
-                        "Correlation",
-                        "Defense Penalty Multiplier",
-                    ],
-                    experiment_rows,
-                ),
-                "",
-            ]
-        )
-
-    if qb_case_study is not None and not qb_case_study.is_empty():
-        case_rows = [
-            [
-                row["variant"],
-                row["qb_name"],
-                row["raw_weighted"],
-                row["adjusted_value"],
-                row["faced_difficulty"],
-                row["adjustment_delta"],
-            ]
-            for row in qb_case_study.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "## Maye/Stafford Case Study",
-                "",
-                _markdown_table(
-                    [
-                        "Variant",
-                        "QB",
-                        "Raw EPA/DB",
-                        "Adjusted EPA/DB",
-                        "Faced Difficulty",
-                        "Adjustment Delta",
-                    ],
-                    case_rows,
-                ),
-                "",
-            ]
-        )
-
-    if qb_open_status_lines:
-        overview_lines.extend(qb_open_status_lines)
-
-    if qb_opponent_offense_summary is not None and not qb_opponent_offense_summary.is_empty():
-        overview_lines.extend(history_strings.opponent_offense_report_heading_lines())
-        if qb_opponent_offense_decision is not None:
-            overview_lines.append(
-                f"- Gate reading: {qb_opponent_offense_decision.get('decision', 'not_supported')}."
-            )
-        pooled_row = qb_opponent_offense_summary.filter(pl.col("scope") == "pooled")
-        if not pooled_row.is_empty():
-            pooled = pooled_row.row(0, named=True)
-            overview_lines.append(
-                "- Pooled weighted slope "
-                f"{float(pooled['slope']):.3f} with 95% CI "
-                f"[{float(pooled['ci_lower']):.3f}, {float(pooled['ci_upper']):.3f}]\n  and "
-                f"{int(pooled['direction_positive_count'])} / "
-                f"{int(pooled['direction_total_count'])} "
-                f"positive seasons (p = {float(pooled['direction_p_value']):.3f})."
-            )
-        summary_rows = [
-            [
-                row["scope"],
-                row["season"],
-                row["rows"],
-                row["total_dropbacks"],
-                row["slope"],
-                row["correlation"],
-                row["ci_lower"],
-                row["ci_upper"],
-                row["direction_positive_count"],
-                row["direction_total_count"],
-                row["direction_p_value"],
-            ]
-            for row in qb_opponent_offense_summary.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                _markdown_table(
-                    [
-                        "Scope",
-                        "Season",
-                        "QB Seasons",
-                        "Dropbacks",
-                        "Slope",
-                        "Correlation",
-                        "CI Lower",
-                        "CI Upper",
-                        "Positive Seasons",
-                        "Season Count",
-                        "Binomial P",
-                    ],
-                    summary_rows,
-                ),
-                "",
-            ]
-        )
-        if qb_opponent_offense_cases is not None and not qb_opponent_offense_cases.is_empty():
-            case_rows = [
-                [
-                    row["season"],
-                    row["qb_name"],
-                    row["faced_opponent_offense"],
-                    row["mean_adjusted_residual"],
-                    row["total_dropbacks"],
-                ]
-                for row in qb_opponent_offense_cases.iter_rows(named=True)
-            ]
-            overview_lines.extend(
-                [
-                    _markdown_table(
-                        [
-                            "Season",
-                            "QB",
-                            "Faced Opponent Offense",
-                            "Mean Adjusted Residual",
-                            "Dropbacks",
-                        ],
-                        case_rows,
-                    ),
-                    "",
-                ]
-            )
-
-    if qb_leverage_summary is not None and not qb_leverage_summary.is_empty():
-        overview_lines.extend(history_strings.leverage_report_heading_lines())
-        if qb_leverage_decision is not None:
-            overview_lines.append(
-                "- Moderate-leverage win-probability band: "
-                f"{qb_leverage_decision.get('moderate_wp_band', 'unknown')}."
-            )
-            overview_lines.append(
-                f"- Gate reading: {qb_leverage_decision.get('decision', 'not_supported')}."
-            )
-            overview_lines.append(
-                "- Companion gate: stability "
-                f"{'pass' if qb_leverage_decision.get('stability_pass') else 'fail'}, "
-                "playoff correlation "
-                f"{'pass' if qb_leverage_decision.get('playoff_pass') else 'fail'}."
-            )
-        pooled_row = qb_leverage_summary.filter(pl.col("scope") == "pooled")
-        if not pooled_row.is_empty():
-            pooled = pooled_row.row(0, named=True)
-            overview_lines.append(
-                "- Pooled weighted slope "
-                f"{float(pooled['slope']):.3f} with 95% CI "
-                f"[{float(pooled['ci_lower']):.3f}, {float(pooled['ci_upper']):.3f}]\n  and "
-                f"{int(pooled['direction_positive_count'])} / "
-                f"{int(pooled['direction_total_count'])} "
-                f"positive seasons (p = {float(pooled['direction_p_value']):.3f})."
-            )
-        summary_rows = [
-            [
-                row["scope"],
-                row["season"],
-                row["rows"],
-                row["total_dropbacks"],
-                row["slope"],
-                row["correlation"],
-                row["ci_lower"],
-                row["ci_upper"],
-                row["direction_positive_count"],
-                row["direction_total_count"],
-                row["direction_p_value"],
-            ]
-            for row in qb_leverage_summary.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                _markdown_table(
-                    [
-                        "Scope",
-                        "Season",
-                        "QB Seasons",
-                        "Dropbacks",
-                        "Slope",
-                        "Correlation",
-                        "CI Lower",
-                        "CI Upper",
-                        "Positive Seasons",
-                        "Season Count",
-                        "Binomial P",
-                    ],
-                    summary_rows,
-                ),
-                "",
-            ]
-        )
-        if qb_leverage_cases is not None and not qb_leverage_cases.is_empty():
-            case_rows = [
-                [
-                    row["season"],
-                    row["qb_name"],
-                    row["schedule_softness"],
-                    row["low_leverage_share"],
-                    row["moderate_leverage_share"],
-                ]
-                for row in qb_leverage_cases.iter_rows(named=True)
-            ]
-            overview_lines.extend(
-                [
-                    _markdown_table(
-                        [
-                            "Season",
-                            "QB",
-                            "Schedule Softness",
-                            "Low-Leverage Share",
-                            "Moderate-Leverage Share",
-                        ],
-                        case_rows,
-                    ),
-                    "",
-                ]
-            )
-
-    if qb_split_half_primary is not None and not qb_split_half_primary.is_empty():
-        overview_lines.extend(history_strings.split_half_report_heading_lines())
-        if qb_split_half_decision is not None:
-            decision_text = str(qb_split_half_decision.get("decision", "not_supported"))
-            overview_lines.append(f"- Decision gate reading: {decision_text}.")
-            if qb_split_half_decision.get("primary_gate_supported") is not None:
-                overview_lines.append(
-                    "- Primary top-half gate: "
-                    f"{'passed' if qb_split_half_decision['primary_gate_supported'] else 'failed'}."
-                )
-            if qb_split_half_decision.get("placebo_is_symmetric"):
-                overview_lines.append(
-                    "- Placebo check: bottom-half residuals showed a same-direction signal, so"
-                    " the strong-defense-specific interpretation is not supported."
-                )
-            overview_lines.append("")
-        primary_rows = [
-            [
-                row["scope"],
-                row["season"],
-                row["rows"],
-                row["total_dropbacks"],
-                row["slope"],
-                row["ci_lower"],
-                row["ci_upper"],
-                row["direction_positive_count"],
-                row["direction_total_count"],
-                row["direction_p_value"],
-            ]
-            for row in qb_split_half_primary.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "Top-half residual regression summary:",
-                "",
-                _markdown_table(
-                    [
-                        "Scope",
-                        "Season",
-                        "QB Seasons",
-                        "Dropbacks",
-                        "Slope",
-                        "CI Lower",
-                        "CI Upper",
-                        "Positive Seasons",
-                        "Season Count",
-                        "Binomial P",
-                    ],
-                    primary_rows,
-                ),
-                "",
-            ]
-        )
-    if qb_split_half_placebo is not None and not qb_split_half_placebo.is_empty():
-        placebo_rows = [
-            [
-                row["scope"],
-                row["season"],
-                row["rows"],
-                row["total_dropbacks"],
-                row["slope"],
-                row["ci_lower"],
-                row["ci_upper"],
-            ]
-            for row in qb_split_half_placebo.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "Bottom-half placebo summary:",
-                "",
-                _markdown_table(
-                    [
-                        "Scope",
-                        "Season",
-                        "QB Seasons",
-                        "Dropbacks",
-                        "Slope",
-                        "CI Lower",
-                        "CI Upper",
-                    ],
-                    placebo_rows,
-                ),
-                "",
-            ]
-        )
-    if qb_split_half_cases is not None and not qb_split_half_cases.is_empty():
-        case_rows = [
-            [
-                row.get("season"),
-                row.get("qb_name"),
-                row.get("faced_difficulty"),
-                row.get("additive_prediction"),
-                row.get("vs_top_half_adjusted_epa_per_dropback"),
-                row.get("vs_top_half_residual"),
-                row.get("vs_top_half_dropbacks"),
-                row.get("vs_bottom_half_adjusted_epa_per_dropback"),
-                row.get("vs_bottom_half_residual"),
-                row.get("vs_bottom_half_dropbacks"),
-            ]
-            for row in qb_split_half_cases.iter_rows(named=True)
-        ]
-        overview_lines.extend(
-            [
-                "2025 named case rows:",
-                "",
-                _markdown_table(
-                    [
-                        "Season",
-                        "QB",
-                        "Faced Difficulty",
-                        "Additive Prediction",
-                        "Top-Half Adj EPA/DB",
-                        "Top-Half Residual",
-                        "Top-Half DB",
-                        "Bottom-Half Adj EPA/DB",
-                        "Bottom-Half Residual",
-                        "Bottom-Half DB",
-                    ],
-                    case_rows,
-                ),
-                "",
-            ]
-        )
-
-    if qb_playoff_correlations is not None and not qb_playoff_correlations.is_empty():
-        include_cis = {
-            "spearman_ci_lower",
-            "spearman_ci_upper",
-            "pearson_ci_lower",
-            "pearson_ci_upper",
-        }.issubset(set(qb_playoff_correlations.columns))
-        correlation_rows = []
-        for row in qb_playoff_correlations.iter_rows(named=True):
-            row_values: list[object | None] = [
-                row["season_label"],
-                row["metric"],
-                row["qb_seasons"],
-                row["playoff_dropbacks"],
-                row["spearman"],
-            ]
-            if include_cis:
-                row_values.extend([row["spearman_ci_lower"], row["spearman_ci_upper"]])
-            row_values.append(row["pearson"])
-            if include_cis:
-                row_values.extend([row["pearson_ci_lower"], row["pearson_ci_upper"]])
-            correlation_rows.append(row_values)
-        headers = ["Season", "Metric", "QB Seasons", "Playoff Dropbacks", "Spearman"]
-        if include_cis:
-            headers.extend(["Spearman CI Lower", "Spearman CI Upper"])
-        headers.append("Pearson")
-        if include_cis:
-            headers.extend(["Pearson CI Lower", "Pearson CI Upper"])
-        overview_lines.extend(
-            [
-                *history_strings.playoff_validation_report_intro_lines(),
-                _markdown_table(
-                    headers,
-                    correlation_rows,
-                ),
-                "",
-            ]
-        )
-
-    overview_lines.extend(history_strings.sacr_report_caveat_lines())
-    return "\n".join(overview_lines).rstrip() + "\n"
-
-
-def write_validation_report(
-    report_path: Path,
-    metrics: pl.DataFrame,
-    stability: pl.DataFrame,
-    qbr_correlations: pl.DataFrame,
-    mae_deltas: pl.DataFrame | None,
-    seasons: list[int],
-    start_week: int,
-    command: str,
-    comparison_metrics: pl.DataFrame | None = None,
-    weekly_curves: pl.DataFrame | None = None,
-    saovr_vs_srs: pl.DataFrame | None = None,
-    t2_vs_srs: pl.DataFrame | None = None,
-    qb_season_audit: pl.DataFrame | None = None,
-    qb_defense_spread: pl.DataFrame | None = None,
-    qb_experiment_sweep: pl.DataFrame | None = None,
-    qb_case_study: pl.DataFrame | None = None,
-    qb_schedule_anchor: pl.DataFrame | None = None,
-    qb_schedule_trace: pl.DataFrame | None = None,
-    qb_lens_divergence: pl.DataFrame | None = None,
-    qb_designed_rush_preview: pl.DataFrame | None = None,
-    team_decision_lines: list[str] | None = None,
-    qb_open_status_lines: list[str] | None = None,
-    regression_note_lines: list[str] | None = None,
-    qb_opponent_offense_summary: pl.DataFrame | None = None,
-    qb_opponent_offense_cases: pl.DataFrame | None = None,
-    qb_opponent_offense_decision: dict[str, object] | None = None,
-    qb_leverage_summary: pl.DataFrame | None = None,
-    qb_leverage_cases: pl.DataFrame | None = None,
-    qb_leverage_decision: dict[str, object] | None = None,
-    qb_split_half_primary: pl.DataFrame | None = None,
-    qb_split_half_placebo: pl.DataFrame | None = None,
-    qb_split_half_cases: pl.DataFrame | None = None,
-    qb_split_half_decision: dict[str, object] | None = None,
-    qb_playoff_correlations: pl.DataFrame | None = None,
-) -> None:
-    """Write the validation report to disk."""
-    report_text = build_validation_report_text(
-        metrics=metrics,
-        stability=stability,
-        qbr_correlations=qbr_correlations,
-        mae_deltas=mae_deltas,
-        seasons=seasons,
-        start_week=start_week,
-        command=command,
-        comparison_metrics=comparison_metrics,
-        weekly_curves=weekly_curves,
-        saovr_vs_srs=saovr_vs_srs,
-        t2_vs_srs=t2_vs_srs,
-        qb_season_audit=qb_season_audit,
-        qb_defense_spread=qb_defense_spread,
-        qb_experiment_sweep=qb_experiment_sweep,
-        qb_case_study=qb_case_study,
-        qb_schedule_anchor=qb_schedule_anchor,
-        qb_schedule_trace=qb_schedule_trace,
-        qb_lens_divergence=qb_lens_divergence,
-        qb_designed_rush_preview=qb_designed_rush_preview,
-        team_decision_lines=team_decision_lines,
-        qb_open_status_lines=qb_open_status_lines,
-        regression_note_lines=regression_note_lines,
-        qb_opponent_offense_summary=qb_opponent_offense_summary,
-        qb_opponent_offense_cases=qb_opponent_offense_cases,
-        qb_opponent_offense_decision=qb_opponent_offense_decision,
-        qb_leverage_summary=qb_leverage_summary,
-        qb_leverage_cases=qb_leverage_cases,
-        qb_leverage_decision=qb_leverage_decision,
-        qb_split_half_primary=qb_split_half_primary,
-        qb_split_half_placebo=qb_split_half_placebo,
-        qb_split_half_cases=qb_split_half_cases,
-        qb_split_half_decision=qb_split_half_decision,
-        qb_playoff_correlations=qb_playoff_correlations,
-    )
-    report_path.write_text(report_text, encoding="utf-8")
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -2257,6 +1232,96 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Markdown report output path.",
     )
     return parser.parse_args(argv)
+
+
+def _qb_playoff_correlations(
+    qb_playoff_validation: pl.DataFrame, qb_leverage_history: pl.DataFrame
+) -> pl.DataFrame:
+    """Return playoff validation correlations for every regular-season QB metric available."""
+    if not qb_leverage_history.is_empty() and not qb_playoff_validation.is_empty():
+        join_keys = [
+            column
+            for column in ("season", "qb_id", "qb_name", "team")
+            if column in qb_leverage_history.columns and column in qb_playoff_validation.columns
+        ]
+        qb_playoff_validation = qb_playoff_validation.join(
+            qb_leverage_history.select([*join_keys, "moderate_leverage_adjusted_epa_per_dropback"]),
+            on=join_keys,
+            how="left",
+        )
+    return compute_playoff_metric_correlations(
+        qb_playoff_validation.select(
+            [
+                column
+                for column in (
+                    "season",
+                    "qb_id",
+                    "qb_name",
+                    "team",
+                    "playoff_adjusted_epa_per_dropback",
+                    "playoff_dropbacks",
+                )
+                if column in qb_playoff_validation.columns
+            ]
+        )
+        if not qb_playoff_validation.is_empty()
+        else pl.DataFrame(),
+        qb_playoff_validation,
+        metric_columns=[
+            column
+            for column in (
+                "QSaCR",
+                "QSaOR",
+                "QRaw",
+                "qb_passer_rating",
+                "qb_any_a",
+                "moderate_leverage_adjusted_epa_per_dropback",
+                "vs_top_half_adjusted_epa_per_dropback",
+            )
+            if column in qb_playoff_validation.columns
+        ],
+    )
+
+
+def _apply_leverage_companion_gate(
+    qb_leverage_decision: dict[str, object],
+    stability: pl.DataFrame,
+    qb_leverage_history: pl.DataFrame,
+    qb_playoff_correlations: pl.DataFrame,
+) -> None:
+    """Record whether the moderate-leverage companion clears its stability and playoff gates."""
+    qb_variant_stability = compute_qb_metric_stability_from_history(
+        qb_leverage_history,
+        "moderate_leverage_adjusted_epa_per_dropback",
+    )
+    qscr_row = stability.filter((pl.col("entity") == "qb") & (pl.col("metric") == "QSaCR"))
+    leverage_playoff_row = qb_playoff_correlations.filter(
+        (pl.col("season_label") == "pooled")
+        & (pl.col("metric") == "moderate_leverage_adjusted_epa_per_dropback")
+    )
+    qsaor_playoff_row = qb_playoff_correlations.filter(
+        (pl.col("season_label") == "pooled") & (pl.col("metric") == "QSaOR")
+    )
+    stability_pass = bool(
+        qb_variant_stability is not None
+        and not qscr_row.is_empty()
+        and float(qb_variant_stability["pearson"]) >= float(qscr_row.select("pearson").item())
+        and float(qb_variant_stability["spearman"]) >= float(qscr_row.select("spearman").item())
+    )
+    playoff_pass = bool(
+        not leverage_playoff_row.is_empty()
+        and not qsaor_playoff_row.is_empty()
+        and float(leverage_playoff_row.select("spearman").item())
+        >= float(qsaor_playoff_row.select("spearman").item())
+    )
+    qb_leverage_decision.update(
+        {
+            "stability_pass": stability_pass,
+            "playoff_pass": playoff_pass,
+            "variant_stability": qb_variant_stability,
+            "decision": "publish_companion" if stability_pass and playoff_pass else "not_supported",
+        }
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -2299,9 +1364,9 @@ def main(argv: list[str] | None = None) -> None:
     mae_deltas = compute_pairwise_mae_bootstrap(
         combined_predictions,
         baselines=[
-            _PLAY_LEVEL_EPA_ST_BASELINE,
-            _ROLLING_EPA_ST_BASELINE,
-            _ROLLING_EPA_BASELINE,
+            PLAY_LEVEL_EPA_ST_BASELINE,
+            ROLLING_EPA_ST_BASELINE,
+            ROLLING_EPA_BASELINE,
             "SRS",
             "RawEPA",
             "SaOvR",
@@ -2313,14 +1378,14 @@ def main(argv: list[str] | None = None) -> None:
                 "Elo",
                 "SRS",
                 "SaOvR",
-                _ROLLING_EPA_ST_BASELINE,
-                _PLAY_LEVEL_EPA_ST_BASELINE,
+                ROLLING_EPA_ST_BASELINE,
+                PLAY_LEVEL_EPA_ST_BASELINE,
             ]
         )
     )
     saovr_vs_srs = compute_season_mae_deltas(combined_metrics, baseline_a="SaOvR", baseline_b="SRS")
     t2_vs_srs = compute_season_mae_deltas(
-        combined_metrics, baseline_a=_ROLLING_EPA_ST_BASELINE, baseline_b="SRS"
+        combined_metrics, baseline_a=ROLLING_EPA_ST_BASELINE, baseline_b="SRS"
     )
     qb_split_half = compute_qb_split_half_diagnostics(data_dir, seasons)
     qb_split_half_primary = summarize_qb_split_half_signal(
@@ -2357,49 +1422,7 @@ def main(argv: list[str] | None = None) -> None:
         qb_leverage_history,
         qb_leverage_decision,
     ) = compute_qb_leverage_diagnostics(data_dir, seasons)
-    if not qb_leverage_history.is_empty() and not qb_playoff_validation.is_empty():
-        join_keys = [
-            column
-            for column in ("season", "qb_id", "qb_name", "team")
-            if column in qb_leverage_history.columns and column in qb_playoff_validation.columns
-        ]
-        qb_playoff_validation = qb_playoff_validation.join(
-            qb_leverage_history.select([*join_keys, "moderate_leverage_adjusted_epa_per_dropback"]),
-            on=join_keys,
-            how="left",
-        )
-    qb_playoff_correlations = compute_playoff_metric_correlations(
-        qb_playoff_validation.select(
-            [
-                column
-                for column in (
-                    "season",
-                    "qb_id",
-                    "qb_name",
-                    "team",
-                    "playoff_adjusted_epa_per_dropback",
-                    "playoff_dropbacks",
-                )
-                if column in qb_playoff_validation.columns
-            ]
-        )
-        if not qb_playoff_validation.is_empty()
-        else pl.DataFrame(),
-        qb_playoff_validation,
-        metric_columns=[
-            column
-            for column in (
-                "QSaCR",
-                "QSaOR",
-                "QRaw",
-                "qb_passer_rating",
-                "qb_any_a",
-                "moderate_leverage_adjusted_epa_per_dropback",
-                "vs_top_half_adjusted_epa_per_dropback",
-            )
-            if column in qb_playoff_validation.columns
-        ],
-    )
+    qb_playoff_correlations = _qb_playoff_correlations(qb_playoff_validation, qb_leverage_history)
     qb_season_audit = compute_qb_season_audit_summary(data_dir, seasons)
     qb_defense_spread = compute_qb_defense_spread_summary(data_dir, seasons)
     qb_experiment_sweep = compute_qb_experiment_sweep(data_dir, seasons[-1])
@@ -2421,42 +1444,13 @@ def main(argv: list[str] | None = None) -> None:
         qb_names=["Drake Maye", "Lamar Jackson", "Josh Allen", "Matthew Stafford"],
     )
     stability = compute_stability_metrics(data_dir, seasons=seasons)
-    qb_variant_stability = compute_qb_metric_stability_from_history(
-        qb_leverage_history,
-        "moderate_leverage_adjusted_epa_per_dropback",
-    )
-    qscr_row = stability.filter((pl.col("entity") == "qb") & (pl.col("metric") == "QSaCR"))
-    leverage_playoff_row = qb_playoff_correlations.filter(
-        (pl.col("season_label") == "pooled")
-        & (pl.col("metric") == "moderate_leverage_adjusted_epa_per_dropback")
-    )
-    qsaor_playoff_row = qb_playoff_correlations.filter(
-        (pl.col("season_label") == "pooled") & (pl.col("metric") == "QSaOR")
-    )
-    stability_pass = bool(
-        qb_variant_stability is not None
-        and not qscr_row.is_empty()
-        and float(qb_variant_stability["pearson"]) >= float(qscr_row.select("pearson").item())
-        and float(qb_variant_stability["spearman"]) >= float(qscr_row.select("spearman").item())
-    )
-    playoff_pass = bool(
-        not leverage_playoff_row.is_empty()
-        and not qsaor_playoff_row.is_empty()
-        and float(leverage_playoff_row.select("spearman").item())
-        >= float(qsaor_playoff_row.select("spearman").item())
-    )
-    qb_leverage_decision.update(
-        {
-            "stability_pass": stability_pass,
-            "playoff_pass": playoff_pass,
-            "variant_stability": qb_variant_stability,
-            "decision": "publish_companion" if stability_pass and playoff_pass else "not_supported",
-        }
+    _apply_leverage_companion_gate(
+        qb_leverage_decision, stability, qb_leverage_history, qb_playoff_correlations
     )
     base_team_stability = stability.filter(
         (pl.col("entity") == "team") & (pl.col("metric") == "SaOvR")
     )
-    t4_history = build_play_level_team_season_ratings(data_dir, seasons, t4_weights)
+    t4_history = build_play_level_team_season_ratings(seasons, t4_weights)
     t4_team_stability = compute_team_rating_stability_from_history(
         t4_history,
         _PLAY_LEVEL_EPA_ST_COLUMN,
@@ -2474,39 +1468,41 @@ def main(argv: list[str] | None = None) -> None:
     qbr_correlations = compute_qbr_correlations(data_dir, seasons=seasons)
     write_validation_report(
         report_path,
-        metrics=metrics,
-        stability=stability,
-        qbr_correlations=qbr_correlations,
-        mae_deltas=mae_deltas,
-        seasons=seasons,
-        start_week=args.start_week,
-        command=command,
-        comparison_metrics=combined_metrics,
-        weekly_curves=weekly_curves,
-        saovr_vs_srs=saovr_vs_srs,
-        t2_vs_srs=t2_vs_srs,
-        qb_season_audit=qb_season_audit,
-        qb_defense_spread=qb_defense_spread,
-        qb_experiment_sweep=qb_experiment_sweep,
-        qb_case_study=qb_case_study,
-        qb_schedule_anchor=qb_schedule_anchor,
-        qb_schedule_trace=qb_schedule_trace,
-        qb_lens_divergence=qb_lens_divergence,
-        qb_designed_rush_preview=qb_designed_rush_preview,
-        team_decision_lines=team_decision_lines,
-        qb_open_status_lines=qb_open_status_lines,
-        regression_note_lines=regression_note_lines,
-        qb_opponent_offense_summary=qb_opponent_offense_summary,
-        qb_opponent_offense_cases=qb_opponent_offense_cases,
-        qb_opponent_offense_decision=qb_opponent_offense_decision,
-        qb_leverage_summary=qb_leverage_summary,
-        qb_leverage_cases=qb_leverage_cases,
-        qb_leverage_decision=qb_leverage_decision,
-        qb_split_half_primary=qb_split_half_primary,
-        qb_split_half_placebo=qb_split_half_placebo,
-        qb_split_half_cases=qb_split_half_cases,
-        qb_split_half_decision=qb_split_half_decision,
-        qb_playoff_correlations=qb_playoff_correlations,
+        ValidationReportInputs(
+            metrics=metrics,
+            stability=stability,
+            qbr_correlations=qbr_correlations,
+            mae_deltas=mae_deltas,
+            seasons=seasons,
+            start_week=args.start_week,
+            command=command,
+            comparison_metrics=combined_metrics,
+            weekly_curves=weekly_curves,
+            saovr_vs_srs=saovr_vs_srs,
+            t2_vs_srs=t2_vs_srs,
+            qb_season_audit=qb_season_audit,
+            qb_defense_spread=qb_defense_spread,
+            qb_experiment_sweep=qb_experiment_sweep,
+            qb_case_study=qb_case_study,
+            qb_schedule_anchor=qb_schedule_anchor,
+            qb_schedule_trace=qb_schedule_trace,
+            qb_lens_divergence=qb_lens_divergence,
+            qb_designed_rush_preview=qb_designed_rush_preview,
+            team_decision_lines=team_decision_lines,
+            qb_open_status_lines=qb_open_status_lines,
+            regression_note_lines=regression_note_lines,
+            qb_opponent_offense_summary=qb_opponent_offense_summary,
+            qb_opponent_offense_cases=qb_opponent_offense_cases,
+            qb_opponent_offense_decision=qb_opponent_offense_decision,
+            qb_leverage_summary=qb_leverage_summary,
+            qb_leverage_cases=qb_leverage_cases,
+            qb_leverage_decision=qb_leverage_decision,
+            qb_split_half_primary=qb_split_half_primary,
+            qb_split_half_placebo=qb_split_half_placebo,
+            qb_split_half_cases=qb_split_half_cases,
+            qb_split_half_decision=qb_split_half_decision,
+            qb_playoff_correlations=qb_playoff_correlations,
+        ),
     )
 
     print(f"Wrote validation report to {report_path}")
@@ -2658,7 +1654,7 @@ def score_prediction_rows(predictions: pl.DataFrame) -> pl.DataFrame:
         )
         metric_rows.append(
             _metric_row(
-                baseline_frame.filter(pl.col("week") < 8),
+                baseline_frame.filter(pl.col("week") < _LATE_SEASON_FIRST_WEEK),
                 baseline=str(baseline),
                 split="early",
                 season=None,
@@ -2666,7 +1662,7 @@ def score_prediction_rows(predictions: pl.DataFrame) -> pl.DataFrame:
         )
         metric_rows.append(
             _metric_row(
-                baseline_frame.filter(pl.col("week") >= 8),
+                baseline_frame.filter(pl.col("week") >= _LATE_SEASON_FIRST_WEEK),
                 baseline=str(baseline),
                 split="late",
                 season=None,
@@ -2693,9 +1689,9 @@ def _split_prediction_rows(predictions: pl.DataFrame, split: str) -> pl.DataFram
     if split == "overall":
         return predictions
     if split == "early":
-        return predictions.filter(pl.col("week") < 8)
+        return predictions.filter(pl.col("week") < _LATE_SEASON_FIRST_WEEK)
     if split == "late":
-        return predictions.filter(pl.col("week") >= 8)
+        return predictions.filter(pl.col("week") >= _LATE_SEASON_FIRST_WEEK)
     detail = f"unsupported split: {split}"
     raise ValueError(detail)
 
@@ -2807,27 +1803,25 @@ __all__ = [
     "EloConfig",
     "build_elo_feature_rows",
     "build_play_level_team_training_rows_with_special_teams",
-    "build_rolling_team_weight_maps",
-    "build_team_training_rows_with_special_teams",
     "build_raw_epa_feature_rows",
+    "build_rolling_team_weight_maps",
     "build_saovr_feature_rows",
-    "build_validation_report_text",
+    "build_snapshot_feature_rows",
+    "build_srs_feature_rows",
+    "build_team_training_rows_with_special_teams",
     "build_weighted_team_feature_rows",
     "build_weighted_team_special_teams_feature_rows",
-    "build_srs_feature_rows",
-    "build_snapshot_feature_rows",
+    "compute_pairwise_mae_bootstrap",
     "compute_playoff_metric_correlations",
     "compute_qbr_correlations",
-    "compute_pairwise_mae_bootstrap",
     "compute_stability_metrics",
     "evaluate_feature_rows",
     "main",
     "run_play_level_team_special_teams_backtest",
-    "run_weighted_team_special_teams_backtest",
-    "run_weighted_team_backtest",
     "run_walk_forward_backtest",
+    "run_weighted_team_backtest",
+    "run_weighted_team_special_teams_backtest",
     "score_prediction_rows",
-    "write_validation_report",
 ]
 
 

@@ -1,9 +1,36 @@
 """Simultaneous opponent-adjustment helpers for teams and quarterbacks."""
 
+from dataclasses import dataclass
+
 import numpy as np
 import polars as pl
 
 _DEFAULT_RIDGE_LAMBDAS = np.logspace(-6, 2, 17, dtype=np.float64)
+_MATRIX_NDIM = 2
+# Cross-validation needs at least two folds, so at least two rows.
+_MIN_FOLDS = 2
+
+
+@dataclass(frozen=True, slots=True)
+class TeamGameColumns:
+    """Column names a team-game frame uses in the team ridge solve."""
+
+    team: str = "team"
+    opponent: str = "opponent_team"
+    home_field: str = "is_home"
+
+
+@dataclass(frozen=True, slots=True)
+class QbGameColumns:
+    """Column names a QB-game frame uses in the QB ridge solves."""
+
+    qb: str = "qb_id"
+    defense: str = "opponent_team"
+    dropbacks: str = "qb_dropbacks"
+
+
+TEAM_GAME_COLUMNS = TeamGameColumns()
+QB_GAME_COLUMNS = QbGameColumns()
 
 
 def _sorted_entities(df: pl.DataFrame, *columns: str) -> list[str]:
@@ -35,7 +62,8 @@ def _solve_linear_system_with_penalties(
 ) -> np.ndarray:
     """Solve a ridge system with a per-coefficient non-negative penalty vector."""
     if penalties.ndim != 1 or penalties.shape[0] != design.shape[1]:
-        raise ValueError("penalties must be a 1D vector matching the design column count")
+        msg = "penalties must be a 1D vector matching the design column count"
+        raise ValueError(msg)
     if np.allclose(penalties, 0.0):
         solution, *_ = np.linalg.lstsq(design, response, rcond=None)
         return solution
@@ -59,6 +87,51 @@ def _apply_sample_weights(
     return design * sqrt_weights[:, np.newaxis], response * sqrt_weights
 
 
+def _validate_linear_system(design: np.ndarray, response: np.ndarray) -> None:
+    """Raise ``ValueError`` unless ``design`` is a matrix with one row per response value."""
+    if design.ndim != _MATRIX_NDIM:
+        msg = "design must be a 2D matrix"
+        raise ValueError(msg)
+    if response.ndim != 1:
+        msg = "response must be a 1D vector"
+        raise ValueError(msg)
+    if design.shape[0] != response.shape[0]:
+        msg = "design and response must have the same number of rows"
+        raise ValueError(msg)
+
+
+def _validation_fold_error(
+    design: np.ndarray,
+    response: np.ndarray,
+    validation_mask: np.ndarray,
+    ridge_lambda: float,
+    sample_weights: np.ndarray | None,
+) -> float | None:
+    """Return one fold's (weighted) mean squared error, or ``None`` when the fold is unusable."""
+    training_mask = ~validation_mask
+    if not validation_mask.any() or not training_mask.any():
+        return None
+
+    train_design, train_response = _apply_sample_weights(
+        design[training_mask],
+        response[training_mask],
+        sample_weights[training_mask] if sample_weights is not None else None,
+    )
+    coefficients = _solve_linear_system(train_design, train_response, ridge_lambda)
+    residuals = response[validation_mask] - (design[validation_mask] @ coefficients)
+
+    if sample_weights is None:
+        return float(np.mean(residuals**2))
+
+    validation_weights = np.clip(sample_weights[validation_mask].astype(np.float64), 0.0, None)
+    positive_mask = validation_weights > 0.0
+    if not positive_mask.any():
+        return None
+    return float(
+        np.average(residuals[positive_mask] ** 2, weights=validation_weights[positive_mask])
+    )
+
+
 def tune_ridge_lambda(
     design: np.ndarray,
     response: np.ndarray,
@@ -67,12 +140,7 @@ def tune_ridge_lambda(
     sample_weights: np.ndarray | None = None,
 ) -> float:
     """Choose a ridge penalty by deterministic k-fold cross-validation."""
-    if design.ndim != 2:
-        raise ValueError("design must be a 2D matrix")
-    if response.ndim != 1:
-        raise ValueError("response must be a 1D vector")
-    if design.shape[0] != response.shape[0]:
-        raise ValueError("design and response must have the same number of rows")
+    _validate_linear_system(design, response)
 
     lambdas = (
         np.array(candidate_lambdas, dtype=np.float64)
@@ -80,11 +148,12 @@ def tune_ridge_lambda(
         else _DEFAULT_RIDGE_LAMBDAS
     )
     if lambdas.size == 0:
-        raise ValueError("candidate_lambdas must contain at least one value")
+        msg = "candidate_lambdas must contain at least one value"
+        raise ValueError(msg)
 
     row_count = design.shape[0]
-    effective_folds = min(max(folds, 2), row_count)
-    if row_count < 2:
+    effective_folds = min(max(folds, _MIN_FOLDS), row_count)
+    if row_count < _MIN_FOLDS:
         return float(lambdas[0])
 
     fold_ids = np.arange(row_count, dtype=np.int64) % effective_folds
@@ -92,39 +161,16 @@ def tune_ridge_lambda(
     best_error = float("inf")
 
     for ridge_lambda in lambdas:
-        fold_errors: list[float] = []
-        for fold_id in range(effective_folds):
-            validation_mask = fold_ids == fold_id
-            training_mask = ~validation_mask
-            if not validation_mask.any() or not training_mask.any():
-                continue
-
-            train_design, train_response = _apply_sample_weights(
-                design[training_mask],
-                response[training_mask],
-                sample_weights[training_mask] if sample_weights is not None else None,
-            )
-            coefficients = _solve_linear_system(train_design, train_response, float(ridge_lambda))
-            residuals = response[validation_mask] - (design[validation_mask] @ coefficients)
-
-            if sample_weights is None:
-                fold_errors.append(float(np.mean(residuals**2)))
-                continue
-
-            validation_weights = np.clip(
-                sample_weights[validation_mask].astype(np.float64), 0.0, None
-            )
-            positive_mask = validation_weights > 0.0
-            if positive_mask.any():
-                fold_errors.append(
-                    float(
-                        np.average(
-                            residuals[positive_mask] ** 2,
-                            weights=validation_weights[positive_mask],
-                        )
-                    )
+        fold_errors = [
+            error
+            for fold_id in range(effective_folds)
+            if (
+                error := _validation_fold_error(
+                    design, response, fold_ids == fold_id, float(ridge_lambda), sample_weights
                 )
-
+            )
+            is not None
+        ]
         if not fold_errors:
             continue
 
@@ -171,12 +217,12 @@ def solve_srs(
 def solve_team_stat_ridge(
     team_games: pl.DataFrame,
     response_col: str,
-    team_col: str = "team",
-    opponent_col: str = "opponent_team",
-    home_field_col: str = "is_home",
+    *,
+    columns: TeamGameColumns = TEAM_GAME_COLUMNS,
     ridge_lambda: float | None = None,
 ) -> tuple[pl.DataFrame, float]:
     """Jointly estimate team offense and defense ratings for one response column."""
+    team_col, opponent_col, home_field_col = columns.team, columns.opponent, columns.home_field
     if team_games.is_empty():
         return (
             pl.DataFrame(
@@ -234,13 +280,13 @@ def solve_team_stat_ridge(
 def solve_qb_stat_ridge(
     qb_games: pl.DataFrame,
     response_col: str,
-    qb_col: str = "qb_id",
-    defense_col: str = "opponent_team",
-    dropback_col: str = "qb_dropbacks",
+    *,
+    columns: QbGameColumns = QB_GAME_COLUMNS,
     ridge_lambda: float | None = None,
     defense_ridge_lambda: float | None = None,
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Jointly estimate quarterback offense and defense-allowed ratings."""
+    qb_col, defense_col, dropback_col = columns.qb, columns.defense, columns.dropbacks
     qb_games = qb_games.drop_nulls([qb_col, defense_col, response_col])
     if qb_games.is_empty():
         return (
@@ -310,9 +356,8 @@ def solve_qb_stat_with_fixed_defense_offsets(
     qb_games: pl.DataFrame,
     response_col: str,
     fixed_defense_ratings: pl.DataFrame,
-    qb_col: str = "qb_id",
-    defense_col: str = "opponent_team",
-    dropback_col: str = "qb_dropbacks",
+    *,
+    columns: QbGameColumns = QB_GAME_COLUMNS,
     ridge_lambda: float | None = None,
 ) -> pl.DataFrame:
     """Estimate QB offense ratings with opponent defense effects held fixed.
@@ -320,6 +365,7 @@ def solve_qb_stat_with_fixed_defense_offsets(
     The supplied defense ratings are treated as known offsets in the same response units as
     ``response_col``. Only QB offense coefficients are penalized and fit.
     """
+    qb_col, defense_col, dropback_col = columns.qb, columns.defense, columns.dropbacks
     qb_games = qb_games.drop_nulls([qb_col, defense_col, response_col])
     if qb_games.is_empty() or fixed_defense_ratings.is_empty():
         return pl.DataFrame(schema={qb_col: pl.String, "offense_rating": pl.Float64})
@@ -388,8 +434,7 @@ def compute_team_adjusted_stats(
         solved, _ = solve_team_stat_ridge(
             team_games,
             response_col=response_col,
-            team_col=team_col,
-            opponent_col=opponent_col,
+            columns=TeamGameColumns(team=team_col, opponent=opponent_col),
             ridge_lambda=ridge_lambda,
         )
         solved = solved.rename(
@@ -406,12 +451,13 @@ def compute_team_adjusted_stats(
 def compute_qb_adjusted_stats(
     qb_games: pl.DataFrame,
     response_cols: list[str],
-    qb_col: str = "qb_id",
-    defense_col: str = "opponent_team",
+    *,
+    columns: QbGameColumns = QB_GAME_COLUMNS,
     ridge_lambda: float | None = None,
     defense_ridge_lambda: float | None = None,
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Compute prefixed QB and defense adjustments for multiple QB stats."""
+    qb_col, defense_col = columns.qb, columns.defense
     qb_games = qb_games.drop_nulls([qb_col, defense_col])
     quarterbacks = _sorted_entities(qb_games, qb_col)
     defenses = _sorted_entities(qb_games, defense_col)
@@ -424,8 +470,7 @@ def compute_qb_adjusted_stats(
         qb_ratings, defense_ratings = solve_qb_stat_ridge(
             qb_games,
             response_col=response_col,
-            qb_col=qb_col,
-            defense_col=defense_col,
+            columns=columns,
             ridge_lambda=ridge_lambda,
             defense_ridge_lambda=defense_ridge_lambda,
         )

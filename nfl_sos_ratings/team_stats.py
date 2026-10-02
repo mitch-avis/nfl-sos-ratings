@@ -35,8 +35,6 @@ def _extract_points_per_team_game(schedule_df: pl.DataFrame) -> pl.DataFrame:
             pl.col("home_team").alias("team"),
             pl.col("away_team").alias("opponent_team"),
             pl.lit(True).alias("is_home"),
-        ]
-        + [
             pl.col("home_score").alias("points_for"),
             pl.col("away_score").alias("points_allowed"),
         ]
@@ -47,8 +45,6 @@ def _extract_points_per_team_game(schedule_df: pl.DataFrame) -> pl.DataFrame:
             pl.col("away_team").alias("team"),
             pl.col("home_team").alias("opponent_team"),
             pl.lit(False).alias("is_home"),
-        ]
-        + [
             pl.col("away_score").alias("points_for"),
             pl.col("home_score").alias("points_allowed"),
         ]
@@ -114,7 +110,7 @@ def compute_team_game_stats_from_pbp(
             & pl.col("defteam").is_not_null()
             & scrimmage_snap_expr(pbp_df.columns)
         )
-        .group_by(group_keys + ["posteam", "defteam"])
+        .group_by([*group_keys, "posteam", "defteam"])
         .agg(
             [
                 value_expr(pbp_df.columns, "passing_yards", 0.0).sum().alias("passing_yards"),
@@ -185,7 +181,7 @@ def compute_team_game_stats_from_pbp(
             & pl.col("defteam").is_not_null()
             & scrimmage_snap_expr(pbp_df.columns)
         )
-        .group_by(group_keys + ["defteam", "posteam"])
+        .group_by([*group_keys, "defteam", "posteam"])
         .agg(
             [
                 value_expr(pbp_df.columns, "passing_yards", 0.0)
@@ -249,7 +245,7 @@ def compute_team_game_stats_from_pbp(
     join_keys.extend(["team", "opponent_team"])
 
     result = (
-        offense_stats.join(allowed_stats, on=group_keys + ["team", "opponent_team"], how="left")
+        offense_stats.join(allowed_stats, on=[*group_keys, "team", "opponent_team"], how="left")
         .join(
             snap_counts,
             on=[key for key in ("game_id", "week", "team") if key in offense_stats.columns],
@@ -259,7 +255,7 @@ def compute_team_game_stats_from_pbp(
         .join(
             defense_only,
             on=[
-                key for key in group_keys + ["team", "opponent_team"] if key in defense_only.columns
+                key for key in [*group_keys, "team", "opponent_team"] if key in defense_only.columns
             ],
             how="left",
         )
@@ -524,7 +520,7 @@ def compute_all_teams_per_game(weekly_df: pl.DataFrame) -> pl.DataFrame:
     """
     stat_cols = _get_numeric_stat_cols(weekly_df)
 
-    per_game = (
+    return (
         weekly_df.group_by("team")
         .agg(
             [
@@ -535,7 +531,6 @@ def compute_all_teams_per_game(weekly_df: pl.DataFrame) -> pl.DataFrame:
         )
         .sort("team")
     )
-    return per_game
 
 
 def compute_all_teams_qb_per_game(qb_df: pl.DataFrame) -> pl.DataFrame:
@@ -561,16 +556,15 @@ def compute_all_teams_qb_per_game(qb_df: pl.DataFrame) -> pl.DataFrame:
     qb_stat_cols = [
         col
         for col, dtype in zip(source.columns, source.dtypes, strict=True)
-        if dtype.is_numeric() and col not in {"week"}
+        if dtype.is_numeric() and col != "week"
     ]
 
-    per_game = (
+    return (
         source.group_by("team_abbr")
         .agg([pl.col(c).mean().alias(c) for c in qb_stat_cols])
         .rename({"team_abbr": "team"})
         .sort("team")
     )
-    return per_game
 
 
 def compute_win_totals(weekly_df: pl.DataFrame) -> pl.DataFrame:
@@ -626,12 +620,11 @@ def compute_team_stats_excluding_opponent(
     if games == 0:
         return None
 
-    result = filtered.select(
+    return filtered.select(
         [pl.lit(team).alias("team")]
         + [pl.col(c).mean().alias(c) for c in stat_cols]
         + [pl.lit(games).alias("games_included")]
     )
-    return result
 
 
 def compute_qb_stats_excluding_opponent(
@@ -649,7 +642,7 @@ def compute_qb_stats_excluding_opponent(
     qb_stat_cols = [
         col
         for col, dtype in zip(qb_df.columns, qb_df.dtypes, strict=True)
-        if dtype.is_numeric() and col not in {"week"}
+        if dtype.is_numeric() and col != "week"
     ]
 
     # Find weeks where team played the exclude_opponent
@@ -665,7 +658,6 @@ def compute_qb_stats_excluding_opponent(
     if filtered.height == 0:
         return None
 
-    result = filtered.select(
+    return filtered.select(
         [pl.lit(team).alias("team")] + [pl.col(c).mean().alias(c) for c in qb_stat_cols]
     )
-    return result

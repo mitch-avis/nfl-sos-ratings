@@ -6,7 +6,6 @@ adjustment outputs for auditability and UI detail surfaces.
 """
 
 import io
-import os
 import sys
 from pathlib import Path
 
@@ -448,11 +447,8 @@ def _write_qb_output_files(
     _write_data_file(qb_ratings_summary, season, "qb_ratings")
 
 
-def run_season(season: int) -> None:
-    """Run the full NFL strength-of-schedule analysis pipeline for one season."""
-    print(f"=== NFL Strength of Schedule -- {season} Season ===\n")
-
-    # --- Load data ---
+def _load_season_frames(season: int) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
+    """Load one season's weekly team stats, schedule, and QB game stats."""
     print("Loading weekly team stats...")
     weekly_df = load_weekly_team_stats(season)
     print(f"  {weekly_df.height} team-game rows loaded.")
@@ -464,6 +460,242 @@ def run_season(season: int) -> None:
     print("Loading QB game stats...")
     qb_df = load_qb_stats(season)
     print(f"  {qb_df.height} QB-game rows loaded.\n")
+    return weekly_df, schedule_df, qb_df
+
+
+def _compute_qb_opponent_context(
+    weekly_df: pl.DataFrame,
+    qb_df: pl.DataFrame,
+    schedule_df: pl.DataFrame,
+    qb_season_stats: pl.DataFrame,
+) -> tuple[pl.DataFrame | None, dict[str, list[dict[str, str | bool | int]]]]:
+    """Compute and report the per-QB opponent profiles."""
+    print("Computing QB opponent profiles...")
+    qb_opp_profiles, qb_opp_details = compute_qb_opponent_profiles(
+        weekly_df, qb_df, schedule_df, qb_season_stats
+    )
+    if qb_opp_profiles is None:
+        print("  WARNING: No QB opponent profiles were computed.")
+    else:
+        print(f"  {qb_opp_profiles.height} QB profiles computed.")
+    print()
+    return qb_opp_profiles, qb_opp_details
+
+
+def _join_on_matching_qb_keys(left: pl.DataFrame, right: pl.DataFrame) -> pl.DataFrame:
+    """Left-join ``right`` on the QB identity keys both frames share; no-op when none match."""
+    join_keys = _matching_qb_join_keys(left, right)
+    if not join_keys:
+        return left
+    return left.join(right, on=join_keys, how="left")
+
+
+def _build_qb_adjusted_output(
+    season: int,
+    qb_df: pl.DataFrame,
+    weekly_df: pl.DataFrame,
+    qb_season_stats: pl.DataFrame,
+) -> pl.DataFrame:
+    """Solve and write the simultaneous QB adjustments with faced-defense context."""
+    qb_adjustment_games = qb_df.join(
+        weekly_df.select(["team", "week", "opponent_team"]),
+        left_on=["team_abbr", "week"],
+        right_on=["team", "week"],
+        how="left",
+    )
+    qb_adjusted_df, qb_defense_adjustments = compute_qb_adjusted_stats(
+        qb_adjustment_games,
+        response_cols=_QB_SIMULTANEOUS_COLS,
+    )
+    qb_identity = qb_season_stats.select(
+        [col for col in ("qb_id", "qb_name", "team") if col in qb_season_stats.columns]
+    )
+    qb_adjusted_output = _join_on_matching_qb_keys(
+        qb_adjusted_df.join(qb_identity, on="qb_id", how="left"),
+        _build_qb_faced_defense_adjustments(qb_adjustment_games, qb_defense_adjustments),
+    )
+    _write_data_file(qb_adjusted_output, season, "simultaneous_qb_adjustments")
+    return qb_adjusted_output
+
+
+def _shared_qb_keys(left: pl.DataFrame, right: pl.DataFrame) -> list[str]:
+    """Return the QB identity keys both frames share, falling back to ``team`` alone."""
+    keys = [
+        key for key in ("qb_id", "qb_name", "team") if key in left.columns and key in right.columns
+    ]
+    if not keys and "team" in left.columns and "team" in right.columns:
+        return ["team"]
+    return keys
+
+
+def _build_qb_combined_with_ratings(
+    qb_combined: pl.DataFrame, qb_adjusted_output: pl.DataFrame
+) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Attach the QB adjustments and published QB ratings to the QB season table."""
+    qb_combined = qb_combined.join(
+        qb_adjusted_output,
+        on=[
+            key
+            for key in ("qb_id", "qb_name", "team")
+            if key in qb_adjusted_output.columns and key in qb_combined.columns
+        ],
+        how="left",
+    )
+    qb_ratings_df = compute_qb_ratings(qb_combined)
+    qb_combined = qb_combined.join(
+        qb_ratings_df, on=_shared_qb_keys(qb_ratings_df, qb_combined), how="left"
+    )
+    return qb_combined, qb_ratings_df
+
+
+def _combine_opponent_profiles(
+    opp_team_df: pl.DataFrame | None, opp_qb_df: pl.DataFrame | None
+) -> pl.DataFrame | None:
+    """Return team and QB opponent profiles side by side, or whichever one exists."""
+    if opp_team_df is not None and opp_qb_df is not None:
+        return opp_team_df.join(opp_qb_df, on="team", how="left")
+    return opp_team_df if opp_team_df is not None else opp_qb_df
+
+
+def _build_team_adjustments(season: int, weekly_df: pl.DataFrame) -> pl.DataFrame:
+    """Return the published team ridge adjustments, play-level when PBP is available."""
+    pbp_df = load_pbp_data(season)
+    play_rows = build_play_level_team_frame_from_pbp(pbp_df)
+    if play_rows.is_empty():
+        return compute_team_adjusted_stats(weekly_df, response_cols=_TEAM_SIMULTANEOUS_COLS)
+
+    play_cutoff_week = int(play_rows.select(pl.col("week").max()).item()) + 1
+    team_adjusted_df = build_play_level_team_adjusted_snapshot(
+        play_rows,
+        cutoff_week=play_cutoff_week,
+    )
+    st_rating_df = build_special_teams_rating_snapshot(
+        build_special_teams_game_frame_from_pbp(pbp_df),
+        cutoff_week=play_cutoff_week,
+    )
+    if "st_rating" in team_adjusted_df.columns:
+        team_adjusted_df = team_adjusted_df.drop("st_rating")
+    return team_adjusted_df.join(st_rating_df, on="team", how="left").with_columns(
+        pl.col("st_rating").fill_null(0.0)
+    )
+
+
+def _with_diff_columns(combined: pl.DataFrame) -> pl.DataFrame:
+    """Add ``diff_<stat> = <stat> - opp_<stat>`` for every paired stat."""
+    diff_exprs = [
+        (pl.col(col) - pl.col(f"opp_{col}")).alias(f"diff_{col}")
+        for col in combined.columns
+        if f"opp_{col}" in combined.columns
+    ]
+    return combined.with_columns(diff_exprs) if diff_exprs else combined
+
+
+def _with_qb_schedule_context(
+    qb_combined: pl.DataFrame,
+    qb_game_logs: pl.DataFrame,
+    team_adjusted_df: pl.DataFrame,
+    ratings_df: pl.DataFrame,
+) -> pl.DataFrame:
+    """Attach the faced rush-defense, adjusted designed-rush, and faced-opponent-quality lenses."""
+    qb_faced_rush_defense = _build_qb_faced_rush_defense_adjustments(qb_game_logs, team_adjusted_df)
+    if _matching_qb_join_keys(qb_combined, qb_faced_rush_defense):
+        qb_adjusted_designed_rush = _build_qb_adjusted_designed_rush_surface(
+            qb_combined,
+            qb_faced_rush_defense,
+        )
+        qb_combined = _join_on_matching_qb_keys(qb_combined, qb_faced_rush_defense)
+        qb_combined = _join_on_matching_qb_keys(qb_combined, qb_adjusted_designed_rush)
+    return _join_on_matching_qb_keys(
+        qb_combined, _build_qb_faced_overall_quality(qb_game_logs, ratings_df)
+    )
+
+
+def _print_detail_rows(rows: list[dict[str, str | bool | int]]) -> None:
+    """Print one opponent-detail line per faced opponent."""
+    for d in rows:
+        div_marker = " (DIV)" if d["division"] else ""
+        print(f"  {d['opponent']}{div_marker}: {d['games_included']} games")
+
+
+def _den_qb_sample_key(
+    qb_season_stats: pl.DataFrame, qb_opp_details: dict[str, list[dict[str, str | bool | int]]]
+) -> str | None:
+    """Return the details key of the first Denver QB with opponent details, if any."""
+    if qb_season_stats.is_empty() or "team" not in qb_season_stats.columns:
+        return None
+    for qb_row in qb_season_stats.filter(pl.col("team") == "DEN").to_dicts():
+        for key in ("qb_id", "qb_name"):
+            candidate = qb_row.get(key)
+            if candidate in qb_opp_details:
+                return str(candidate)
+    return None
+
+
+def _print_season_summary(
+    season: int,
+    combined: pl.DataFrame,
+    ratings_summary: pl.DataFrame,
+    opp_details: dict[str, list[dict[str, str | bool | int]]],
+    qb_sample: tuple[pl.DataFrame, dict[str, list[dict[str, str | bool | int]]]],
+) -> None:
+    """Print the season's team comparison table, ratings table, and Denver detail samples."""
+    print(f"\n{'=' * 70}")
+    print(f"SUMMARY -- {season} NFL Strength of Schedule")
+    print(f"{'=' * 70}\n")
+
+    # Show key comparison columns: team offense vs opponent offense
+    summary_stats = (
+        "points_for",
+        "points_allowed",
+        "total_yards",
+        "passing_yards",
+        "rushing_yards",
+        "passing_epa",
+        "rushing_epa",
+    )
+    summary_cols = [
+        "team",
+        "games_played",
+        *(
+            f"{prefix}{stat}"
+            for prefix in ("", "opp_")
+            for stat in summary_stats
+            if f"{prefix}{stat}" in combined.columns
+        ),
+    ]
+    available_cols = [c for c in summary_cols if c in combined.columns]
+    with pl.Config(tbl_cols=-1, tbl_rows=32, fmt_float="mixed", float_precision=2):
+        print(combined.select(available_cols).sort("team"))
+
+    # Schedule-adjusted ratings table (sorted by SaCR descending)
+    print(f"\n{'=' * 50}")
+    print("SCHEDULE-ADJUSTED RATINGS (SaCR rank)")
+    print(f"{'=' * 50}")
+    print(
+        "  SaCR = Composite  |  SaOR = Offense  |  SaDR = Defense  |  "
+        "SaSTR = Special Teams  |  SaOvR = Overall"
+    )
+    print("  (z-scores: 0 = league avg, +1 = 1 SD above avg)\n")
+    with pl.Config(tbl_cols=-1, tbl_rows=32, fmt_float="mixed", float_precision=3):
+        print(ratings_summary.sort("SaCR", descending=True))
+
+    print("\nOpponent detail sample (DEN):")
+    if "DEN" in opp_details:
+        _print_detail_rows(opp_details["DEN"])
+
+    print("\nQB opponent detail sample (DEN):")
+    qb_season_stats, qb_opp_details = qb_sample
+    qb_sample_key = _den_qb_sample_key(qb_season_stats, qb_opp_details)
+    if qb_sample_key is not None:
+        _print_detail_rows(qb_opp_details[qb_sample_key])
+
+    print(f"\nDone! Parquet files saved to {DATA_DIR}/")
+
+
+def run_season(season: int) -> None:
+    """Run the full NFL strength-of-schedule analysis pipeline for one season."""
+    print(f"=== NFL Strength of Schedule -- {season} Season ===\n")
+    weekly_df, schedule_df, qb_df = _load_season_frames(season)
 
     # --- Compute team per-game stats ---
     print("Computing per-game team stats...")
@@ -484,16 +716,9 @@ def run_season(season: int) -> None:
         on="team",
         how="left",
     )
-
-    print("Computing QB opponent profiles...")
-    qb_opp_profiles, qb_opp_details = compute_qb_opponent_profiles(
+    qb_opp_profiles, qb_opp_details = _compute_qb_opponent_context(
         weekly_df, qb_df, schedule_df, qb_season_stats
     )
-    if qb_opp_profiles is None:
-        print("  WARNING: No QB opponent profiles were computed.")
-    else:
-        print(f"  {qb_opp_profiles.height} QB profiles computed.")
-    print()
 
     # --- Compute opponent profiles ---
     print("Computing opponent profiles (this may take a moment)...")
@@ -503,7 +728,7 @@ def run_season(season: int) -> None:
     print()
 
     # --- Merge and save ---
-    os.makedirs(DATA_DIR, exist_ok=True)
+    Path(DATA_DIR).mkdir(parents=True, exist_ok=True)
 
     team_game_logs = _build_team_game_logs(weekly_df)
     _write_data_file(team_game_logs, season, "team_game_logs")
@@ -516,164 +741,44 @@ def run_season(season: int) -> None:
         win_totals, on="team", how="left"
     )
     _write_data_file(team_combined, season, "team_per_game_stats")
-
     _write_data_file(qb_season_stats, season, "qb_per_game_stats")
-
     if qb_opp_profiles is not None:
         _write_data_file(qb_opp_profiles, season, "qb_opponent_profiles")
 
-    qb_combined = _build_qb_combined(qb_season_stats, qb_opp_profiles)
-
-    qb_adjustment_games = qb_df.join(
-        weekly_df.select(["team", "week", "opponent_team"]),
-        left_on=["team_abbr", "week"],
-        right_on=["team", "week"],
-        how="left",
+    qb_combined, qb_ratings_df = _build_qb_combined_with_ratings(
+        _build_qb_combined(qb_season_stats, qb_opp_profiles),
+        _build_qb_adjusted_output(season, qb_df, weekly_df, qb_season_stats),
     )
-    qb_adjusted_df, qb_defense_adjustments = compute_qb_adjusted_stats(
-        qb_adjustment_games,
-        response_cols=_QB_SIMULTANEOUS_COLS,
-    )
-    qb_identity = qb_season_stats.select(
-        [col for col in ("qb_id", "qb_name", "team") if col in qb_season_stats.columns]
-    )
-    qb_adjusted_output = qb_adjusted_df.join(qb_identity, on="qb_id", how="left")
-    qb_faced_defense = _build_qb_faced_defense_adjustments(
-        qb_adjustment_games,
-        qb_defense_adjustments,
-    )
-    qb_schedule_join_keys = _matching_qb_join_keys(qb_adjusted_output, qb_faced_defense)
-    if qb_schedule_join_keys:
-        qb_adjusted_output = qb_adjusted_output.join(
-            qb_faced_defense,
-            on=qb_schedule_join_keys,
-            how="left",
-        )
-    _write_data_file(qb_adjusted_output, season, "simultaneous_qb_adjustments")
-    qb_combined = qb_combined.join(
-        qb_adjusted_output,
-        on=[
-            key
-            for key in ("qb_id", "qb_name", "team")
-            if key in qb_adjusted_output.columns and key in qb_combined.columns
-        ],
-        how="left",
-    )
-
-    qb_ratings_df = compute_qb_ratings(qb_combined)
-
-    qb_ratings_join_keys = [
-        key
-        for key in ("qb_id", "qb_name", "team")
-        if key in qb_ratings_df.columns and key in qb_combined.columns
-    ]
-    if (
-        not qb_ratings_join_keys
-        and "team" in qb_ratings_df.columns
-        and "team" in qb_combined.columns
-    ):
-        qb_ratings_join_keys = ["team"]
-    qb_combined = qb_combined.join(qb_ratings_df, on=qb_ratings_join_keys, how="left")
     _write_qb_output_files(qb_combined, qb_ratings_df, season)
 
     # Opponent profiles (team + QB combined)
-    if opp_team_df is None and opp_qb_df is None:
+    opp_combined = _combine_opponent_profiles(opp_team_df, opp_qb_df)
+    if opp_combined is None:
         print("WARNING: No opponent profile data was computed.")
         return
-
-    if opp_team_df is not None and opp_qb_df is not None:
-        opp_combined = opp_team_df.join(opp_qb_df, on="team", how="left")
-    elif opp_team_df is not None:
-        opp_combined = opp_team_df
-    else:
-        if opp_qb_df is None:
-            print("WARNING: No opponent profile data was computed.")
-            return
-        opp_combined = opp_qb_df
-
     _write_data_file(opp_combined, season, "opponent_profiles")
 
     # Combined: team stats + opponent stats side by side
     opp_renamed = opp_combined.rename({c: f"opp_{c}" for c in opp_combined.columns if c != "team"})
-    combined = team_combined.join(opp_renamed, on="team", how="left")
-
-    pbp_df = load_pbp_data(season)
-    play_rows = build_play_level_team_frame_from_pbp(pbp_df)
-    if play_rows.is_empty():
-        team_adjusted_df = compute_team_adjusted_stats(
-            weekly_df,
-            response_cols=_TEAM_SIMULTANEOUS_COLS,
-        )
-    else:
-        play_cutoff_week = int(play_rows.select(pl.col("week").max()).item()) + 1
-        team_adjusted_df = build_play_level_team_adjusted_snapshot(
-            play_rows,
-            cutoff_week=play_cutoff_week,
-        )
-        st_game_rows = build_special_teams_game_frame_from_pbp(pbp_df)
-        st_rating_df = build_special_teams_rating_snapshot(
-            st_game_rows,
-            cutoff_week=play_cutoff_week,
-        )
-        if "st_rating" in team_adjusted_df.columns:
-            team_adjusted_df = team_adjusted_df.drop("st_rating")
-        team_adjusted_df = team_adjusted_df.join(st_rating_df, on="team", how="left").with_columns(
-            pl.col("st_rating").fill_null(0.0)
-        )
+    team_adjusted_df = _build_team_adjustments(season, weekly_df)
     _write_data_file(team_adjusted_df, season, "simultaneous_team_adjustments")
-    combined = combined.join(team_adjusted_df, on="team", how="left")
-
-    # Add diff columns: for every paired (stat, opp_stat), compute diff = stat - opp_stat
-    diff_exprs = [
-        (pl.col(col) - pl.col(f"opp_{col}")).alias(f"diff_{col}")
-        for col in combined.columns
-        if f"opp_{col}" in combined.columns
-    ]
-    if diff_exprs:
-        combined = combined.with_columns(diff_exprs)
+    combined = _with_diff_columns(
+        team_combined.join(opp_renamed, on="team", how="left").join(
+            team_adjusted_df, on="team", how="left"
+        )
+    )
 
     # Schedule-adjusted ratings (SaOR, SaDR, SaCR)
     ratings_df = compute_ratings(combined)
-    combined = combined.join(ratings_df, on="team", how="left")
-
-    team_sos = _build_team_schedule_strength(weekly_df, ratings_df)
-    combined = combined.join(team_sos, on="team", how="left")
-
-    qb_faced_rush_defense = _build_qb_faced_rush_defense_adjustments(qb_game_logs, team_adjusted_df)
-    qb_rush_join_keys = _matching_qb_join_keys(qb_combined, qb_faced_rush_defense)
-    if qb_rush_join_keys:
-        qb_adjusted_designed_rush = _build_qb_adjusted_designed_rush_surface(
-            qb_combined,
-            qb_faced_rush_defense,
-        )
-        qb_combined = qb_combined.join(
-            qb_faced_rush_defense,
-            on=qb_rush_join_keys,
-            how="left",
-        )
-        qb_adjusted_rush_join_keys = _matching_qb_join_keys(qb_combined, qb_adjusted_designed_rush)
-        if qb_adjusted_rush_join_keys:
-            qb_combined = qb_combined.join(
-                qb_adjusted_designed_rush,
-                on=qb_adjusted_rush_join_keys,
-                how="left",
-            )
-
-    qb_faced_overall_quality = _build_qb_faced_overall_quality(qb_game_logs, ratings_df)
-    qb_overall_join_keys = _matching_qb_join_keys(qb_combined, qb_faced_overall_quality)
-    if qb_overall_join_keys:
-        qb_combined = qb_combined.join(
-            qb_faced_overall_quality,
-            on=qb_overall_join_keys,
-            how="left",
-        )
+    combined = combined.join(ratings_df, on="team", how="left").join(
+        _build_team_schedule_strength(weekly_df, ratings_df), on="team", how="left"
+    )
+    qb_combined = _with_qb_schedule_context(qb_combined, qb_game_logs, team_adjusted_df, ratings_df)
 
     srs_df = solve_srs(weekly_df, response_col="point_margin").rename({"srs_rating": "SRS"})
     combined = combined.join(srs_df, on="team", how="left")
-
     if "st_rating" in combined.columns:
         combined = combined.drop("st_rating")
-
     _write_data_file(combined, season, "combined")
 
     # Standalone ratings summary
@@ -683,71 +788,11 @@ def run_season(season: int) -> None:
         ["team", "games_played", "SaCR", _TEAM_SOS_COLUMN, "SaOR", "SaDR", "SaSTR", "SaOvR", "SRS"]
     )
     _write_data_file(ratings_summary, season, "ratings")
-
     _write_qb_output_files(qb_combined, qb_ratings_df, season)
 
-    # --- Print summary ---
-    print(f"\n{'=' * 70}")
-    print(f"SUMMARY -- {season} NFL Strength of Schedule")
-    print(f"{'=' * 70}\n")
-
-    # Show key comparison columns: team offense vs opponent offense
-    summary_cols = ["team", "games_played"]
-    for prefix in ["", "opp_"]:
-        for stat in [
-            "points_for",
-            "points_allowed",
-            "total_yards",
-            "passing_yards",
-            "rushing_yards",
-            "passing_epa",
-            "rushing_epa",
-        ]:
-            col = f"{prefix}{stat}"
-            if col in combined.columns:
-                summary_cols.append(col)
-
-    available_cols = [c for c in summary_cols if c in combined.columns]
-    with pl.Config(tbl_cols=-1, tbl_rows=32, fmt_float="mixed", float_precision=2):
-        print(combined.select(available_cols).sort("team"))
-
-    # Schedule-adjusted ratings table (sorted by SaCR descending)
-    print(f"\n{'=' * 50}")
-    print("SCHEDULE-ADJUSTED RATINGS (SaCR rank)")
-    print(f"{'=' * 50}")
-    print(
-        "  SaCR = Composite  |  SaOR = Offense  |  SaDR = Defense  |  "
-        "SaSTR = Special Teams  |  SaOvR = Overall"
+    _print_season_summary(
+        season, combined, ratings_summary, opp_details, (qb_season_stats, qb_opp_details)
     )
-    print("  (z-scores: 0 = league avg, +1 = 1 SD above avg)\n")
-    with pl.Config(tbl_cols=-1, tbl_rows=32, fmt_float="mixed", float_precision=3):
-        print(ratings_summary.sort("SaCR", descending=True))
-
-    print("\nOpponent detail sample (DEN):")
-    if "DEN" in opp_details:
-        for d in opp_details["DEN"]:
-            div_marker = " (DIV)" if d["division"] else ""
-            print(f"  {d['opponent']}{div_marker}: {d['games_included']} games")
-
-    print("\nQB opponent detail sample (DEN):")
-    qb_sample_key = None
-    if not qb_season_stats.is_empty() and "team" in qb_season_stats.columns:
-        den_qbs = qb_season_stats.filter(pl.col("team") == "DEN")
-        if not den_qbs.is_empty():
-            for qb_row in den_qbs.to_dicts():
-                for key in ("qb_id", "qb_name"):
-                    candidate = qb_row.get(key)
-                    if candidate in qb_opp_details:
-                        qb_sample_key = str(candidate)
-                        break
-                if qb_sample_key is not None:
-                    break
-    if qb_sample_key is not None:
-        for d in qb_opp_details[qb_sample_key]:
-            div_marker = " (DIV)" if d["division"] else ""
-            print(f"  {d['opponent']}{div_marker}: {d['games_included']} games")
-
-    print(f"\nDone! Parquet files saved to {DATA_DIR}/")
 
 
 def main() -> None:

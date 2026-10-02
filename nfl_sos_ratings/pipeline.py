@@ -28,7 +28,7 @@ def main() -> None:
 
     seasons = list(range(START_YEAR, END_YEAR + 1))
     print(
-        f"=== NFL SoS Pipeline: {START_YEAR}–{END_YEAR} "
+        f"=== NFL SoS Pipeline: {START_YEAR}-{END_YEAR} "
         f"({len(seasons)} season{'s' if len(seasons) != 1 else ''}) ===\n"
     )
 
@@ -40,7 +40,7 @@ def main() -> None:
     for season in seasons:
         try:
             run_season(season)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - report every failed season, then exit 1
             failed_data_seasons.append(season)
             print(f"\nERROR: season {season} data step failed — {exc}\n")
 

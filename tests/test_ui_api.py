@@ -1,12 +1,15 @@
 """Tests for the local analyst UI API."""
 
 import io
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 from fastapi.testclient import TestClient
 
 from nfl_sos_ratings.ui_api import create_app
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_table(path: Path, header: str, row: str) -> None:

@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
-from pathlib import Path
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 import polars as pl
 
 from nfl_sos_ratings.metrics import get_registry
-from nfl_sos_ratings.metrics.schema import Entity
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from pathlib import Path
+
+    from nfl_sos_ratings.metrics.schema import Entity
 
 SEASON_FILE_RE = re.compile(r"^(?P<season>\d{4})_(?P<suffix>[a-z0-9_]+)\.parquet$")
 REQUIRED_CONTRACT_SUFFIXES = (
@@ -140,9 +143,8 @@ def _validate_contract_paths(contract_paths: dict[str, Path], season: int) -> No
     missing_files = [path.name for path in contract_paths.values() if not path.exists()]
     if missing_files:
         missing_list = ", ".join(sorted(missing_files))
-        raise MissingSeasonContractError(
-            f"Season {season} is missing UI contract files: {missing_list}"
-        )
+        msg = f"Season {season} is missing UI contract files: {missing_list}"
+        raise MissingSeasonContractError(msg)
 
 
 def _order_columns_by_category(columns: list[str], entity: Entity) -> list[str]:
@@ -220,16 +222,12 @@ def _build_qb_payload(frame: pl.DataFrame) -> TablePayload:
         if column in frame.columns
     ]
     rating_columns = _ordered_existing_columns(frame.columns, QB_RATING_COLUMNS)
-    opponent_context = [
-        column
-        for column in frame.columns
-        if column.startswith("opp_") or column.startswith("qopp_")
-    ]
+    opponent_context = [column for column in frame.columns if column.startswith(("opp_", "qopp_"))]
     per_game_rates = [column for column in frame.columns if column.endswith("_per_game")]
     per_dropback_rates = [
         column
         for column in frame.columns
-        if not (column.startswith("opp_") or column.startswith("qopp_"))
+        if not (column.startswith(("opp_", "qopp_")))
         and (column in QB_PER_DROPBACK_RATE_COLUMNS or column.endswith("_per_dropback"))
     ]
     excluded_columns = set(
@@ -272,9 +270,8 @@ def _load_game_log_frame(data_dir: Path, season: int, suffix: str) -> pl.DataFra
     """Read one additive game-log Parquet file for the requested season."""
     file_path = data_dir / f"{season}_{suffix}.parquet"
     if not file_path.exists():
-        raise MissingSeasonContractError(
-            f"Season {season} is missing UI contract files: {file_path.name}"
-        )
+        msg = f"Season {season} is missing UI contract files: {file_path.name}"
+        raise MissingSeasonContractError(msg)
     return pl.read_parquet(file_path)
 
 
@@ -287,15 +284,13 @@ def _filter_entity_game_logs(
 ) -> pl.DataFrame:
     """Return game-log rows for the requested entity or raise a clear lookup error."""
     if column not in frame.columns:
-        raise MissingEntityGameLogError(
-            f"Season {season} {entity_label} game logs do not include the {column} column."
-        )
+        msg = f"Season {season} {entity_label} game logs do not include the {column} column."
+        raise MissingEntityGameLogError(msg)
 
     filtered = frame.filter(pl.col(column) == entity_id)
     if filtered.is_empty():
-        raise MissingEntityGameLogError(
-            f"Season {season} has no UI game-log rows for {entity_label} {entity_id}."
-        )
+        msg = f"Season {season} has no UI game-log rows for {entity_label} {entity_id}."
+        raise MissingEntityGameLogError(msg)
     return filtered.sort([key for key in ("week", "game_id") if key in filtered.columns])
 
 
@@ -375,7 +370,7 @@ def _ordered_existing_columns(
 
 def _is_team_per_snap_column(column: str) -> bool:
     """Return whether a column belongs in the team per-snap group."""
-    return column.endswith("_per_offensive_snap") or column.endswith("_per_defensive_snap")
+    return column.endswith(("_per_offensive_snap", "_per_defensive_snap"))
 
 
 def _starts_with_any(column: str, prefixes: tuple[str, ...]) -> bool:

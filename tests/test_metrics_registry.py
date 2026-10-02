@@ -215,7 +215,8 @@ class TestColumnResolution:
         """What faced defenses allowed flips good/bad relative to the QB stat."""
         base = registry.resolve_column("qb_epa_per_dropback")
         mirrored = registry.resolve_column("qopp_qb_epa_per_dropback")
-        assert base is not None and mirrored is not None
+        assert base is not None
+        assert mirrored is not None
         assert base.polarity == "higher"
         assert mirrored.polarity == "lower"
 
@@ -302,7 +303,8 @@ class TestRatingPools:
         sacr = registry.resolve_column("SaCR")
         qsacr = registry.resolve_column("QSaCR")
 
-        assert sacr is not None and sacr.base.provenance is not None
+        assert sacr is not None
+        assert sacr.base.provenance is not None
         assert sacr.base.provenance.fit_window == (1999, 2025)
         assert sacr.base.provenance.fitting_command == (
             "uv run python -m nfl_sos_ratings.composite_weights"
@@ -313,7 +315,8 @@ class TestRatingPools:
             ("adj_def_takeaway_creation_rate_per_defensive_snap", -0.04081182634425329),
         )
 
-        assert qsacr is not None and qsacr.base.provenance is not None
+        assert qsacr is not None
+        assert qsacr.base.provenance is not None
         assert qsacr.base.provenance.fit_window == (2006, 2025)
         assert qsacr.base.provenance.sample_weighting == "dropback-weighted weighted least squares"
         assert qsacr.base.provenance.fitting_command == (
@@ -442,7 +445,7 @@ class TestRatingPools:
 
     @pytest.mark.parametrize(
         ("entity", "member"),
-        (("team", "team_elo"), ("qb", "qb_qbr_total")),
+        [("team", "team_elo"), ("qb", "qb_qbr_total")],
     )
     def test_pool_rejects_external_reference_metrics(
         self,
@@ -456,7 +459,7 @@ class TestRatingPools:
 
         pool = RatingPool(
             name="bad_pool",
-            entity=cast(Any, entity),
+            entity=cast("Any", entity),
             description="Pool with a descriptive-only external reference metric.",
             members=(member,),
         )
@@ -464,7 +467,7 @@ class TestRatingPools:
             MetricRegistry(
                 metrics=TEAM_METRICS + QB_METRICS,
                 categories=TEAM_CATEGORIES + QB_CATEGORIES,
-                pools=RATING_POOLS + (pool,),
+                pools=(*RATING_POOLS, pool),
             )
 
 
@@ -476,21 +479,22 @@ class TestPayload:
         import json
 
         payload = json.loads(json.dumps(registry.payload()))
-        assert [category["name"] for category in payload["entities"]["team"]["categories"]][
-            0
-        ] == "Schedule-Adjusted Ratings"
+        assert (
+            next(category["name"] for category in payload["entities"]["team"]["categories"])
+            == "Schedule-Adjusted Ratings"
+        )
         assert "passing_yards" in payload["metrics"]
 
     def test_payload_omits_standalone_opponent_context_categories(
         self, registry: MetricRegistry
     ) -> None:
         """Opponent context is expressed through views, not entity category lists."""
-        payload = cast(dict[str, Any], registry.payload())
-        entities = cast(dict[str, Any], payload["entities"])
+        payload = cast("dict[str, Any]", registry.payload())
+        entities = cast("dict[str, Any]", payload["entities"])
 
         for entity in ("team", "qb"):
-            entity_payload = cast(dict[str, Any], entities[entity])
-            categories = cast(list[dict[str, Any]], entity_payload["categories"])
+            entity_payload = cast("dict[str, Any]", entities[entity])
+            categories = cast("list[dict[str, Any]]", entity_payload["categories"])
             category_names = [str(category["name"]) for category in categories]
             assert "Opponent Context" not in category_names
 

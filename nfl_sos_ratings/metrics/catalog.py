@@ -8,6 +8,8 @@ membership changes published ratings and needs explicit sign-off.
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from nfl_sos_ratings.metrics.qb_metrics import QB_METRICS
 from nfl_sos_ratings.metrics.registry import MetricRegistry
 from nfl_sos_ratings.metrics.schema import CategoryDef, RatingPool
@@ -300,3 +302,9 @@ def build_registry() -> MetricRegistry:
         categories=TEAM_CATEGORIES + QB_CATEGORIES,
         pools=RATING_POOLS,
     )
+
+
+@lru_cache(maxsize=1)
+def get_registry() -> MetricRegistry:
+    """Build, validate, and cache the project registry."""
+    return build_registry()

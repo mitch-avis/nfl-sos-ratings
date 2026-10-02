@@ -329,7 +329,8 @@ def test_load_snap_counts_data_returns_typed_empty_before_source_floor(
     """Verify pre-2012 snap-count loads short-circuit to an empty typed frame."""
 
     def _unexpected_snap_counts_call(seasons: int) -> pl.DataFrame:
-        raise AssertionError(f"snap counts loader should not run for season {seasons}")
+        msg = f"snap counts loader should not run for season {seasons}"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(data_loader.nfl, "load_snap_counts", _unexpected_snap_counts_call)
 
@@ -361,7 +362,8 @@ def test_load_qb_identity_crosswalk_skips_weekly_rosters_before_source_floor(
     )
 
     def _unexpected_rosters_weekly_call(seasons: int) -> pl.DataFrame:
-        raise AssertionError(f"weekly rosters loader should not run for season {seasons}")
+        msg = f"weekly rosters loader should not run for season {seasons}"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(data_loader.nfl, "load_players", lambda: players)
     monkeypatch.setattr(
@@ -1235,12 +1237,12 @@ def test_fetch_release_parquet_reads_downloaded_bytes(
     payload = buffer.getvalue()
 
     @contextmanager
-    def fake_urlopen(url: str):  # noqa: ANN202
+    def fake_urlopen(url: str):
         yield io.BytesIO(payload)
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
-    result = data_loader._fetch_release_parquet("https://example.invalid/x.parquet")  # noqa: SLF001
+    result = data_loader._fetch_release_parquet("https://example.invalid/x.parquet")
 
     assert result.select("season").item() == 2025
 

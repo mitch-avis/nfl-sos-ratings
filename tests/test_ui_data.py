@@ -1,7 +1,7 @@
 """Tests for the Parquet-backed UI data contract."""
 
 import io
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
@@ -13,6 +13,9 @@ from nfl_sos_ratings.ui_data import (
     load_season_ui_dataset,
     load_team_game_log_payload,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_table(path: Path, header: str, row: str) -> None:

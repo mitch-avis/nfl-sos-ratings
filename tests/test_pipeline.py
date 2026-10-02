@@ -21,7 +21,8 @@ def test_pipeline_raises_on_failures_and_exits_nonzero_for_failed_seasons(
     def fake_run_season(season: int) -> None:
         calls.append(("data", season))
         if season == 2024:
-            raise RuntimeError("boom")
+            msg = "boom"
+            raise RuntimeError(msg)
 
     monkeypatch.setattr(pipeline, "run_season", fake_run_season)
     monkeypatch.setattr(pipeline, "apply_alltime_rating_companions", lambda data_dir, seasons: None)

@@ -1,12 +1,15 @@
 """Tests for composite-weight fitting helpers."""
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
 import pytest
 
 from nfl_sos_ratings import composite_weights
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_parquet(path: Path, frame: pl.DataFrame) -> None:
@@ -281,8 +284,8 @@ def test_helper_branches_cover_missing_components_reference_edges_and_weight_col
     with pytest.raises(ValueError, match="qb_dropbacks"):
         composite_weights._resolve_qb_weight_column(pl.DataFrame({"other": [1.0]}))
 
-    component_a = composite_weights.CompositeComponent("a", ("a",), True)
-    component_b = composite_weights.CompositeComponent("b", ("b",), False)
+    component_a = composite_weights.CompositeComponent("a", ("a",), higher_is_better=True)
+    component_b = composite_weights.CompositeComponent("b", ("b",), higher_is_better=False)
     spec = composite_weights.FrozenCompositeSpec(
         name="demo",
         components=(component_a, component_b),

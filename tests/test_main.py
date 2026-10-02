@@ -1,13 +1,16 @@
 """Tests for nfl_sos_ratings.main pipeline behavior."""
 
 import io
-from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
 
 from nfl_sos_ratings import main
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _weekly_df() -> pl.DataFrame:

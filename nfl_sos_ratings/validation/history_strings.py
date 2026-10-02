@@ -42,7 +42,7 @@ def _find_pairwise_mae_row(
 
 def _row_float(row: dict[str, object], key: str) -> float:
     """Return one row value as a float for report rendering."""
-    return float(cast(float | int | str, row[key]))
+    return float(cast("float | int | str", row[key]))
 
 
 def _row_bool(row: dict[str, object], key: str) -> bool:
@@ -56,10 +56,14 @@ def build_team_report_decision_lines(
     *,
     base_team_stability: dict[str, object] | None,
     t4_team_stability: dict[str, float | int] | None,
-    rolling_epa_st_baseline: str,
-    play_level_epa_st_baseline: str,
+    baselines: tuple[str, str],
 ) -> list[str]:
-    """Build the archived team decision narrative for the validation report."""
+    """Build the archived team decision narrative for the validation report.
+
+    ``baselines`` holds the rolling-weights-plus-special-teams baseline label first and the
+    play-level baseline label second.
+    """
+    rolling_epa_st_baseline, play_level_epa_st_baseline = baselines
     overall_metrics = {
         str(row["baseline"]): row
         for row in metrics.filter(pl.col("split") == "overall").iter_rows(named=True)
@@ -115,10 +119,12 @@ def build_team_report_decision_lines(
     )
 
     t4_displacement_lines = [
-        f"- Play-level displacement check: {play_level_epa_st_baseline} overall MAE "
-        f"{_row_float(t4_row, 'mae'):.3f} and RMSE {_row_float(t4_row, 'rmse'):.3f}\n  versus "
-        f"{rolling_epa_st_baseline} MAE {_row_float(t2_row, 'mae'):.3f} and RMSE "
-        f"{_row_float(t2_row, 'rmse'):.3f}."
+        (
+            f"- Play-level displacement check: {play_level_epa_st_baseline} overall MAE "
+            f"{_row_float(t4_row, 'mae'):.3f} and RMSE {_row_float(t4_row, 'rmse'):.3f}\n  versus "
+            f"{rolling_epa_st_baseline} MAE {_row_float(t2_row, 'mae'):.3f} and RMSE "
+            f"{_row_float(t2_row, 'rmse'):.3f}."
+        )
     ]
     if t4_vs_t2 is not None:
         t4_displacement_lines.append(
