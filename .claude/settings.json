@@ -16,6 +16,11 @@
       "Bash(./update_requirements.sh *)",
       "Bash(.venv/bin/nfl-sos *)",
       "Bash(.venv/bin/nfl-sos-pipeline *)",
+      "Bash(.venv/bin/nfl-sos-ratings season*)",
+      "Bash(.venv/bin/nfl-sos-ratings pipeline*)",
+      "Bash(.venv/bin/nfl-sos-ratings validate*)",
+      "Bash(.venv/bin/nfl-sos-ratings weights*)",
+      "Bash(.venv/bin/nfl-sos-ratings qsos-audit*)",
       "Bash(uv run nfl-sos *)",
       "Bash(uv run nfl-sos-pipeline *)",
       "Bash(.venv/bin/python -m nfl_sos_ratings.main *)",
@@ -29,7 +34,7 @@
       "Edit(/uv.lock)",
       "Edit(/requirements*.txt)",
       "Edit(/docs/validation-report.md)",
-      "Edit(/ui/web/package-lock.json)"
+      "Edit(/web/package-lock.json)"
     ]
   }
 }
