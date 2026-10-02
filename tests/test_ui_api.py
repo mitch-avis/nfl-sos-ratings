@@ -6,10 +6,13 @@ from typing import TYPE_CHECKING
 import polars as pl
 from fastapi.testclient import TestClient
 
+from nfl_sos_ratings import ui_api
 from nfl_sos_ratings.ui_api import create_app
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import pytest
 
 
 def _write_table(path: Path, header: str, row: str) -> None:
@@ -166,3 +169,76 @@ def test_get_metadata_returns_registry_payload(tmp_path: Path) -> None:
     assert "that season's average" in payload["metrics"]["SaCR"]["description"].lower()
     assert "1999-2005" in payload["metrics"]["QSaCR"]["note"]
     assert "qb_primary" in payload["pools"]
+
+
+def _write_frontend_build(dist_dir: Path) -> None:
+    """Create a minimal built single-page app."""
+    (dist_dir / "assets").mkdir(parents=True)
+    (dist_dir / "index.html").write_text("<!doctype html><div id=root></div>", encoding="utf-8")
+    (dist_dir / "assets" / "app.js").write_text("console.log('app');", encoding="utf-8")
+    (dist_dir / "favicon.svg").write_text("<svg/>", encoding="utf-8")
+
+
+def test_frontend_routes_fall_back_to_index_html(tmp_path: Path) -> None:
+    dist_dir = tmp_path / "dist"
+    _write_frontend_build(dist_dir)
+    client = TestClient(create_app(tmp_path, web_dist=dist_dir))
+
+    for path in ("/", "/teams", "/qbs/00-0033106"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert "<div id=root>" in response.text
+
+
+def test_frontend_serves_built_assets_and_root_files(tmp_path: Path) -> None:
+    dist_dir = tmp_path / "dist"
+    _write_frontend_build(dist_dir)
+    client = TestClient(create_app(tmp_path, web_dist=dist_dir))
+
+    assert client.get("/assets/app.js").text == "console.log('app');"
+    assert client.get("/favicon.svg").text == "<svg/>"
+
+
+def test_unknown_api_paths_return_json_404_not_the_app(tmp_path: Path) -> None:
+    dist_dir = tmp_path / "dist"
+    _write_frontend_build(dist_dir)
+    client = TestClient(create_app(tmp_path, web_dist=dist_dir))
+
+    response = client.get("/api/not-a-route")
+
+    assert response.status_code == 404
+    assert response.headers["content-type"].startswith("application/json")
+
+
+def test_frontend_does_not_serve_files_outside_the_build(tmp_path: Path) -> None:
+    dist_dir = tmp_path / "dist"
+    _write_frontend_build(dist_dir)
+    (tmp_path / "secret.txt").write_text("secret", encoding="utf-8")
+    client = TestClient(create_app(tmp_path, web_dist=dist_dir))
+
+    response = client.get("/..%2Fsecret.txt")
+
+    assert "secret" not in response.text
+
+
+def test_missing_frontend_build_explains_how_to_build_it(tmp_path: Path) -> None:
+    client = TestClient(create_app(tmp_path, web_dist=tmp_path / "missing"))
+
+    response = client.get("/")
+
+    assert response.status_code == 503
+    assert "npm run build" in response.text
+
+
+def test_web_command_starts_uvicorn_on_the_local_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, int, bool]] = []
+
+    def fake_run(app: object, *, host: str, port: int, **kwargs: object) -> None:
+        calls.append((host, port, bool(kwargs.get("reload", False))))
+
+    monkeypatch.setattr(ui_api.uvicorn, "run", fake_run)
+
+    ui_api.main([])
+    ui_api.main(["--host", "0.0.0.0", "--port", "9001"])  # noqa: S104 - exercising the flag
+
+    assert calls == [("127.0.0.1", 8080, False), ("0.0.0.0", 9001, False)]  # noqa: S104

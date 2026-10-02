@@ -33,7 +33,7 @@ def test_pipeline_raises_on_failures_and_exits_nonzero_for_failed_seasons(
     monkeypatch.setattr(pipeline, "apply_alltime_rating_companions", stub(lambda: None))
 
     with pytest.raises(SystemExit) as excinfo:
-        pipeline.main()
+        pipeline.main([])
 
     assert calls == [
         ("data", 2024),
@@ -59,7 +59,7 @@ def test_pipeline_main_handles_windows_stdout(
     monkeypatch.setattr(pipeline.sys, "stdout", SimpleNamespace(buffer=io.BytesIO()))
     monkeypatch.setattr(pipeline.io, "TextIOWrapper", stub(io.StringIO))
 
-    pipeline.main()
+    pipeline.main([])
 
 
 def test_pipeline_applies_alltime_companions_after_successful_data_phase(
@@ -80,7 +80,7 @@ def test_pipeline_applies_alltime_companions_after_successful_data_phase(
     monkeypatch.setattr(pipeline, "run_season", fake_run_season)
     monkeypatch.setattr(pipeline, "apply_alltime_rating_companions", fake_companions)
 
-    pipeline.main()
+    pipeline.main([])
 
     assert calls == [
         ("data", 2024),

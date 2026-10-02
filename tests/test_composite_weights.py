@@ -398,7 +398,7 @@ def test_main_prints_the_reproducible_composite_weight_report(
     monkeypatch.setattr(composite_weights, "fit_linear_weights", fake_fit)
     monkeypatch.setattr(composite_weights, "evaluate_leave_one_season_out", fake_eval)
 
-    composite_weights.main()
+    composite_weights.main([])
     output = capsys.readouterr().out
 
     assert "Composite-weight fit summary" in output

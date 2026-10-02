@@ -1157,7 +1157,9 @@ def compute_qbr_correlations(data_dir: Path, seasons: list[int]) -> pl.DataFrame
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments for the walk-forward validation command."""
-    parser = argparse.ArgumentParser(description="Run the walk-forward validation suite.")
+    parser = argparse.ArgumentParser(
+        prog="nfl-sos-ratings validate", description="Run the walk-forward validation suite."
+    )
     parser.add_argument(
         "--data-dir",
         default=DATA_DIR,

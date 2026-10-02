@@ -235,7 +235,7 @@ def test_main_uses_current_season_scaling_for_team_and_qb_ratings(
     monkeypatch.setattr(main, "compute_ratings", capture_team_reference)
     monkeypatch.setattr(main, "compute_qb_ratings", capture_qb_reference)
 
-    main.main()
+    main.main([])
 
     assert captured["team_reference_df"] is None
     assert captured["qb_reference_df"] is None
@@ -253,7 +253,7 @@ def test_main_returns_when_no_opponent_profiles(
         stub(lambda: (None, None, _details())),
     )
 
-    main.main()
+    main.main([])
 
     assert (tmp_path / f"{main.SEASON}_team_per_game_stats.parquet").exists()
     assert (tmp_path / f"{main.SEASON}_qb_per_game_stats.parquet").exists()
@@ -284,7 +284,7 @@ def test_main_handles_both_team_and_qb_profiles(
         ),
     )
 
-    main.main()
+    main.main([])
 
     combined = pl.read_parquet(tmp_path / f"{main.SEASON}_combined.parquet")
     qb_combined = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_combined.parquet")
@@ -356,7 +356,7 @@ def test_main_preserves_distinct_opponent_per_game_and_per_play_series(
         ),
     )
 
-    main.main()
+    main.main([])
 
     team_combined = pl.read_parquet(tmp_path / f"{main.SEASON}_combined.parquet")
     qb_combined = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_combined.parquet")
@@ -445,7 +445,7 @@ def test_main_writes_team_and_qb_schedule_context_companions(
     monkeypatch.setattr(main, "_build_team_schedule_strength", original_team_sos)
     monkeypatch.setattr(main, "_build_qb_faced_overall_quality", original_qb_overall)
 
-    main.main()
+    main.main([])
 
     combined = pl.read_parquet(tmp_path / f"{main.SEASON}_combined.parquet")
     ratings = pl.read_parquet(tmp_path / f"{main.SEASON}_ratings.parquet")
@@ -668,7 +668,7 @@ def test_main_writes_qb_designed_rush_context_companions(
         ),
     )
 
-    main.main()
+    main.main([])
 
     qb_combined = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_combined.parquet")
     qb_ratings = pl.read_parquet(tmp_path / f"{main.SEASON}_qb_ratings.parquet")
@@ -703,7 +703,7 @@ def test_main_skips_historical_qb_calibration(
         ),
     )
 
-    main.main()
+    main.main([])
     assert (tmp_path / f"{main.SEASON}_qb_ratings.parquet").exists()
 
 
@@ -723,7 +723,7 @@ def test_main_handles_team_only_profiles(monkeypatch: pytest.MonkeyPatch, tmp_pa
         ),
     )
 
-    main.main()
+    main.main([])
 
     opponents = pl.read_parquet(tmp_path / f"{main.SEASON}_opponent_profiles.parquet")
     assert opponents.columns == ["team", "points_for"]
@@ -750,7 +750,7 @@ def test_main_handles_qb_only_profiles_and_windows_stdout(
     monkeypatch.setattr(main.sys, "stdout", SimpleNamespace(buffer=io.BytesIO()))
     monkeypatch.setattr(main.io, "TextIOWrapper", stub(io.StringIO))
 
-    main.main()
+    main.main([])
 
     combined = pl.read_parquet(tmp_path / f"{main.SEASON}_combined.parquet")
     assert "diff_qb_passer_rating" not in combined.columns

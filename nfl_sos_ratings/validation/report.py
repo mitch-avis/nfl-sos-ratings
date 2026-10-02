@@ -784,6 +784,36 @@ def _qb_playoff_section(correlations: pl.DataFrame | None) -> list[str]:
     ]
 
 
+def _space_blocks(text: str) -> str:
+    """Return ``text`` with a blank line around every heading, table, and code fence.
+
+    Sections are assembled from independent pieces, so one piece can end where the next one's
+    heading or table starts; the spacing keeps the generated file lint-clean without edits.
+    """
+    spaced: list[str] = []
+    in_fence = False
+    for line in text.split("\n"):
+        previous = spaced[-1] if spaced else ""
+        is_fence = line.startswith("```")
+        if in_fence:
+            spaced.append(line)
+            in_fence = not is_fence
+            continue
+        starts_block = (
+            line.startswith("#")
+            or is_fence
+            or (line.startswith("|") and not previous.startswith("|"))
+        )
+        ends_block = previous.startswith("#") or (
+            previous.startswith("|") and not line.startswith("|")
+        )
+        if (starts_block or ends_block) and previous and line:
+            spaced.append("")
+        spaced.append(line)
+        in_fence = is_fence
+    return "\n".join(spaced)
+
+
 def build_validation_report_text(inputs: ValidationReportInputs) -> str:
     """Render the validation report as Markdown."""
     lines = [
@@ -799,7 +829,7 @@ def build_validation_report_text(inputs: ValidationReportInputs) -> str:
         *_qb_playoff_section(inputs.qb_playoff_correlations),
         *history_strings.sacr_report_caveat_lines(),
     ]
-    return "\n".join(lines).rstrip() + "\n"
+    return _space_blocks("\n".join(lines)).rstrip() + "\n"
 
 
 def write_validation_report(report_path: Path, inputs: ValidationReportInputs) -> None:

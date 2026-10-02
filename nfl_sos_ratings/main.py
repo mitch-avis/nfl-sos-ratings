@@ -5,6 +5,7 @@ profiles, computes published ridge-backed ratings, and writes simultaneous-
 adjustment outputs for auditability and UI detail surfaces.
 """
 
+import argparse
 import io
 import sys
 from pathlib import Path
@@ -795,13 +796,29 @@ def run_season(season: int) -> None:
     )
 
 
-def main() -> None:
-    """Run the full NFL strength-of-schedule analysis pipeline for the configured season."""
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    """Parse the ``season`` command's options."""
+    parser = argparse.ArgumentParser(
+        prog="nfl-sos-ratings season",
+        description=(
+            "Build one season's Parquet outputs in data/. The all-time companion columns come "
+            "only from the pipeline command."
+        ),
+    )
+    parser.add_argument(
+        "--season", type=int, default=SEASON, help=f"Season to build (default: {SEASON})."
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Run the full NFL strength-of-schedule analysis pipeline for one season."""
+    args = _parse_args(argv)
     # Ensure UTF-8 output on Windows
     if sys.platform == "win32":
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
-    run_season(SEASON)
+    run_season(args.season)
 
 
 if __name__ == "__main__":

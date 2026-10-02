@@ -171,7 +171,7 @@ def _capture_composite_weight_cli_output(
     monkeypatch.setattr(composite_weights, "fit_linear_weights", fake_fit)
     monkeypatch.setattr(composite_weights, "evaluate_leave_one_season_out", fake_eval)
 
-    composite_weights.main()
+    composite_weights.main([])
     return capsys.readouterr().out
 
 

@@ -25,9 +25,10 @@ classifiers = [
 ]
 
 [project.scripts]
+nfl-sos-ratings = "nfl_sos_ratings.cli:main"
+# Shortcuts kept for existing habits: `nfl-sos-ratings season` and `nfl-sos-ratings pipeline`.
 nfl-sos = "nfl_sos_ratings.main:main"
 nfl-sos-pipeline = "nfl_sos_ratings.pipeline:main"
-nfl-sos-ui-api = "nfl_sos_ratings.ui_api:main"
 
 [project.urls]
 Homepage = "https://github.com/mitch-avis/nfl-sos-ratings"

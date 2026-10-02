@@ -236,7 +236,10 @@ def build_qsos_audit_markdown(data_dir: Path, seasons: list[int]) -> str:
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments for the standalone QB schedule-strength audit."""
-    parser = argparse.ArgumentParser(description="Run the standalone QB schedule-strength audit.")
+    parser = argparse.ArgumentParser(
+        prog="nfl-sos-ratings qsos-audit",
+        description="Run the standalone QB schedule-strength audit.",
+    )
     parser.add_argument("--data-dir", default=DATA_DIR, help="Directory holding Parquet artifacts.")
     parser.add_argument(
         "--start-season", type=int, default=START_YEAR, help="First season to include."

@@ -7,6 +7,7 @@ Usage:
     uv run python -m nfl_sos_ratings.pipeline
 """
 
+import argparse
 import io
 import sys
 from pathlib import Path
@@ -20,8 +21,21 @@ from nfl_sos_ratings.config import DATA_DIR, END_YEAR, START_YEAR
 from nfl_sos_ratings.main import run_season
 
 
-def main() -> None:
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    """Parse the ``pipeline`` command's options (it has none beyond ``--help``)."""
+    parser = argparse.ArgumentParser(
+        prog="nfl-sos-ratings pipeline",
+        description=(
+            f"Build every season {START_YEAR}-{END_YEAR} into data/, then the all-time companion "
+            "columns. Exits 1 if any season fails."
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
     """Run data gathering for all seasons from START_YEAR to END_YEAR."""
+    _parse_args(argv)
     # Ensure UTF-8 output on Windows
     if sys.platform == "win32":
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")

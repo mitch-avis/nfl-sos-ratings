@@ -12,6 +12,7 @@ established starters.
 
 from __future__ import annotations
 
+import argparse
 import itertools
 from dataclasses import dataclass
 from pathlib import Path
@@ -673,7 +674,7 @@ def evaluate_leave_one_season_out(
     }
 
 
-def main() -> None:
+def print_weight_report() -> None:
     """Print the reproducible composite-weight fit and held-out diagnostics."""
     data_dir = Path(DATA_DIR)
     seasons = range(START_YEAR, END_YEAR + 1)
@@ -768,6 +769,17 @@ def main() -> None:
         f"weighted_mae={qb_frozen_diag['weighted_mae']:.6f}, "
         f"equal_weight_mae={qb_frozen_diag['equal_weight_mae']:.6f}"
     )
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Parse the ``weights`` command's options, then print the composite-weight report."""
+    argparse.ArgumentParser(
+        prog="nfl-sos-ratings weights",
+        description=(
+            "Print the composite-weight fit and leave-one-season-out diagnostics from data/."
+        ),
+    ).parse_args(argv)
+    print_weight_report()
 
 
 if __name__ == "__main__":

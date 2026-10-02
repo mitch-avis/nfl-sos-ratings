@@ -19,8 +19,10 @@ def test_pyproject_matches_current_cli_and_runtime_surface() -> None:
     scripts = project["scripts"]
     dependencies = project["dependencies"]
 
+    assert scripts["nfl-sos-ratings"] == "nfl_sos_ratings.cli:main"
     assert "nfl-sos" in scripts
     assert "nfl-sos-pipeline" in scripts
+    assert "nfl-sos-ui-api" not in scripts
     assert "nfl-sos-viz" not in scripts
     assert any(dependency.startswith("numpy") for dependency in dependencies)
     assert all(not dependency.startswith("matplotlib") for dependency in dependencies)
