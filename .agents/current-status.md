@@ -295,10 +295,10 @@ Recorded decision:
 
 ## Validation snapshot
 
-Current gate state (2026-10-02, `scripts/gate.sh --web` on commit 664f222): lock and sync checks,
-ruff format, ruff (`select = ["ALL"]`), ty, pyright (strict), and pytest pass: 352 passed,
-2 deselected (`published_data`), total coverage 77.72% against the enforced 75% floor. Two steps
-fail, both known:
+Current gate state (2026-10-02, `scripts/gate.sh` on commit c4e3d3d; `--web` run separately):
+lock and sync checks, ruff format, ruff (`select = ["ALL"]`), ty, pyright (strict), and pytest
+pass: 352 passed, 2 deselected (`published_data`), total coverage 77.83% against the enforced 75%
+floor. Two steps fail, both known:
 
 - markdownlint: `docs/validation-report.md:699` (MD013, 134 characters). The working-tree report
   is the refreshed-data output of the generator before the line-wrap fixes (d7d4206, 664f222).
