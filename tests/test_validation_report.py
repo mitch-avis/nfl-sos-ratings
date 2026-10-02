@@ -41,11 +41,11 @@ def _report_lines() -> list[str]:
         ),
         stability=pl.DataFrame(
             {
-                "metric": ["QSaCR"],
-                "entity": ["qb"],
-                "paired_rows": [5],
-                "pearson": [0.5],
-                "spearman": [0.4],
+                "metric": ["QSaCR", "qb_passer_rating", "qb_any_a"],
+                "entity": ["qb", "qb", "qb"],
+                "paired_rows": [5, 5, 5],
+                "pearson": [0.479, 0.413, 0.338],
+                "spearman": [0.466, 0.416, 0.330],
             }
         ),
         qbr_correlations=pl.DataFrame(

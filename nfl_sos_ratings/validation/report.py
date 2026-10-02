@@ -184,8 +184,8 @@ def _qb_stability_acceptance_lines(stability: pl.DataFrame) -> list[str]:
             f"{'Pass' if qb_pass else 'Fail'}. QSaCR Pearson/Spearman "
             f"{float(qsacr_row['pearson']):.3f}/{float(qsacr_row['spearman']):.3f}; "
             "passer rating "
-            f"{float(passer_row['pearson']):.3f}/{float(passer_row['spearman']):.3f}; "
-            f"ANY/A {float(any_a_row['pearson']):.3f}/{float(any_a_row['spearman']):.3f}."
+            f"{float(passer_row['pearson']):.3f}/{float(passer_row['spearman']):.3f};"
+            f"\n  ANY/A {float(any_a_row['pearson']):.3f}/{float(any_a_row['spearman']):.3f}."
         )
     ]
 
