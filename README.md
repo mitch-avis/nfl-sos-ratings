@@ -252,6 +252,7 @@ the head-to-head exclusion rule.
 - [uv](https://docs.astral.sh/uv/) for environment and dependency management
 - Linux, macOS, or Windows
 - Local virtual environment at `.venv`
+- Node.js and npm, only for building or developing the analyst web app in `web/`
 
 Dependencies are declared in `pyproject.toml` and locked in `uv.lock`.
 Compatibility exports such as `requirements.txt` are optional artifacts and may be absent.
@@ -266,13 +267,24 @@ source .venv/bin/activate
 uv sync --active
 ```
 
-For dependency changes, edit `pyproject.toml`, activate `.venv`, then run:
+To add or remove one dependency, use uv's targeted commands, which update `pyproject.toml` and
+`uv.lock` together without upgrading anything else:
+
+```bash
+uv add <package>               # runtime dependency
+uv add --group dev <package>   # development tool
+uv remove <package>
+```
+
+If you edit `pyproject.toml` by hand instead, run `uv lock` and then `uv sync`.
+
+To upgrade every dependency at once, activate `.venv` and run:
 
 ```bash
 ./update_requirements.sh
 ```
 
-The script refreshes `uv.lock`, syncs the active environment, and only regenerates
+The script runs `uv lock --upgrade`, syncs the active environment, and only regenerates
 `requirements*.txt` compatibility exports if those files already exist.
 
 ## Configuration
@@ -287,41 +299,50 @@ DATA_DIR: str = "data"
 ```
 
 - `START_YEAR` and `END_YEAR` bound the seasons the multi-season pipeline processes
-- `SEASON` selects the target season for the single-season pipeline (`main.py`)
+- `SEASON` selects the default target season for the single-season pipeline
+  (`nfl-sos-ratings season`; override it with `--season`)
 - `DATA_DIR` selects where Parquet outputs are written
 
 ## How to Run
 
-Primary single-season pipeline:
+Every command runs through one front door, `nfl-sos-ratings <command>`. `nfl-sos-ratings --help`
+lists the commands, and `nfl-sos-ratings <command> --help` shows one command's options.
 
 ```bash
-uv run nfl-sos
+uv run nfl-sos-ratings season [--season N]  # one season (default: SEASON in config.py)
+uv run nfl-sos-ratings pipeline             # every season START_YEAR..END_YEAR
+uv run nfl-sos-ratings validate             # walk-forward validation report
+uv run nfl-sos-ratings weights              # composite-weight fit and held-out diagnostics
+uv run nfl-sos-ratings qsos-audit           # QB schedule-strength audit
+uv run nfl-sos-ratings web                  # analyst web app and its API
 ```
 
-Full multi-season pipeline:
+`season`, `pipeline`, and `validate` download from nflverse and rewrite files in `data/` or
+`docs/`; the full pipeline and the validation run take well over ten minutes. The older
+`nfl-sos` and `nfl-sos-pipeline` commands still work as shortcuts for `season` and `pipeline`.
+
+### Analyst web app
+
+The web app lives in `web/` (React, TypeScript, Vite, Tailwind). Build it once, then let the
+Python server serve both the built app and its JSON API on one port:
 
 ```bash
-uv run nfl-sos-pipeline
+cd web && npm ci && npm run build && cd ..
+uv run nfl-sos-ratings web   # http://127.0.0.1:8080
 ```
 
-Local analyst UI backend:
+`web` takes `--host` (default `127.0.0.1`), `--port` (default `8080`), `--data-dir` (default
+`data`), and `--reload`. It reads the Parquet outputs, so run `season` or `pipeline` first.
+
+For frontend development with hot reload, keep `nfl-sos-ratings web` running for the API and start
+the Vite dev server, which proxies `/api` to port 8080:
 
 ```bash
-uv run nfl-sos-ui-api
+cd web
+npm run dev   # http://127.0.0.1:5280
 ```
 
-Local analyst UI frontend:
-
-```bash
-cd ui/web
-npm install
-npm run dev
-```
-
-Detailed frontend usage and troubleshooting notes live in `ui/web/README.md`.
-
-The module-entry equivalents (`uv run python -m nfl_sos_ratings.main`, and so on) remain valid
-when you want the explicit module form.
+Frontend details live in [`web/README.md`](web/README.md).
 
 ## Data Files
 
@@ -387,6 +408,7 @@ nfl-sos-ratings/
 │   ├── simultaneous_adjustment.py
 │   ├── team_stats.py
 │   ├── team_stats_expanded.py
+│   ├── cli.py
 │   ├── ui_api.py
 │   ├── ui_data.py
 │   └── validation/
@@ -394,8 +416,7 @@ nfl-sos-ratings/
 ├── docs/
 ├── scripts/
 │   └── gate.sh
-├── ui/
-│   └── web/
+├── web/
 ├── data/
 ├── .agents/
 ├── .claude/
@@ -422,7 +443,7 @@ iterating, or `--web` to also build the frontend:
 scripts/gate.sh
 ```
 
-The individual tools and report commands:
+The individual tools:
 
 ```bash
 uv run ruff format .
@@ -430,21 +451,20 @@ uv run ruff check .
 uv run ty check .
 uv run pyright .
 uv run pytest
-uv run python -m nfl_sos_ratings.composite_weights
-uv run python -m nfl_sos_ratings.validation.walk_forward
+uv run pytest -m published_data   # also check the generated Parquet files in data/
 ```
 
-Dependency refresh:
+Ruff runs with `select = ["ALL"]` and pyright in strict mode, both configured in
+`pyproject.toml`. pytest enforces a coverage floor of 75% (`fail_under`); the goal is 90%. Tests
+marked `published_data` read the generated files in `data/` and are deselected by default, so the
+default suite runs without a data refresh.
+
+Frontend checks, from `web/`:
 
 ```bash
-source .venv/bin/activate
-./update_requirements.sh
-```
-
-Frontend build check:
-
-```bash
-cd ui/web
+npm run lint
+npm run typecheck
+npx vitest run
 npm run build
 ```
 
@@ -457,7 +477,8 @@ reference comparison.
 Run the full validation harness from the repo root:
 
 ```bash
-uv run python -m nfl_sos_ratings.validation.walk_forward
+uv run nfl-sos-ratings validate --data-dir data --start-season 1999 --end-season 2025 \
+  --start-week 5 --report-path docs/validation-report.md
 ```
 
 The command writes [docs/validation-report.md]. That report is the authoritative summary of the

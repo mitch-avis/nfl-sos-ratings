@@ -25,7 +25,8 @@ There are two independent rating systems:
   exception is ESPN QBR, which nflreadpy lacks: `data_loader.load_espn_qbr` downloads it from the
   nflverse release assets.
 - NumPy for the rating and linear-algebra math; FastAPI plus uvicorn for the local analyst API.
-- React plus Vite for the analyst UI in `ui/web/` (see `ui/web/README.md`).
+- React, TypeScript, Vite, Tailwind, and shadcn/ui for the analyst web app in `web/` (see
+  `web/README.md`; `web/AGENTS.md` holds the frontend rules).
 
 ## Commands
 
@@ -38,51 +39,65 @@ uv venv .venv && uv sync   # one-time setup
 scripts/gate.sh            # the gate: lock/sync checks, ruff format, ruff, ty, pyright, pytest,
                            # markdownlint
 scripts/gate.sh --quick    # static checks only, for iteration
-scripts/gate.sh --web      # also build ui/web; use when ui/web/ or the API payloads change
+scripts/gate.sh --web      # also build web/; use when web/ or the API payloads change
 ```
 
 - `scripts/gate.sh` defines "checks pass". No task is reported done until it exits 0 on the final
   tree; `--quick` is for iteration, never for the report. Report each step as passed, failed (with
   the key error), or not run (with the reason). Single tools while iterating: `.venv/bin/ruff`,
   `.venv/bin/ty check .`, `.venv/bin/pyright .`, `.venv/bin/pytest`.
+- pytest deselects tests marked `published_data`, which read the generated Parquet files in
+  `data/`. Run them with `.venv/bin/pytest -m published_data` after a data refresh.
 - After any `pyproject.toml` edit, even a comment, run `uv sync`: uv rebuilds the project
   package, and until then the gate's `uv sync --check` step fails.
 - If the gate fails on something your change did not touch, check "Validation snapshot" in
   `.agents/current-status.md` for known failures, and say so in the report instead of quietly
   fixing or ignoring it.
 
-Entry points (none of them takes `--help`; each one runs immediately):
+Entry points all go through one front door, `nfl-sos-ratings <command>`; `--help` on the front
+door or any command prints usage without running anything (commands are listed in
+`nfl_sos_ratings/cli.py`, `COMMANDS`):
 
 ```bash
-.venv/bin/nfl-sos            # one season (SEASON in nfl_sos_ratings/config.py), writes data/
-.venv/bin/nfl-sos-pipeline   # every season START_YEAR..END_YEAR, rewrites all of data/
-.venv/bin/nfl-sos-ui-api     # local analyst API
-.venv/bin/python -m nfl_sos_ratings.validation.walk_forward  # regenerates docs/validation-report.md
-.venv/bin/python -m nfl_sos_ratings.composite_weights        # composite-weight fit report
-.venv/bin/python -m nfl_sos_ratings.validation.qsos_audit    # QB schedule-strength audit
+.venv/bin/nfl-sos-ratings season [--season N]  # one season (default SEASON in config.py)
+.venv/bin/nfl-sos-ratings pipeline             # every season START_YEAR..END_YEAR, rewrites data/
+.venv/bin/nfl-sos-ratings validate ...         # regenerates docs/validation-report.md
+.venv/bin/nfl-sos-ratings weights              # composite-weight fit report
+.venv/bin/nfl-sos-ratings qsos-audit           # QB schedule-strength audit
+.venv/bin/nfl-sos-ratings web [--port 8080]    # analyst web app (web/dist) plus its API
 ```
+
+The full validation run is `validate --data-dir data --start-season 1999 --end-season 2025
+--start-week 5 --report-path docs/validation-report.md`. `nfl-sos` and `nfl-sos-pipeline` remain
+as shortcuts for `season` and `pipeline`. `web` serves the built app, so run `npm run build` in
+`web/` first; the Vite dev server (`npm run dev`) runs on 5280 and proxies `/api` to 8080.
 
 The pipeline and validation commands download from nflverse and can outlive a 10-minute shell
 timeout: run them detached (`nohup setsid <cmd> > run.log 2>&1 &`) and only after asking (see
 Boundaries).
 
 **Dependencies.** Adding one is fine when there is a good reason (no adequate stdlib or
-existing-dependency option, actively maintained, pulls its weight). Add it to `pyproject.toml`,
-then run `./update_requirements.sh` from an activated `.venv`, and say in the change what it is
-for. That script runs `uv lock --upgrade`, so it also upgrades everything else; commit that refresh
-separately as `chore: update deps`. Remove unused direct dependencies rather than letting them
-linger. Never hand-edit `uv.lock` or any generated `requirements*.txt` export.
+existing-dependency option, actively maintained, pulls its weight); say in the change what it is
+for. Use the targeted commands, which touch only that package: `uv add <pkg>`,
+`uv add --group dev <pkg>`, `uv remove <pkg>` (or edit `pyproject.toml`, then `uv lock` and
+`uv sync`). `./update_requirements.sh` (from an activated `.venv`) is the upgrade-everything
+refresh: it runs `uv lock --upgrade`, so ask before running it and commit it on its own as
+`chore: update deps`. Remove unused direct dependencies rather than letting them linger. Never
+hand-edit `uv.lock` or any generated `requirements*.txt` export.
 
 ## Repository layout
 
 - `nfl_sos_ratings/`: the package; tests mirror it under `tests/`. The team pipeline flows
   `data_loader`/`team_stats` → `opponent_stats` → `ratings`; the QB pipeline `data_loader`/`qb_stats`
   → `qb_opponent_stats` → `qb_ratings`. The ridge solves live in `simultaneous_adjustment.py`;
-  `main` runs one season and `pipeline` runs them all.
+  `main` runs one season, `pipeline` runs them all, and `cli` is the `nfl-sos-ratings` front
+  door. `ui_data` and `ui_api` serve the web app's JSON API and its built files.
 - `nfl_sos_ratings/metrics/`: the metric registry; `nfl_sos_ratings/validation/`: walk-forward
   validation, diagnostics, and audits. Read the module you are changing rather than assuming it.
 - `docs/`: `methodology.md` (reader-facing), `validation-report.md` (generated), two catalogs.
-- `ui/web/`: the analyst frontend; `data/`: generated Parquet outputs (gitignored); `.agents/`:
+- `tests/stubs.py`: shared test doubles; `tests/fixtures/`: checked-in fixtures, each with the
+  script that rebuilds it.
+- `web/`: the analyst frontend; `data/`: generated Parquet outputs (gitignored); `.agents/`:
   plans and handoff (below); `scripts/gate.sh`: the gate.
 
 ## Plans, handoff, and scope
@@ -156,8 +171,9 @@ These are correctness invariants specific to this project. Linters will not catc
 
 ## Code conventions
 
-Ruff, pyright, and ty enforce style and types with the settings in `pyproject.toml` (pyright runs
-in standard mode with extra rules promoted to errors; strict mode is not enabled). Beyond that:
+Ruff, pyright, and ty enforce style and types with the settings in `pyproject.toml`: ruff selects
+`ALL` rules (with the per-file ignores listed there), and pyright runs in strict mode over the
+package and the tests. Beyond that:
 
 - **Test-driven development** for new behavior: write a failing test in `tests/` first, then
   implement until it passes. Small targeted fixes need no test-first, but the suite stays green.
@@ -201,8 +217,8 @@ in standard mode with extra rules promoted to errors; strict mode is not enabled
 ## Boundaries
 
 - **Always:** run `scripts/gate.sh` before finishing; add or update tests for the code you change.
-  The coverage target for logic-bearing code is 90% or higher. It is not enforced by config, and
-  the current total is below it (see `.agents/current-status.md`): don't lower it further.
+  pytest enforces a 75% coverage floor (`fail_under` in `pyproject.toml`); the goal for
+  logic-bearing code is 90% or higher. Don't lower the total; raise the floor as coverage grows.
 - **Ask first, then stop and wait:**
   - changing the rating methodology, published rating definitions or outputs, frozen composite
     weights, or rating-pool membership;
