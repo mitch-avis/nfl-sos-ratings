@@ -120,6 +120,8 @@ extend-allowed-calls = ["polars.lit"]
     "ARG005",
     "PLC0415", # tests may import inside a test to scope a monkeypatch
 ]
+# Fixture builders print the values to pin in their tests.
+"tests/fixtures/*/build_fixture.py" = ["T201"]
 # Command-line progress and report output goes to stdout with print until a project logger
 # replaces it in these modules.
 "nfl_sos_ratings/main.py" = ["T201"]
@@ -156,17 +158,25 @@ executionEnvironments = [
 # nflreadpy and a few scientific dependencies ship without stubs.
 reportMissingTypeStubs = false
 
+# --------------------------------------------------------------------------------------------
+# Tests and coverage
+# --------------------------------------------------------------------------------------------
 [tool.pytest.ini_options]
-minversion = "7.0"
+minversion = "9.0"
 testpaths = ["tests"]
+# Tests import shared helpers as `tests.*`.
+pythonpath = ["."]
 addopts = [
     "-ra",                       # show extra summary for (s)kipped, (x)failed
     "--strict-markers",
     "--cov=nfl_sos_ratings",
     "--cov-report=term-missing",
+    "-m", "not published_data",  # opt in with `pytest -m published_data`
+]
+markers = [
+    "published_data: reads the generated Parquet outputs under data/; deselected by default",
 ]
 filterwarnings = ["ignore::DeprecationWarning"]
-pythonpath = ["."]
 
 [tool.coverage.run]
 branch = true
@@ -174,6 +184,8 @@ source = ["nfl_sos_ratings"]
 omit = ["config.py", "config-*.py", "*/config.py", "*/config-*.py"]
 
 [tool.coverage.report]
+# Interim floor; the target is 90 (see .agents/current-status.md).
+fail_under = 75
 show_missing = true
 skip_empty = true
 exclude_lines = ["pragma: no cover", "if __name__ == \"__main__\":"]
