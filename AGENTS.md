@@ -1,7 +1,10 @@
 # AGENTS.md
 
 Guidance for AI coding agents working on `nfl-sos-ratings`. Human-facing docs live in
-[`README.md`](README.md). Claude Code loads this file through [`CLAUDE.md`](CLAUDE.md).
+[`README.md`](README.md). Tool-specific entry files such as [`CLAUDE.md`](CLAUDE.md) only import
+this file, so every rule lives here, written for any agent. Global or tool-level instructions and
+skills carry general defaults; where one disagrees with this file (for example, on how to run
+Python tools or which checks form the gate), this file wins.
 
 ## Project overview
 
@@ -55,7 +58,8 @@ scripts/gate.sh --web      # also check web/ (npm ci, lint, typecheck, vitest, b
   package, and until then the gate's `uv sync --check` step fails. A `git checkout`, merge, or
   rebase that rewrites `pyproject.toml` counts as an edit (uv keys on its modification time), and
   the pre-push hook then fails on the same step.
-- `.pre-commit-config.yaml` is a fast subset, not the gate. CI
+- `.pre-commit-config.yaml` is a fast subset, not the gate. A failing hook is a failed check
+  whether you ran it or a tool ran it for you: fix the cause rather than bypassing it. CI
   (`.github/workflows/validation.yml`) runs `scripts/gate.sh` plus the `web/` checks on every
   push and pull request.
 - If the gate fails on something your change did not touch, check "Validation snapshot" in
@@ -80,9 +84,11 @@ The full validation run is `validate --data-dir data --start-season 1999 --end-s
 as shortcuts for `season` and `pipeline`. `web` serves the built app, so run `npm run build` in
 `web/` first; the Vite dev server (`npm run dev`) runs on 5280 and proxies `/api` to 8080.
 
-The pipeline and validation commands download from nflverse and can outlive a 10-minute shell
-timeout: run them detached (`nohup setsid <cmd> > run.log 2>&1 &`) and only after asking (see
-Boundaries).
+The pipeline and validation commands download from nflverse and can outlive an agent's command
+timeout (often 10 minutes): run them detached (`nohup setsid <cmd> > run.log 2>&1 &`) and only
+after asking (see Boundaries); `scripts/gate.sh` fits in the foreground. Don't promise to keep
+monitoring a detached job unless something actually watches it; otherwise tell the user how to
+check its log.
 
 **Dependencies.** Adding one is fine when there is a good reason (no adequate stdlib or
 existing-dependency option, actively maintained, pulls its weight); say in the change what it is
@@ -233,14 +239,17 @@ package and the tests. Beyond that:
   - regenerating `data/` (`nfl-sos`, `nfl-sos-pipeline`) or rerunning the walk-forward validation,
     composite-weight fit, or audit commands;
   - altering ruff, pyright, ty, or coverage configuration;
-  - adding or changing CI, pre-commit hooks, or `.claude/` settings and hooks;
+  - adding or changing CI, pre-commit hooks, or agent tool settings and hooks (such as
+    `.claude/`);
   - pushing, merging to `main`, or anything destructive (force-push, history rewrites, deleting
     branches or files you didn't create);
   - touching a neighboring repo (`../nfl-predictor` or any other);
   - anything the task says to decide with the user.
 - **Never:** weaken lint, type, or coverage settings, or skip or delete failing tests, to get a
-  pass; commit secrets; edit `data/`, `uv.lock`, `requirements*.txt`, or
-  `docs/validation-report.md` by hand (they are generated); write plan labels outside `.agents/`.
+  pass; commit secrets; edit `data/`, `uv.lock`, `requirements*.txt`, `web/package-lock.json`, or
+  `docs/validation-report.md` by hand (they are generated); route around a permission rule or hook
+  that blocks an action (regenerate a blocked file with the command that owns it); write plan
+  labels outside `.agents/`.
 
 **Questions and decisions for the user.** Every question or pending decision carries enough plain,
 factual context for the user to recognize what it is about and decide without digging, plus the

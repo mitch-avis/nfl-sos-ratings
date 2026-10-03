@@ -470,7 +470,7 @@ pushed on 2026-10-03):
   and on `main` after the merge) passed both jobs.
 - `.claude/settings.json` asks before `nfl-sos-ratings season`, `pipeline`, `validate`,
   `weights`, and `qsos-audit` (the last two match the existing module-path ask rules), and denies
-  edits to `/web/package-lock.json`; `CLAUDE.md` matches.
+  edits to `/web/package-lock.json`; the `AGENTS.md` boundaries match.
 
 Open:
 
