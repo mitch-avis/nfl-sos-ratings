@@ -441,7 +441,8 @@ Still open:
 
 ### D. Repo hygiene and agent tooling
 
-Landed on 2026-10-02 (branch `chore/strict-tooling-and-web`):
+Landed on 2026-10-02 (branch `chore/strict-tooling-and-web`, fast-forwarded into `main` and
+pushed on 2026-10-03):
 
 - `scripts/gate.sh` as the single gate; a revamped `AGENTS.md` plus `CLAUDE.md`; shared
   `.claude/settings.json` (deny rules on generated files, prompts before pushes, dependency
@@ -465,15 +466,14 @@ Landed on 2026-10-02 (branch `chore/strict-tooling-and-web`):
   plain pre-commit cannot build Python hook environments; `pre-commit-uv` builds them with uv.
   Revisit once a fixed pip ships.
 - `.github/workflows/validation.yml`: a gate job (`scripts/gate.sh`, Python 3.14, uv,
-  `markdownlint-cli2` on Node 26) and a `web/` job. Not yet exercised on GitHub (nothing pushed).
+  `markdownlint-cli2` on Node 26) and a `web/` job. Its first runs (2026-10-03, on the branch
+  and on `main` after the merge) passed both jobs.
 - `.claude/settings.json` asks before `nfl-sos-ratings season`, `pipeline`, `validate`,
   `weights`, and `qsos-audit` (the last two match the existing module-path ask rules), and denies
   edits to `/web/package-lock.json`; `CLAUDE.md` matches.
 
 Open:
 
-- Watch the first CI run after the branch is pushed; fix anything the hosted runner disagrees
-  with.
 - Add a colored project logger like nfl-predictor's (`coloredlogs`), keeping `colorama`; it would
   also retire the per-file `T201` (print) ignores in `pyproject.toml`.
 - Raise coverage toward the 90% goal, and raise `fail_under` as it grows.
@@ -494,8 +494,6 @@ These are not active workstreams, but they are still useful context.
 
 ## What the next agent should do first
 
-0. Branch `chore/strict-tooling-and-web` is complete and gate-green; it awaits the user's review,
-   push, and merge. Then check its first CI run (backlog D).
 1. Read this file and confirm whether the task belongs to metric expansion, the analyst UI, or a new
   methodology challenge.
 2. If the task challenges published rating methodology, start from `docs/methodology.md` and
