@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.12,<0.13"]
+requires = ["uv_build>=0.12"]
 build-backend = "uv_build"
 
 [project]
@@ -81,9 +81,6 @@ extend-exclude = [
 [tool.ruff.format]
 docstring-code-format = true
 
-[tool.ruff.lint.isort]
-known-first-party = ["nfl_sos_ratings"]
-
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
@@ -93,6 +90,9 @@ ignore = [
     "ISC001", # Conflicts with `ruff format`, which joins implicit concatenations
     "CPY001", # The license is declared once in pyproject.toml, not per file
 ]
+
+[tool.ruff.lint.isort]
+known-first-party = ["nfl_sos_ratings"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
