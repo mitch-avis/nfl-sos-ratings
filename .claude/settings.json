@@ -1,40 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "permissions": {
-    "allow": [
-      "Bash(scripts/gate.sh *)",
-      "Bash(.venv/bin/ruff *)",
-      "Bash(.venv/bin/ty *)",
-      "Bash(.venv/bin/pyright *)",
-      "Bash(.venv/bin/pytest *)",
-      "Bash(uv lock --check)",
-      "Bash(uv sync --check)",
-      "Bash(markdownlint-cli2 *)"
-    ],
-    "ask": [
-      "Bash(git push *)",
-      "Bash(./update_requirements.sh *)",
-      "Bash(.venv/bin/nfl-sos *)",
-      "Bash(.venv/bin/nfl-sos-pipeline *)",
-      "Bash(.venv/bin/nfl-sos-ratings season*)",
-      "Bash(.venv/bin/nfl-sos-ratings pipeline*)",
-      "Bash(.venv/bin/nfl-sos-ratings validate*)",
-      "Bash(.venv/bin/nfl-sos-ratings weights*)",
-      "Bash(.venv/bin/nfl-sos-ratings qsos-audit*)",
-      "Bash(uv run nfl-sos *)",
-      "Bash(uv run nfl-sos-pipeline *)",
-      "Bash(.venv/bin/python -m nfl_sos_ratings.main *)",
-      "Bash(.venv/bin/python -m nfl_sos_ratings.pipeline *)",
-      "Bash(.venv/bin/python -m nfl_sos_ratings.validation.walk_forward *)",
-      "Bash(.venv/bin/python -m nfl_sos_ratings.composite_weights *)",
-      "Bash(.venv/bin/python -m nfl_sos_ratings.validation.qsos_audit *)"
-    ],
-    "deny": [
-      "Edit(/data/**)",
-      "Edit(/uv.lock)",
-      "Edit(/requirements*.txt)",
-      "Edit(/docs/validation-report.md)",
-      "Edit(/web/package-lock.json)"
-    ]
+  "worktree": {
+    "baseRef": "head"
   }
 }
