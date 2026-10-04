@@ -228,7 +228,26 @@ export function EntityTable({
           )
         },
       },
-      { id: 'rank', header: () => 'Rank', size: columnWidths.rank ?? 76, enableSorting: false, cell: () => null },
+      {
+        id: 'rank',
+        header: ({ table: reactTable }) => {
+          const sortedId = reactTable.getState().sorting[0]?.id
+          const sortedLabel = sortedId ? getMetricMetadata(sortedId).label : null
+          const headline = getMetricMetadata(config.defaultSortColumn).label
+          return (
+            <span className="inline-flex items-center gap-1.5">
+              Rank
+              <InfoTooltip
+                label="About the rank"
+                content={`Each row's position in the current sort${sortedLabel ? ` (${sortedLabel})` : ''}. Sort by ${headline} for the published ranking; the Rank range column is always about ${headline}.`}
+              />
+            </span>
+          )
+        },
+        size: columnWidths.rank ?? 76,
+        enableSorting: false,
+        cell: () => null,
+      },
       ...selectedColumns.flatMap<ColumnDef<Row>>((column) => {
         const metricColumn: ColumnDef<Row> = {
           id: column,
@@ -308,7 +327,9 @@ export function EntityTable({
           />
         </div>
         {controls}
-        <div className="max-h-[75vh] overflow-auto rounded-md border">
+        {/* On phones the box fills the screen below the app header, so it reads as one full-height
+            sheet with a sticky header row rather than a small window inside the page. */}
+        <div className="max-h-[calc(100dvh-4.5rem)] overflow-auto rounded-md border md:max-h-[75vh]">
           <table className="w-max min-w-full text-sm tabular">
             <thead className="sticky top-0 z-20 bg-muted">
               {reactTable.getHeaderGroups().map((headerGroup) => (

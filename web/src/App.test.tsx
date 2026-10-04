@@ -251,6 +251,22 @@ describe('QB index', () => {
   })
 })
 
+describe('rank column', () => {
+  it('explains that Rank follows the current sort', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    renderApp('/teams?season=2025')
+
+    // Act
+    await user.hover(await screen.findByRole('button', { name: 'About the rank' }))
+
+    // Assert
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      "Each row's position in the current sort (Team Rating).",
+    )
+  })
+})
+
 describe('index header', () => {
   it('keeps the reading notes folded away until asked for', async () => {
     // Act
