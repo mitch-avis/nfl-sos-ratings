@@ -20,8 +20,8 @@ the first run.
 
 Decision: adopt. TeamRating is not significantly worse than either comparator.
 
-- TeamRating vs RawEPA, overall MAE difference -0.084 (95% CI -0.146 to -0.023).
-- TeamRating vs SRS, overall MAE difference -0.047 (95% CI -0.113 to +0.020).
+- TeamRating vs RawEPA, overall MAE difference -0.095 (95% CI -0.154 to -0.038).
+- TeamRating vs SRS, overall MAE difference -0.057 (95% CI -0.125 to +0.008).
 
 ## Intervals That Exclude Zero
 
@@ -30,25 +30,25 @@ favors the first baseline.
 
 - late: RawEPA vs Elo, +0.121 (95% CI +0.017 to +0.219)
 - late: SRS vs Elo, +0.100 (95% CI +0.007 to +0.196)
-- late: TeamRating vs RawEPA, -0.090 (95% CI -0.160 to -0.023)
+- late: TeamRating vs RawEPA, -0.093 (95% CI -0.165 to -0.024)
 - overall: RawEPA vs Elo, +0.116 (95% CI +0.033 to +0.199)
 - overall: SRS vs Elo, +0.078 (95% CI +0.000 to +0.159)
-- overall: TeamRating vs RawEPA, -0.084 (95% CI -0.146 to -0.023)
+- overall: TeamRating vs RawEPA, -0.095 (95% CI -0.154 to -0.038)
 
 ## Walk-Forward Summary
 
 | Baseline | Split | Games | MAE | RMSE |
 | --- | --- | --- | --- | --- |
+| TeamRating | early | 1141 | 10.682 | 13.811 |
 | SRS | early | 1141 | 10.684 | 13.887 |
 | Elo | early | 1141 | 10.686 | 13.880 |
-| TeamRating | early | 1141 | 10.720 | 13.862 |
 | RawEPA | early | 1141 | 10.783 | 13.912 |
 | Elo | late | 4156 | 10.550 | 13.511 |
-| TeamRating | late | 4156 | 10.582 | 13.525 |
+| TeamRating | late | 4156 | 10.578 | 13.533 |
 | SRS | late | 4156 | 10.651 | 13.707 |
 | RawEPA | late | 4156 | 10.671 | 13.733 |
 | Elo | overall | 5297 | 10.580 | 13.591 |
-| TeamRating | overall | 5297 | 10.611 | 13.598 |
+| TeamRating | overall | 5297 | 10.601 | 13.593 |
 | SRS | overall | 5297 | 10.658 | 13.746 |
 | RawEPA | overall | 5297 | 10.695 | 13.772 |
 
@@ -61,21 +61,21 @@ A negative difference favors Baseline A.
 | RawEPA | Elo | early | 1141 | 0.097 | -0.045 | 0.237 |
 | RawEPA | SRS | early | 1141 | 0.099 | -0.048 | 0.247 |
 | SRS | Elo | early | 1141 | -0.002 | -0.134 | 0.133 |
-| TeamRating | Elo | early | 1141 | 0.034 | -0.107 | 0.168 |
-| TeamRating | RawEPA | early | 1141 | -0.063 | -0.185 | 0.061 |
-| TeamRating | SRS | early | 1141 | 0.036 | -0.113 | 0.178 |
+| TeamRating | Elo | early | 1141 | -0.004 | -0.127 | 0.121 |
+| TeamRating | RawEPA | early | 1141 | -0.101 | -0.203 | 0.000 |
+| TeamRating | SRS | early | 1141 | -0.002 | -0.139 | 0.132 |
 | RawEPA | Elo | late | 4156 | 0.121 | 0.017 | 0.219 |
 | RawEPA | SRS | late | 4156 | 0.021 | -0.027 | 0.067 |
 | SRS | Elo | late | 4156 | 0.100 | 0.007 | 0.196 |
-| TeamRating | Elo | late | 4156 | 0.031 | -0.049 | 0.114 |
-| TeamRating | RawEPA | late | 4156 | -0.090 | -0.160 | -0.023 |
-| TeamRating | SRS | late | 4156 | -0.069 | -0.143 | 0.003 |
+| TeamRating | Elo | late | 4156 | 0.028 | -0.048 | 0.104 |
+| TeamRating | RawEPA | late | 4156 | -0.093 | -0.165 | -0.024 |
+| TeamRating | SRS | late | 4156 | -0.072 | -0.149 | 0.005 |
 | RawEPA | Elo | overall | 5297 | 0.116 | 0.033 | 0.199 |
 | RawEPA | SRS | overall | 5297 | 0.038 | -0.008 | 0.083 |
 | SRS | Elo | overall | 5297 | 0.078 | 0.000 | 0.159 |
-| TeamRating | Elo | overall | 5297 | 0.032 | -0.040 | 0.100 |
-| TeamRating | RawEPA | overall | 5297 | -0.084 | -0.146 | -0.023 |
-| TeamRating | SRS | overall | 5297 | -0.047 | -0.113 | 0.020 |
+| TeamRating | Elo | overall | 5297 | 0.021 | -0.047 | 0.088 |
+| TeamRating | RawEPA | overall | 5297 | -0.095 | -0.154 | -0.038 |
+| TeamRating | SRS | overall | 5297 | -0.057 | -0.125 | 0.008 |
 
 ## Weekly MAE
 
@@ -84,59 +84,59 @@ A negative difference favors Baseline A.
 | 5 | Elo | 384 | 10.223 | 13.427 |
 | 5 | RawEPA | 384 | 10.243 | 13.431 |
 | 5 | SRS | 384 | 10.167 | 13.421 |
-| 5 | TeamRating | 384 | 10.270 | 13.442 |
+| 5 | TeamRating | 384 | 10.188 | 13.414 |
 | 6 | Elo | 379 | 10.511 | 13.496 |
 | 6 | RawEPA | 379 | 10.564 | 13.599 |
 | 6 | SRS | 379 | 10.352 | 13.433 |
-| 6 | TeamRating | 379 | 10.382 | 13.463 |
+| 6 | TeamRating | 379 | 10.513 | 13.529 |
 | 7 | Elo | 378 | 11.332 | 14.689 |
 | 7 | RawEPA | 378 | 11.552 | 14.682 |
 | 7 | SRS | 378 | 11.543 | 14.773 |
-| 7 | TeamRating | 378 | 11.516 | 14.655 |
+| 7 | TeamRating | 378 | 11.354 | 14.472 |
 | 8 | Elo | 378 | 10.412 | 13.243 |
 | 8 | RawEPA | 378 | 10.558 | 13.429 |
 | 8 | SRS | 378 | 10.577 | 13.470 |
-| 8 | TeamRating | 378 | 10.654 | 13.374 |
+| 8 | TeamRating | 378 | 10.493 | 13.296 |
 | 9 | Elo | 371 | 10.112 | 13.102 |
 | 9 | RawEPA | 371 | 10.304 | 13.189 |
 | 9 | SRS | 371 | 10.156 | 13.089 |
-| 9 | TeamRating | 371 | 10.343 | 13.147 |
+| 9 | TeamRating | 371 | 10.285 | 13.140 |
 | 10 | Elo | 384 | 11.199 | 14.258 |
 | 10 | RawEPA | 384 | 10.932 | 14.049 |
 | 10 | SRS | 384 | 10.994 | 14.170 |
-| 10 | TeamRating | 384 | 11.213 | 14.241 |
+| 10 | TeamRating | 384 | 11.244 | 14.271 |
 | 11 | Elo | 401 | 9.606 | 12.779 |
 | 11 | RawEPA | 401 | 9.775 | 12.976 |
 | 11 | SRS | 401 | 9.752 | 12.934 |
-| 11 | TeamRating | 401 | 9.522 | 12.646 |
+| 11 | TeamRating | 401 | 9.651 | 12.713 |
 | 12 | Elo | 417 | 9.730 | 12.585 |
 | 12 | RawEPA | 417 | 9.916 | 12.817 |
 | 12 | SRS | 417 | 9.896 | 12.785 |
-| 12 | TeamRating | 417 | 9.708 | 12.493 |
+| 12 | TeamRating | 417 | 9.795 | 12.600 |
 | 13 | Elo | 421 | 10.288 | 13.246 |
 | 13 | RawEPA | 421 | 10.587 | 13.726 |
 | 13 | SRS | 421 | 10.531 | 13.645 |
-| 13 | TeamRating | 421 | 10.452 | 13.448 |
+| 13 | TeamRating | 421 | 10.494 | 13.501 |
 | 14 | Elo | 418 | 11.129 | 14.002 |
 | 14 | RawEPA | 418 | 11.256 | 14.356 |
 | 14 | SRS | 418 | 11.172 | 14.242 |
-| 14 | TeamRating | 418 | 10.942 | 13.962 |
+| 14 | TeamRating | 418 | 10.868 | 13.867 |
 | 15 | Elo | 429 | 10.613 | 13.504 |
 | 15 | RawEPA | 429 | 10.796 | 13.883 |
 | 15 | SRS | 429 | 10.722 | 13.752 |
-| 15 | TeamRating | 429 | 10.477 | 13.484 |
+| 15 | TeamRating | 429 | 10.469 | 13.530 |
 | 16 | Elo | 429 | 11.166 | 14.019 |
 | 16 | RawEPA | 429 | 11.128 | 14.222 |
 | 16 | SRS | 429 | 11.215 | 14.264 |
-| 16 | TeamRating | 429 | 11.147 | 14.057 |
+| 16 | TeamRating | 429 | 11.173 | 14.054 |
 | 17 | Elo | 428 | 11.227 | 14.265 |
 | 17 | RawEPA | 428 | 11.469 | 14.645 |
 | 17 | SRS | 428 | 11.503 | 14.679 |
-| 17 | TeamRating | 428 | 11.413 | 14.390 |
+| 17 | TeamRating | 428 | 11.363 | 14.359 |
 | 18 | Elo | 80 | 10.239 | 13.045 |
 | 18 | RawEPA | 80 | 10.089 | 12.512 |
 | 18 | SRS | 80 | 10.033 | 12.515 |
-| 18 | TeamRating | 80 | 10.067 | 12.449 |
+| 18 | TeamRating | 80 | 10.010 | 12.431 |
 
 ## Year-Over-Year Stability
 
@@ -149,7 +149,7 @@ Informative only; it does not gate anything.
 | qb | qb_any_a | 605 | 0.403 | 0.388 |
 | qb | qb_passer_rating | 605 | 0.473 | 0.475 |
 | team | SRS | 829 | 0.437 | 0.425 |
-| team | team_rating | 829 | 0.441 | 0.430 |
+| team | team_rating | 829 | 0.434 | 0.427 |
 
 ## ESPN QBR Reference
 
