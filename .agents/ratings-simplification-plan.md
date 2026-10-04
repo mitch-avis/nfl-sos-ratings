@@ -93,6 +93,47 @@ Written before any run of the new estimator.
 - Generating command (after the rewrite): `nfl-sos-ratings validate --data-dir data
   --start-season 1999 --end-season 2025 --start-week 5 --report-path docs/validation-report.md`.
 
+## Pre-registered checks (2026-10-04)
+
+The maintainer questioned whether the additive model ("strength minus opponent strength") credits
+teams and passers who feasted on a soft schedule, citing 2025 New England and Drake Maye's last
+seven games (four 2025 playoff games and 2026 weeks 1-3). Written before either check runs.
+
+### Check A: additivity of the scrimmage model
+
+- Hypothesis (maintainer's): strong offenses outperform the additive prediction against weak
+  defenses and fall short of it against strong defenses, so ratings built on soft schedules run
+  high.
+- Information set: regular-season team-game rows 1999-2025 (`*_team_game_logs.parquet`). For each
+  pair of teams that met, refit the scrimmage ridge (that season's full-fit penalty) without their
+  games, predict each of their games from the refit, and take the residual (actual minus predicted
+  EPA per play). Offense and defense terciles use the refit's effects against cut points from the
+  season's full fit.
+- Primary statistic: the play-weighted mean residual for top-tercile offenses against
+  bottom-tercile defenses minus the same for top-tercile offenses against top-tercile defenses.
+  Additivity predicts zero; the hypothesis predicts a positive value.
+- Decision rule: 95% season-block bootstrap interval (2000 resamples, seed 0). Entirely above
+  zero: the additive model misses the claimed effect, and a non-additive team model becomes a new
+  pre-registered candidate for the walk-forward rule. Including zero: no evidence against
+  additivity. Entirely below zero: the opposite of the claim. The same contrast for passers
+  against pass defenses (QB-game rows, dropback weights) is reported alongside, read the same way.
+
+### Check B: a passer's later games against his season model
+
+- Question: were a passer's games after the season he was rated on below what that season's
+  model predicted for those opponents?
+- Information set: the 2025 regular-season QB fit (intercept, passer effect, pass-defense
+  effects, home field). Games: the passer's 2025 postseason games (neutral-site Super Bowl) and his
+  2026 games to date, each predicted from the opponent's 2025 pass-defense effect. 2026 rosters
+  differ from 2025, so the 2026 part is the weaker evidence.
+- Statistic: dropback-weighted mean residual (actual minus predicted EPA per dropback) and
+  z = residual / (sigma / sqrt(dropbacks)), with sigma estimated from the 2025 regular-season
+  residuals of qualifying passers.
+- Reading: z at or below -2 says the 2025 rating overstated the passer against these opponents;
+  otherwise the games are within the noise the model expects. Any window picked after seeing the
+  results overstates the evidence, so the report also gives each part (postseason, 2026) on its
+  own.
+
 ## Retired metric backlog
 
 The registry's `planned` entries (stats catalogued but never computed) were removed on 2026-10-04
