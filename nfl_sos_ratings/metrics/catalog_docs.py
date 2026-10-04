@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from nfl_sos_ratings.metrics.catalog import get_registry
 
 if TYPE_CHECKING:
+    from nfl_sos_ratings.metrics.registry import MetricRegistry
     from nfl_sos_ratings.metrics.schema import Entity, MetricDef
 
 CATALOG_PATHS: dict[Entity, str] = {
@@ -90,9 +91,9 @@ def _metric_table(metrics: list[MetricDef]) -> list[str]:
     return lines
 
 
-def render_catalog(entity: Entity) -> str:
-    """Render one entity's stats catalog as Markdown."""
-    registry = get_registry()
+def render_catalog(entity: Entity, registry: MetricRegistry | None = None) -> str:
+    """Render one entity's stats catalog as Markdown from ``registry`` (default: the project's)."""
+    registry = registry if registry is not None else get_registry()
     metrics = [metric for metric in registry.metrics.values() if metric.entity == entity]
     companion = Path(CATALOG_PATHS["qb" if entity == "team" else "team"]).name
     lines = [
@@ -136,6 +137,7 @@ def write_catalogs(repo_root: Path = _REPO_ROOT) -> list[Path]:
     written: list[Path] = []
     for entity, relative_path in CATALOG_PATHS.items():
         path = repo_root / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(render_catalog(entity), encoding="utf-8")
         written.append(path)
     return written
