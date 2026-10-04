@@ -161,8 +161,12 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
             </div>
             <p className="text-sm text-muted-foreground">
               Includes quarterbacks who played at least one offensive snap but finished below the
-              season rating threshold of {getQuarterbackQualifierAttempts(season)} pass attempts (14
-              per team game in this {getRegularSeasonGameCount(season)}-game season).
+              rating threshold of {getQuarterbackQualifierAttempts(season, gamesSoFar)} pass attempts
+              (14 per team game{' '}
+              {gamesSoFar !== null
+                ? `over the ${gamesSoFar} games played so far`
+                : `in this ${getRegularSeasonGameCount(season)}-game season`}
+              ).
             </p>
           </CardContent>
         </Card>

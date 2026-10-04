@@ -139,6 +139,30 @@ describe('season in progress', () => {
     expect(await screen.findByText(/Season in progress/)).toHaveTextContent('3 games')
   })
 
+  it('states the QB qualifier for the games played so far', async () => {
+    // Arrange
+    const partial = {
+      ...SEASON_2025,
+      season: 2026,
+      teams: {
+        ...SEASON_2025.teams,
+        rows: SEASON_2025.teams.rows.map((row) => ({ ...row, games_played: 3 })),
+      },
+    }
+    vi.stubGlobal(
+      'fetch',
+      stubApi({ '/api/seasons': { seasons: [2026] }, '/api/metadata': REGISTRY, '/api/seasons/2026': partial }),
+    )
+
+    // Act
+    renderApp('/qbs?season=2026')
+
+    // Assert
+    expect(await screen.findByText(/rating threshold of/)).toHaveTextContent(
+      '42 pass attempts (14 per team game over the 3 games played so far)',
+    )
+  })
+
   it('shows no notice for a completed season', async () => {
     // Act
     renderApp('/teams?season=2025')

@@ -135,6 +135,14 @@ describe('season rules', () => {
     // Assert
     expect(attempts).toBe(238)
   })
+
+  it('qualifies quarterbacks on the games played so far while a season is in progress', () => {
+    // Act
+    const attempts = getQuarterbackQualifierAttempts(2026, 4)
+
+    // Assert
+    expect(attempts).toBe(56)
+  })
 })
 
 describe('weekly trend points', () => {

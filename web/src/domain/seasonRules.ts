@@ -9,9 +9,12 @@ export function getRegularSeasonGameCount(season: number): number {
   return season >= FIRST_17_GAME_SEASON ? 17 : 16
 }
 
-/** The season's QB rating qualifier: 14 pass attempts per team game. */
-export function getQuarterbackQualifierAttempts(season: number): number {
-  return getRegularSeasonGameCount(season) * QUALIFIER_ATTEMPTS_PER_GAME
+/**
+ * The QB rating qualifier: 14 pass attempts per team game, counted over the full season or, while
+ * a season is in progress, over the most games any team has played (as the backend counts it).
+ */
+export function getQuarterbackQualifierAttempts(season: number, gamesSoFar: number | null = null): number {
+  return (gamesSoFar ?? getRegularSeasonGameCount(season)) * QUALIFIER_ATTEMPTS_PER_GAME
 }
 
 /**
