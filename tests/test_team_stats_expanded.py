@@ -112,6 +112,7 @@ def test_passing_volume_and_efficiency_extras() -> None:
     Fixture: 4 DEN dropbacks — deep 30-yard completion (20 air + 10 YAC),
     incompletion, sack losing 7 with a strip fumble lost, and a 9-yard scramble.
     """
+    # Arrange
     plays = [
         _play(
             **{"pass": 1},
@@ -164,7 +165,11 @@ def test_passing_volume_and_efficiency_extras() -> None:
             success=1,
         ),
     ]
+
+    # Act
     result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
     den = _row(result, "DEN")
 
     assert den["attempts"] == 2
@@ -219,6 +224,7 @@ def test_rushing_extras_and_run_defense_mirror() -> None:
     Fixture: 12-yard explosive run, -1-yard stuffed TFL run, kneel, and a
     9-yard scramble (a carry but not a designed carry).
     """
+    # Arrange
     plays = [
         _play(
             rush=1,
@@ -248,7 +254,11 @@ def test_rushing_extras_and_run_defense_mirror() -> None:
             epa=0.5,
         ),
     ]
+
+    # Act
     result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
     den = _row(result, "DEN")
 
     assert den["carries"] == 4
@@ -269,6 +279,7 @@ def test_rushing_extras_and_run_defense_mirror() -> None:
 
 def test_downs_series_and_turnover_families() -> None:
     """Verify third/fourth-down, series, giveaway, and takeaway accounting."""
+    # Arrange
     plays = [
         _play(
             **{"pass": 1},
@@ -346,7 +357,11 @@ def test_downs_series_and_turnover_families() -> None:
             series_success=0,
         ),
     ]
+
+    # Act
     result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
     den = _row(result, "DEN")
 
     assert den["third_down_attempts"] == 2
@@ -387,6 +402,7 @@ def test_drive_scoring_and_field_position_families() -> None:
     starts at the DEN 40 (7 points scored); drive 2 is a three-and-out punt
     from the DEN 20.
     """
+    # Arrange
     drive_one = {
         "fixed_drive": 1,
         "fixed_drive_result": "Touchdown",
@@ -448,7 +464,11 @@ def test_drive_scoring_and_field_position_families() -> None:
             **drive_two,
         ),
     ]
+
+    # Act
     result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
     den = _row(result, "DEN")
 
     assert den["drives"] == 2
@@ -484,6 +504,7 @@ def test_drive_scoring_and_field_position_families() -> None:
 
 def test_penalty_families_track_both_sides() -> None:
     """Verify penalty counts, yards, splits, and the defensive mirror."""
+    # Arrange
     plays = [
         _play(
             penalty=1,
@@ -510,7 +531,11 @@ def test_penalty_families_track_both_sides() -> None:
             first_down_penalty=1,
         ),
     ]
+
+    # Act
     result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
     den = _row(result, "DEN")
     kc = _row(result, "KC")
 
@@ -533,6 +558,7 @@ def test_penalty_families_track_both_sides() -> None:
 
 def test_two_point_and_defensive_playmaking() -> None:
     """Verify two-point tries, defensive scores, and havoc inputs."""
+    # Arrange
     plays = [
         _play(
             two_point_attempt=1,
@@ -554,7 +580,11 @@ def test_two_point_and_defensive_playmaking() -> None:
             pass_defense_1_player_id="00-001",  # noqa: S106 - PBP field
         ),
     ]
+
+    # Act
     result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
     den = _row(result, "DEN")
     kc = _row(result, "KC")
 
