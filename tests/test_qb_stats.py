@@ -860,3 +860,112 @@ def test_compute_qb_season_stats_aggregates_rushing_and_completion_rates() -> No
     assert row["qb_completion_pct"] == 45.0 / 60.0
     assert row["qb_yards_per_carry"] == 6.0
     assert row["qb_epa_per_carry"] == 0.25
+
+
+def test_compute_qb_season_stats_empty_input_returns_a_typed_empty_frame() -> None:
+    # Arrange
+    qb_df = pl.DataFrame()
+
+    # Act
+    season = qb_stats.compute_qb_season_stats(qb_df)
+
+    # Assert
+    assert season.is_empty()
+    assert season.schema["qb_is_eligible"] == pl.Boolean
+
+
+def test_compute_qb_season_stats_without_identity_columns_groups_by_team() -> None:
+    # Arrange
+    qb_df = pl.DataFrame({"team_abbr": ["DEN", "DEN"], "week": [1, 2], "qb_attempts": [30, 20]})
+
+    # Act
+    season = qb_stats.compute_qb_season_stats(qb_df)
+
+    # Assert
+    assert season.select("qb_id", "qb_attempts_total").rows() == [("DEN", 50)]
+
+
+@pytest.mark.parametrize(
+    "qb_df",
+    [
+        pl.DataFrame({"qb_name": ["A"], "qb_attempts": [10]}),
+        pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_name": ["A"]}),
+    ],
+)
+def test_select_primary_qb_rows_returns_rows_it_cannot_rank(qb_df: pl.DataFrame) -> None:
+    # Act
+    selected = qb_stats._select_primary_qb_rows(qb_df)
+
+    # Assert
+    assert selected.equals(qb_df)
+
+
+def test_compute_qb_game_stats_from_pbp_without_plays_returns_zeroed_columns() -> None:
+    # Act
+    games = qb_stats.compute_qb_game_stats_from_pbp(pl.DataFrame())
+
+    # Assert
+    assert games.is_empty()
+    assert {"qb_attempts", "qb_completions"} <= set(games.columns)
+
+
+def test_canonicalize_qb_rows_empty_input_adds_a_position_column() -> None:
+    # Act
+    rows = qb_stats._canonicalize_qb_rows(pl.DataFrame({"qb_id": []}), None, join_key="qb_id")
+
+    # Assert
+    assert "qb_position" in rows.columns
+
+
+def test_canonicalize_qb_rows_fills_missing_identity_columns() -> None:
+    # Arrange
+    rows = pl.DataFrame({"team_abbr": ["DEN"], "week": [1]})
+
+    # Act
+    canonical = qb_stats._canonicalize_qb_rows(rows, None, join_key="qb_id")
+
+    # Assert
+    assert {"qb_id", "snap_player_id", "qb_name"} <= set(canonical.columns)
+
+
+@pytest.mark.parametrize("weekly_df", [None, pl.DataFrame()])
+def test_default_qb_attempt_qualifier_without_weekly_data_uses_seventeen_games(
+    weekly_df: pl.DataFrame | None,
+) -> None:
+    # Act
+    qualifier = qb_stats._compute_default_qb_attempt_qualifier(weekly_df)
+
+    # Assert
+    assert qualifier == 238
+
+
+def test_compute_qb_game_volumes_from_pbp_without_dropbacks_or_qb_snaps_is_empty() -> None:
+    # Arrange
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["g1"],
+            "week": [1],
+            "posteam": ["DEN"],
+            "passer_player_id": [None],
+            "passer_player_name": [None],
+            "qb_dropback": [0],
+        },
+        schema_overrides={"passer_player_id": pl.String, "passer_player_name": pl.String},
+    )
+    snaps = pl.DataFrame(
+        {
+            "game_id": ["g1"],
+            "week": [1],
+            "team": ["DEN"],
+            "player": ["Some Tackle"],
+            "pfr_player_id": ["TackXx00"],
+            "position": ["T"],
+            "offense_snaps": [60.0],
+        }
+    )
+
+    # Act
+    volumes = qb_stats.compute_qb_game_volumes_from_pbp(pbp, snaps)
+
+    # Assert
+    assert volumes.is_empty()
