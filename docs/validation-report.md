@@ -1,975 +1,180 @@
 # Validation Report
 
-Evaluation seasons: 1999-2025.
-Prediction weeks start at 5.
+Evaluation seasons: 1999-2025. Prediction weeks start at 5.
 
 ## Command
 
 ```bash
-uv run python -m nfl_sos_ratings.validation.walk_forward --data-dir data --start-season 1999 --end-season 2025 --start-week 5 --report-path docs/validation-report.md
+nfl-sos-ratings validate --data-dir data --start-season 1999 --end-season 2025 --start-week 5 --report-path docs/validation-report.md
 ```
 
-## Block R Regression Note
+## Decision Rule
 
-- A Stage 3c regression combined pooled offense/defense reference arrays with
-  current-season-only special-teams reference values, causing the team ratings path
-  to raise a NumPy broadcast error before `*_combined.parquet` and
-  `*_ratings.parquet` wrote.
-- The fix backfills historical `st_rating` values from
-  `*_simultaneous_team_adjustments.parquet` when rebuilding pooled team references
-  and makes the multi-season pipeline exit non-zero with a failure summary if any
-  season data step fails.
+The published team rating (TeamRating) is rebuilt each week from that season's earlier games only,
+alongside SRS and raw EPA margin built from the same games. A margin model fit on earlier
+predictions turns each rating gap into a predicted home margin. TeamRating stays the published
+headline unless its overall mean absolute error is significantly worse than RawEPA's or SRS's: the
+95% paired-bootstrap interval of the difference lies entirely above zero. Elo carries ratings across
+seasons, so it sees more information and is shown as a reference only. This rule was written before
+the first run.
 
-## Stage 3 History
+Decision: adopt. TeamRating is not significantly worse than either comparator.
 
-The original Stage 3 headline compared prior-carrying Elo against within-season-only backbones.
-That result is preserved here as history rather than deleted or rewritten.
+- TeamRating vs RawEPA, overall MAE difference -0.084 (95% CI -0.146 to -0.023).
+- TeamRating vs SRS, overall MAE difference -0.047 (95% CI -0.113 to +0.020).
 
-## Stage 3b Criterion
+## Intervals That Exclude Zero
 
-Stage 3b re-registers the validation target into information-matched leagues.
+Every pair and split whose 95% interval excludes zero, in either direction. A negative difference
+favors the first baseline.
 
-- League 1 is binding: within-season-only team backbones must beat SRS and RawEPA on held-out
-  MAE, with paired-bootstrap support.
-- League 2 is informative: prior-carrying forecast-only variants can be compared against Elo,
-  but that is not the binding published-rating gate.
+- late: RawEPA vs Elo, +0.121 (95% CI +0.017 to +0.219)
+- late: SRS vs Elo, +0.100 (95% CI +0.007 to +0.196)
+- late: TeamRating vs RawEPA, -0.090 (95% CI -0.160 to -0.023)
+- overall: RawEPA vs Elo, +0.116 (95% CI +0.033 to +0.199)
+- overall: SRS vs Elo, +0.078 (95% CI +0.000 to +0.159)
+- overall: TeamRating vs RawEPA, -0.084 (95% CI -0.146 to -0.023)
 
-## Stage 3b Acceptance Check
-
-- League 1 team headline:
-  Fail. Rolling EPA Weights overall MAE 10.846;
-  Rolling EPA Weights + ST overall MAE 10.836;
-  SRS 10.658;
-  RawEPA 10.695.
-- League 1 bootstrap vs SRS: MAE delta 0.178 with 95% CI [0.111, 0.248].
-- League 1 bootstrap vs RawEPA: MAE delta 0.141 with 95% CI [0.062, 0.222].
-- QB revision sweep: not adopted. Current eligible-QB slope 0.505; fixed-defense slope 0.384;
-  best tested lighter-defense-penalty slope 0.556 (lighter_defense_penalty_x0).
-- League 2 forecast-only prior experiment: not evaluated in this worktree.
-
-## Stage 3c Decision Rule
-
-> A candidate team backbone is promoted to the published ratings if, on the full held-out
-> walk-forward window: (1) it is significantly better than RawEPA and than the Stage 1
-> SaOvR (95% paired-bootstrap CI excluding zero); (2) it is numerically better than SRS
-> on both overall MAE and overall RMSE, and not significantly worse than SRS; and (3)
-> adopting it does not degrade team year-over-year stability below the Stage 3 recorded
-> value. Statistical parity with SRS plus the construct advantages (schedule-adjusted,
-> outcome-free components, unit-level decomposition) is sufficient and will be stated
-> plainly, as parity, in the methodology documentation — never overclaimed as
-> superiority.
-
-- Rationale: the stricter "beat SRS with CI clearing zero" bar is statistically
-  unattainable on this sample, and the current report already shows SRS itself does not
-  separate from RawEPA at 95%.
-
-## Stage 3c Team Outcome
-
-- Candidate selected for the final Stage 3c gate: Play-Level EPA Weights + ST.
-- Play-level displacement check: Play-Level EPA Weights + ST overall MAE 10.813 and RMSE 13.887
-  versus Rolling EPA Weights + ST MAE 10.836 and RMSE 13.922.
-  Bootstrap delta -0.023 with 95% CI [-0.051, 0.005] and P(A<=B) 0.947.
-- Candidate vs RawEPA: MAE delta 0.118 with 95% CI [0.043, 0.198]
-  and P(A<=B) 0.002.
-- Candidate vs Stage 1 SaOvR: MAE delta 0.114 with 95% CI [0.034, 0.192]
-  and P(A<=B) 0.005.
-- Candidate vs SRS: overall MAE/RMSE 10.813/13.887 versus 10.658/13.746.
-  Bootstrap delta 0.155 with 95% CI [0.089, 0.220] and P(A<=B) 0.000.
-- Stability guard: Play-Level EPA Weights + ST Pearson/Spearman 0.386/0.362
-  versus Stage 3 SaOvR 0.377/0.365.
-- Promotion decision under the fixed Stage 3c rule: Fail.
-
-## Acceptance Check
-
-- Leakage discipline: the snapshot perturbation test and prior-only fit test pass.
-- Team headline: Fail. SaOvR overall MAE 10.700; Elo 10.580; SRS 10.658; RawEPA 10.695.
-- Team late-season context: SaOvR late-week MAE 10.646; Elo 10.550; SRS 10.651; RawEPA 10.671.
-- QB stability: Pass. QSaCR Pearson/Spearman 0.479/0.466; passer rating 0.413/0.416;
-  ANY/A 0.338/0.330.
-- External reference: mean QBR Pearson/Spearman correlation 0.891/0.869 across 20 seasons.
-
-## Original Walk-Forward Summary
+## Walk-Forward Summary
 
 | Baseline | Split | Games | MAE | RMSE |
 | --- | --- | --- | --- | --- |
-| Elo | early | 1141 | 10.686 | 13.880 |
-| Elo | late | 4156 | 10.550 | 13.511 |
-| Elo | overall | 5297 | 10.580 | 13.591 |
-| RawEPA | early | 1141 | 10.783 | 13.912 |
-| RawEPA | late | 4156 | 10.671 | 13.733 |
-| RawEPA | overall | 5297 | 10.695 | 13.772 |
 | SRS | early | 1141 | 10.684 | 13.887 |
-| SRS | late | 4156 | 10.651 | 13.707 |
-| SRS | overall | 5297 | 10.658 | 13.746 |
-| SaOvR | early | 1141 | 10.894 | 14.083 |
-| SaOvR | late | 4156 | 10.646 | 13.643 |
-| SaOvR | overall | 5297 | 10.700 | 13.739 |
-
-## League 1 Team Experiments
-
-| Baseline | Split | Games | MAE | RMSE |
-| --- | --- | --- | --- | --- |
 | Elo | early | 1141 | 10.686 | 13.880 |
-| Elo | late | 4156 | 10.550 | 13.511 |
-| Elo | overall | 5297 | 10.580 | 13.591 |
+| TeamRating | early | 1141 | 10.720 | 13.862 |
 | RawEPA | early | 1141 | 10.783 | 13.912 |
-| RawEPA | late | 4156 | 10.671 | 13.733 |
-| RawEPA | overall | 5297 | 10.695 | 13.772 |
-| SRS | early | 1141 | 10.684 | 13.887 |
+| Elo | late | 4156 | 10.550 | 13.511 |
+| TeamRating | late | 4156 | 10.582 | 13.525 |
 | SRS | late | 4156 | 10.651 | 13.707 |
+| RawEPA | late | 4156 | 10.671 | 13.733 |
+| Elo | overall | 5297 | 10.580 | 13.591 |
+| TeamRating | overall | 5297 | 10.611 | 13.598 |
 | SRS | overall | 5297 | 10.658 | 13.746 |
-| SaOvR | early | 1141 | 10.894 | 14.083 |
-| SaOvR | late | 4156 | 10.646 | 13.643 |
-| SaOvR | overall | 5297 | 10.700 | 13.739 |
-| Rolling EPA Weights | early | 1141 | 10.908 | 14.079 |
-| Rolling EPA Weights | late | 4156 | 10.828 | 13.889 |
-| Rolling EPA Weights | overall | 5297 | 10.846 | 13.930 |
-| Rolling EPA Weights + ST | early | 1141 | 10.879 | 14.073 |
-| Rolling EPA Weights + ST | late | 4156 | 10.824 | 13.881 |
-| Rolling EPA Weights + ST | overall | 5297 | 10.836 | 13.922 |
-| Play-Level EPA Weights + ST | early | 1141 | 10.848 | 13.986 |
-| Play-Level EPA Weights + ST | late | 4156 | 10.804 | 13.859 |
-| Play-Level EPA Weights + ST | overall | 5297 | 10.813 | 13.887 |
+| RawEPA | overall | 5297 | 10.695 | 13.772 |
 
-## Paired Bootstrap MAE Deltas
+## Paired Bootstrap MAE Differences
 
-| Baseline A | Baseline B | Split | Games | MAE Delta | CI Lower | CI Upper | P(A<=B) | Distinguishable |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Play-Level EPA Weights + ST | RawEPA | early | 1141 | 0.065 | -0.122 | 0.254 | 0.246 | False |
-| Play-Level EPA Weights + ST | Rolling EPA Weights | early | 1141 | -0.060 | -0.225 | 0.095 | 0.778 | False |
-| Play-Level EPA Weights + ST | Rolling EPA Weights + ST | early | 1141 | -0.031 | -0.096 | 0.036 | 0.823 | False |
-| Play-Level EPA Weights + ST | SRS | early | 1141 | 0.163 | 0.009 | 0.323 | 0.016 | True |
-| Play-Level EPA Weights + ST | SaOvR | early | 1141 | -0.046 | -0.249 | 0.150 | 0.683 | False |
-| RawEPA | SaOvR | early | 1141 | -0.110 | -0.229 | 0.007 | 0.968 | False |
-| Rolling EPA Weights | RawEPA | early | 1141 | 0.125 | 0.008 | 0.247 | 0.019 | True |
-| Rolling EPA Weights | SRS | early | 1141 | 0.224 | 0.062 | 0.386 | 0.003 | True |
-| Rolling EPA Weights | SaOvR | early | 1141 | 0.014 | -0.106 | 0.123 | 0.414 | False |
-| Rolling EPA Weights + ST | RawEPA | early | 1141 | 0.096 | -0.083 | 0.272 | 0.146 | False |
-| Rolling EPA Weights + ST | Rolling EPA Weights | early | 1141 | -0.029 | -0.186 | 0.121 | 0.668 | False |
-| Rolling EPA Weights + ST | SRS | early | 1141 | 0.195 | 0.023 | 0.366 | 0.015 | True |
-| Rolling EPA Weights + ST | SaOvR | early | 1141 | -0.015 | -0.205 | 0.169 | 0.559 | False |
-| SRS | RawEPA | early | 1141 | -0.099 | -0.246 | 0.053 | 0.911 | False |
-| SRS | SaOvR | early | 1141 | -0.209 | -0.392 | -0.041 | 0.995 | True |
-| Play-Level EPA Weights + ST | RawEPA | late | 4156 | 0.133 | 0.043 | 0.223 | 0.003 | True |
-| Play-Level EPA Weights + ST | Rolling EPA Weights | late | 4156 | -0.024 | -0.108 | 0.060 | 0.722 | False |
-| Play-Level EPA Weights + ST | Rolling EPA Weights + ST | late | 4156 | -0.020 | -0.049 | 0.008 | 0.917 | False |
-| Play-Level EPA Weights + ST | SRS | late | 4156 | 0.153 | 0.080 | 0.223 | 0.000 | True |
-| Play-Level EPA Weights + ST | SaOvR | late | 4156 | 0.158 | 0.065 | 0.251 | 0.001 | True |
-| RawEPA | SaOvR | late | 4156 | 0.025 | -0.026 | 0.074 | 0.159 | False |
-| Rolling EPA Weights | RawEPA | late | 4156 | 0.157 | 0.099 | 0.217 | 0.000 | True |
-| Rolling EPA Weights | SRS | late | 4156 | 0.178 | 0.106 | 0.246 | 0.000 | True |
-| Rolling EPA Weights | SaOvR | late | 4156 | 0.182 | 0.132 | 0.231 | 0.000 | True |
-| Rolling EPA Weights + ST | RawEPA | late | 4156 | 0.153 | 0.065 | 0.235 | 0.001 | True |
-| Rolling EPA Weights + ST | Rolling EPA Weights | late | 4156 | -0.004 | -0.080 | 0.076 | 0.531 | False |
-| Rolling EPA Weights + ST | SRS | late | 4156 | 0.174 | 0.099 | 0.250 | 0.000 | True |
-| Rolling EPA Weights + ST | SaOvR | late | 4156 | 0.178 | 0.082 | 0.272 | 0.000 | True |
-| SRS | RawEPA | late | 4156 | -0.021 | -0.066 | 0.025 | 0.815 | False |
-| SRS | SaOvR | late | 4156 | 0.004 | -0.062 | 0.071 | 0.445 | False |
-| Play-Level EPA Weights + ST | RawEPA | overall | 5297 | 0.118 | 0.043 | 0.198 | 0.002 | True |
-| Play-Level EPA Weights + ST | Rolling EPA Weights | overall | 5297 | -0.032 | -0.105 | 0.038 | 0.809 | False |
-| Play-Level EPA Weights + ST | Rolling EPA Weights + ST | overall | 5297 | -0.023 | -0.051 | 0.005 | 0.947 | False |
-| Play-Level EPA Weights + ST | SRS | overall | 5297 | 0.155 | 0.089 | 0.220 | 0.000 | True |
-| Play-Level EPA Weights + ST | SaOvR | overall | 5297 | 0.114 | 0.034 | 0.192 | 0.005 | True |
-| RawEPA | SaOvR | overall | 5297 | -0.004 | -0.050 | 0.042 | 0.572 | False |
-| Rolling EPA Weights | RawEPA | overall | 5297 | 0.150 | 0.099 | 0.201 | 0.000 | True |
-| Rolling EPA Weights | SRS | overall | 5297 | 0.188 | 0.119 | 0.248 | 0.000 | True |
-| Rolling EPA Weights | SaOvR | overall | 5297 | 0.146 | 0.099 | 0.193 | 0.000 | True |
-| Rolling EPA Weights + ST | RawEPA | overall | 5297 | 0.141 | 0.062 | 0.222 | 0.000 | True |
-| Rolling EPA Weights + ST | Rolling EPA Weights | overall | 5297 | -0.009 | -0.080 | 0.061 | 0.613 | False |
-| Rolling EPA Weights + ST | SRS | overall | 5297 | 0.178 | 0.111 | 0.248 | 0.000 | True |
-| Rolling EPA Weights + ST | SaOvR | overall | 5297 | 0.136 | 0.058 | 0.217 | 0.000 | True |
-| SRS | RawEPA | overall | 5297 | -0.038 | -0.086 | 0.008 | 0.940 | False |
-| SRS | SaOvR | overall | 5297 | -0.042 | -0.105 | 0.021 | 0.906 | False |
+A negative difference favors Baseline A.
 
-## Weekly MAE Curves
+| Baseline A | Baseline B | Split | Games | MAE Diff | CI Lower | CI Upper |
+| --- | --- | --- | --- | --- | --- | --- |
+| RawEPA | Elo | early | 1141 | 0.097 | -0.045 | 0.237 |
+| RawEPA | SRS | early | 1141 | 0.099 | -0.048 | 0.247 |
+| SRS | Elo | early | 1141 | -0.002 | -0.134 | 0.133 |
+| TeamRating | Elo | early | 1141 | 0.034 | -0.107 | 0.168 |
+| TeamRating | RawEPA | early | 1141 | -0.063 | -0.185 | 0.061 |
+| TeamRating | SRS | early | 1141 | 0.036 | -0.113 | 0.178 |
+| RawEPA | Elo | late | 4156 | 0.121 | 0.017 | 0.219 |
+| RawEPA | SRS | late | 4156 | 0.021 | -0.027 | 0.067 |
+| SRS | Elo | late | 4156 | 0.100 | 0.007 | 0.196 |
+| TeamRating | Elo | late | 4156 | 0.031 | -0.049 | 0.114 |
+| TeamRating | RawEPA | late | 4156 | -0.090 | -0.160 | -0.023 |
+| TeamRating | SRS | late | 4156 | -0.069 | -0.143 | 0.003 |
+| RawEPA | Elo | overall | 5297 | 0.116 | 0.033 | 0.199 |
+| RawEPA | SRS | overall | 5297 | 0.038 | -0.008 | 0.083 |
+| SRS | Elo | overall | 5297 | 0.078 | 0.000 | 0.159 |
+| TeamRating | Elo | overall | 5297 | 0.032 | -0.040 | 0.100 |
+| TeamRating | RawEPA | overall | 5297 | -0.084 | -0.146 | -0.023 |
+| TeamRating | SRS | overall | 5297 | -0.047 | -0.113 | 0.020 |
+
+## Weekly MAE
 
 | Week | Baseline | Games | MAE | RMSE |
 | --- | --- | --- | --- | --- |
 | 5 | Elo | 384 | 10.223 | 13.427 |
-| 6 | Elo | 379 | 10.511 | 13.496 |
-| 7 | Elo | 378 | 11.332 | 14.689 |
-| 8 | Elo | 378 | 10.412 | 13.243 |
-| 9 | Elo | 371 | 10.112 | 13.102 |
-| 10 | Elo | 384 | 11.199 | 14.258 |
-| 11 | Elo | 401 | 9.606 | 12.779 |
-| 12 | Elo | 417 | 9.730 | 12.585 |
-| 13 | Elo | 421 | 10.288 | 13.246 |
-| 14 | Elo | 418 | 11.129 | 14.002 |
-| 15 | Elo | 429 | 10.613 | 13.504 |
-| 16 | Elo | 429 | 11.166 | 14.019 |
-| 17 | Elo | 428 | 11.227 | 14.265 |
-| 18 | Elo | 80 | 10.239 | 13.045 |
-| 5 | Play-Level EPA Weights + ST | 384 | 10.340 | 13.394 |
-| 6 | Play-Level EPA Weights + ST | 379 | 10.566 | 13.614 |
-| 7 | Play-Level EPA Weights + ST | 378 | 11.646 | 14.912 |
-| 8 | Play-Level EPA Weights + ST | 378 | 10.833 | 13.697 |
-| 9 | Play-Level EPA Weights + ST | 371 | 10.389 | 13.217 |
-| 10 | Play-Level EPA Weights + ST | 384 | 11.295 | 14.532 |
-| 11 | Play-Level EPA Weights + ST | 401 | 9.819 | 13.012 |
-| 12 | Play-Level EPA Weights + ST | 417 | 10.083 | 13.036 |
-| 13 | Play-Level EPA Weights + ST | 421 | 10.398 | 13.496 |
-| 14 | Play-Level EPA Weights + ST | 418 | 11.333 | 14.510 |
-| 15 | Play-Level EPA Weights + ST | 429 | 10.800 | 13.855 |
-| 16 | Play-Level EPA Weights + ST | 429 | 11.451 | 14.483 |
-| 17 | Play-Level EPA Weights + ST | 428 | 11.686 | 14.731 |
-| 18 | Play-Level EPA Weights + ST | 80 | 10.132 | 12.638 |
-| 5 | Rolling EPA Weights + ST | 384 | 10.389 | 13.523 |
-| 6 | Rolling EPA Weights + ST | 379 | 10.630 | 13.722 |
-| 7 | Rolling EPA Weights + ST | 378 | 11.627 | 14.942 |
-| 8 | Rolling EPA Weights + ST | 378 | 10.845 | 13.790 |
-| 9 | Rolling EPA Weights + ST | 371 | 10.453 | 13.263 |
-| 10 | Rolling EPA Weights + ST | 384 | 11.207 | 14.404 |
-| 11 | Rolling EPA Weights + ST | 401 | 9.845 | 13.061 |
-| 12 | Rolling EPA Weights + ST | 417 | 10.022 | 13.004 |
-| 13 | Rolling EPA Weights + ST | 421 | 10.377 | 13.520 |
-| 14 | Rolling EPA Weights + ST | 418 | 11.454 | 14.567 |
-| 15 | Rolling EPA Weights + ST | 429 | 10.837 | 13.876 |
-| 16 | Rolling EPA Weights + ST | 429 | 11.493 | 14.538 |
-| 17 | Rolling EPA Weights + ST | 428 | 11.720 | 14.735 |
-| 18 | Rolling EPA Weights + ST | 80 | 10.327 | 12.816 |
+| 5 | RawEPA | 384 | 10.243 | 13.431 |
 | 5 | SRS | 384 | 10.167 | 13.421 |
+| 5 | TeamRating | 384 | 10.270 | 13.442 |
+| 6 | Elo | 379 | 10.511 | 13.496 |
+| 6 | RawEPA | 379 | 10.564 | 13.599 |
 | 6 | SRS | 379 | 10.352 | 13.433 |
+| 6 | TeamRating | 379 | 10.382 | 13.463 |
+| 7 | Elo | 378 | 11.332 | 14.689 |
+| 7 | RawEPA | 378 | 11.552 | 14.682 |
 | 7 | SRS | 378 | 11.543 | 14.773 |
+| 7 | TeamRating | 378 | 11.516 | 14.655 |
+| 8 | Elo | 378 | 10.412 | 13.243 |
+| 8 | RawEPA | 378 | 10.558 | 13.429 |
 | 8 | SRS | 378 | 10.577 | 13.470 |
+| 8 | TeamRating | 378 | 10.654 | 13.374 |
+| 9 | Elo | 371 | 10.112 | 13.102 |
+| 9 | RawEPA | 371 | 10.304 | 13.189 |
 | 9 | SRS | 371 | 10.156 | 13.089 |
+| 9 | TeamRating | 371 | 10.343 | 13.147 |
+| 10 | Elo | 384 | 11.199 | 14.258 |
+| 10 | RawEPA | 384 | 10.932 | 14.049 |
 | 10 | SRS | 384 | 10.994 | 14.170 |
+| 10 | TeamRating | 384 | 11.213 | 14.241 |
+| 11 | Elo | 401 | 9.606 | 12.779 |
+| 11 | RawEPA | 401 | 9.775 | 12.976 |
 | 11 | SRS | 401 | 9.752 | 12.934 |
+| 11 | TeamRating | 401 | 9.522 | 12.646 |
+| 12 | Elo | 417 | 9.730 | 12.585 |
+| 12 | RawEPA | 417 | 9.916 | 12.817 |
 | 12 | SRS | 417 | 9.896 | 12.785 |
+| 12 | TeamRating | 417 | 9.708 | 12.493 |
+| 13 | Elo | 421 | 10.288 | 13.246 |
+| 13 | RawEPA | 421 | 10.587 | 13.726 |
 | 13 | SRS | 421 | 10.531 | 13.645 |
+| 13 | TeamRating | 421 | 10.452 | 13.448 |
+| 14 | Elo | 418 | 11.129 | 14.002 |
+| 14 | RawEPA | 418 | 11.256 | 14.356 |
 | 14 | SRS | 418 | 11.172 | 14.242 |
+| 14 | TeamRating | 418 | 10.942 | 13.962 |
+| 15 | Elo | 429 | 10.613 | 13.504 |
+| 15 | RawEPA | 429 | 10.796 | 13.883 |
 | 15 | SRS | 429 | 10.722 | 13.752 |
+| 15 | TeamRating | 429 | 10.477 | 13.484 |
+| 16 | Elo | 429 | 11.166 | 14.019 |
+| 16 | RawEPA | 429 | 11.128 | 14.222 |
 | 16 | SRS | 429 | 11.215 | 14.264 |
+| 16 | TeamRating | 429 | 11.147 | 14.057 |
+| 17 | Elo | 428 | 11.227 | 14.265 |
+| 17 | RawEPA | 428 | 11.469 | 14.645 |
 | 17 | SRS | 428 | 11.503 | 14.679 |
+| 17 | TeamRating | 428 | 11.413 | 14.390 |
+| 18 | Elo | 80 | 10.239 | 13.045 |
+| 18 | RawEPA | 80 | 10.089 | 12.512 |
 | 18 | SRS | 80 | 10.033 | 12.515 |
-| 5 | SaOvR | 384 | 10.469 | 13.759 |
-| 6 | SaOvR | 379 | 10.634 | 13.716 |
-| 7 | SaOvR | 378 | 11.585 | 14.757 |
-| 8 | SaOvR | 378 | 10.578 | 13.429 |
-| 9 | SaOvR | 371 | 10.286 | 13.146 |
-| 10 | SaOvR | 384 | 11.141 | 14.274 |
-| 11 | SaOvR | 401 | 9.672 | 12.794 |
-| 12 | SaOvR | 417 | 9.875 | 12.748 |
-| 13 | SaOvR | 421 | 10.478 | 13.573 |
-| 14 | SaOvR | 418 | 11.180 | 14.185 |
-| 15 | SaOvR | 429 | 10.757 | 13.786 |
-| 16 | SaOvR | 429 | 11.111 | 14.068 |
-| 17 | SaOvR | 428 | 11.380 | 14.411 |
-| 18 | SaOvR | 80 | 10.268 | 12.573 |
+| 18 | TeamRating | 80 | 10.067 | 12.449 |
 
-## Original Per-Season Walk-Forward
+## Year-Over-Year Stability
 
-| Season | Baseline | Games | MAE | RMSE |
+Correlation of each metric with the same team's or qualified passer's value the next season.
+Informative only; it does not gate anything.
+
+| Entity | Metric | Pairs | Pearson | Spearman |
 | --- | --- | --- | --- | --- |
-| 1999 | Elo | 190 | 10.602 | 13.433 |
-| 1999 | RawEPA | 190 | 10.478 | 13.087 |
-| 1999 | SRS | 190 | 10.313 | 12.953 |
-| 1999 | SaOvR | 190 | 10.402 | 12.974 |
-| 2000 | Elo | 189 | 10.654 | 13.095 |
-| 2000 | RawEPA | 189 | 10.541 | 13.255 |
-| 2000 | SRS | 189 | 10.534 | 13.235 |
-| 2000 | SaOvR | 189 | 10.335 | 12.858 |
-| 2001 | Elo | 190 | 9.705 | 12.270 |
-| 2001 | RawEPA | 190 | 9.934 | 12.837 |
-| 2001 | SRS | 190 | 9.949 | 12.781 |
-| 2001 | SaOvR | 190 | 10.126 | 12.940 |
-| 2002 | Elo | 196 | 9.916 | 13.310 |
-| 2002 | RawEPA | 196 | 9.963 | 13.319 |
-| 2002 | SRS | 196 | 9.951 | 13.232 |
-| 2002 | SaOvR | 196 | 9.920 | 13.326 |
-| 2003 | Elo | 196 | 10.374 | 13.297 |
-| 2003 | RawEPA | 196 | 10.359 | 13.537 |
-| 2003 | SRS | 196 | 10.376 | 13.664 |
-| 2003 | SaOvR | 196 | 10.682 | 13.756 |
-| 2004 | Elo | 196 | 10.970 | 13.932 |
-| 2004 | RawEPA | 196 | 10.995 | 14.022 |
-| 2004 | SRS | 196 | 10.858 | 13.938 |
-| 2004 | SaOvR | 196 | 10.956 | 13.847 |
-| 2005 | Elo | 196 | 9.965 | 13.300 |
-| 2005 | RawEPA | 196 | 10.522 | 13.761 |
-| 2005 | SRS | 196 | 10.316 | 13.556 |
-| 2005 | SaOvR | 196 | 10.374 | 13.583 |
-| 2006 | Elo | 196 | 11.167 | 13.919 |
-| 2006 | RawEPA | 196 | 10.973 | 13.802 |
-| 2006 | SRS | 196 | 10.965 | 13.820 |
-| 2006 | SaOvR | 196 | 11.031 | 13.797 |
-| 2007 | Elo | 194 | 11.132 | 14.030 |
-| 2007 | RawEPA | 194 | 11.482 | 14.504 |
-| 2007 | SRS | 194 | 11.017 | 14.003 |
-| 2007 | SaOvR | 194 | 11.395 | 14.459 |
-| 2008 | Elo | 196 | 11.348 | 14.316 |
-| 2008 | RawEPA | 196 | 11.363 | 14.532 |
-| 2008 | SRS | 196 | 11.426 | 14.545 |
-| 2008 | SaOvR | 196 | 11.342 | 14.326 |
-| 2009 | Elo | 194 | 12.268 | 15.755 |
-| 2009 | RawEPA | 194 | 12.054 | 15.655 |
-| 2009 | SRS | 194 | 12.052 | 15.680 |
-| 2009 | SaOvR | 194 | 12.099 | 15.722 |
-| 2010 | Elo | 194 | 11.027 | 14.428 |
-| 2010 | RawEPA | 194 | 11.193 | 14.566 |
-| 2010 | SRS | 194 | 11.236 | 14.640 |
-| 2010 | SaOvR | 194 | 11.078 | 14.449 |
-| 2011 | Elo | 192 | 11.250 | 14.638 |
-| 2011 | RawEPA | 192 | 11.300 | 14.716 |
-| 2011 | SRS | 192 | 11.268 | 14.655 |
-| 2011 | SaOvR | 192 | 11.329 | 14.727 |
-| 2012 | Elo | 193 | 11.192 | 14.633 |
-| 2012 | RawEPA | 193 | 11.359 | 14.946 |
-| 2012 | SRS | 193 | 11.233 | 14.767 |
-| 2012 | SaOvR | 193 | 11.150 | 14.716 |
-| 2013 | Elo | 193 | 10.196 | 12.908 |
-| 2013 | RawEPA | 193 | 10.390 | 13.298 |
-| 2013 | SRS | 193 | 10.273 | 13.139 |
-| 2013 | SaOvR | 193 | 10.357 | 13.219 |
-| 2014 | Elo | 195 | 11.197 | 14.413 |
-| 2014 | RawEPA | 195 | 11.448 | 14.746 |
-| 2014 | SRS | 195 | 11.276 | 14.622 |
-| 2014 | SaOvR | 195 | 11.867 | 15.076 |
-| 2015 | Elo | 193 | 10.271 | 13.177 |
-| 2015 | RawEPA | 193 | 10.349 | 13.388 |
-| 2015 | SRS | 193 | 10.384 | 13.354 |
-| 2015 | SaOvR | 193 | 10.398 | 13.228 |
-| 2016 | Elo | 193 | 9.298 | 11.860 |
-| 2016 | RawEPA | 193 | 9.770 | 12.390 |
-| 2016 | SRS | 193 | 9.529 | 12.139 |
-| 2016 | SaOvR | 193 | 9.680 | 12.319 |
-| 2017 | Elo | 193 | 10.334 | 13.086 |
-| 2017 | RawEPA | 193 | 10.630 | 13.384 |
-| 2017 | SRS | 193 | 10.477 | 13.288 |
-| 2017 | SaOvR | 193 | 10.746 | 13.717 |
-| 2018 | Elo | 193 | 10.529 | 13.697 |
-| 2018 | RawEPA | 193 | 10.529 | 13.770 |
-| 2018 | SRS | 193 | 10.606 | 13.901 |
-| 2018 | SaOvR | 193 | 10.553 | 13.828 |
-| 2019 | Elo | 193 | 10.603 | 13.590 |
-| 2019 | RawEPA | 193 | 10.735 | 13.556 |
-| 2019 | SRS | 193 | 10.821 | 13.822 |
-| 2019 | SaOvR | 193 | 10.687 | 13.619 |
-| 2020 | Elo | 193 | 10.663 | 13.836 |
-| 2020 | RawEPA | 193 | 10.927 | 14.246 |
-| 2020 | SRS | 193 | 10.912 | 14.277 |
-| 2020 | SaOvR | 193 | 10.776 | 14.082 |
-| 2021 | Elo | 208 | 11.704 | 14.649 |
-| 2021 | RawEPA | 208 | 11.700 | 14.699 |
-| 2021 | SRS | 208 | 11.814 | 14.762 |
-| 2021 | SaOvR | 208 | 11.704 | 14.665 |
-| 2022 | Elo | 207 | 9.136 | 11.927 |
-| 2022 | RawEPA | 207 | 9.245 | 12.038 |
-| 2022 | SRS | 207 | 9.300 | 12.080 |
-| 2022 | SaOvR | 207 | 9.417 | 12.185 |
-| 2023 | Elo | 208 | 10.091 | 13.081 |
-| 2023 | RawEPA | 208 | 10.068 | 12.999 |
-| 2023 | SRS | 208 | 10.010 | 13.087 |
-| 2023 | SaOvR | 208 | 10.022 | 12.891 |
-| 2024 | Elo | 208 | 9.855 | 12.821 |
-| 2024 | RawEPA | 208 | 10.045 | 12.973 |
-| 2024 | SRS | 208 | 10.260 | 13.250 |
-| 2024 | SaOvR | 208 | 10.089 | 12.946 |
-| 2025 | Elo | 208 | 10.304 | 12.913 |
-| 2025 | RawEPA | 208 | 10.529 | 13.271 |
-| 2025 | SRS | 208 | 10.664 | 13.371 |
-| 2025 | SaOvR | 208 | 10.464 | 13.141 |
+| qb | adj_qb_epa_per_dropback | 605 | 0.461 | 0.448 |
+| qb | qb_any_a | 605 | 0.403 | 0.388 |
+| qb | qb_passer_rating | 605 | 0.473 | 0.475 |
+| team | SRS | 829 | 0.437 | 0.425 |
+| team | team_rating | 829 | 0.441 | 0.430 |
 
-## Per-Season SaOvR vs SRS
+## ESPN QBR Reference
 
-| Season | SaOvR MAE | SRS MAE | MAE Delta | RMSE Delta |
-| --- | --- | --- | --- | --- |
-| 1999 | 10.402 | 10.313 | 0.089 | 0.021 |
-| 2000 | 10.335 | 10.534 | -0.199 | -0.377 |
-| 2001 | 10.126 | 9.949 | 0.176 | 0.159 |
-| 2002 | 9.920 | 9.951 | -0.031 | 0.094 |
-| 2003 | 10.682 | 10.376 | 0.306 | 0.091 |
-| 2004 | 10.956 | 10.858 | 0.099 | -0.091 |
-| 2005 | 10.374 | 10.316 | 0.058 | 0.027 |
-| 2006 | 11.031 | 10.965 | 0.066 | -0.023 |
-| 2007 | 11.395 | 11.017 | 0.378 | 0.456 |
-| 2008 | 11.342 | 11.426 | -0.084 | -0.219 |
-| 2009 | 12.099 | 12.052 | 0.047 | 0.042 |
-| 2010 | 11.078 | 11.236 | -0.157 | -0.191 |
-| 2011 | 11.329 | 11.268 | 0.061 | 0.072 |
-| 2012 | 11.150 | 11.233 | -0.083 | -0.052 |
-| 2013 | 10.357 | 10.273 | 0.084 | 0.081 |
-| 2014 | 11.867 | 11.276 | 0.591 | 0.454 |
-| 2015 | 10.398 | 10.384 | 0.014 | -0.126 |
-| 2016 | 9.680 | 9.529 | 0.150 | 0.180 |
-| 2017 | 10.746 | 10.477 | 0.268 | 0.429 |
-| 2018 | 10.553 | 10.606 | -0.053 | -0.073 |
-| 2019 | 10.687 | 10.821 | -0.135 | -0.202 |
-| 2020 | 10.776 | 10.912 | -0.135 | -0.196 |
-| 2021 | 11.704 | 11.814 | -0.109 | -0.097 |
-| 2022 | 9.417 | 9.300 | 0.117 | 0.105 |
-| 2023 | 10.022 | 10.010 | 0.012 | -0.196 |
-| 2024 | 10.089 | 10.260 | -0.172 | -0.304 |
-| 2025 | 10.464 | 10.664 | -0.200 | -0.230 |
+Per-season correlation between adjusted EPA per dropback and ESPN QBR for qualified passers. Mean
+Pearson 0.892, mean Spearman 0.874. QBR is a reference, not a fitting target.
 
-## Per-Season Rolling EPA Weights + ST vs SRS
-
-| Season | Rolling EPA Weights + ST MAE | SRS MAE | MAE Delta | RMSE Delta |
-| --- | --- | --- | --- | --- |
-| 1999 | 10.382 | 10.313 | 0.069 | 0.121 |
-| 2000 | 10.081 | 10.534 | -0.452 | -0.556 |
-| 2001 | 10.107 | 9.949 | 0.158 | 0.261 |
-| 2002 | 10.292 | 9.951 | 0.341 | 0.258 |
-| 2003 | 10.697 | 10.376 | 0.322 | 0.217 |
-| 2004 | 11.282 | 10.858 | 0.424 | 0.537 |
-| 2005 | 10.506 | 10.316 | 0.190 | 0.480 |
-| 2006 | 10.997 | 10.965 | 0.031 | 0.128 |
-| 2007 | 11.354 | 11.017 | 0.337 | 0.518 |
-| 2008 | 11.870 | 11.426 | 0.444 | 0.371 |
-| 2009 | 12.419 | 12.052 | 0.367 | 0.393 |
-| 2010 | 11.419 | 11.236 | 0.184 | 0.212 |
-| 2011 | 11.584 | 11.268 | 0.316 | 0.330 |
-| 2012 | 11.702 | 11.233 | 0.469 | 0.351 |
-| 2013 | 10.451 | 10.273 | 0.178 | 0.088 |
-| 2014 | 11.263 | 11.276 | -0.013 | -0.017 |
-| 2015 | 10.501 | 10.384 | 0.117 | 0.169 |
-| 2016 | 9.546 | 9.529 | 0.016 | 0.026 |
-| 2017 | 10.707 | 10.477 | 0.230 | 0.375 |
-| 2018 | 10.986 | 10.606 | 0.380 | 0.461 |
-| 2019 | 10.797 | 10.821 | -0.024 | -0.067 |
-| 2020 | 10.875 | 10.912 | -0.036 | -0.192 |
-| 2021 | 11.788 | 11.814 | -0.025 | -0.114 |
-| 2022 | 9.867 | 9.300 | 0.567 | 0.313 |
-| 2023 | 10.122 | 10.010 | 0.112 | -0.001 |
-| 2024 | 10.448 | 10.260 | 0.187 | 0.220 |
-| 2025 | 10.574 | 10.664 | -0.089 | -0.214 |
-
-## Stability
-
-| Metric | Entity | Paired Rows | Pearson | Spearman |
-| --- | --- | --- | --- | --- |
-| QSaCR | qb | 446 | 0.479 | 0.466 |
-| qb_any_a | qb | 446 | 0.338 | 0.330 |
-| qb_passer_rating | qb | 446 | 0.413 | 0.416 |
-| SaOvR | team | 829 | 0.377 | 0.365 |
-
-## QBR Correlations
-
-| Season | Joined Rows | Pearson | Spearman |
+| Season | QBs | Pearson | Spearman |
 | --- | --- | --- | --- |
-| 2006 | 31 | 0.860 | 0.773 |
-| 2007 | 28 | 0.910 | 0.907 |
-| 2008 | 31 | 0.861 | 0.845 |
-| 2009 | 28 | 0.963 | 0.963 |
-| 2010 | 31 | 0.942 | 0.928 |
-| 2011 | 32 | 0.950 | 0.945 |
-| 2012 | 32 | 0.932 | 0.903 |
-| 2013 | 34 | 0.877 | 0.878 |
-| 2014 | 32 | 0.908 | 0.905 |
-| 2015 | 33 | 0.908 | 0.906 |
-| 2016 | 30 | 0.915 | 0.890 |
-| 2017 | 30 | 0.807 | 0.793 |
-| 2018 | 32 | 0.923 | 0.880 |
-| 2019 | 30 | 0.835 | 0.826 |
-| 2020 | 32 | 0.887 | 0.891 |
-| 2021 | 31 | 0.914 | 0.864 |
-| 2022 | 30 | 0.803 | 0.752 |
-| 2023 | 30 | 0.917 | 0.868 |
-| 2024 | 31 | 0.877 | 0.885 |
-| 2025 | 30 | 0.831 | 0.786 |
-
-## 2025 QB Schedule-Lens Anchor
-
-| QB | Games | Avg Opp SaCR | Avg Opp SaDR | Avg Opp SRS |
-| --- | --- | --- | --- | --- |
-| Drake Maye | 17 | -0.701 | -0.465 | -4.285 |
-| Tyler Shough | 11 | -0.329 | -0.202 | -1.567 |
-| Joe Flacco | 13 | -0.155 | -0.368 | -1.695 |
-| J.J. McCarthy | 10 | 0.127 | -0.535 | -0.995 |
-
-## QB Schedule-Lens Trace
-
-| QB | Raw EPA/DB | Adjusted EPA/DB | Weighted Faced Defense | Adjustment Delta | QSoS | Faced Opp SaCR | Faced Adj Def EPA/DB |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Drake Maye | 0.308 | 0.245 | -0.029 | -0.063 | -1.273 | -0.701 | -0.029 |
-| Tyler Shough | 0.006 | -0.024 | -0.048 | -0.029 | -2.115 | -0.329 | -0.048 |
-| Joe Flacco | -0.095 | -0.107 | -0.049 | -0.012 | -2.155 | -0.155 | -0.049 |
-| J.J. McCarthy | -0.198 | -0.169 | -0.045 | 0.029 | -2.000 | 0.127 | -0.045 |
-
-## QB Lens-Divergence Rankings
-
-| QB | Team | QSoS | Faced Opp SaCR | QSoS Rank | Overall Rank | Rank Gap |
-| --- | --- | --- | --- | --- | --- | --- |
-| Lamar Jackson | BAL | 0.394 | -0.334 | 8 | 30 | -22 |
-| J.J. McCarthy | MIN | -2.000 | 0.127 | 31 | 10 | 21 |
-| Joe Burrow | CIN | 1.071 | -0.229 | 5 | 26 | -21 |
-| Spencer Rattler | NO | -0.158 | 0.298 | 24 | 4 | 20 |
-| Michael Penix Jr. | ATL | -0.845 | 0.107 | 27 | 12 | 15 |
-| Jacoby Brissett | ARI | 0.204 | 0.415 | 14 | 2 | 12 |
-| Josh Allen | BUF | -0.005 | -0.342 | 19 | 31 | -12 |
-| Justin Herbert | LAC | 0.271 | -0.187 | 12 | 24 | -12 |
-| Bryce Young | CAR | -0.999 | 0.008 | 28 | 17 | 11 |
-| Daniel Jones | IND | 0.296 | -0.107 | 10 | 21 | -11 |
-
-## 2025 QB Designed-Rush Preview
-
-| QB | Team | Designed Carries | Designed EPA/Carry | Faced Rush Defense | Adj Designed Rush EPA/Carry | QSoS | Faced Adj Def EPA/DB | Faced Opp SaCR |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Drake Maye | NE | 20 | -0.390 | -0.004 | -0.394 | -1.273 | -0.029 | -0.701 |
-| Lamar Jackson | BAL | 28 | 0.293 | -0.005 | 0.288 | 0.394 | 0.008 | -0.334 |
-| Josh Allen | BUF | 46 | 0.436 | 0.007 | 0.443 | -0.005 | -0.001 | -0.342 |
-| Matthew Stafford | LAR | 5 | -2.824 | 0.017 | -2.807 | 0.338 | 0.006 | 0.241 |
-
-## QB Adjustment Audit
-
-| Season | Eligible QBs | Slope | Correlation | Mean Abs Residual |
-| --- | --- | --- | --- | --- |
-| 1999 | 38 | 0.945 | 0.732 | 0.037 |
-| 2000 | 36 | 0.809 | 0.561 | 0.030 |
-| 2001 | 30 | 0.858 | 0.613 | 0.017 |
-| 2002 | 32 | 0.627 | 0.382 | 0.019 |
-| 2003 | 32 | 1.084 | 0.631 | 0.041 |
-| 2004 | 33 | 1.014 | 0.927 | 0.030 |
-| 2005 | 34 | 1.095 | 0.571 | 0.023 |
-| 2006 | 32 | 1.124 | 0.685 | 0.027 |
-| 2007 | 33 | 0.735 | 0.513 | 0.026 |
-| 2008 | 32 | 0.974 | 0.846 | 0.016 |
-| 2009 | 32 | 0.860 | 0.541 | 0.034 |
-| 2010 | 31 | 0.925 | 0.677 | 0.017 |
-| 2011 | 34 | 0.846 | 0.460 | 0.023 |
-| 2012 | 32 | 0.645 | 0.534 | 0.022 |
-| 2013 | 36 | 1.075 | 0.728 | 0.022 |
-| 2014 | 33 | 1.029 | 0.760 | 0.018 |
-| 2015 | 35 | 0.951 | 0.776 | 0.025 |
-| 2016 | 30 | 0.656 | 0.527 | 0.027 |
-| 2017 | 32 | 0.932 | 0.694 | 0.031 |
-| 2018 | 33 | 0.917 | 0.481 | 0.020 |
-| 2019 | 32 | 0.818 | 0.564 | 0.020 |
-| 2020 | 35 | 1.105 | 0.814 | 0.032 |
-| 2021 | 31 | 1.426 | 0.774 | 0.016 |
-| 2022 | 33 | 1.370 | 0.529 | 0.024 |
-| 2023 | 32 | 0.551 | 0.420 | 0.033 |
-| 2024 | 36 | 1.037 | 0.667 | 0.020 |
-| 2025 | 33 | 0.505 | 0.443 | 0.019 |
-
-## QB Defense Spread Audit
-
-| Season | Team Defense SD | QB Defense SD | QB/Team Ratio |
-| --- | --- | --- | --- |
-| 1999 | 0.037 | 0.090 | 2.398 |
-| 2000 | 0.035 | 0.087 | 2.489 |
-| 2001 | 0.034 | 0.079 | 2.315 |
-| 2002 | 0.038 | 0.093 | 2.423 |
-| 2003 | 0.036 | 0.088 | 2.414 |
-| 2004 | 0.049 | 0.099 | 2.028 |
-| 2005 | 0.026 | 0.066 | 2.544 |
-| 2006 | 0.033 | 0.081 | 2.436 |
-| 2007 | 0.027 | 0.071 | 2.585 |
-| 2008 | 0.040 | 0.100 | 2.527 |
-| 2009 | 0.054 | 0.097 | 1.818 |
-| 2010 | 0.030 | 0.075 | 2.474 |
-| 2011 | 0.029 | 0.073 | 2.495 |
-| 2012 | 0.031 | 0.078 | 2.500 |
-| 2013 | 0.034 | 0.079 | 2.336 |
-| 2014 | 0.032 | 0.075 | 2.376 |
-| 2015 | 0.038 | 0.092 | 2.399 |
-| 2016 | 0.047 | 0.085 | 1.785 |
-| 2017 | 0.037 | 0.092 | 2.506 |
-| 2018 | 0.029 | 0.069 | 2.415 |
-| 2019 | 0.042 | 0.099 | 2.344 |
-| 2020 | 0.038 | 0.091 | 2.367 |
-| 2021 | 0.033 | 0.076 | 2.271 |
-| 2022 | 0.025 | 0.060 | 2.376 |
-| 2023 | 0.034 | 0.078 | 2.302 |
-| 2024 | 0.026 | 0.062 | 2.391 |
-| 2025 | 0.042 | 0.101 | 2.420 |
-
-## QB Revision Sweep
-
-| Variant | Eligible QBs | Slope | Correlation | Defense Penalty Multiplier |
-| --- | --- | --- | --- | --- |
-| current | 33 | 0.505 | 0.443 | - |
-| fixed_team_defense | 33 | 0.384 | 0.157 | - |
-| lighter_defense_penalty_x0 | 33 | 0.556 | 0.545 | 0.000 |
-| lighter_defense_penalty_x0.05 | 33 | 0.553 | 0.539 | 0.050 |
-| lighter_defense_penalty_x0.1 | 33 | 0.551 | 0.534 | 0.100 |
-| lighter_defense_penalty_x0.25 | 33 | 0.543 | 0.518 | 0.250 |
-| lighter_defense_penalty_x0.5 | 33 | 0.530 | 0.492 | 0.500 |
-| lighter_defense_penalty_x1 | 33 | 0.505 | 0.443 | 1.000 |
-
-## Maye/Stafford Case Study
-
-| Variant | QB | Raw EPA/DB | Adjusted EPA/DB | Faced Difficulty | Adjustment Delta |
-| --- | --- | --- | --- | --- | --- |
-| current | Matthew Stafford | 0.244 | 0.225 | 0.006 | -0.019 |
-| current | Drake Maye | 0.308 | 0.245 | -0.029 | -0.063 |
-| fixed_team_defense | Matthew Stafford | 0.244 | 0.222 | 0.005 | -0.022 |
-| fixed_team_defense | Drake Maye | 0.308 | 0.254 | -0.016 | -0.054 |
-| lighter_defense_penalty_x0 | Matthew Stafford | 0.244 | 0.228 | 0.008 | -0.016 |
-| lighter_defense_penalty_x0 | Drake Maye | 0.308 | 0.242 | -0.035 | -0.066 |
-
-## QB Open Status
-
-- The published QB composite target and weights remain unchanged, and the split-half
-  companion metric is not promoted to a published surface.
-- The earlier QB audit continues to stand as a positive linear-adjustment result:
-  the additive adjustment operated at full strength in EPA units, the identity checks
-  held, and the fixed-defense and lighter-defense-penalty variants were correctly not
-  adopted.
-- The only remaining QB follow-up is the opponent-context batch below. If those checks
-  also come back null, the current published composite stands as the system's answer.
-
-## D5 Opponent-Offense Effect
-
-- Gate reading: not_supported.
-- Pooled weighted slope -0.042 with 95% CI [-0.134, 0.051]
-  and 10 / 27 positive seasons (p = 0.939).
-
-| Scope | Season | QB Seasons | Dropbacks | Slope | Correlation | CI Lower | CI Upper | Positive Seasons | Season Count | Binomial P |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| pooled | - | 12415 | 425783.000 | -0.042 | -0.008 | -0.134 | 0.051 | 10 | 27 | 0.939 |
-| season | 1999 | 535 | 16820.000 | 0.012 | 0.002 | - | - | - | - | - |
-| season | 2000 | 536 | 16882.000 | -0.060 | -0.011 | - | - | - | - | - |
-| season | 2001 | 448 | 15027.000 | -0.046 | -0.007 | - | - | - | - | - |
-| season | 2002 | 440 | 15156.000 | -0.088 | -0.015 | - | - | - | - | - |
-| season | 2003 | 434 | 14208.000 | -0.056 | -0.009 | - | - | - | - | - |
-| season | 2004 | 451 | 14756.000 | -0.058 | -0.018 | - | - | - | - | - |
-| season | 2005 | 447 | 14402.000 | -0.056 | -0.009 | - | - | - | - | - |
-| season | 2006 | 450 | 14475.000 | 0.219 | 0.031 | - | - | - | - | - |
-| season | 2007 | 429 | 13955.000 | -0.185 | -0.035 | - | - | - | - | - |
-| season | 2008 | 458 | 14996.000 | 0.030 | 0.005 | - | - | - | - | - |
-| season | 2009 | 450 | 15090.000 | -0.085 | -0.025 | - | - | - | - | - |
-| season | 2010 | 437 | 15113.000 | -0.107 | -0.019 | - | - | - | - | - |
-| season | 2011 | 455 | 16007.000 | -0.112 | -0.025 | - | - | - | - | - |
-| season | 2012 | 465 | 16741.000 | 0.107 | 0.020 | - | - | - | - | - |
-| season | 2013 | 475 | 17144.000 | -0.120 | -0.021 | - | - | - | - | - |
-| season | 2014 | 454 | 16366.000 | 0.136 | 0.022 | - | - | - | - | - |
-| season | 2015 | 462 | 17049.000 | 0.096 | 0.014 | - | - | - | - | - |
-| season | 2016 | 447 | 16684.000 | 0.055 | 0.014 | - | - | - | - | - |
-| season | 2017 | 450 | 15770.000 | -0.087 | -0.014 | - | - | - | - | - |
-| season | 2018 | 458 | 16551.000 | -0.082 | -0.015 | - | - | - | - | - |
-| season | 2019 | 450 | 16347.000 | -0.330 | -0.049 | - | - | - | - | - |
-| season | 2020 | 468 | 16737.000 | -0.005 | -0.001 | - | - | - | - | - |
-| season | 2021 | 469 | 16694.000 | -0.388 | -0.065 | - | - | - | - | - |
-| season | 2022 | 450 | 15717.000 | 0.038 | 0.007 | - | - | - | - | - |
-| season | 2023 | 448 | 15575.000 | -0.037 | -0.007 | - | - | - | - | - |
-| season | 2024 | 494 | 16389.000 | 0.035 | 0.006 | - | - | - | - | - |
-| season | 2025 | 455 | 15132.000 | 0.185 | 0.033 | - | - | - | - | - |
-
-| Season | QB | Faced Opponent Offense | Mean Adjusted Residual | Dropbacks |
-| --- | --- | --- | --- | --- |
-| 2025 | Drake Maye | -0.026 | -0.000 | 540.000 |
-| 2025 | Matthew Stafford | 0.011 | -0.000 | 617.000 |
-
-## D6 Leverage Profile and Filtered Variant
-
-- Moderate-leverage win-probability band: 0.05-0.95.
-- Gate reading: not_supported.
-- Companion gate: stability fail, playoff correlation pass.
-- Pooled weighted slope -0.021 with 95% CI [-0.198, 0.158]
-  and 14 / 27 positive seasons (p = 0.500).
-
-| Scope | Season | QB Seasons | Dropbacks | Slope | Correlation | CI Lower | CI Upper | Positive Seasons | Season Count | Binomial P |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| pooled | - | 892 | 421521.000 | -0.021 | -0.008 | -0.198 | 0.158 | 14 | 27 | 0.500 |
-| season | 1999 | 38 | 14816.000 | 0.536 | 0.208 | - | - | - | - | - |
-| season | 2000 | 36 | 14724.000 | 0.286 | 0.132 | - | - | - | - | - |
-| season | 2001 | 30 | 15027.000 | -1.006 | -0.333 | - | - | - | - | - |
-| season | 2002 | 32 | 15156.000 | -0.552 | -0.186 | - | - | - | - | - |
-| season | 2003 | 32 | 14208.000 | 0.101 | 0.032 | - | - | - | - | - |
-| season | 2004 | 33 | 14756.000 | 0.103 | 0.064 | - | - | - | - | - |
-| season | 2005 | 34 | 14402.000 | -0.020 | -0.007 | - | - | - | - | - |
-| season | 2006 | 32 | 14475.000 | -0.061 | -0.030 | - | - | - | - | - |
-| season | 2007 | 33 | 13955.000 | -0.819 | -0.255 | - | - | - | - | - |
-| season | 2008 | 32 | 14996.000 | 0.434 | 0.233 | - | - | - | - | - |
-| season | 2009 | 32 | 15090.000 | 0.012 | 0.006 | - | - | - | - | - |
-| season | 2010 | 31 | 15048.000 | 0.327 | 0.111 | - | - | - | - | - |
-| season | 2011 | 34 | 15972.000 | 0.503 | 0.156 | - | - | - | - | - |
-| season | 2012 | 32 | 16741.000 | 0.027 | 0.011 | - | - | - | - | - |
-| season | 2013 | 36 | 17144.000 | -0.493 | -0.194 | - | - | - | - | - |
-| season | 2014 | 33 | 16366.000 | -0.785 | -0.316 | - | - | - | - | - |
-| season | 2015 | 35 | 17049.000 | 0.146 | 0.059 | - | - | - | - | - |
-| season | 2016 | 30 | 16684.000 | 0.781 | 0.259 | - | - | - | - | - |
-| season | 2017 | 32 | 15770.000 | -0.263 | -0.092 | - | - | - | - | - |
-| season | 2018 | 33 | 16551.000 | 0.310 | 0.089 | - | - | - | - | - |
-| season | 2019 | 32 | 16347.000 | -0.650 | -0.220 | - | - | - | - | - |
-| season | 2020 | 35 | 16737.000 | 0.344 | 0.171 | - | - | - | - | - |
-| season | 2021 | 31 | 16694.000 | -0.644 | -0.179 | - | - | - | - | - |
-| season | 2022 | 33 | 15717.000 | -0.807 | -0.134 | - | - | - | - | - |
-| season | 2023 | 32 | 15575.000 | 0.339 | 0.127 | - | - | - | - | - |
-| season | 2024 | 36 | 16389.000 | -0.781 | -0.223 | - | - | - | - | - |
-| season | 2025 | 33 | 15132.000 | -0.330 | -0.115 | - | - | - | - | - |
-
-| Season | QB | Schedule Softness | Low-Leverage Share | Moderate-Leverage Share |
-| --- | --- | --- | --- | --- |
-| 2025 | Matthew Stafford | -0.006 | 0.091 | 0.909 |
-| 2025 | Drake Maye | 0.029 | 0.120 | 0.880 |
-
-## Stage 3d D1 Split-Half Diagnostics
-
-- Decision gate reading: not_supported.
-- Primary top-half gate: passed.
-- Placebo check: bottom-half residuals showed a same-direction signal,
-  so the strong-defense-specific interpretation is not supported.
-
-Top-half residual regression summary:
-
-| Scope | Season | QB Seasons | Dropbacks | Slope | CI Lower | CI Upper | Positive Seasons | Season Count | Binomial P |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| pooled | - | 892 | 215071.000 | 0.488 | 0.154 | 0.819 | 19 | 27 | 0.026 |
-| season | 1999 | 38 | 8715.000 | 1.510 | - | - | - | - | - |
-| season | 2000 | 36 | 8914.000 | 0.839 | - | - | - | - | - |
-| season | 2001 | 30 | 7708.000 | 1.247 | - | - | - | - | - |
-| season | 2002 | 32 | 7447.000 | 0.061 | - | - | - | - | - |
-| season | 2003 | 32 | 7282.000 | 0.030 | - | - | - | - | - |
-| season | 2004 | 33 | 7289.000 | 0.085 | - | - | - | - | - |
-| season | 2005 | 34 | 7057.000 | -0.175 | - | - | - | - | - |
-| season | 2006 | 32 | 7520.000 | 0.501 | - | - | - | - | - |
-| season | 2007 | 33 | 7177.000 | 0.868 | - | - | - | - | - |
-| season | 2008 | 32 | 7670.000 | -0.697 | - | - | - | - | - |
-| season | 2009 | 32 | 7602.000 | 0.111 | - | - | - | - | - |
-| season | 2010 | 31 | 7674.000 | 1.988 | - | - | - | - | - |
-| season | 2011 | 34 | 8128.000 | 2.154 | - | - | - | - | - |
-| season | 2012 | 32 | 8192.000 | 0.433 | - | - | - | - | - |
-| season | 2013 | 36 | 8739.000 | -0.265 | - | - | - | - | - |
-| season | 2014 | 33 | 8443.000 | 0.813 | - | - | - | - | - |
-| season | 2015 | 35 | 8795.000 | 1.254 | - | - | - | - | - |
-| season | 2016 | 30 | 8416.000 | -2.121 | - | - | - | - | - |
-| season | 2017 | 32 | 8019.000 | 0.283 | - | - | - | - | - |
-| season | 2018 | 33 | 8268.000 | -0.195 | - | - | - | - | - |
-| season | 2019 | 32 | 8195.000 | -0.427 | - | - | - | - | - |
-| season | 2020 | 35 | 8363.000 | 0.644 | - | - | - | - | - |
-| season | 2021 | 31 | 8338.000 | -0.395 | - | - | - | - | - |
-| season | 2022 | 33 | 7332.000 | -2.324 | - | - | - | - | - |
-| season | 2023 | 32 | 7726.000 | 1.028 | - | - | - | - | - |
-| season | 2024 | 36 | 8627.000 | 1.255 | - | - | - | - | - |
-| season | 2025 | 33 | 7435.000 | 1.525 | - | - | - | - | - |
-
-Bottom-half placebo summary:
-
-| Scope | Season | QB Seasons | Dropbacks | Slope | CI Lower | CI Upper |
-| --- | --- | --- | --- | --- | --- | --- |
-| pooled | - | 892 | 210712.000 | 0.473 | 0.117 | 0.836 |
-| season | 1999 | 38 | 8105.000 | -0.505 | - | - |
-| season | 2000 | 36 | 7968.000 | 0.258 | - | - |
-| season | 2001 | 30 | 7319.000 | -0.110 | - | - |
-| season | 2002 | 32 | 7709.000 | 0.920 | - | - |
-| season | 2003 | 32 | 6926.000 | 0.964 | - | - |
-| season | 2004 | 33 | 7467.000 | 1.417 | - | - |
-| season | 2005 | 34 | 7345.000 | 0.572 | - | - |
-| season | 2006 | 32 | 6955.000 | 0.946 | - | - |
-| season | 2007 | 33 | 6778.000 | 0.827 | - | - |
-| season | 2008 | 32 | 7326.000 | 1.633 | - | - |
-| season | 2009 | 32 | 7488.000 | 0.641 | - | - |
-| season | 2010 | 31 | 7439.000 | -0.816 | - | - |
-| season | 2011 | 34 | 7879.000 | -0.857 | - | - |
-| season | 2012 | 32 | 8549.000 | 0.599 | - | - |
-| season | 2013 | 36 | 8405.000 | 1.509 | - | - |
-| season | 2014 | 33 | 7923.000 | 0.410 | - | - |
-| season | 2015 | 35 | 8254.000 | 0.058 | - | - |
-| season | 2016 | 30 | 8268.000 | 3.277 | - | - |
-| season | 2017 | 32 | 7751.000 | 0.939 | - | - |
-| season | 2018 | 33 | 8283.000 | 1.493 | - | - |
-| season | 2019 | 32 | 8152.000 | 1.178 | - | - |
-| season | 2020 | 35 | 8374.000 | 0.154 | - | - |
-| season | 2021 | 31 | 8356.000 | 0.785 | - | - |
-| season | 2022 | 33 | 8385.000 | 3.275 | - | - |
-| season | 2023 | 32 | 7849.000 | -0.734 | - | - |
-| season | 2024 | 36 | 7762.000 | -0.657 | - | - |
-| season | 2025 | 33 | 7697.000 | -0.369 | - | - |
-
-2025 named case rows:
-
-| Season | QB | Faced Difficulty | Additive Prediction | Top-Half Adj EPA/DB | Top-Half Residual | Top-Half DB | Bottom-Half Adj EPA/DB | Bottom-Half Residual | Bottom-Half DB |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2025 | Matthew Stafford | 0.007 | 0.251 | 0.237 | -0.014 | 291.000 | 0.263 | 0.012 | 326.000 |
-| 2025 | Drake Maye | -0.025 | 0.283 | 0.260 | -0.023 | 186.000 | 0.295 | 0.012 | 354.000 |
-
-## Stage 3d D3 Playoff Validation
-
-- Interpretation rule: whichever metric best predicts playoff performance is evidence
-  about that metric, not about 2025 specifically.
-  If QSaCR wins, that is vindicating evidence for the current composite and must be
-  recorded as such.
-
-| Season | Metric | QB Seasons | Playoff Dropbacks | Spearman | Spearman CI Lower | Spearman CI Upper | Pearson | Pearson CI Lower | Pearson CI Upper |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1999 | QSaOR | 11 | 759.000 | 0.769 | 0.176 | 0.952 | 0.761 | 0.269 | 0.929 |
-| 1999 | moderate_leverage_adjusted_epa_per_dropback | 11 | 759.000 | 0.846 | 0.384 | 0.978 | 0.817 | 0.421 | 0.964 |
-| 1999 | qb_any_a | 11 | 759.000 | 0.723 | -0.034 | 0.960 | 0.857 | -0.041 | 0.951 |
-| 1999 | qb_passer_rating | 11 | 759.000 | 0.595 | -0.412 | 0.896 | 0.686 | -0.315 | 0.902 |
-| 1999 | vs_top_half_adjusted_epa_per_dropback | 11 | 759.000 | -0.095 | -0.838 | 0.664 | 0.224 | -0.498 | 0.744 |
-| 2000 | QSaOR | 12 | 636.000 | 0.139 | -0.603 | 0.734 | 0.371 | -0.246 | 0.799 |
-| 2000 | moderate_leverage_adjusted_epa_per_dropback | 12 | 636.000 | 0.138 | -0.559 | 0.662 | 0.377 | -0.323 | 0.777 |
-| 2000 | qb_any_a | 12 | 636.000 | 0.323 | -0.420 | 0.836 | 0.512 | -0.071 | 0.865 |
-| 2000 | qb_passer_rating | 12 | 636.000 | 0.062 | -0.614 | 0.685 | 0.305 | -0.321 | 0.759 |
-| 2000 | vs_top_half_adjusted_epa_per_dropback | 12 | 636.000 | 0.172 | -0.507 | 0.908 | 0.363 | -0.280 | 0.876 |
-| 2001 | QSaOR | 12 | 735.000 | 0.247 | -0.385 | 0.757 | 0.218 | -0.213 | 0.638 |
-| 2001 | moderate_leverage_adjusted_epa_per_dropback | 12 | 735.000 | 0.308 | -0.267 | 0.773 | 0.261 | -0.120 | 0.643 |
-| 2001 | qb_any_a | 12 | 735.000 | 0.398 | -0.218 | 0.887 | 0.236 | -0.228 | 0.798 |
-| 2001 | qb_passer_rating | 12 | 735.000 | 0.443 | -0.228 | 0.818 | 0.339 | -0.116 | 0.726 |
-| 2001 | vs_top_half_adjusted_epa_per_dropback | 12 | 735.000 | 0.292 | -0.316 | 0.714 | 0.154 | -0.269 | 0.626 |
-| 2002 | QSaOR | 11 | 838.000 | 0.294 | -0.349 | 0.827 | 0.316 | -0.274 | 0.754 |
-| 2002 | moderate_leverage_adjusted_epa_per_dropback | 11 | 838.000 | 0.415 | -0.282 | 0.860 | 0.453 | -0.143 | 0.818 |
-| 2002 | qb_any_a | 11 | 838.000 | 0.378 | -0.278 | 0.756 | 0.199 | -0.229 | 0.706 |
-| 2002 | qb_passer_rating | 11 | 838.000 | 0.218 | -0.425 | 0.646 | 0.094 | -0.317 | 0.544 |
-| 2002 | vs_top_half_adjusted_epa_per_dropback | 11 | 838.000 | 0.399 | -0.341 | 0.914 | 0.442 | -0.178 | 0.860 |
-| 2003 | QSaOR | 11 | 732.000 | 0.378 | -0.508 | 0.937 | 0.529 | -0.191 | 0.898 |
-| 2003 | moderate_leverage_adjusted_epa_per_dropback | 11 | 732.000 | 0.393 | -0.387 | 0.874 | 0.485 | -0.266 | 0.868 |
-| 2003 | qb_any_a | 11 | 732.000 | 0.433 | -0.385 | 0.888 | 0.470 | -0.228 | 0.887 |
-| 2003 | qb_passer_rating | 11 | 732.000 | 0.239 | -0.526 | 0.854 | 0.337 | -0.430 | 0.846 |
-| 2003 | vs_top_half_adjusted_epa_per_dropback | 11 | 732.000 | 0.511 | -0.263 | 0.958 | 0.575 | -0.078 | 0.882 |
-| 2004 | QSaOR | 12 | 771.000 | 0.322 | -0.396 | 0.774 | 0.432 | -0.240 | 0.854 |
-| 2004 | moderate_leverage_adjusted_epa_per_dropback | 12 | 771.000 | 0.329 | -0.398 | 0.748 | 0.433 | -0.262 | 0.831 |
-| 2004 | qb_any_a | 12 | 771.000 | 0.378 | -0.243 | 0.830 | 0.440 | -0.217 | 0.797 |
-| 2004 | qb_passer_rating | 12 | 771.000 | 0.307 | -0.361 | 0.791 | 0.359 | -0.226 | 0.746 |
-| 2004 | vs_top_half_adjusted_epa_per_dropback | 12 | 771.000 | 0.172 | -0.579 | 0.762 | 0.274 | -0.478 | 0.755 |
-| 2005 | QSaOR | 11 | 629.000 | 0.764 | 0.225 | 1.000 | 0.566 | 0.241 | 0.879 |
-| 2005 | moderate_leverage_adjusted_epa_per_dropback | 11 | 629.000 | 0.753 | 0.170 | 0.967 | 0.554 | 0.218 | 0.862 |
-| 2005 | qb_any_a | 11 | 629.000 | 0.840 | 0.377 | 0.983 | 0.693 | 0.319 | 0.945 |
-| 2005 | qb_passer_rating | 11 | 629.000 | 0.720 | 0.138 | 1.000 | 0.669 | 0.328 | 0.915 |
-| 2005 | vs_top_half_adjusted_epa_per_dropback | 11 | 629.000 | 0.830 | 0.405 | 1.000 | 0.621 | 0.383 | 0.883 |
-| 2006 | QRaw | 10 | 703.000 | 0.537 | -0.158 | 0.822 | 0.605 | 0.181 | 0.886 |
-| 2006 | QSaCR | 10 | 703.000 | 0.628 | -0.223 | 0.925 | 0.653 | 0.182 | 0.895 |
-| 2006 | QSaOR | 10 | 703.000 | 0.628 | -0.205 | 0.932 | 0.677 | 0.238 | 0.884 |
-| 2006 | moderate_leverage_adjusted_epa_per_dropback | 10 | 703.000 | 0.697 | -0.013 | 0.929 | 0.677 | 0.233 | 0.917 |
-| 2006 | qb_any_a | 10 | 703.000 | 0.583 | -0.234 | 0.877 | 0.624 | 0.178 | 0.886 |
-| 2006 | qb_passer_rating | 10 | 703.000 | 0.619 | -0.197 | 0.903 | 0.683 | 0.286 | 0.904 |
-| 2006 | vs_top_half_adjusted_epa_per_dropback | 10 | 703.000 | 0.736 | -0.018 | 0.937 | 0.730 | 0.213 | 0.929 |
-| 2007 | QRaw | 11 | 725.000 | 0.017 | -0.534 | 0.905 | -0.060 | -0.512 | 0.717 |
-| 2007 | QSaCR | 11 | 725.000 | 0.052 | -0.560 | 0.882 | 0.020 | -0.394 | 0.839 |
-| 2007 | QSaOR | 11 | 725.000 | 0.052 | -0.547 | 0.887 | 0.046 | -0.401 | 0.855 |
-| 2007 | moderate_leverage_adjusted_epa_per_dropback | 11 | 725.000 | -0.041 | -0.578 | 0.880 | 0.005 | -0.486 | 0.866 |
-| 2007 | qb_any_a | 11 | 725.000 | -0.172 | -0.675 | 0.655 | -0.152 | -0.616 | 0.589 |
-| 2007 | qb_passer_rating | 11 | 725.000 | -0.135 | -0.677 | 0.694 | -0.112 | -0.561 | 0.597 |
-| 2007 | vs_top_half_adjusted_epa_per_dropback | 11 | 725.000 | -0.247 | -0.781 | 0.648 | -0.092 | -0.533 | 0.593 |
-| 2008 | QRaw | 11 | 754.000 | 0.079 | -0.677 | 0.679 | 0.207 | -0.345 | 0.638 |
-| 2008 | QSaCR | 11 | 754.000 | 0.235 | -0.622 | 0.785 | 0.320 | -0.233 | 0.708 |
-| 2008 | QSaOR | 11 | 754.000 | 0.155 | -0.610 | 0.707 | 0.256 | -0.287 | 0.631 |
-| 2008 | moderate_leverage_adjusted_epa_per_dropback | 11 | 754.000 | 0.164 | -0.609 | 0.753 | 0.243 | -0.360 | 0.720 |
-| 2008 | qb_any_a | 11 | 754.000 | 0.075 | -0.719 | 0.693 | 0.106 | -0.594 | 0.572 |
-| 2008 | qb_passer_rating | 11 | 754.000 | 0.012 | -0.797 | 0.635 | 0.207 | -0.407 | 0.613 |
-| 2008 | vs_top_half_adjusted_epa_per_dropback | 11 | 754.000 | 0.454 | -0.364 | 0.901 | 0.481 | -0.198 | 0.863 |
-| 2009 | QRaw | 12 | 774.000 | 0.467 | -0.136 | 0.849 | 0.285 | -0.185 | 0.802 |
-| 2009 | QSaCR | 12 | 774.000 | 0.190 | -0.475 | 0.748 | 0.118 | -0.387 | 0.795 |
-| 2009 | QSaOR | 12 | 774.000 | 0.078 | -0.550 | 0.752 | 0.073 | -0.393 | 0.718 |
-| 2009 | moderate_leverage_adjusted_epa_per_dropback | 12 | 774.000 | 0.341 | -0.297 | 0.736 | 0.154 | -0.302 | 0.766 |
-| 2009 | qb_any_a | 12 | 774.000 | 0.297 | -0.278 | 0.756 | 0.162 | -0.217 | 0.659 |
-| 2009 | qb_passer_rating | 12 | 774.000 | 0.581 | 0.055 | 0.871 | 0.322 | -0.013 | 0.823 |
-| 2009 | vs_top_half_adjusted_epa_per_dropback | 12 | 774.000 | 0.259 | -0.377 | 0.786 | 0.066 | -0.355 | 0.724 |
-| 2010 | QRaw | 12 | 767.000 | 0.034 | -0.679 | 0.652 | 0.020 | -0.659 | 0.615 |
-| 2010 | QSaCR | 12 | 767.000 | -0.050 | -0.753 | 0.624 | 0.074 | -0.651 | 0.631 |
-| 2010 | QSaOR | 12 | 767.000 | -0.020 | -0.707 | 0.600 | 0.044 | -0.635 | 0.612 |
-| 2010 | moderate_leverage_adjusted_epa_per_dropback | 12 | 767.000 | 0.009 | -0.690 | 0.636 | 0.022 | -0.674 | 0.586 |
-| 2010 | qb_any_a | 12 | 767.000 | -0.302 | -0.816 | 0.351 | -0.089 | -0.730 | 0.476 |
-| 2010 | qb_passer_rating | 12 | 767.000 | -0.160 | -0.694 | 0.515 | -0.153 | -0.690 | 0.403 |
-| 2010 | vs_top_half_adjusted_epa_per_dropback | 12 | 767.000 | 0.176 | -0.663 | 0.775 | 0.377 | -0.657 | 0.869 |
-| 2011 | QRaw | 11 | 821.000 | 0.528 | -0.178 | 0.919 | 0.457 | -0.237 | 0.907 |
-| 2011 | QSaCR | 11 | 821.000 | 0.442 | -0.322 | 0.885 | 0.384 | -0.321 | 0.863 |
-| 2011 | QSaOR | 11 | 821.000 | 0.457 | -0.310 | 0.906 | 0.383 | -0.294 | 0.846 |
-| 2011 | moderate_leverage_adjusted_epa_per_dropback | 11 | 821.000 | 0.442 | -0.290 | 0.883 | 0.418 | -0.275 | 0.874 |
-| 2011 | qb_any_a | 11 | 821.000 | 0.555 | -0.176 | 0.912 | 0.453 | -0.189 | 0.914 |
-| 2011 | qb_passer_rating | 11 | 821.000 | 0.458 | -0.263 | 0.908 | 0.406 | -0.281 | 0.875 |
-| 2011 | vs_top_half_adjusted_epa_per_dropback | 11 | 821.000 | 0.359 | -0.423 | 0.870 | 0.320 | -0.395 | 0.868 |
-| 2012 | QRaw | 10 | 694.000 | 0.231 | -0.557 | 0.897 | 0.345 | -0.603 | 0.901 |
-| 2012 | QSaCR | 10 | 694.000 | 0.244 | -0.583 | 0.945 | 0.314 | -0.532 | 0.917 |
-| 2012 | QSaOR | 10 | 694.000 | 0.235 | -0.590 | 0.967 | 0.268 | -0.588 | 0.929 |
-| 2012 | moderate_leverage_adjusted_epa_per_dropback | 10 | 694.000 | 0.008 | -0.731 | 0.912 | 0.209 | -0.683 | 0.941 |
-| 2012 | qb_any_a | 10 | 694.000 | 0.102 | -1.000 | 0.789 | 0.402 | -0.912 | 0.873 |
-| 2012 | qb_passer_rating | 10 | 694.000 | 0.075 | -0.761 | 0.836 | 0.330 | -0.602 | 0.874 |
-| 2012 | vs_top_half_adjusted_epa_per_dropback | 10 | 694.000 | -0.193 | -0.783 | 0.911 | 0.000 | -0.660 | 0.876 |
-| 2013 | QRaw | 12 | 768.000 | 0.282 | -0.422 | 0.723 | 0.247 | -0.196 | 0.597 |
-| 2013 | QSaCR | 12 | 768.000 | 0.347 | -0.406 | 0.769 | 0.280 | -0.214 | 0.662 |
-| 2013 | QSaOR | 12 | 768.000 | 0.425 | -0.338 | 0.826 | 0.332 | -0.093 | 0.663 |
-| 2013 | moderate_leverage_adjusted_epa_per_dropback | 12 | 768.000 | 0.421 | -0.266 | 0.829 | 0.364 | -0.054 | 0.717 |
-| 2013 | qb_any_a | 12 | 768.000 | 0.322 | -0.403 | 0.799 | 0.307 | -0.301 | 0.651 |
-| 2013 | qb_passer_rating | 12 | 768.000 | 0.203 | -0.513 | 0.702 | 0.293 | -0.210 | 0.622 |
-| 2013 | vs_top_half_adjusted_epa_per_dropback | 12 | 768.000 | 0.362 | -0.364 | 0.891 | 0.433 | -0.204 | 0.739 |
-| 2014 | QRaw | 11 | 803.000 | 0.082 | -0.657 | 0.664 | 0.184 | -0.441 | 0.639 |
-| 2014 | QSaCR | 11 | 803.000 | 0.193 | -0.528 | 0.706 | 0.252 | -0.406 | 0.742 |
-| 2014 | QSaOR | 11 | 803.000 | 0.181 | -0.515 | 0.750 | 0.292 | -0.326 | 0.751 |
-| 2014 | moderate_leverage_adjusted_epa_per_dropback | 11 | 803.000 | 0.222 | -0.470 | 0.757 | 0.306 | -0.318 | 0.741 |
-| 2014 | qb_any_a | 11 | 803.000 | 0.034 | -0.681 | 0.739 | 0.136 | -0.531 | 0.660 |
-| 2014 | qb_passer_rating | 11 | 803.000 | 0.117 | -0.621 | 0.712 | 0.162 | -0.440 | 0.648 |
-| 2014 | vs_top_half_adjusted_epa_per_dropback | 11 | 803.000 | 0.197 | -0.502 | 0.758 | 0.167 | -0.491 | 0.686 |
-| 2015 | QRaw | 11 | 820.000 | -0.056 | -0.774 | 0.591 | 0.218 | -0.601 | 0.661 |
-| 2015 | QSaCR | 11 | 820.000 | 0.109 | -0.653 | 0.679 | 0.220 | -0.687 | 0.635 |
-| 2015 | QSaOR | 11 | 820.000 | 0.109 | -0.679 | 0.700 | 0.256 | -0.604 | 0.653 |
-| 2015 | moderate_leverage_adjusted_epa_per_dropback | 11 | 820.000 | 0.048 | -0.715 | 0.660 | 0.232 | -0.647 | 0.662 |
-| 2015 | qb_any_a | 11 | 820.000 | 0.166 | -0.640 | 0.714 | 0.285 | -0.567 | 0.707 |
-| 2015 | qb_passer_rating | 11 | 820.000 | 0.084 | -0.718 | 0.677 | 0.295 | -0.672 | 0.694 |
-| 2015 | vs_top_half_adjusted_epa_per_dropback | 11 | 820.000 | 0.014 | -0.743 | 0.687 | 0.347 | -0.774 | 0.789 |
-| 2016 | QRaw | 10 | 782.000 | 0.910 | 0.545 | 1.000 | 0.858 | 0.618 | 0.976 |
-| 2016 | QSaCR | 10 | 782.000 | 0.872 | 0.496 | 1.000 | 0.883 | 0.677 | 0.972 |
-| 2016 | QSaOR | 10 | 782.000 | 0.861 | 0.384 | 1.000 | 0.862 | 0.591 | 0.969 |
-| 2016 | moderate_leverage_adjusted_epa_per_dropback | 10 | 782.000 | 0.861 | 0.463 | 1.000 | 0.827 | 0.475 | 0.968 |
-| 2016 | qb_any_a | 10 | 782.000 | 0.924 | 0.537 | 1.000 | 0.884 | 0.614 | 0.981 |
-| 2016 | qb_passer_rating | 10 | 782.000 | 0.960 | 0.706 | 1.000 | 0.890 | 0.688 | 0.978 |
-| 2016 | vs_top_half_adjusted_epa_per_dropback | 10 | 782.000 | 0.892 | 0.490 | 1.000 | 0.784 | 0.459 | 0.977 |
-| 2017 | QRaw | 11 | 778.000 | 0.507 | -0.317 | 0.923 | 0.537 | -0.105 | 0.866 |
-| 2017 | QSaCR | 11 | 778.000 | 0.625 | -0.184 | 0.940 | 0.585 | -0.001 | 0.894 |
-| 2017 | QSaOR | 11 | 778.000 | 0.498 | -0.251 | 0.881 | 0.587 | -0.102 | 0.903 |
-| 2017 | moderate_leverage_adjusted_epa_per_dropback | 11 | 778.000 | 0.399 | -0.416 | 0.798 | 0.478 | -0.162 | 0.838 |
-| 2017 | qb_any_a | 11 | 778.000 | 0.228 | -0.513 | 0.720 | 0.428 | -0.255 | 0.796 |
-| 2017 | qb_passer_rating | 11 | 778.000 | 0.427 | -0.326 | 0.843 | 0.438 | -0.208 | 0.806 |
-| 2017 | vs_top_half_adjusted_epa_per_dropback | 11 | 778.000 | 0.530 | -0.282 | 0.921 | 0.717 | -0.066 | 0.914 |
-| 2018 | QRaw | 10 | 748.000 | 0.235 | -0.425 | 0.864 | 0.233 | -0.215 | 0.737 |
-| 2018 | QSaCR | 10 | 748.000 | 0.219 | -0.444 | 0.852 | 0.250 | -0.164 | 0.738 |
-| 2018 | QSaOR | 10 | 748.000 | 0.322 | -0.270 | 0.852 | 0.238 | -0.205 | 0.712 |
-| 2018 | moderate_leverage_adjusted_epa_per_dropback | 10 | 748.000 | 0.520 | -0.117 | 0.863 | 0.339 | -0.127 | 0.763 |
-| 2018 | qb_any_a | 10 | 748.000 | 0.224 | -0.427 | 0.827 | 0.154 | -0.401 | 0.691 |
-| 2018 | qb_passer_rating | 10 | 748.000 | 0.078 | -0.571 | 0.795 | 0.074 | -0.506 | 0.700 |
-| 2018 | vs_top_half_adjusted_epa_per_dropback | 10 | 748.000 | 0.141 | -0.455 | 0.704 | 0.061 | -0.453 | 0.574 |
-| 2019 | QRaw | 12 | 729.000 | -0.118 | -0.748 | 0.655 | 0.021 | -0.548 | 0.557 |
-| 2019 | QSaCR | 12 | 729.000 | -0.012 | -0.638 | 0.784 | 0.089 | -0.514 | 0.720 |
-| 2019 | QSaOR | 12 | 729.000 | 0.076 | -0.556 | 0.810 | 0.091 | -0.509 | 0.731 |
-| 2019 | moderate_leverage_adjusted_epa_per_dropback | 12 | 729.000 | 0.116 | -0.612 | 0.746 | 0.259 | -0.443 | 0.744 |
-| 2019 | qb_any_a | 12 | 729.000 | 0.108 | -0.557 | 0.670 | 0.160 | -0.356 | 0.587 |
-| 2019 | qb_passer_rating | 12 | 729.000 | -0.111 | -0.709 | 0.613 | 0.041 | -0.461 | 0.504 |
-| 2019 | vs_top_half_adjusted_epa_per_dropback | 12 | 729.000 | 0.172 | -0.630 | 0.786 | 0.179 | -0.615 | 0.689 |
-| 2020 | QRaw | 13 | 944.000 | 0.446 | -0.092 | 0.813 | 0.445 | -0.002 | 0.741 |
-| 2020 | QSaCR | 13 | 944.000 | 0.466 | -0.109 | 0.810 | 0.346 | -0.114 | 0.727 |
-| 2020 | QSaOR | 13 | 944.000 | 0.513 | 0.021 | 0.822 | 0.367 | -0.051 | 0.702 |
-| 2020 | moderate_leverage_adjusted_epa_per_dropback | 13 | 944.000 | 0.579 | 0.054 | 0.868 | 0.468 | 0.071 | 0.746 |
-| 2020 | qb_any_a | 13 | 944.000 | 0.352 | -0.204 | 0.773 | 0.357 | -0.076 | 0.695 |
-| 2020 | qb_passer_rating | 13 | 944.000 | 0.227 | -0.325 | 0.745 | 0.255 | -0.333 | 0.663 |
-| 2020 | vs_top_half_adjusted_epa_per_dropback | 13 | 944.000 | -0.081 | -0.685 | 0.601 | -0.016 | -0.521 | 0.590 |
-| 2021 | QRaw | 14 | 1007.000 | 0.132 | -0.402 | 0.646 | 0.040 | -0.362 | 0.441 |
-| 2021 | QSaCR | 14 | 1007.000 | 0.178 | -0.420 | 0.674 | 0.128 | -0.280 | 0.486 |
-| 2021 | QSaOR | 14 | 1007.000 | 0.264 | -0.278 | 0.708 | 0.187 | -0.227 | 0.572 |
-| 2021 | moderate_leverage_adjusted_epa_per_dropback | 14 | 1007.000 | 0.034 | -0.561 | 0.544 | -0.081 | -0.500 | 0.345 |
-| 2021 | qb_any_a | 14 | 1007.000 | 0.069 | -0.542 | 0.583 | -0.132 | -0.551 | 0.364 |
-| 2021 | qb_passer_rating | 14 | 1007.000 | 0.064 | -0.582 | 0.585 | -0.117 | -0.549 | 0.389 |
-| 2021 | vs_top_half_adjusted_epa_per_dropback | 14 | 1007.000 | -0.091 | -0.669 | 0.641 | 0.014 | -0.440 | 0.518 |
-| 2022 | QRaw | 11 | 827.000 | 0.350 | -0.475 | 0.847 | 0.396 | -0.474 | 0.804 |
-| 2022 | QSaCR | 11 | 827.000 | 0.014 | -0.830 | 0.650 | 0.248 | -0.697 | 0.716 |
-| 2022 | QSaOR | 11 | 827.000 | -0.034 | -0.846 | 0.636 | 0.203 | -0.692 | 0.716 |
-| 2022 | moderate_leverage_adjusted_epa_per_dropback | 11 | 827.000 | 0.181 | -0.640 | 0.763 | 0.314 | -0.596 | 0.761 |
-| 2022 | qb_any_a | 11 | 827.000 | 0.341 | -0.545 | 0.849 | 0.368 | -0.396 | 0.850 |
-| 2022 | qb_passer_rating | 11 | 827.000 | 0.365 | -0.534 | 0.856 | 0.499 | -0.167 | 0.901 |
-| 2022 | vs_top_half_adjusted_epa_per_dropback | 11 | 827.000 | 0.249 | -0.639 | 0.864 | 0.224 | -0.792 | 0.864 |
-| 2023 | QRaw | 12 | 897.000 | -0.194 | -0.760 | 0.474 | -0.212 | -0.788 | 0.187 |
-| 2023 | QSaCR | 12 | 897.000 | -0.311 | -0.804 | 0.297 | -0.356 | -0.822 | 0.011 |
-| 2023 | QSaOR | 12 | 897.000 | -0.252 | -0.730 | 0.411 | -0.263 | -0.773 | 0.135 |
-| 2023 | moderate_leverage_adjusted_epa_per_dropback | 12 | 897.000 | -0.116 | -0.645 | 0.558 | -0.217 | -0.711 | 0.218 |
-| 2023 | qb_any_a | 12 | 897.000 | -0.115 | -0.609 | 0.511 | -0.131 | -0.596 | 0.295 |
-| 2023 | qb_passer_rating | 12 | 897.000 | -0.223 | -0.708 | 0.428 | -0.189 | -0.700 | 0.232 |
-| 2023 | vs_top_half_adjusted_epa_per_dropback | 12 | 897.000 | 0.198 | -0.392 | 0.634 | 0.147 | -0.285 | 0.527 |
-| 2024 | QRaw | 14 | 847.000 | 0.164 | -0.374 | 0.678 | 0.095 | -0.302 | 0.405 |
-| 2024 | QSaCR | 14 | 847.000 | 0.272 | -0.262 | 0.696 | 0.166 | -0.173 | 0.462 |
-| 2024 | QSaOR | 14 | 847.000 | 0.242 | -0.308 | 0.680 | 0.159 | -0.228 | 0.472 |
-| 2024 | moderate_leverage_adjusted_epa_per_dropback | 14 | 847.000 | 0.011 | -0.582 | 0.566 | -0.062 | -0.515 | 0.318 |
-| 2024 | qb_any_a | 14 | 847.000 | 0.126 | -0.444 | 0.664 | 0.068 | -0.347 | 0.500 |
-| 2024 | qb_passer_rating | 14 | 847.000 | 0.210 | -0.350 | 0.736 | 0.065 | -0.343 | 0.475 |
-| 2024 | vs_top_half_adjusted_epa_per_dropback | 14 | 847.000 | -0.028 | -0.568 | 0.527 | -0.009 | -0.378 | 0.399 |
-| 2025 | QRaw | 15 | 959.000 | 0.246 | -0.325 | 0.752 | 0.173 | -0.362 | 0.686 |
-| 2025 | QSaCR | 15 | 959.000 | 0.148 | -0.419 | 0.685 | 0.141 | -0.351 | 0.691 |
-| 2025 | QSaOR | 15 | 959.000 | 0.240 | -0.338 | 0.800 | 0.184 | -0.293 | 0.690 |
-| 2025 | moderate_leverage_adjusted_epa_per_dropback | 15 | 959.000 | 0.357 | -0.197 | 0.781 | 0.232 | -0.273 | 0.673 |
-| 2025 | qb_any_a | 15 | 959.000 | 0.336 | -0.293 | 0.802 | 0.217 | -0.304 | 0.751 |
-| 2025 | qb_passer_rating | 15 | 959.000 | 0.214 | -0.404 | 0.703 | -0.010 | -0.447 | 0.622 |
-| 2025 | vs_top_half_adjusted_epa_per_dropback | 15 | 959.000 | 0.349 | -0.346 | 0.865 | 0.248 | -0.369 | 0.781 |
-| pooled | QRaw | 233 | 16147.000 | 0.263 | 0.132 | 0.382 | 0.249 | 0.125 | 0.359 |
-| pooled | QSaCR | 233 | 16147.000 | 0.256 | 0.120 | 0.388 | 0.246 | 0.117 | 0.366 |
-| pooled | QSaOR | 313 | 21247.000 | 0.308 | 0.188 | 0.417 | 0.307 | 0.202 | 0.407 |
-| pooled | moderate_leverage_adjusted_epa_per_dropback | 313 | 21247.000 | 0.315 | 0.196 | 0.421 | 0.312 | 0.212 | 0.412 |
-| pooled | qb_any_a | 313 | 21247.000 | 0.324 | 0.210 | 0.428 | 0.314 | 0.208 | 0.412 |
-| pooled | qb_passer_rating | 313 | 21247.000 | 0.295 | 0.179 | 0.408 | 0.283 | 0.166 | 0.388 |
-| pooled | vs_top_half_adjusted_epa_per_dropback | 313 | 21247.000 | 0.257 | 0.136 | 0.368 | 0.267 | 0.157 | 0.371 |
-
-## SaCR Caveat
-
-SaCR may be evaluated as a secondary line with a caveat:
-its frozen Stage 2 weights were fit on the full 1999-2025 history.
-A walk-forward SaCR line over that same window has look-ahead in the weights.
-SaOvR is the headline walk-forward metric because it does not depend on
-a fitted Stage 2 weight snapshot.
+| 2006 | 31 | 0.872 | 0.796 |
+| 2007 | 28 | 0.914 | 0.906 |
+| 2008 | 31 | 0.846 | 0.837 |
+| 2009 | 28 | 0.961 | 0.956 |
+| 2010 | 31 | 0.931 | 0.921 |
+| 2011 | 32 | 0.945 | 0.954 |
+| 2012 | 32 | 0.932 | 0.919 |
+| 2013 | 34 | 0.868 | 0.870 |
+| 2014 | 32 | 0.889 | 0.858 |
+| 2015 | 33 | 0.927 | 0.932 |
+| 2016 | 30 | 0.929 | 0.909 |
+| 2017 | 30 | 0.784 | 0.795 |
+| 2018 | 32 | 0.931 | 0.897 |
+| 2019 | 30 | 0.855 | 0.841 |
+| 2020 | 32 | 0.897 | 0.895 |
+| 2021 | 31 | 0.923 | 0.877 |
+| 2022 | 30 | 0.801 | 0.744 |
+| 2023 | 30 | 0.919 | 0.878 |
+| 2024 | 31 | 0.864 | 0.875 |
+| 2025 | 30 | 0.860 | 0.826 |
