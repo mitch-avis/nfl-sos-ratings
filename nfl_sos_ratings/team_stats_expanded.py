@@ -660,9 +660,10 @@ def _join_defense_mirrors(frame: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
         for source, target in _DEFENSE_MIRROR_RENAMES.items()
         if source in frame.columns
     }
-    mirror_columns = [pl.col(source).alias(target) for source, target in available.items()]
-    if "turnover_epa" in frame.columns:
-        mirror_columns.append((-pl.col("turnover_epa")).alias("takeaway_epa"))
+    mirror_columns = [
+        *(pl.col(source).alias(target) for source, target in available.items()),
+        (-pl.col("turnover_epa")).alias("takeaway_epa"),
+    ]
     mirror = frame.select(
         [
             *keys,
