@@ -14,7 +14,10 @@ def _load_pyproject() -> dict[str, Any]:
 
 def test_pyproject_matches_current_cli_and_runtime_surface() -> None:
     """The package metadata should not reference the removed visualization surface."""
+    # Act
     pyproject = _load_pyproject()
+
+    # Assert
     project = pyproject["project"]
     scripts = project["scripts"]
     dependencies = project["dependencies"]
