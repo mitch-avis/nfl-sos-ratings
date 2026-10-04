@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DEN_GAME_LOGS,
   DEN_RATING_HISTORY,
+  columnMeta,
   QB_RANK_RANGES,
   REGISTRY,
   SEASON_2025,
@@ -451,5 +452,27 @@ describe('seasons and glossary', () => {
     // Assert
     expect(await screen.findByRole('heading', { name: 'Glossary' })).toBeInTheDocument()
     expect(screen.getByText('Primary overall team rank: Team Rating')).toBeInTheDocument()
+  })
+
+  it('explains each metric from the registry when opened directly', async () => {
+    // Arrange
+    const registry = {
+      ...REGISTRY,
+      metrics: {
+        qb_sack_rate: {
+          ...columnMeta('Sack Rate', { full_name: 'Sack Rate', shape: 'rate', category: 'Pressure, Sacks & Pocket' }),
+          description: 'Sacks taken per dropback.',
+          entity: 'qb',
+        },
+      },
+    }
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/metadata': registry }))
+
+    // Act
+    renderApp('/glossary')
+
+    // Assert
+    const term = await screen.findByText('Sack Rate')
+    expect(term.closest('div')).toHaveTextContent('Sack RateSacks taken per dropback.')
   })
 })
