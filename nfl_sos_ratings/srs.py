@@ -13,8 +13,7 @@ def _sorted_entities(df: pl.DataFrame, *columns: str) -> list[str]:
     """Return sorted unique entity labels from one or more string columns."""
     values: set[str] = set()
     for column in columns:
-        if column in df.columns:
-            values.update(df.select(column).drop_nulls().to_series().cast(pl.String).to_list())
+        values.update(df.get_column(column).drop_nulls().cast(pl.String).to_list())
     return sorted(values)
 
 
