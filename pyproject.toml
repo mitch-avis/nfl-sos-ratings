@@ -183,8 +183,8 @@ source = ["nfl_sos_ratings"]
 omit = ["config.py", "config-*.py", "*/config.py", "*/config-*.py"]
 
 [tool.coverage.report]
-# Interim floor; the target is 90 (see .agents/current-status.md).
-fail_under = 75
+# The floor; the goal is 100%.
+fail_under = 90
 show_missing = true
 skip_empty = true
 exclude_lines = ["pragma: no cover", "if __name__ == \"__main__\":"]

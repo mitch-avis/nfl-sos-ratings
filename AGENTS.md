@@ -235,8 +235,8 @@ package and the tests. Beyond that:
 ## Boundaries
 
 - **Always:** run `scripts/gate.sh` before finishing; add or update tests for the code you change.
-  pytest enforces a 75% coverage floor (`fail_under` in `pyproject.toml`); the goal for
-  logic-bearing code is 90% or higher. Don't lower the total; raise the floor as coverage grows.
+  pytest enforces a 90% coverage floor (`fail_under` in `pyproject.toml`); the goal is 100%.
+  Don't lower the total; cover new code as it lands.
 - **Ask first, then stop and wait:**
   - changing the rating methodology or published rating definitions or outputs;
   - regenerating `data/` (`season`, `pipeline`) or rerunning the walk-forward validation;
