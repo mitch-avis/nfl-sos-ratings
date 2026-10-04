@@ -1,15 +1,20 @@
 """Data loading functions wrapping nflreadpy plus direct nflverse release assets."""
 
 import io
+import os
 import urllib.request
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import nflreadpy as nfl
 import polars as pl
+from nflreadpy.config import CacheMode, update_config
 
 from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
 from nfl_sos_ratings.qb_stats import compute_qb_game_stats_from_pbp
 from nfl_sos_ratings.team_stats import compute_team_game_stats_from_pbp
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 # ESPN QBR has no nflreadpy load function yet; these are the official nflverse
 # release assets (Parquet, the smallest published format).
@@ -25,7 +30,20 @@ ESPN_QBR_RELEASE_URLS: dict[str, str] = {
 }
 
 SNAP_COUNTS_START_SEASON = 2012
+_CACHE_MODE_VARIABLE = "NFLREADPY_CACHE"
 ROSTERS_WEEKLY_START_SEASON = 2002
+
+
+def use_disk_cache_unless_configured(environ: Mapping[str, str] = os.environ) -> None:
+    """Cache nflverse downloads on disk unless ``NFLREADPY_CACHE`` already picks a mode.
+
+    nflreadpy defaults to an in-memory cache, so every pipeline run downloads every season again.
+    The on-disk cache (nflreadpy's default location and one-day lifetime) lets a rerun the same
+    day reuse those files. Setting ``NFLREADPY_CACHE`` (``memory``, ``filesystem``, or ``off``)
+    overrides this default.
+    """
+    if _CACHE_MODE_VARIABLE not in environ:
+        update_config(cache_mode=CacheMode.FILESYSTEM)
 
 
 def _season_is_before_source_floor(season: int, *, start_season: int) -> bool:

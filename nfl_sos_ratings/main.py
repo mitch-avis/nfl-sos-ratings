@@ -17,7 +17,12 @@ if __package__ in {None, ""}:
 import polars as pl
 
 from nfl_sos_ratings.config import DATA_DIR, SEASON
-from nfl_sos_ratings.data_loader import load_qb_stats, load_schedule, load_weekly_team_stats
+from nfl_sos_ratings.data_loader import (
+    load_qb_stats,
+    load_schedule,
+    load_weekly_team_stats,
+    use_disk_cache_unless_configured,
+)
 from nfl_sos_ratings.metrics import get_registry
 from nfl_sos_ratings.opponent_stats import compute_all_opponent_profiles
 from nfl_sos_ratings.qb_opponent_stats import compute_qb_opponent_profiles
@@ -227,6 +232,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     """Run the single-season pipeline."""
     args = _parse_args(argv)
+    use_disk_cache_unless_configured()
     # Ensure UTF-8 output on Windows
     if sys.platform == "win32":
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")

@@ -17,6 +17,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from nfl_sos_ratings.config import END_YEAR, START_YEAR
+from nfl_sos_ratings.data_loader import use_disk_cache_unless_configured
 from nfl_sos_ratings.main import run_season
 
 
@@ -34,6 +35,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     """Run data gathering for all seasons from START_YEAR to END_YEAR."""
     _parse_args(argv)
+    use_disk_cache_unless_configured()
     # Ensure UTF-8 output on Windows
     if sys.platform == "win32":
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
