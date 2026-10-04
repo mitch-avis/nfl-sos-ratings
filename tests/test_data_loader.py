@@ -1254,8 +1254,11 @@ def test_fetch_release_parquet_reads_downloaded_bytes(
     pl.DataFrame({"season": [2025]}).write_parquet(buffer)
     payload = buffer.getvalue()
 
+    timeouts: list[float | None] = []
+
     @contextmanager
-    def fake_urlopen(url: str):
+    def fake_urlopen(url: str, timeout: float | None = None):
+        timeouts.append(timeout)
         yield io.BytesIO(payload)
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
@@ -1265,6 +1268,7 @@ def test_fetch_release_parquet_reads_downloaded_bytes(
 
     # Assert
     assert result.select("season").item() == 2025
+    assert timeouts == [60]
 
 
 def test_load_qb_stats_adds_official_rushing_and_completion_percentage(

@@ -31,6 +31,8 @@ ESPN_QBR_RELEASE_URLS: dict[str, str] = {
 
 SNAP_COUNTS_START_SEASON = 2012
 _CACHE_MODE_VARIABLE = "NFLREADPY_CACHE"
+# Seconds to wait on an nflverse release download before failing instead of hanging.
+_RELEASE_DOWNLOAD_TIMEOUT_SECONDS = 60
 ROSTERS_WEEKLY_START_SEASON = 2002
 
 
@@ -445,7 +447,7 @@ def _filter_regular_season(df: pl.DataFrame) -> pl.DataFrame:
 
 def _fetch_release_parquet(url: str) -> pl.DataFrame:
     """Download one nflverse release Parquet asset into a dataframe."""
-    with urllib.request.urlopen(url) as response:  # noqa: S310 - fixed https URLs above
+    with urllib.request.urlopen(url, timeout=_RELEASE_DOWNLOAD_TIMEOUT_SECONDS) as response:  # noqa: S310 - fixed https URLs above
         return pl.read_parquet(io.BytesIO(response.read()))
 
 
