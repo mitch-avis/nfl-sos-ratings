@@ -3,8 +3,15 @@ import type { EntityKind } from '@/api/types'
 import { orderedExisting } from './detailAnalytics'
 import { getColumnSection, getMetricMetadata } from './metricMetadata'
 
-const TEAM_RATING_ORDER = ['SaCR', 'sos', 'SRS', 'SaOvR', 'SaOR', 'SaDR']
-const QB_RATING_ORDER = ['QSaCR', 'QSaOR', 'QSoS', 'faced_opp_SaCR', 'QOutcome', 'QRaw']
+const TEAM_RATING_ORDER = [
+  'team_rating',
+  'offense_rating',
+  'defense_rating',
+  'special_teams_rating',
+  'sos',
+  'SRS',
+]
+const QB_RATING_ORDER = ['adj_qb_epa_per_dropback', 'qb_epa_per_dropback', 'qb_faced_pass_defense']
 
 interface Section {
   title: string

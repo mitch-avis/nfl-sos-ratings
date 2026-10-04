@@ -27,7 +27,7 @@ function bodyRows(): HTMLElement[] {
 }
 
 describe('team index', () => {
-  it('lists teams best SaCR first with ranks and detail links', async () => {
+  it('lists teams best Team Rating first with ranks and detail links', async () => {
     // Act
     renderApp('/teams?season=2025')
 
@@ -147,7 +147,7 @@ describe('team detail', () => {
 
     // Assert
     expect(await screen.findByRole('heading', { name: 'Denver Broncos' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Season Ratings' })).toHaveTextContent('SaCR1.40')
+    expect(screen.getByRole('region', { name: 'Season Ratings' })).toHaveTextContent('Team Rating8.40')
     expect(await screen.findByRole('link', { name: '2025_02_DEN_IND' })).toHaveAttribute('target', '_blank')
   })
 
@@ -187,6 +187,6 @@ describe('seasons and glossary', () => {
 
     // Assert
     expect(await screen.findByRole('heading', { name: 'Glossary' })).toBeInTheDocument()
-    expect(screen.getByText('Primary overall team rank: SaCR')).toBeInTheDocument()
+    expect(screen.getByText('Primary overall team rank: Team Rating')).toBeInTheDocument()
   })
 })

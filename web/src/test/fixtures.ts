@@ -40,28 +40,83 @@ function table(
   }
 }
 
-const TEAM_RATINGS = ['SaCR', 'sos', 'SRS', 'SaOvR', 'SaOR', 'SaDR']
-const QB_RATINGS = ['QSaCR', 'QSaOR', 'QSoS', 'QRaw']
+const TEAM_RATINGS = [
+  'team_rating',
+  'offense_rating',
+  'defense_rating',
+  'special_teams_rating',
+  'sos',
+  'SRS',
+]
+const QB_RATINGS = ['adj_qb_epa_per_dropback', 'qb_faced_pass_defense']
+const RATING_LABELS: Record<string, string> = {
+  team_rating: 'Team Rating',
+  offense_rating: 'Off Rating',
+  defense_rating: 'Def Rating',
+  special_teams_rating: 'ST Rating',
+  sos: 'SoS',
+  SRS: 'SRS',
+  adj_qb_epa_per_dropback: 'Adj EPA/DB',
+  qb_faced_pass_defense: 'Faced Pass D',
+}
 
 export const SEASON_2025: SeasonDataset = {
   season: 2025,
   teams: table(
     [
-      { team: 'DEN', SaCR: 1.4, sos: 0.2, SRS: 8.1, SaOvR: 1.2, SaOR: 0.9, SaDR: 1.5 },
-      { team: 'KC', SaCR: 0.6, sos: -0.1, SRS: 4.0, SaOvR: 0.5, SaOR: 0.8, SaDR: 0.1 },
-      { team: 'LV', SaCR: -1.3, sos: 0.4, SRS: -9.5, SaOvR: -1.1, SaOR: -1.2, SaDR: -0.7 },
+      {
+        team: 'DEN',
+        team_rating: 8.4,
+        offense_rating: 4.1,
+        defense_rating: 3.9,
+        special_teams_rating: 0.4,
+        sos: 0.2,
+        SRS: 8.1,
+      },
+      {
+        team: 'KC',
+        team_rating: 3.5,
+        offense_rating: 2.6,
+        defense_rating: 0.7,
+        special_teams_rating: 0.2,
+        sos: -0.1,
+        SRS: 4.0,
+      },
+      {
+        team: 'LV',
+        team_rating: -9.0,
+        offense_rating: -5.5,
+        defense_rating: -3.1,
+        special_teams_rating: -0.4,
+        sos: 0.4,
+        SRS: -9.5,
+      },
     ],
     ['team'],
     TEAM_RATINGS,
     {
       team: columnMeta('Team', { category: 'Identity', shape: 'id', polarity: 'neutral' }),
-      ...Object.fromEntries(TEAM_RATINGS.map((column) => [column, columnMeta(column)])),
+      ...Object.fromEntries(
+        TEAM_RATINGS.map((column) => [column, columnMeta(RATING_LABELS[column])]),
+      ),
     },
   ),
   qbs: table(
     [
-      { qb_id: 'qb-1', qb_name: 'Bo Nix', team: 'DEN', QSaCR: 0.8, QSaOR: 0.7, QSoS: 0.1, QRaw: 0.6 },
-      { qb_id: 'qb-2', qb_name: 'Backup Arm', team: 'LV', QSaCR: null, QSaOR: null, QSoS: null, QRaw: null },
+      {
+        qb_id: 'qb-1',
+        qb_name: 'Bo Nix',
+        team: 'DEN',
+        adj_qb_epa_per_dropback: 0.12,
+        qb_faced_pass_defense: 0.01,
+      },
+      {
+        qb_id: 'qb-2',
+        qb_name: 'Backup Arm',
+        team: 'LV',
+        adj_qb_epa_per_dropback: null,
+        qb_faced_pass_defense: null,
+      },
     ],
     ['qb_id', 'qb_name', 'team'],
     QB_RATINGS,
@@ -69,7 +124,7 @@ export const SEASON_2025: SeasonDataset = {
       qb_id: columnMeta('QB ID', { category: 'Identity', shape: 'id', polarity: 'neutral' }),
       qb_name: columnMeta('QB', { category: 'Identity', shape: 'id', polarity: 'neutral' }),
       team: columnMeta('Team', { category: 'Identity', shape: 'id', polarity: 'neutral' }),
-      ...Object.fromEntries(QB_RATINGS.map((column) => [column, columnMeta(column)])),
+      ...Object.fromEntries(QB_RATINGS.map((column) => [column, columnMeta(RATING_LABELS[column])])),
     },
   ),
 }

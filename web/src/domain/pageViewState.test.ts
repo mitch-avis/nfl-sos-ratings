@@ -21,7 +21,7 @@ describe('page view state', () => {
 
     // Assert
     expect(state.viewState.primaryView).toBe('ratings')
-    expect(state.sorting).toEqual([{ id: 'SaCR', desc: true }])
+    expect(state.sorting).toEqual([{ id: 'team_rating', desc: true }])
     expect(canResetPageView('teams', state)).toBe(false)
   })
 

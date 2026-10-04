@@ -6,6 +6,7 @@ import {
   buildGameLogGroups,
   buildOpponentBreakdown,
   buildWeeklyHighlights,
+  enrichGameLogsWithOpponentRatings,
 } from './detailAnalytics';
 import {
   buildGameLogColumnSelection,
@@ -41,7 +42,7 @@ test('buildSeasonViewTable expands team per-game counts into raw totals', () => 
   const table: TablePayload = {
     column_groups: {
       identity: ['team'],
-      ratings: ['SaCR'],
+      ratings: ['team_rating'],
     },
     column_metadata: {
       points_for: {
@@ -70,22 +71,22 @@ test('buildSeasonViewTable expands team per-game counts into raw totals', () => 
         source: 'SCH',
         subcategory: null,
       },
-      SaCR: {
-        base_name: 'SaCR',
+      team_rating: {
+        base_name: 'team_rating',
         category: 'Schedule-Adjusted Ratings',
         contextual: false,
         denominator: null,
         description: 'Rating.',
-        full_name: 'SaCR',
-        label: 'SaCR',
+        full_name: 'Team Rating',
+        label: 'Team Rating',
         polarity: 'higher',
         shape: 'score',
         source: 'D',
         subcategory: null,
       },
     },
-    rows: [{ team: 'DET', points_for: 28, games_played: 17, SaCR: 1.2 }],
-    visible_columns: ['team', 'SaCR', 'points_for', 'games_played'],
+    rows: [{ team: 'DET', points_for: 28, games_played: 17, team_rating: 6.2 }],
+    visible_columns: ['team', 'team_rating', 'points_for', 'games_played'],
   };
 
   // Act
@@ -152,7 +153,7 @@ test('buildGameLogColumnSelection folds results into the weekly base columns', (
       'point_margin',
       'win_value',
       'turnover_margin',
-      'opp_SaDR',
+      'opp_defense_rating',
       'qb_pass_yards',
       'qb_game_winning_drive',
     ],
@@ -172,7 +173,7 @@ test('buildGameLogColumnSelection folds results into the weekly base columns', (
     'win_value',
     'turnover_margin',
   ]);
-  assert.ok(selection.columns.includes('opp_SaDR'));
+  assert.ok(selection.columns.includes('opp_defense_rating'));
   assert.ok(selection.columns.includes('qb_pass_yards'));
   assert.ok(!selection.columns.includes('qb_game_winning_drive'));
 });
@@ -187,30 +188,30 @@ test('buildWeeklyHighlights adds a recent three-game card with season-baseline c
     rows: [
       {
         opponent_team: 'ATL',
-        opp_SaCR: 0.2,
+        opp_team_rating: 0.2,
         points_per_offensive_snap: 0.2,
         week: 1,
       },
       {
         opponent_team: 'SEA',
-        opp_SaCR: 0.5,
+        opp_team_rating: 0.5,
         points_per_offensive_snap: 0.25,
         week: 2,
       },
       {
         opponent_team: 'SF',
-        opp_SaCR: 1.4,
+        opp_team_rating: 1.4,
         points_per_offensive_snap: 0.35,
         week: 3,
       },
       {
         opponent_team: 'LAR',
-        opp_SaCR: 0.9,
+        opp_team_rating: 0.9,
         points_per_offensive_snap: 0.45,
         week: 4,
       },
     ],
-    visible_columns: ['week', 'opponent_team', 'points_per_offensive_snap', 'opp_SaCR'],
+    visible_columns: ['week', 'opponent_team', 'points_per_offensive_snap', 'opp_team_rating'],
   };
 
   // Act
@@ -236,9 +237,11 @@ test('buildOpponentBreakdown curates a team offense ledger with season-delta con
       {
         game_id: '2025_01_SEA_LAR',
         opponent_team: 'SEA',
-        opp_SaCR: 1.1,
-        opp_SaDR: 1.4,
-        opp_SaOR: 0.9,
+        opp_defense_rating_rank: 2,
+        opp_league_size: 32,
+        opp_team_rating: 1.1,
+        opp_defense_rating: 1.4,
+        opp_offense_rating: 0.9,
         passing_epa: 8,
         passing_yards: 280,
         point_margin: 7,
@@ -247,9 +250,11 @@ test('buildOpponentBreakdown curates a team offense ledger with season-delta con
       {
         game_id: '2025_05_LAR_SEA',
         opponent_team: 'SEA',
-        opp_SaCR: 1.1,
-        opp_SaDR: 1.4,
-        opp_SaOR: 0.9,
+        opp_defense_rating_rank: 2,
+        opp_league_size: 32,
+        opp_team_rating: 1.1,
+        opp_defense_rating: 1.4,
+        opp_offense_rating: 0.9,
         passing_epa: 10,
         passing_yards: 305,
         point_margin: 10,
@@ -258,9 +263,11 @@ test('buildOpponentBreakdown curates a team offense ledger with season-delta con
       {
         game_id: '2025_02_LAR_ARI',
         opponent_team: 'ARI',
-        opp_SaCR: -0.4,
-        opp_SaDR: -0.2,
-        opp_SaOR: -0.5,
+        opp_defense_rating_rank: 20,
+        opp_league_size: 32,
+        opp_team_rating: -0.4,
+        opp_defense_rating: -0.2,
+        opp_offense_rating: -0.5,
         passing_epa: 2,
         passing_yards: 210,
         point_margin: -3,
@@ -269,9 +276,11 @@ test('buildOpponentBreakdown curates a team offense ledger with season-delta con
       {
         game_id: '2025_03_LAR_SF',
         opponent_team: 'SF',
-        opp_SaCR: 0.2,
-        opp_SaDR: 0.6,
-        opp_SaOR: 0.3,
+        opp_defense_rating_rank: 9,
+        opp_league_size: 32,
+        opp_team_rating: 0.2,
+        opp_defense_rating: 0.6,
+        opp_offense_rating: 0.3,
         passing_epa: 4,
         passing_yards: 245,
         point_margin: 2,
@@ -282,9 +291,9 @@ test('buildOpponentBreakdown curates a team offense ledger with season-delta con
       'game_id',
       'week',
       'opponent_team',
-      'opp_SaCR',
-      'opp_SaDR',
-      'opp_SaOR',
+      'opp_team_rating',
+      'opp_defense_rating',
+      'opp_offense_rating',
       'point_margin',
       'passing_epa',
       'passing_yards',
@@ -303,7 +312,7 @@ test('buildOpponentBreakdown curates a team offense ledger with season-delta con
       'opponent_team',
       'games',
       'weeks',
-      'opp_SaDR',
+      'opp_defense_rating',
       'opp_schedule_bucket',
       'passing_epa',
       'passing_yards',
@@ -316,8 +325,7 @@ test('buildOpponentBreakdown curates a team offense ledger with season-delta con
   assert.strictEqual(sea.passing_epa, 9);
   assert.strictEqual(sea.season_delta_passing_epa, 5);
   assert.strictEqual(sea.opp_schedule_bucket, 'Tougher');
-  // Buckets apply the fixed thresholds to the raw league z-score:
-  // +0.5 or higher is Tougher, -0.5 or lower is Softer.
+  // Tiers come from the opponent's league rank on the tier metric: top 10 Tougher, bottom 10 Softer.
   assert.strictEqual(
     breakdown.rows.find((row) => row.opponent_team === 'SF')!.opp_schedule_bucket,
     'Tougher',
@@ -331,9 +339,9 @@ test('buildOpponentBreakdown curates a team offense ledger with season-delta con
 });
 
 test.each([
-  ['offense', 'opp_SaDR'],
-  ['defense', 'opp_SaOR'],
-  ['results', 'opp_SaCR'],
+  ['offense', 'opp_defense_rating'],
+  ['defense', 'opp_offense_rating'],
+  ['results', 'opp_team_rating'],
 ])('buildOpponentBreakdown uses the %s schedule tier metric %s', (groupId, expectedMetric) => {
   // Arrange
   const seasonRow = {
@@ -347,9 +355,9 @@ test.each([
       {
         game_id: '2025_01_LAR_SEA',
         opponent_team: 'SEA',
-        opp_SaCR: 1.4,
-        opp_SaDR: 1.1,
-        opp_SaOR: 0.7,
+        opp_team_rating: 1.4,
+        opp_defense_rating: 1.1,
+        opp_offense_rating: 0.7,
         point_margin: 6,
         win_value: 1,
         turnover_margin: 1,
@@ -360,9 +368,9 @@ test.each([
       {
         game_id: '2025_02_LAR_ARI',
         opponent_team: 'ARI',
-        opp_SaCR: -1.2,
-        opp_SaDR: -0.8,
-        opp_SaOR: -0.4,
+        opp_team_rating: -1.2,
+        opp_defense_rating: -0.8,
+        opp_offense_rating: -0.4,
         point_margin: -2,
         win_value: 0,
         turnover_margin: -1,
@@ -375,9 +383,9 @@ test.each([
       'game_id',
       'week',
       'opponent_team',
-      'opp_SaCR',
-      'opp_SaDR',
-      'opp_SaOR',
+      'opp_team_rating',
+      'opp_defense_rating',
+      'opp_offense_rating',
       'point_margin',
       'win_value',
       'turnover_margin',
@@ -405,8 +413,8 @@ test('buildGameLogGroups keeps weekly category columns aligned with the selected
       'game_id',
       'week',
       'opponent_team',
-      'opp_SaCR',
-      'opp_SaDR',
+      'opp_team_rating',
+      'opp_defense_rating',
       'point_margin',
       'passing_epa',
       'passing_yards',
@@ -435,8 +443,10 @@ test('buildOpponentBreakdown curates a QB ledger around passing performance and 
       {
         game_id: '2025_01_BUF_KC',
         opponent_team: 'KC',
-        opp_SaCR: 1.3,
-        opp_SaDR: 1.6,
+        opp_defense_rating_rank: 3,
+        opp_league_size: 32,
+        opp_team_rating: 1.3,
+        opp_defense_rating: 1.6,
         point_margin: 6,
         qb_any_a: 7.4,
         qb_epa_per_dropback: 0.24,
@@ -445,8 +455,10 @@ test('buildOpponentBreakdown curates a QB ledger around passing performance and 
       {
         game_id: '2025_08_BUF_KC',
         opponent_team: 'KC',
-        opp_SaCR: 1.3,
-        opp_SaDR: 1.6,
+        opp_defense_rating_rank: 3,
+        opp_league_size: 32,
+        opp_team_rating: 1.3,
+        opp_defense_rating: 1.6,
         point_margin: -2,
         qb_any_a: 6.6,
         qb_epa_per_dropback: 0.12,
@@ -455,8 +467,10 @@ test('buildOpponentBreakdown curates a QB ledger around passing performance and 
       {
         game_id: '2025_03_BUF_NE',
         opponent_team: 'NE',
-        opp_SaCR: -0.7,
-        opp_SaDR: -0.5,
+        opp_defense_rating_rank: 30,
+        opp_league_size: 32,
+        opp_team_rating: -0.7,
+        opp_defense_rating: -0.5,
         point_margin: 10,
         qb_any_a: 7.1,
         qb_epa_per_dropback: 0.2,
@@ -467,8 +481,8 @@ test('buildOpponentBreakdown curates a QB ledger around passing performance and 
       'game_id',
       'week',
       'opponent_team',
-      'opp_SaDR',
-      'opp_SaCR',
+      'opp_defense_rating',
+      'opp_team_rating',
       'point_margin',
       'qb_epa_per_dropback',
       'qb_any_a',
@@ -487,7 +501,7 @@ test('buildOpponentBreakdown curates a QB ledger around passing performance and 
       'opponent_team',
       'games',
       'weeks',
-      'opp_SaDR',
+      'opp_defense_rating',
       'opp_schedule_bucket',
       'qb_any_a',
       'season_delta_qb_any_a',
@@ -498,4 +512,45 @@ test('buildOpponentBreakdown curates a QB ledger around passing performance and 
   assert.strictEqual(chiefs.qb_any_a, 7);
   assert.strictEqual(chiefs.season_delta_qb_any_a, 0.2);
   assert.strictEqual(chiefs.opp_schedule_bucket, 'Tougher');
+  assert.strictEqual(
+    breakdown.rows.find((row) => row.opponent_team === 'NE')!.opp_schedule_bucket,
+    'Softer',
+  );
+});
+
+test('enrichGameLogsWithOpponentRatings attaches opponent ratings and their league ranks', () => {
+  // Arrange
+  const gameLogs: TablePayload = {
+    column_groups: {},
+    rows: [
+      { opponent_team: 'KC', week: 1 },
+      { opponent_team: 'LV', week: 2 },
+    ],
+    visible_columns: ['week', 'opponent_team'],
+  };
+  const ratings: TablePayload = {
+    column_groups: {},
+    rows: [
+      { team: 'DEN', team_rating: 8.4, defense_rating: 3.9 },
+      { team: 'KC', team_rating: 3.5, defense_rating: 0.7 },
+      { team: 'LV', team_rating: -9.0, defense_rating: -3.1 },
+    ],
+    visible_columns: ['team', 'team_rating', 'defense_rating'],
+  };
+
+  // Act
+  const enriched = enrichGameLogsWithOpponentRatings(gameLogs, ratings);
+
+  // Assert
+  const kc = enriched.rows[0];
+  assert.strictEqual(kc.opp_team_rating, 3.5);
+  assert.strictEqual(kc.opp_team_rating_rank, 2);
+  assert.strictEqual(enriched.rows[1].opp_defense_rating_rank, 3);
+  assert.strictEqual(kc.opp_league_size, 3);
+  assert.deepEqual(enriched.visible_columns, [
+    'week',
+    'opponent_team',
+    'opp_team_rating',
+    'opp_defense_rating',
+  ]);
 });

@@ -85,7 +85,7 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
     if (kind !== 'qbs' || state.showUnratedRows) return seasonView.table
     return {
       ...seasonView.table,
-      rows: seasonView.table.rows.filter((row) => row.QSaCR !== null || row.QSaOR !== null || row.QRaw !== null),
+      rows: seasonView.table.rows.filter((row) => row.adj_qb_epa_per_dropback != null),
     }
   }, [kind, seasonView.table, state.showUnratedRows])
   const compareColumns = useMemo(() => {

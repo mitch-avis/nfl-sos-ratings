@@ -112,7 +112,12 @@ const PLAY_SUFFIXES = [
 ];
 
 const TEAM_RAW_TOTAL_ALREADY_TOTAL = new Set(['games_played', 'games', 'wins', 'losses', 'ties']);
-const OPPONENT_RATING_COLUMNS = ['opp_SaDR', 'opp_SaOR', 'opp_SaCR', 'opp_SRS'];
+const OPPONENT_RATING_COLUMNS = [
+  'opp_defense_rating',
+  'opp_offense_rating',
+  'opp_team_rating',
+  'opp_SRS',
+];
 const DETAIL_IDENTITY_COLUMNS = ['week', 'opponent_team', 'game_id'];
 const DETAIL_RESULT_COLUMNS = [
   'points_for',
@@ -386,11 +391,11 @@ function getMatchedOpponentContextColumns(
 ): string[] {
   const candidates = kind === 'teams'
     ? state.teamCategory === 'Offense'
-      ? ['opp_SaDR', 'opp_SaCR']
+      ? ['opp_defense_rating', 'opp_team_rating']
       : state.teamCategory === 'Defense'
-        ? ['opp_SaOR', 'opp_SaCR']
-        : ['opp_SaCR', 'opp_SRS']
-    : ['opp_SaDR', 'opp_SaCR'];
+        ? ['opp_offense_rating', 'opp_team_rating']
+        : ['opp_team_rating', 'opp_SRS']
+    : ['opp_defense_rating', 'opp_team_rating'];
 
   return orderedExisting(availableColumns, candidates);
 }

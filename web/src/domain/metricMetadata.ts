@@ -144,14 +144,6 @@ const SUFFIX_CONTEXTS: SuffixContext[] = [
     detailSuffix: 'This is the full season total.',
     apply: (template) => template,
   },
-  {
-    suffix: '_pct',
-    detailSuffix: 'This is the percentile rank within the current season data.',
-    apply: (template) => ({
-      label: `${template.label} Pct`,
-      fullName: `${template.fullName} Percentile`,
-    }),
-  },
 ];
 
 const PREFIX_CONTEXTS: PrefixContext[] = [
@@ -178,25 +170,6 @@ const PREFIX_CONTEXTS: PrefixContext[] = [
     }),
   },
   {
-    prefix: 'diff_',
-    contextual: false,
-    detailPrefix:
-      'This compares the selected team or quarterback with the opponent context on the same metric.',
-    apply: (template) => ({
-      label: `${template.label} Diff`,
-      fullName: `${template.fullName} Differential`,
-    }),
-  },
-  {
-    prefix: 'adj_',
-    contextual: false,
-    detailPrefix: 'Simultaneous-adjustment output from the ridge model.',
-    apply: (template) => ({
-      label: `Adj ${template.label}`,
-      fullName: `Simultaneously Adjusted ${template.fullName}`,
-    }),
-  },
-  {
     prefix: 'season_delta_',
     contextual: false,
     detailPrefix:
@@ -213,12 +186,19 @@ export const GLOSSARY_SECTIONS: Array<{ title: string; description: string; metr
   {
     title: 'Team Rankings',
     description: 'Use these first when comparing full-team quality against actual schedules.',
-    metrics: ['SaCR', 'SaCR_alltime', 'SaOvR', 'SaOvR_alltime', 'sos', 'SRS'],
+    metrics: [
+      'team_rating',
+      'offense_rating',
+      'defense_rating',
+      'special_teams_rating',
+      'sos',
+      'SRS',
+    ],
   },
   {
     title: 'QB Rankings',
     description: 'Use these first when comparing QB quality against the defenses each QB faced.',
-    metrics: ['QSaCR', 'QSaCR_alltime', 'QSaOR', 'QSaOR_alltime', 'QSoS', 'faced_opp_SaCR'],
+    metrics: ['adj_qb_epa_per_dropback', 'qb_epa_per_dropback', 'qb_faced_pass_defense'],
   },
   {
     title: 'Key Supporting Stats',
@@ -354,7 +334,12 @@ function stripRepeatedMetricName(detail: string, fullName: string): string {
 }
 
 function isContextColumn(column: string): boolean {
-  return column === 'QSoS' || column.startsWith('opp_') || column.startsWith('qopp_');
+  return (
+    column === 'sos'
+    || column === 'qb_faced_pass_defense'
+    || column.startsWith('opp_')
+    || column.startsWith('qopp_')
+  );
 }
 
 function inferMetricPolarity(column: string): MetricPolarity {

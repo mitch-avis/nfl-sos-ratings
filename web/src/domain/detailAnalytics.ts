@@ -42,7 +42,15 @@ interface OpponentLedgerSpec {
   deltaMetric?: string;
 }
 
-const OPPONENT_RATING_COLUMNS = ['opp_SaCR', 'opp_SRS', 'opp_SaOvR', 'opp_SaOR', 'opp_SaDR'];
+const OPPONENT_RATING_COLUMNS = [
+  'opp_team_rating',
+  'opp_SRS',
+  'opp_offense_rating',
+  'opp_defense_rating',
+];
+// Opponents ranked this high or low on the tier metric read Tougher or Softer.
+const SCHEDULE_TIER_SIZE = 10;
+const LEAGUE_SIZE_FIELD = 'opp_league_size';
 const TEAM_RESULT_COLUMNS = [
   'points_for',
   'points_allowed',
@@ -234,7 +242,7 @@ function buildRollingAverageHighlight(
 }
 
 function buildToughestOpponentHighlight(gameLogs: TablePayload): WeeklyHighlight | null {
-  const toughestOpponents = getNumericRows(gameLogs, 'opp_SaCR');
+  const toughestOpponents = getNumericRows(gameLogs, 'opp_team_rating');
   if (toughestOpponents.length === 0) {
     return null;
   }
@@ -245,7 +253,7 @@ function buildToughestOpponentHighlight(gameLogs: TablePayload): WeeklyHighlight
   const opponentLabel = String(toughestGame.row.opponent_team ?? 'Unknown');
 
   return {
-    context: `${formatWeekContext(toughestGame.row)} · Opp SaCR ${formatValue(toughestGame.value)}`,
+    context: `${formatWeekContext(toughestGame.row)} · Opp Team Rating ${formatValue(toughestGame.value)}`,
     eyebrow: 'Schedule Edge',
     title: 'Toughest Opponent',
     value: opponentLabel,
@@ -284,6 +292,10 @@ export function enrichGameLogsWithOpponentRatings(
   const ratingsByTeam = new Map(
     opponentRatingsTable.rows.map((ratingRow) => [String(ratingRow.team ?? ''), ratingRow]),
   );
+  const ranksByColumn = new Map(
+    ratingColumns.map((column) => [column, rankTeams(opponentRatingsTable.rows, column)]),
+  );
+  const leagueSize = opponentRatingsTable.rows.length;
   const rows = gameLogs.rows.map((gameRow) => {
     const opponentTeam = String(gameRow.opponent_team ?? '');
     const ratingRow = ratingsByTeam.get(opponentTeam);
@@ -293,14 +305,26 @@ export function enrichGameLogsWithOpponentRatings(
     return {
       ...gameRow,
       ...Object.fromEntries(
-        ratingColumns.map((column) => [`opp_${column}`, ratingRow[column] ?? null]),
+        ratingColumns.flatMap((column) => [
+          [`opp_${column}`, ratingRow[column] ?? null],
+          [`opp_${column}_rank`, ranksByColumn.get(column)?.get(opponentTeam) ?? null],
+        ]),
       ),
+      [LEAGUE_SIZE_FIELD]: leagueSize,
     };
   });
   const visibleColumns = [
     ...new Set([...gameLogs.visible_columns, ...ratingColumns.map((column) => `opp_${column}`)]),
   ];
   return { ...gameLogs, rows, visible_columns: visibleColumns };
+}
+
+/** Rank teams 1..n on one rating column, best (highest) first; teams without a value are skipped. */
+function rankTeams(rows: DataRow[], column: string): Map<string, number> {
+  const ranked = rows
+    .filter((row) => typeof row[column] === 'number' && Number.isFinite(row[column]))
+    .sort((a, b) => (b[column] as number) - (a[column] as number));
+  return new Map(ranked.map((row, index) => [String(row.team ?? ''), index + 1]));
 }
 
 function isTeamDefenseMetric(column: string): boolean {
@@ -475,9 +499,11 @@ function buildTeamLedgerSpec(
   availableColumns: string[],
   groupColumns: string[],
 ): OpponentLedgerSpec {
-  const overallDifficulty = pickFirstAvailable(availableColumns, ['opp_SaCR', 'opp_SRS']);
-  const offenseContext = pickFirstAvailable(availableColumns, ['opp_SaDR']);
-  const defenseContext = pickFirstAvailable(availableColumns, ['opp_SaOR']);
+  const overallDifficulty = pickFirstAvailable(availableColumns, ['opp_team_rating', 'opp_SRS']);
+  // A team's offense is judged against the opposing defense, and its defense against the
+  // opposing offense.
+  const offenseContext = pickFirstAvailable(availableColumns, ['opp_defense_rating']);
+  const defenseContext = pickFirstAvailable(availableColumns, ['opp_offense_rating']);
 
   switch (activeGroupId) {
     case 'offense':
@@ -544,8 +570,8 @@ function buildQbLedgerSpec(
   availableColumns: string[],
   groupColumns: string[],
 ): OpponentLedgerSpec {
-  const passDefenseContext = pickFirstAvailable(availableColumns, ['opp_SaDR']);
-  const overallDifficulty = pickFirstAvailable(availableColumns, ['opp_SaCR']);
+  const passDefenseContext = pickFirstAvailable(availableColumns, ['opp_defense_rating']);
+  const overallDifficulty = pickFirstAvailable(availableColumns, ['opp_team_rating']);
 
   switch (activeGroupId) {
     case 'results':
@@ -613,20 +639,20 @@ function summarizeGroupValue(rowsForOpponent: DataRow[], column: string): RowVal
 }
 
 function buildScheduleBuckets(rows: DataRow[], difficultyMetric: string): Map<string, string> {
-  // The difficulty metric is already a league-wide z-score (opp_SaCR / opp_SaDR /
-  // opp_SaOR), so the thresholds apply to the raw value directly: +0.5 or higher
-  // is Tougher, -0.5 or lower is Softer, everything between is Middle.
+  // Tiers come from the opponent's league rank on the difficulty metric (1 = best), attached
+  // when the game log is enriched: top 10 is Tougher, bottom 10 is Softer, the rest Middle.
   const bucketByOpponent = new Map<string, string>();
   rows.forEach((row) => {
     const opponentTeam = String(row.opponent_team ?? '');
-    const value = row[difficultyMetric];
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
+    const rank = row[`${difficultyMetric}_rank`];
+    const leagueSize = row[LEAGUE_SIZE_FIELD];
+    if (typeof rank !== 'number' || typeof leagueSize !== 'number') {
       return;
     }
     let bucket = 'Middle';
-    if (value >= 0.5) {
+    if (rank <= SCHEDULE_TIER_SIZE) {
       bucket = 'Tougher';
-    } else if (value <= -0.5) {
+    } else if (rank > leagueSize - SCHEDULE_TIER_SIZE) {
       bucket = 'Softer';
     }
     bucketByOpponent.set(opponentTeam, bucket);
@@ -686,7 +712,7 @@ export function buildOpponentBreakdown(
   );
 
   if (spec.difficultyMetric) {
-    const bucketByOpponent = buildScheduleBuckets(rows, spec.difficultyMetric);
+    const bucketByOpponent = buildScheduleBuckets(gameLogs.rows, spec.difficultyMetric);
     rows.forEach((row) => {
       row.opp_schedule_bucket = bucketByOpponent.get(String(row.opponent_team ?? '')) ?? 'Middle';
     });
@@ -712,9 +738,9 @@ export function buildOpponentBreakdown(
             id: 'opp_schedule_bucket',
             label: 'Sched Tier',
             tooltip:
-              'Quick difficulty label based on the selected opponent rating column for this view. '
-              + 'The rating is a league-wide z-score: +0.5 or higher reads Tougher, -0.5 or lower '
-              + 'reads Softer, and everything between reads Middle.',
+              'Quick difficulty label from the opponent\'s league rank on the rating shown for this '
+              + 'view: a top-10 opponent reads Tougher, a bottom-10 opponent reads Softer, and '
+              + 'everything between reads Middle.',
           },
         ]
       : []),
