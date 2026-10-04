@@ -5,10 +5,10 @@ Do not edit by hand. Companion catalog: [stats-catalog.md](stats-catalog.md).
 
 Every column below is regular season only. Data files and the analyst app add a prefix or suffix to
 these base names: `opp_` (the team's head-to-head-excluded opponent profile), `qopp_` (what the
-defenses a quarterback faced allowed to other passers), `_per_game`, `_total`, and per-play
-denominators such as `_per_offensive_snap` and `_per_dropback`. Shapes: `count` totals, `rate`
-ratios with their own denominator, `avg` per-event averages, `score` model outputs on their own
-scale, `flag` booleans, and `id` identity fields.
+defenses a quarterback faced allowed to other passers), `_per_game`, `_total`, per-play denominators
+such as `_per_offensive_snap` and `_per_dropback`, and rank-range percentiles `_q025` through
+`_q975`. Shapes: `count` totals, `rate` ratios with their own denominator, `avg` per-event averages,
+`score` model outputs on their own scale, `flag` booleans, and `id` identity fields.
 
 ## Sources
 
@@ -30,6 +30,11 @@ Start here when ranking QBs.
 | --- | --- | --- | --- | --- | --- | --- |
 | `adj_qb_epa_per_dropback` | Adj EPA/DB | rate | dropbacks | 1999 | D | The quarterback's expected points added per dropback after adjusting for the pass defenses he faced. It reads on the same scale as raw EPA per dropback, and small samples are pulled toward the league average. Higher is better. |
 | `qb_faced_pass_defense` | Faced Pass D | rate | dropbacks | 1999 | D | The average quality of the pass defenses this quarterback faced, weighted by his dropbacks, in EPA per dropback prevented. Each defense is rated without its games against this quarterback. Positive means tougher defenses. Early in a season, defenses that have faced no other passer yet are left out. Context, not a QB grade. |
+| `qb_rank` | Rank | score | - | 1999 | D | The quarterback's place among eligible quarterbacks by Adjusted EPA Per Dropback, 1 for the best. Quarterbacks with equal ratings share the better rank. |
+| `qb_rank_missing_share` | No-Dropback Share | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the quarterback had no dropbacks and so no rank. A quarterback who played only part of the season is missing more often, and the rank quantiles come only from the resamples that include him. |
+| `qb_rank_top5_probability` | Top-5 Chance | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the quarterback ranked in the top five eligible quarterbacks by Adjusted EPA Per Dropback. It shows how much the ranking depends on which games happened to be played. |
+| `qb_rank_top10_probability` | Top-10 Chance | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the quarterback ranked in the top ten eligible quarterbacks by Adjusted EPA Per Dropback. It shows how much the ranking depends on which games happened to be played. |
+| `qb_rank_probabilities` | Rank Chances | rate | bootstrap resamples | 1999 | D | A list giving, for each rank from 1 down, the share of game-bootstrap resamples of the season in which the quarterback finished at exactly that rank among eligible quarterbacks. |
 
 ## Identity & Availability
 

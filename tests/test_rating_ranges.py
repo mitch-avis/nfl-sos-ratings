@@ -6,7 +6,14 @@ import numpy as np
 import polars as pl
 import pytest
 
-from nfl_sos_ratings.rating_ranges import RANGE_QUANTILES, RangeColumns, summarize_rank_ranges
+from nfl_sos_ratings.metrics import get_registry
+from nfl_sos_ratings.rating_ranges import (
+    QB_RANGE_COLUMNS,
+    RANGE_QUANTILES,
+    TEAM_RANGE_COLUMNS,
+    RangeColumns,
+    summarize_rank_ranges,
+)
 from nfl_sos_ratings.team_rating import bootstrap_team_ratings, fit_team_ratings
 
 
@@ -96,6 +103,20 @@ def test_summarize_rank_ranges_ranks_only_eligible_units_and_counts_missing_draw
         pytest.approx(0.5),
         pytest.approx([0.0, 0.5]),
     )
+
+
+@pytest.mark.parametrize("columns", [TEAM_RANGE_COLUMNS, QB_RANGE_COLUMNS])
+def test_every_rank_range_column_resolves_against_the_registry(columns: RangeColumns) -> None:
+    # Arrange
+    draws = _draws(_FOUR_DRAWS).rename({"unit": columns.id, "rating": columns.rating})
+    published = _PUBLISHED.rename({"unit": columns.id, "rating": columns.rating})
+    summary = summarize_rank_ranges(draws, published, columns)
+
+    # Act
+    unknown = get_registry().validate_columns(summary.columns)
+
+    # Assert
+    assert unknown == []
 
 
 # A synthetic league for the calibration check: true effects average to zero.

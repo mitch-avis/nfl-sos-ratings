@@ -49,6 +49,82 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         since=1999,
         contextual=True,
     ),
+    _ratings(
+        name="qb_rank",
+        label="Rank",
+        full_name="QB Rating Rank",
+        description=(
+            "The quarterback's place among eligible quarterbacks by Adjusted EPA Per Dropback, "
+            "1 for the best. Quarterbacks with equal ratings share the better rank."
+        ),
+        shape="score",
+        polarity="lower",
+        source="D",
+        since=1999,
+    ),
+    _ratings(
+        name="qb_rank_missing_share",
+        label="No-Dropback Share",
+        full_name="Share of Resamples Without the Quarterback",
+        description=(
+            "The share of game-bootstrap resamples of the season (its games redrawn at random, "
+            "with repeats) in which the quarterback had no dropbacks and so no rank. A "
+            "quarterback who played only part of the season is missing more often, and the "
+            "rank quantiles come only from the resamples that include him."
+        ),
+        shape="rate",
+        polarity="neutral",
+        source="D",
+        denominator="bootstrap resamples",
+        since=1999,
+    ),
+    _ratings(
+        name="qb_rank_top5_probability",
+        label="Top-5 Chance",
+        full_name="Chance of a Top-5 Rank",
+        description=(
+            "The share of game-bootstrap resamples of the season (its games redrawn at random, "
+            "with repeats) in which the quarterback ranked in the top five eligible "
+            "quarterbacks by Adjusted EPA Per Dropback. It shows how much the ranking depends "
+            "on which games happened to be played."
+        ),
+        shape="rate",
+        polarity="higher",
+        source="D",
+        denominator="bootstrap resamples",
+        since=1999,
+    ),
+    _ratings(
+        name="qb_rank_top10_probability",
+        label="Top-10 Chance",
+        full_name="Chance of a Top-10 Rank",
+        description=(
+            "The share of game-bootstrap resamples of the season (its games redrawn at random, "
+            "with repeats) in which the quarterback ranked in the top ten eligible "
+            "quarterbacks by Adjusted EPA Per Dropback. It shows how much the ranking depends "
+            "on which games happened to be played."
+        ),
+        shape="rate",
+        polarity="higher",
+        source="D",
+        denominator="bootstrap resamples",
+        since=1999,
+    ),
+    _ratings(
+        name="qb_rank_probabilities",
+        label="Rank Chances",
+        full_name="Chance of Each Rank",
+        description=(
+            "A list giving, for each rank from 1 down, the share of game-bootstrap resamples of "
+            "the season in which the quarterback finished at exactly that rank among eligible "
+            "quarterbacks."
+        ),
+        shape="rate",
+        polarity="neutral",
+        source="D",
+        denominator="bootstrap resamples",
+        since=1999,
+    ),
 )
 
 QB_IDENTITY_METRICS: tuple[MetricDef, ...] = (

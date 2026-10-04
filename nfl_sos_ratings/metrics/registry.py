@@ -19,6 +19,7 @@ from nfl_sos_ratings.metrics.schema import (
     ResolvedColumn,
     SuffixRule,
 )
+from nfl_sos_ratings.rating_ranges import RANGE_QUANTILES, quantile_suffix
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -30,6 +31,22 @@ class RegistryValidationError(ValueError):
 
 # A layman description shorter than this is a label, not a sentence.
 _MIN_DESCRIPTION_LENGTH = 20
+
+
+def _quantile_suffix_rule(level: float) -> SuffixRule:
+    """Return the suffix rule for one rank-range quantile column, such as ``_q025``."""
+    percent = f"{round(level * 100, 1):g}"
+    return SuffixRule(
+        suffix=quantile_suffix(level),
+        label_template=f"{{label}} ({percent}th pct)",
+        full_name_template=f"{{full_name}}, {percent}th percentile",
+        description_note=(
+            f"Shown as the {percent}th percentile across game-bootstrap resamples of the season: "
+            f"{percent}% of resampled seasons came out at or below it. The spread reflects "
+            "which games happened to be played, not whether the model is right."
+        ),
+    )
+
 
 # Longest prefixes first so qopp_ wins over opp_.
 DEFAULT_PREFIX_RULES: tuple[PrefixRule, ...] = (
@@ -119,6 +136,7 @@ DEFAULT_SUFFIX_RULES: tuple[SuffixRule, ...] = (
         full_name_template="{full_name} (Season Total)",
         description_note="This is the full season total.",
     ),
+    *(_quantile_suffix_rule(level) for level in RANGE_QUANTILES),
 )
 
 
