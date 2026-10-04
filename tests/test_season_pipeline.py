@@ -1,6 +1,8 @@
 """End-to-end tests of the single-season pipeline on a small synthetic league."""
 
+import io
 import itertools
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -220,3 +222,50 @@ def test_run_season_profiles_opponents_from_played_games_only(
 
     # Assert
     assert "PIT" not in seen[0].get_column("home_team").to_list()
+
+
+def test_write_data_file_rejects_columns_missing_from_the_registry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
+    frame = pl.DataFrame({"team": ["NE"], "not_a_registered_column": [1]})
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="not_a_registered_column"):
+        main._write_data_file(frame, 2025, "ratings")
+
+
+def test_run_season_without_opponent_profiles_still_writes_the_ratings(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(main, "load_weekly_team_stats", stub(_weekly_df))
+    monkeypatch.setattr(main, "load_schedule", stub(_schedule_df))
+    monkeypatch.setattr(main, "load_qb_stats", stub(_qb_df))
+    monkeypatch.setattr(main, "compute_qb_opponent_profiles", stub(lambda: (None, {})))
+    monkeypatch.setattr(main, "compute_all_opponent_profiles", stub(lambda: (None, {})))
+
+    # Act
+    main.run_season(2025)
+
+    # Assert
+    assert (tmp_path / "2025_ratings.parquet").exists()
+    assert not (tmp_path / "2025_opponent_profiles.parquet").exists()
+
+
+def test_main_wraps_stdout_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Arrange
+    seasons: list[int] = []
+    monkeypatch.setattr(main, "run_season", seasons.append)
+    monkeypatch.setattr(main.sys, "platform", "win32")
+    monkeypatch.setattr(main.sys, "stdout", SimpleNamespace(buffer=io.BytesIO()))
+    monkeypatch.setattr(main.io, "TextIOWrapper", stub(io.StringIO))
+
+    # Act
+    main.main(["--season", "2024"])
+
+    # Assert
+    assert seasons == [2024]
+    assert isinstance(main.sys.stdout, io.StringIO)
