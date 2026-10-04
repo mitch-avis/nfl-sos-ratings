@@ -23,14 +23,6 @@ TEAM_CATEGORIES: tuple[CategoryDef, ...] = (
         ),
     ),
     CategoryDef(
-        name="External & Reference Ratings",
-        entity="team",
-        description=(
-            "Third-party or benchmark rating systems used for analyst context and validation "
-            "baselines only. They never feed the project's published ratings."
-        ),
-    ),
-    CategoryDef(
         name="Overall",
         entity="team",
         description="Season identity and whole-game outcomes: record, points, and margins.",
@@ -71,15 +63,7 @@ TEAM_CATEGORIES: tuple[CategoryDef, ...] = (
     CategoryDef(
         name="Special Teams",
         entity="team",
-        description="Kicking, punting, returns, and coverage units.",
-        subcategories=(
-            "Kicking",
-            "Kickoffs & Coverage",
-            "Kick Returns",
-            "Punting & Coverage",
-            "Punt Returns",
-            "ST Scoring & Blocks",
-        ),
+        description="Kicks, punts, returns, field goals, and extra points.",
     ),
 )
 
@@ -90,14 +74,6 @@ QB_CATEGORIES: tuple[CategoryDef, ...] = (
         description=(
             "The project's own quarterback ratings, adjusted for the defenses each "
             "quarterback actually faced. Start here when ranking QBs."
-        ),
-    ),
-    CategoryDef(
-        name="External & Reference Ratings",
-        entity="qb",
-        description=(
-            "Third-party quarterback ratings used for analyst context and external "
-            "sanity checks only. They never feed the published project ratings."
         ),
     ),
     CategoryDef(
@@ -114,14 +90,6 @@ QB_CATEGORIES: tuple[CategoryDef, ...] = (
         name="Passing Efficiency",
         entity="qb",
         description="Quality per play: the rates that separate good QBs from busy ones.",
-    ),
-    CategoryDef(
-        name="Advanced & Expected",
-        entity="qb",
-        description=(
-            "Tracking- and charting-based metrics (ESPN QBR, Next Gen Stats, PFR). "
-            "Coverage varies by era — missing values mean not tracked yet, not zero."
-        ),
     ),
     CategoryDef(
         name="Pressure, Sacks & Pocket",

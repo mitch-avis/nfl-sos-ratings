@@ -93,15 +93,32 @@ Written before any run of the new estimator.
 - Generating command (after the rewrite): `nfl-sos-ratings validate --data-dir data
   --start-season 1999 --end-season 2025 --start-week 5 --report-path docs/validation-report.md`.
 
+## Retired metric backlog
+
+The registry's `planned` entries (stats catalogued but never computed) were removed on 2026-10-04
+under the aggressive-cleanup decision, which also retired `.agents/metric-expansion-plan.md`
+(special-teams detail stats, NGS/PFR/QBR joins, and the remaining QB splits). The last commit
+that still had them is `c178744`; this lists the 57 team and 65 QB entries:
+
+```bash
+for f in team_metrics qb_metrics; do
+  git show c178744:nfl_sos_ratings/metrics/$f.py | python3 -c 'import re, sys; print("\n".join(
+    re.findall(r"name=\"(\w+)\",(?:(?!\n    \),).)*?\n        status=\"planned\"",
+               sys.stdin.read(), re.S)))'
+done
+```
+
 ## Tasks
 
-- [ ] Shared ridge helper with an unpenalized intercept, grouped cross-validation, and a wide grid.
-- [ ] `team_rating` module (rows, solves, points scaling, leave-one-team-out `sos`) with tests.
-- [ ] Walk-forward rewrite: candidate, `RawEPA`, `SRS`, `Elo` only; concluded experiments removed.
-- [ ] Wire the team rating into `main.py`; drop the composite, companion, and old rating columns.
-- [ ] QB rating rewrite on the shared helper; drop `QSaCR`, `QRaw`, `QOutcome`, percentiles.
-- [ ] Fix the opponent QB profile to average per team game; trim opponent and `diff_*` surfaces.
-- [ ] Prune the registry (old ratings, `planned` stubs, dead pools) and the docs catalogs.
+- [x] Shared ridge helper with an unpenalized intercept, grouped cross-validation, and a wide grid.
+- [x] `team_rating` module (rows, solves, points scaling, leave-one-team-out `sos`) with tests.
+- [x] Walk-forward rewrite: candidate, `RawEPA`, `SRS`, `Elo` only; concluded experiments removed.
+- [x] Wire the team rating into `main.py`; drop the composite, companion, and old rating columns.
+- [x] QB rating rewrite on the shared helper; drop `QSaCR`, `QRaw`, `QOutcome`, percentiles.
+- [x] Drop the never-displayed `diff_*`, team-level `opp_qb_*`, and team-level `qb_*` columns
+  (which also removes the opponent QB profile's per-appearance averaging bug).
+- [x] Prune the registry: old ratings, rating pools, fit provenance, `planned` stubs, and the
+  categories they left empty. The docs catalogs still need the matching trim.
 - [ ] Update `web/` for the new columns and views.
 - [ ] Load PBP once per season, write each output once, enable the nflreadpy filesystem cache.
 - [ ] Regenerate `data/` and the validation report (ask first), apply the decision rule.

@@ -1,9 +1,6 @@
-"""Team metric definitions — every team stat the project publishes or plans.
+"""Team metric definitions: every team column the pipeline publishes.
 
-Entries with ``status="implemented"`` cover every column the pipeline writes
-today. Entries with ``status="planned"`` encode the full team catalog in
-[docs/stats-catalog.md](../../docs/stats-catalog.md) so the ETL expansion,
-storage schemas, and UI all grow from this one file.
+Human-readable companion: [docs/stats-catalog.md](../../docs/stats-catalog.md).
 """
 
 from __future__ import annotations
@@ -11,7 +8,6 @@ from __future__ import annotations
 from nfl_sos_ratings.metrics.schema import MetricDef, section
 
 _ratings = section("team", "Schedule-Adjusted Ratings")
-_reference = section("team", "External & Reference Ratings")
 _overall = section("team", "Overall")
 _off_total = section("team", "Offense", "Total")
 _off_pass = section("team", "Offense", "Passing")
@@ -32,12 +28,7 @@ _def_drives = section("team", "Defense", "Drives & Field Position")
 _def_to = section("team", "Defense", "Turnovers")
 _def_press = section("team", "Defense", "Pressure & Playmaking")
 _def_pen = section("team", "Defense", "Penalties")
-_st_kick = section("team", "Special Teams", "Kicking")
-_st_ko = section("team", "Special Teams", "Kickoffs & Coverage")
-_st_kr = section("team", "Special Teams", "Kick Returns")
-_st_punt = section("team", "Special Teams", "Punting & Coverage")
-_st_pr = section("team", "Special Teams", "Punt Returns")
-_st_score = section("team", "Special Teams", "ST Scoring & Blocks")
+_special_teams = section("team", "Special Teams")
 
 RATING_METRICS: tuple[MetricDef, ...] = (
     _ratings(
@@ -124,28 +115,6 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         source="D",
         since=1999,
         contextual=True,
-    ),
-)
-
-REFERENCE_METRICS: tuple[MetricDef, ...] = (
-    _reference(
-        name="team_elo",
-        label="Elo",
-        full_name="Reference Team Elo Rating",
-        description=(
-            "A simple fixed-constant Elo benchmark carried only for analyst context and "
-            "validation comparisons. It is outcome-derived and intentionally excluded from "
-            "every published project rating."
-        ),
-        shape="score",
-        polarity="higher",
-        source="Elo",
-        since=1999,
-        status="planned",
-        note=(
-            "Validation baseline only. The walk-forward harness uses a fixed-constant "
-            "simple Elo with preseason regression toward 1500."
-        ),
     ),
 )
 
@@ -352,35 +321,6 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         since=1999,
     ),
     _overall(
-        name="point_differential",
-        label="Point Diff",
-        full_name="Point Differential",
-        description="Points scored minus points allowed across the season.",
-        shape="count",
-        polarity="higher",
-        source="D",
-        since=1999,
-        duplicate_of="point_margin",
-        status="planned",
-    ),
-    _overall(
-        name="pythagorean_win_pct",
-        label="Pythag Win %",
-        full_name="Pythagorean Win Percentage",
-        description=(
-            "The win rate a team's points scored and allowed would normally produce, using "
-            "the classic exponent-2.37 formula. Teams far above their Pythagorean rate often "
-            "fall back the next season."
-        ),
-        shape="rate",
-        polarity="higher",
-        source="D",
-        denominator="expected games (points-based model)",
-        since=1999,
-        formula="PF^2.37 / (PF^2.37 + PA^2.37)",
-        status="planned",
-    ),
-    _overall(
         name="total_yards_differential",
         label="Total Yds Diff",
         full_name="Total Yards Differential",
@@ -437,58 +377,6 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="scrimmage snaps",
         since=1999,
-    ),
-    _overall(
-        name="time_of_possession_pct",
-        label="TOP %",
-        full_name="Time of Possession Share",
-        description="The share of game clock the team's offense held the ball.",
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="game clock",
-        since=1999,
-        status="planned",
-    ),
-    _overall(
-        name="avg_scoring_margin",
-        label="Avg Margin",
-        full_name="Average Scoring Margin",
-        description="Point margin per game played.",
-        shape="rate",
-        polarity="higher",
-        source="D",
-        denominator="games played",
-        since=1999,
-        duplicate_of="point_margin",
-        status="planned",
-    ),
-    _overall(
-        name="one_score_game_record",
-        label="1-Score Record",
-        full_name="One-Score Game Record",
-        description=(
-            "Wins, losses, and ties in games decided by eight points or fewer. Extreme "
-            "records here are mostly luck and tend not to repeat."
-        ),
-        shape="id",
-        polarity="neutral",
-        source="D",
-        since=1999,
-        status="planned",
-    ),
-    _overall(
-        name="avg_rest_days",
-        label="Avg Rest",
-        full_name="Average Rest Days",
-        description="Average days of rest before each game, a schedule-fairness context stat.",
-        shape="avg",
-        polarity="neutral",
-        source="SCH",
-        denominator="games played",
-        since=1999,
-        contextual=True,
-        status="planned",
     ),
 )
 
@@ -602,32 +490,6 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         since=1999,
     ),
     _off_total(
-        name="time_of_possession",
-        label="TOP",
-        full_name="Time of Possession",
-        description="Total game clock the offense held the ball, summed over drives.",
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _off_total(
-        name="seconds_per_offensive_snap",
-        label="Sec/Snap",
-        full_name="Seconds Per Offensive Snap",
-        description=(
-            "Pace of play: possession seconds divided by snaps. Lower means a faster "
-            "offense; neither direction is inherently better."
-        ),
-        shape="rate",
-        polarity="neutral",
-        source="PBP",
-        denominator="offensive snaps",
-        since=1999,
-        status="planned",
-    ),
-    _off_total(
         name="no_huddle_rate",
         label="No-Huddle %",
         full_name="No-Huddle Rate",
@@ -700,17 +562,6 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP",
         since=1999,
-    ),
-    _off_total(
-        name="timeouts_used",
-        label="Timeouts",
-        full_name="Timeouts Used",
-        description="Timeouts charged to the team across the season.",
-        shape="count",
-        polarity="neutral",
-        source="PBP +TS",
-        since=1999,
-        status="planned",
     ),
 )
 
@@ -1448,59 +1299,6 @@ OFFENSE_RECEIVING_METRICS: tuple[MetricDef, ...] = (
         since=1999,
         duplicate_of="completion_pct",
     ),
-    _off_recv(
-        name="drops",
-        label="Drops",
-        full_name="Dropped Passes",
-        description="Catchable passes the receivers dropped, per PFR charting.",
-        shape="count",
-        polarity="lower",
-        source="PFR",
-        since=2018,
-        status="planned",
-    ),
-    _off_recv(
-        name="drop_rate",
-        label="Drop %",
-        full_name="Drop Rate",
-        description="Dropped passes divided by targets, per PFR charting.",
-        shape="rate",
-        polarity="lower",
-        source="PFR",
-        denominator="targets",
-        since=2018,
-        status="planned",
-    ),
-    _off_recv(
-        name="avg_separation",
-        label="Avg Separation",
-        full_name="Average Receiver Separation",
-        description=(
-            "Average yards between receivers and the nearest defender at the catch point, "
-            "from tracking data. Qualified receivers only — not a true team total."
-        ),
-        shape="avg",
-        polarity="higher",
-        source="NGS",
-        denominator="qualified-receiver targets",
-        since=2016,
-        status="planned",
-    ),
-    _off_recv(
-        name="avg_cushion",
-        label="Avg Cushion",
-        full_name="Average Cushion",
-        description=(
-            "Average yards defenders lined up off the team's receivers at the snap, from "
-            "tracking data. Qualified receivers only. A style/context stat."
-        ),
-        shape="avg",
-        polarity="neutral",
-        source="NGS",
-        denominator="qualified-receiver targets",
-        since=2016,
-        status="planned",
-    ),
 )
 
 OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
@@ -1526,17 +1324,6 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
         duplicate_of="scrimmage_tds",
     ),
     _off_score(
-        name="offensive_points",
-        label="Off Points",
-        full_name="Offensive Points",
-        description="Points produced by offensive drives, including kicks they set up.",
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _off_score(
         name="points_per_drive",
         label="Pts/Drive",
         full_name="Points Per Drive",
@@ -1546,18 +1333,6 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="drives",
         since=1999,
-    ),
-    _off_score(
-        name="td_rate_per_drive",
-        label="TD %/Drive",
-        full_name="Touchdown Rate Per Drive",
-        description="The share of offensive drives that ended in a touchdown.",
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="drives",
-        since=1999,
-        status="planned",
     ),
     _off_score(
         name="red_zone_trips",
@@ -1636,30 +1411,6 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
 )
 
 OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
-    _off_downs(
-        name="first_downs_rush",
-        label="Rush 1Ds (Downs)",
-        full_name="First Downs by Rush",
-        description="First downs gained on running plays.",
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        duplicate_of="rushing_first_downs",
-        status="planned",
-    ),
-    _off_downs(
-        name="first_downs_pass",
-        label="Pass 1Ds (Downs)",
-        full_name="First Downs by Pass",
-        description="First downs gained on passing plays.",
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        duplicate_of="passing_first_downs",
-        status="planned",
-    ),
     _off_downs(
         name="first_downs_penalty",
         label="Penalty 1Ds",
@@ -2777,17 +2528,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         since=1999,
     ),
     _def_press(
-        name="def_tackles_for_loss_yards",
-        label="TFL Yds",
-        full_name="Tackle-for-Loss Yards",
-        description="Yards opponents lost on tackles behind the line.",
-        shape="count",
-        polarity="higher",
-        source="PLS +TS",
-        since=1999,
-        status="planned",
-    ),
-    _def_press(
         name="stuff_rate",
         label="Stuff %",
         full_name="Run Stuff Rate",
@@ -2797,28 +2537,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent carries",
         since=1999,
-    ),
-    _def_press(
-        name="def_tackles_solo",
-        label="Solo Tackles",
-        full_name="Solo Tackles",
-        description="Unassisted tackles made by the defense.",
-        shape="count",
-        polarity="neutral",
-        source="PLS +TS",
-        since=1999,
-        status="planned",
-    ),
-    _def_press(
-        name="def_tackle_assists",
-        label="Tackle Assists",
-        full_name="Tackle Assists",
-        description="Assisted tackles credited to the defense.",
-        shape="count",
-        polarity="neutral",
-        source="PLS +TS",
-        since=1999,
-        status="planned",
     ),
     _def_press(
         name="havoc_rate",
@@ -2833,42 +2551,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="defensive snaps",
         since=1999,
-    ),
-    _def_press(
-        name="pressure_rate",
-        label="Pressure %",
-        full_name="Pressure Rate",
-        description="Quarterback pressures divided by opponent dropbacks, per PFR charting.",
-        shape="rate",
-        polarity="higher",
-        source="PFR",
-        denominator="opponent dropbacks",
-        since=2018,
-        status="planned",
-    ),
-    _def_press(
-        name="blitz_rate",
-        label="Blitz %",
-        full_name="Blitz Rate",
-        description="Blitzes divided by opponent dropbacks, per PFR charting. A style stat.",
-        shape="rate",
-        polarity="neutral",
-        source="PFR",
-        denominator="opponent dropbacks",
-        since=2018,
-        status="planned",
-    ),
-    _def_press(
-        name="missed_tackle_rate",
-        label="Missed Tackle %",
-        full_name="Missed Tackle Rate",
-        description="Missed tackles divided by tackle attempts, per PFR charting.",
-        shape="rate",
-        polarity="lower",
-        source="PFR",
-        denominator="tackle attempts",
-        since=2018,
-        status="planned",
     ),
     _def_press(
         name="defensive_2pt_conversions",
@@ -2923,378 +2605,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
 )
 
 SPECIAL_TEAMS_METRICS: tuple[MetricDef, ...] = (
-    _st_kick(
-        name="fg_att",
-        label="FG Att",
-        full_name="Field Goal Attempts",
-        description="Field goals attempted.",
-        shape="count",
-        polarity="neutral",
-        source="PBP +TS",
-        since=1999,
-        status="planned",
-    ),
-    _st_kick(
-        name="fg_made",
-        label="FG Made",
-        full_name="Field Goals Made",
-        description="Field goals converted.",
-        shape="count",
-        polarity="higher",
-        source="PBP +TS",
-        since=1999,
-        status="planned",
-    ),
-    _st_kick(
-        name="fg_pct",
-        label="FG %",
-        full_name="Field Goal Percentage",
-        description="Field goals made divided by attempts.",
-        shape="rate",
-        polarity="higher",
-        source="PBP +TS",
-        denominator="field-goal attempts",
-        since=1999,
-        status="planned",
-    ),
-    _st_kick(
-        name="fg_long",
-        label="FG Long",
-        full_name="Longest Field Goal",
-        description="The longest field goal made this season, in yards.",
-        shape="count",
-        polarity="higher",
-        source="PBP +TS",
-        since=1999,
-        status="planned",
-    ),
-    _st_kick(
-        name="fg_blocked",
-        label="FG Blocked",
-        full_name="Field Goals Blocked",
-        description="The team's field-goal tries that were blocked.",
-        shape="count",
-        polarity="lower",
-        source="PBP +TS",
-        since=1999,
-        status="planned",
-    ),
-    _st_kick(
-        name="pat_att",
-        label="XP Att",
-        full_name="Extra Point Attempts",
-        description="Extra points attempted after touchdowns.",
-        shape="count",
-        polarity="neutral",
-        source="PBP +TS",
-        since=1999,
-        status="planned",
-    ),
-    _st_kick(
-        name="pat_made",
-        label="XP Made",
-        full_name="Extra Points Made",
-        description="Extra points converted.",
-        shape="count",
-        polarity="higher",
-        source="PBP +TS",
-        since=1999,
-        status="planned",
-    ),
-    _st_kick(
-        name="pat_pct",
-        label="XP %",
-        full_name="Extra Point Percentage",
-        description="Extra points made divided by attempts.",
-        shape="rate",
-        polarity="higher",
-        source="PBP +TS",
-        denominator="extra-point attempts",
-        since=1999,
-        status="planned",
-    ),
-    _st_kick(
-        name="kicking_points",
-        label="Kicking Pts",
-        full_name="Kicking Points",
-        description="Points from field goals and extra points combined.",
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _st_kick(
-        name="fg_pct_over_expected",
-        label="FG % +/-",
-        full_name="Field Goal Percentage Over Expected",
-        description=(
-            "Make rate compared with what an average kicker would make from the same "
-            "distances. Positive means the kicker beat expectations."
-        ),
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="field-goal attempts (distance-based model)",
-        since=1999,
-        status="planned",
-    ),
-    _st_ko(
-        name="kickoffs",
-        label="Kickoffs",
-        full_name="Kickoffs",
-        description="Kickoffs by this team.",
-        shape="count",
-        polarity="neutral",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _st_ko(
-        name="kickoff_touchback_pct",
-        label="KO Touchback %",
-        full_name="Kickoff Touchback Percentage",
-        description=(
-            "The share of kickoffs that went for touchbacks. The 2024 kickoff rule change "
-            "makes cross-era comparisons unreliable."
-        ),
-        shape="rate",
-        polarity="neutral",
-        source="PBP",
-        denominator="kickoffs",
-        since=1999,
-        status="planned",
-    ),
-    _st_ko(
-        name="kickoff_return_yards_allowed",
-        label="KO Ret Yds Allowed",
-        full_name="Kickoff Return Yards Allowed",
-        description="Return yards given up by the kickoff coverage unit.",
-        shape="count",
-        polarity="lower",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _st_ko(
-        name="avg_opponent_start_after_kickoff",
-        label="Opp Start After KO",
-        full_name="Average Opponent Start After Kickoff",
-        description="Where opponents started drives after this team's kickoffs, on average.",
-        shape="avg",
-        polarity="lower",
-        source="PBP",
-        denominator="kickoffs",
-        since=1999,
-        status="planned",
-    ),
-    _st_ko(
-        name="onside_recoveries",
-        label="Onside Rec",
-        full_name="Onside Kick Recoveries",
-        description="Onside kicks this team kicked and recovered.",
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _st_kr(
-        name="kickoff_returns",
-        label="KO Returns",
-        full_name="Kickoff Returns",
-        description="Kickoffs returned by this team.",
-        shape="count",
-        polarity="neutral",
-        source="PBP +TS",
-        since=1999,
-        status="planned",
-    ),
-    _st_kr(
-        name="kickoff_return_yards",
-        label="KO Ret Yds",
-        full_name="Kickoff Return Yards",
-        description="Yards gained returning kickoffs.",
-        shape="count",
-        polarity="higher",
-        source="PBP +TS",
-        since=1999,
-        status="planned",
-    ),
-    _st_kr(
-        name="yards_per_kickoff_return",
-        label="Yds/KO Ret",
-        full_name="Yards Per Kickoff Return",
-        description="Average yards gained per kickoff return.",
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="kickoff returns",
-        since=1999,
-        status="planned",
-    ),
-    _st_kr(
-        name="kickoff_return_tds",
-        label="KO Ret TDs",
-        full_name="Kickoff Return Touchdowns",
-        description="Kickoffs returned all the way for touchdowns.",
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _st_punt(
-        name="punts",
-        label="Punts",
-        full_name="Punts",
-        description="Times this team punted the ball away.",
-        shape="count",
-        polarity="neutral",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _st_punt(
-        name="punt_gross_avg",
-        label="Gross Punt Avg",
-        full_name="Gross Punt Average",
-        description="Average punt distance before returns are counted.",
-        shape="avg",
-        polarity="higher",
-        source="PBP",
-        denominator="punts",
-        since=1999,
-        status="planned",
-    ),
-    _st_punt(
-        name="punt_net_avg",
-        label="Net Punt Avg",
-        full_name="Net Punt Average",
-        description=(
-            "Average field position actually gained per punt after subtracting returns and "
-            "touchbacks — the better punting measure."
-        ),
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="punts",
-        since=1999,
-        status="planned",
-    ),
-    _st_punt(
-        name="punt_inside_20_pct",
-        label="Inside-20 %",
-        full_name="Punts Inside the 20 Percentage",
-        description="The share of punts downed inside the opponent's 20-yard line.",
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="punts",
-        since=1999,
-        status="planned",
-    ),
-    _st_punt(
-        name="punts_blocked",
-        label="Punts Blocked",
-        full_name="Punts Blocked",
-        description="The team's punts that were blocked.",
-        shape="count",
-        polarity="lower",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _st_punt(
-        name="punt_return_yards_allowed",
-        label="Punt Ret Yds Allowed",
-        full_name="Punt Return Yards Allowed",
-        description="Return yards given up by the punt coverage unit.",
-        shape="count",
-        polarity="lower",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _st_pr(
-        name="punt_returns",
-        label="Punt Returns",
-        full_name="Punt Returns",
-        description="Punts returned by this team.",
-        shape="count",
-        polarity="neutral",
-        source="PBP +TS",
-        since=1999,
-        status="planned",
-    ),
-    _st_pr(
-        name="punt_return_yards",
-        label="Punt Ret Yds",
-        full_name="Punt Return Yards",
-        description="Yards gained returning punts.",
-        shape="count",
-        polarity="higher",
-        source="PBP +TS",
-        since=1999,
-        status="planned",
-    ),
-    _st_pr(
-        name="yards_per_punt_return",
-        label="Yds/Punt Ret",
-        full_name="Yards Per Punt Return",
-        description="Average yards gained per punt return.",
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="punt returns",
-        since=1999,
-        status="planned",
-    ),
-    _st_pr(
-        name="punt_return_tds",
-        label="Punt Ret TDs",
-        full_name="Punt Return Touchdowns",
-        description="Punts returned all the way for touchdowns.",
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _st_pr(
-        name="muffed_punts",
-        label="Muffed Punts",
-        full_name="Muffed Punts",
-        description="Punts the return unit fumbled while fielding.",
-        shape="count",
-        polarity="lower",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _st_score(
-        name="special_teams_tds",
-        label="ST TDs",
-        full_name="Special Teams Touchdowns",
-        description="Kick and punt return touchdowns combined.",
-        shape="count",
-        polarity="higher",
-        source="PBP +TS",
-        since=1999,
-        status="planned",
-    ),
-    _st_score(
-        name="kicks_blocked_forced",
-        label="Blocks Forced",
-        full_name="Kicks Blocked (Forced)",
-        description="Opponent punts, field goals, and extra points this team blocked.",
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _st_score(
+    _special_teams(
         name="st_plays",
         label="ST Plays",
         full_name="Special Teams Plays",
@@ -3307,7 +2618,7 @@ SPECIAL_TEAMS_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         since=1999,
     ),
-    _st_score(
+    _special_teams(
         name="st_epa",
         label="ST EPA",
         full_name="Special Teams EPA",
@@ -3320,22 +2631,10 @@ SPECIAL_TEAMS_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         since=1999,
     ),
-    _st_score(
-        name="st_penalties",
-        label="ST Penalties",
-        full_name="Special Teams Penalties",
-        description="Penalties committed on special-teams plays.",
-        shape="count",
-        polarity="lower",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
 )
 
 TEAM_METRICS: tuple[MetricDef, ...] = (
     RATING_METRICS
-    + REFERENCE_METRICS
     + OVERALL_METRICS
     + OFFENSE_TOTAL_METRICS
     + OFFENSE_PASSING_METRICS

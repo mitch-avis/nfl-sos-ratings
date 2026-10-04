@@ -225,7 +225,6 @@ class MetricRegistry:
                     "denominator": metric.denominator,
                     "since": metric.since,
                     "duplicate_of": metric.duplicate_of,
-                    "status": metric.status,
                     "contextual": metric.contextual,
                     "formula": metric.formula,
                     "note": metric.note,

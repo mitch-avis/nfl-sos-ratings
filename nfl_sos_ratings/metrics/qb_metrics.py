@@ -1,8 +1,6 @@
-"""Quarterback metric definitions — every QB stat published or planned.
+"""Quarterback metric definitions: every QB column the pipeline publishes.
 
-Entries with ``status="implemented"`` cover every QB column the pipeline
-writes today. Entries with ``status="planned"`` encode the full QB catalog in
-[docs/qb-stats-catalog.md](../../docs/qb-stats-catalog.md).
+Human-readable companion: [docs/qb-stats-catalog.md](../../docs/qb-stats-catalog.md).
 """
 
 from __future__ import annotations
@@ -10,11 +8,9 @@ from __future__ import annotations
 from nfl_sos_ratings.metrics.schema import MetricDef, section
 
 _ratings = section("qb", "Schedule-Adjusted Ratings")
-_reference = section("qb", "External & Reference Ratings")
 _identity = section("qb", "Identity & Availability")
 _volume = section("qb", "Passing Volume")
 _efficiency = section("qb", "Passing Efficiency")
-_advanced = section("qb", "Advanced & Expected")
 _pressure = section("qb", "Pressure, Sacks & Pocket")
 _rushing = section("qb", "Rushing")
 _clutch = section("qb", "Scoring, Clutch & Outcomes")
@@ -136,40 +132,6 @@ QB_IDENTITY_METRICS: tuple[MetricDef, ...] = (
         polarity="neutral",
         source="D",
     ),
-    _identity(
-        name="qb_games_started",
-        label="QB Starts",
-        full_name="QB Games Started",
-        description="Games in which this quarterback was the team's primary passer.",
-        shape="count",
-        polarity="neutral",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _identity(
-        name="qb_snap_share",
-        label="Snap Share",
-        full_name="QB Snap Share",
-        description="The quarterback's snaps divided by the team's offensive snaps.",
-        shape="rate",
-        polarity="neutral",
-        source="SNP",
-        denominator="team offensive snaps",
-        since=2012,
-        status="planned",
-    ),
-    _identity(
-        name="qb_plays",
-        label="QB Plays",
-        full_name="QB Plays",
-        description="Dropbacks plus designed carries — the quarterback's total usage.",
-        shape="count",
-        polarity="neutral",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
 )
 
 QB_VOLUME_METRICS: tuple[MetricDef, ...] = (
@@ -235,108 +197,6 @@ QB_VOLUME_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PLS",
         since=1999,
-    ),
-    _volume(
-        name="qb_net_pass_yards",
-        label="Net Pass Yds",
-        full_name="QB Net Passing Yards",
-        description="Passing yards minus yards lost to sacks.",
-        shape="count",
-        polarity="higher",
-        source="D",
-        since=1999,
-        status="planned",
-    ),
-    _volume(
-        name="qb_passing_first_downs",
-        label="Pass 1Ds",
-        full_name="QB Passing First Downs",
-        description="First downs gained on this quarterback's passes.",
-        shape="count",
-        polarity="higher",
-        source="PLS",
-        since=1999,
-        status="planned",
-    ),
-    _volume(
-        name="qb_passing_air_yards",
-        label="Air Yds",
-        full_name="QB Passing Air Yards",
-        description=(
-            "Total distance the ball traveled past the line of scrimmage on all throws, "
-            "including incompletions."
-        ),
-        shape="count",
-        polarity="neutral",
-        source="PLS",
-        since=2006,
-        status="planned",
-    ),
-    _volume(
-        name="qb_passing_yards_after_catch",
-        label="YAC",
-        full_name="QB Passing Yards After Catch",
-        description="Yards receivers gained after catching this quarterback's passes.",
-        shape="count",
-        polarity="higher",
-        source="PLS",
-        since=1999,
-        status="planned",
-    ),
-    _volume(
-        name="qb_passing_2pt_conversions",
-        label="2-Pt Passes",
-        full_name="QB Two-Point Conversion Passes",
-        description="Successful two-point conversions thrown.",
-        shape="count",
-        polarity="higher",
-        source="PLS",
-        since=1999,
-        status="planned",
-    ),
-    _volume(
-        name="qb_explosive_completions",
-        label="20+ Yd Comp",
-        full_name="QB Explosive Completions",
-        description="Completions that gained 20 or more yards.",
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _volume(
-        name="qb_longest_completion",
-        label="Long",
-        full_name="QB Longest Completion",
-        description="The quarterback's longest completed pass, in yards.",
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _volume(
-        name="qb_spikes",
-        label="Spikes",
-        full_name="QB Spikes",
-        description="Clock-stopping spikes (excluded from accuracy rates).",
-        shape="count",
-        polarity="neutral",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _volume(
-        name="qb_throwaways",
-        label="Throwaways",
-        full_name="QB Throwaways",
-        description="Intentional incompletions thrown away under pressure, per PFR charting.",
-        shape="count",
-        polarity="neutral",
-        source="PFR",
-        since=2018,
-        status="planned",
     ),
 )
 
@@ -469,438 +329,6 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
         denominator="pass attempts",
         since=1999,
     ),
-    _efficiency(
-        name="qb_net_yards_per_attempt",
-        label="NY/A",
-        full_name="QB Net Yards Per Attempt",
-        description="Passing yards minus sack yards, divided by attempts plus sacks.",
-        shape="rate",
-        polarity="higher",
-        source="D",
-        denominator="pass attempts + sacks",
-        since=1999,
-        status="planned",
-    ),
-    _efficiency(
-        name="qb_adjusted_yards_per_attempt",
-        label="AY/A",
-        full_name="QB Adjusted Yards Per Attempt",
-        description=(
-            "Yards per attempt with a +20-yard bonus per touchdown and a -45-yard penalty "
-            "per interception (ANY/A without the sack terms)."
-        ),
-        shape="rate",
-        polarity="higher",
-        source="D",
-        denominator="pass attempts",
-        since=1999,
-        duplicate_of="qb_any_a",
-        status="planned",
-    ),
-    _efficiency(
-        name="qb_success_rate",
-        label="Success %",
-        full_name="QB Success Rate",
-        description=(
-            "The share of dropbacks that improved the team's expected points — a "
-            "consistency measure that ignores how big each play was."
-        ),
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="dropbacks",
-        since=1999,
-        status="planned",
-    ),
-    _efficiency(
-        name="qb_first_down_rate_per_dropback",
-        label="1D %/DB",
-        full_name="QB First Down Rate Per Dropback",
-        description="Passing first downs divided by dropbacks.",
-        shape="rate",
-        polarity="higher",
-        source="D",
-        denominator="dropbacks",
-        since=1999,
-        status="planned",
-    ),
-    _efficiency(
-        name="qb_adot",
-        label="aDOT",
-        full_name="QB Average Depth of Target",
-        description=(
-            "How far downfield the average throw traveled. A style measure of "
-            "aggressiveness, not a quality grade."
-        ),
-        shape="rate",
-        polarity="neutral",
-        source="D",
-        denominator="pass attempts",
-        since=2006,
-        status="planned",
-    ),
-    _efficiency(
-        name="qb_pacr",
-        label="PACR",
-        full_name="QB Passing Air Conversion Ratio",
-        description=(
-            "Passing yards divided by air yards — how efficiently intended depth turned "
-            "into actual yards."
-        ),
-        shape="rate",
-        polarity="higher",
-        source="PLS",
-        denominator="air yards",
-        since=2006,
-        status="planned",
-    ),
-    _efficiency(
-        name="qb_explosive_pass_rate",
-        label="Explosive %",
-        full_name="QB Explosive Pass Rate",
-        description="Completions of 20+ yards divided by dropbacks.",
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="dropbacks",
-        since=1999,
-        status="planned",
-    ),
-    _efficiency(
-        name="qb_deep_attempt_rate",
-        label="Deep Att %",
-        full_name="QB Deep Attempt Rate",
-        description="The share of attempts thrown deep. A style stat.",
-        shape="rate",
-        polarity="neutral",
-        source="PBP",
-        denominator="pass attempts",
-        since=1999,
-        status="planned",
-    ),
-    _efficiency(
-        name="qb_air_epa_per_dropback",
-        label="Air EPA/DB",
-        full_name="QB Air EPA Per Dropback",
-        description="The share of EPA created by the throw itself, per dropback.",
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="dropbacks",
-        since=1999,
-        status="planned",
-    ),
-    _efficiency(
-        name="qb_yac_epa_per_dropback",
-        label="YAC EPA/DB",
-        full_name="QB YAC EPA Per Dropback",
-        description=(
-            "The share of EPA created after the catch, per dropback — largely a "
-            "supporting-cast measure."
-        ),
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="dropbacks",
-        since=1999,
-        status="planned",
-    ),
-    _efficiency(
-        name="qb_xyac_per_completion",
-        label="xYAC/Comp",
-        full_name="QB Expected YAC Per Completion",
-        description=(
-            "Yards after catch an average receiver would have gained on the same catches "
-            "— context for how much help the quarterback received."
-        ),
-        shape="avg",
-        polarity="neutral",
-        source="PBP",
-        denominator="completions",
-        since=2006,
-        status="planned",
-    ),
-    _efficiency(
-        name="qb_yac_over_expected",
-        label="YAC +/-",
-        full_name="QB YAC Over Expected",
-        description="Actual minus expected yards after catch on this QB's completions.",
-        shape="avg",
-        polarity="higher",
-        source="PBP",
-        denominator="completions",
-        since=2006,
-        status="planned",
-    ),
-    _efficiency(
-        name="qb_wpa_total",
-        label="WPA",
-        full_name="QB Win Probability Added",
-        description=(
-            "How much this quarterback's dropbacks moved the team's chance of winning, "
-            "summed over the season."
-        ),
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-)
-
-QB_ADVANCED_METRICS: tuple[MetricDef, ...] = (
-    _reference(
-        name="qb_qbr_total",
-        label="QBR",
-        full_name="ESPN Total QBR",
-        description=(
-            "ESPN's 0-100 quarterback rating, which weights plays by importance and "
-            "includes ESPN's own opponent adjustment. Shown for reference alongside this "
-            "site's schedule-adjusted ratings."
-        ),
-        shape="score",
-        polarity="higher",
-        source="QBR",
-        since=2006,
-        status="planned",
-    ),
-    _reference(
-        name="qb_qbr_raw",
-        label="Raw QBR",
-        full_name="ESPN Raw QBR",
-        description=(
-            "ESPN's QBR before its opponent adjustment — the preferred version to feed "
-            "this project's own schedule adjustment, so opponent strength is not counted "
-            "twice."
-        ),
-        shape="score",
-        polarity="higher",
-        source="QBR",
-        since=2006,
-        status="planned",
-    ),
-    _reference(
-        name="qb_pts_added",
-        label="Pts Added",
-        full_name="ESPN Points Added",
-        description="ESPN's estimate of points contributed above an average quarterback.",
-        shape="count",
-        polarity="higher",
-        source="QBR",
-        since=2006,
-        status="planned",
-    ),
-    _reference(
-        name="qb_qbr_plays",
-        label="QBR Plays",
-        full_name="ESPN QBR Plays",
-        description="ESPN's action-play count, a useful cross-check on dropbacks.",
-        shape="count",
-        polarity="neutral",
-        source="QBR",
-        since=2006,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_avg_time_to_throw",
-        label="Time to Throw",
-        full_name="NGS Average Time to Throw",
-        description=(
-            "Seconds from snap to release, from player tracking. Quick releases mitigate "
-            "pressure; a style measure."
-        ),
-        shape="avg",
-        polarity="neutral",
-        source="NGS",
-        denominator="pass attempts (tracking)",
-        since=2016,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_avg_completed_air_yards",
-        label="Comp Air Yds",
-        full_name="NGS Average Completed Air Yards",
-        description="Average downfield distance of completed passes, from tracking.",
-        shape="avg",
-        polarity="neutral",
-        source="NGS",
-        denominator="completions (tracking)",
-        since=2016,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_avg_intended_air_yards",
-        label="Intended Air Yds",
-        full_name="NGS Average Intended Air Yards",
-        description="Average downfield distance of all throws, from tracking (NGS aDOT).",
-        shape="avg",
-        polarity="neutral",
-        source="NGS",
-        denominator="pass attempts (tracking)",
-        since=2016,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_avg_air_yards_differential",
-        label="Air Yds Diff",
-        full_name="NGS Air Yards Differential",
-        description="Completed minus intended air yards — how much depth is completed.",
-        shape="avg",
-        polarity="higher",
-        source="NGS",
-        denominator="pass attempts (tracking)",
-        since=2016,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_aggressiveness",
-        label="AGG %",
-        full_name="NGS Aggressiveness",
-        description=(
-            "The share of throws into tight coverage (a defender within a yard), from "
-            "tracking. A risk-style measure."
-        ),
-        shape="avg",
-        polarity="neutral",
-        source="NGS",
-        denominator="pass attempts (tracking)",
-        since=2016,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_avg_air_yards_to_sticks",
-        label="AYTS",
-        full_name="NGS Air Yards to the Sticks",
-        description=(
-            "How far beyond (or short of) the first-down marker the average throw "
-            "traveled. Positive means attacking past the sticks."
-        ),
-        shape="avg",
-        polarity="neutral",
-        source="NGS",
-        denominator="pass attempts (tracking)",
-        since=2016,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_max_completed_air_distance",
-        label="Max Air Dist",
-        full_name="NGS Max Completed Air Distance",
-        description="The longest true air distance on a completion, from tracking.",
-        shape="count",
-        polarity="higher",
-        source="NGS",
-        since=2016,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_expected_completion_percentage",
-        label="xCOMP %",
-        full_name="NGS Expected Completion Percentage",
-        description=(
-            "The completion rate an average quarterback would post on the same throws, "
-            "from tracking — context for throw difficulty."
-        ),
-        shape="avg",
-        polarity="neutral",
-        source="NGS",
-        denominator="pass attempts (tracking)",
-        since=2016,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_ngs_cpoe",
-        label="NGS CPOE",
-        full_name="NGS Completion Percentage Above Expectation",
-        description=(
-            "Tracking-based completion rate above expectation. A different model from the "
-            "play-by-play CPOE shown elsewhere — the two are never mixed in ratings."
-        ),
-        shape="avg",
-        polarity="higher",
-        source="NGS",
-        denominator="pass attempts (tracking)",
-        since=2016,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_on_tgt_pct",
-        label="On-Target %",
-        full_name="PFR On-Target Percentage",
-        description="The share of throws charted as accurate to the receiver, per PFR.",
-        shape="rate",
-        polarity="higher",
-        source="PFR",
-        denominator="charted attempts",
-        since=2019,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_bad_throw_pct",
-        label="Bad Throw %",
-        full_name="PFR Bad Throw Percentage",
-        description="The share of throws charted as poor, per PFR. Lower is better.",
-        shape="rate",
-        polarity="lower",
-        source="PFR",
-        denominator="charted attempts",
-        since=2018,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_batted_balls",
-        label="Batted",
-        full_name="PFR Batted Balls",
-        description="Passes knocked down at the line of scrimmage, per PFR charting.",
-        shape="count",
-        polarity="lower",
-        source="PFR",
-        since=2019,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_drop_adjusted_comp_pct",
-        label="Drop-Adj Comp %",
-        full_name="Drop-Adjusted Completion Percentage",
-        description=(
-            "Completion rate after crediting receiver drops back to the quarterback and "
-            "removing throwaways, spikes, and batted balls — accuracy isolated from "
-            "supporting-cast noise."
-        ),
-        shape="rate",
-        polarity="higher",
-        source="D",
-        denominator="attempts - throwaways - spikes - batted balls",
-        since=2019,
-        formula="(completions + drops) / (attempts - throwaways - spikes - batted_balls)",
-        status="planned",
-    ),
-    _advanced(
-        name="qb_rpo_plays",
-        label="RPO Plays",
-        full_name="PFR Run-Pass Option Plays",
-        description="Run-pass option plays run with this quarterback, per PFR charting.",
-        shape="count",
-        polarity="neutral",
-        source="PFR",
-        since=2019,
-        status="planned",
-    ),
-    _advanced(
-        name="qb_pa_pass_att",
-        label="PA Att",
-        full_name="PFR Play-Action Attempts",
-        description=(
-            "Pass attempts off play-action fakes, per PFR charting. Only tracked from "
-            "2019 through 2023."
-        ),
-        shape="count",
-        polarity="neutral",
-        source="PFR",
-        since=2019,
-        note="Discontinued upstream after 2023.",
-        status="planned",
-    ),
 )
 
 QB_PRESSURE_METRICS: tuple[MetricDef, ...] = (
@@ -950,67 +378,6 @@ QB_PRESSURE_METRICS: tuple[MetricDef, ...] = (
         since=1999,
     ),
     _pressure(
-        name="qb_sack_fumbles",
-        label="Sack Fumbles",
-        full_name="QB Sack Fumbles",
-        description="Fumbles on sacks, whether or not the ball was lost.",
-        shape="count",
-        polarity="lower",
-        source="PLS",
-        since=1999,
-        status="planned",
-    ),
-    _pressure(
-        name="qb_qb_hits_taken",
-        label="Hits Taken",
-        full_name="QB Hits Taken",
-        description="Hits absorbed beyond sacks.",
-        shape="count",
-        polarity="lower",
-        source="PBP",
-        since=1999,
-        status="planned",
-    ),
-    _pressure(
-        name="qb_pressure_rate_faced",
-        label="Pressure % Faced",
-        full_name="QB Pressure Rate Faced",
-        description=(
-            "The share of dropbacks under pressure, per PFR charting. Context for the "
-            "efficiency stats: some quarterbacks live under siege."
-        ),
-        shape="rate",
-        polarity="lower",
-        source="PFR",
-        denominator="dropbacks",
-        since=2018,
-        status="planned",
-    ),
-    _pressure(
-        name="qb_blitz_rate_faced",
-        label="Blitz % Faced",
-        full_name="QB Blitz Rate Faced",
-        description="The share of dropbacks against a blitz, per PFR charting.",
-        shape="rate",
-        polarity="neutral",
-        source="PFR",
-        denominator="dropbacks",
-        since=2018,
-        status="planned",
-    ),
-    _pressure(
-        name="qb_pocket_time",
-        label="Pocket Time",
-        full_name="QB Average Pocket Time",
-        description="Average seconds the pocket held before pressure or throw, per PFR.",
-        shape="avg",
-        polarity="neutral",
-        source="PFR",
-        denominator="dropbacks (charted)",
-        since=2018,
-        status="planned",
-    ),
-    _pressure(
         name="qb_scramble_rate",
         label="Scramble %",
         full_name="QB Scramble Rate",
@@ -1020,21 +387,6 @@ QB_PRESSURE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="dropbacks",
         since=1999,
-    ),
-    _pressure(
-        name="qb_sack_rate_vs_pressure",
-        label="Sack %/Pressure",
-        full_name="QB Sacks Per Pressure",
-        description=(
-            "Sacks divided by pressures faced — how often pressure turned into a sack. "
-            "Lower means better escape ability."
-        ),
-        shape="rate",
-        polarity="lower",
-        source="D",
-        denominator="pressures faced",
-        since=2018,
-        status="planned",
     ),
 )
 
@@ -1211,30 +563,6 @@ QB_RUSHING_METRICS: tuple[MetricDef, ...] = (
         since=1999,
     ),
     _rushing(
-        name="qb_rush_success_rate",
-        label="Rush Success %",
-        full_name="QB Rushing Success Rate",
-        description="The share of designed QB runs that improved expected points.",
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="designed carries",
-        since=1999,
-        status="planned",
-    ),
-    _rushing(
-        name="qb_explosive_rush_rate",
-        label="Explosive Rush %",
-        full_name="QB Explosive Rush Rate",
-        description="Runs of 10+ yards divided by carries.",
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="carries",
-        since=1999,
-        status="planned",
-    ),
-    _rushing(
         name="qb_rushing_2pt_conversions",
         label="2-Pt Rushes",
         full_name="QB Two-Point Conversion Rushes",
@@ -1243,22 +571,6 @@ QB_RUSHING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PLS",
         since=1999,
-    ),
-    _rushing(
-        name="qb_total_epa_per_play",
-        label="Total EPA/Play",
-        full_name="QB Total EPA Per Play",
-        description=(
-            "Passing plus rushing expected points added, divided by dropbacks plus "
-            "designed carries — the headline dual-threat efficiency stat."
-        ),
-        shape="rate",
-        polarity="higher",
-        source="D",
-        denominator="dropbacks + designed carries",
-        since=1999,
-        formula="(passing_epa + rushing_epa) / (dropbacks + designed_carries)",
-        status="planned",
     ),
 )
 
@@ -1362,91 +674,6 @@ QB_CLUTCH_METRICS: tuple[MetricDef, ...] = (
         source="D",
         since=1999,
     ),
-    _clutch(
-        name="qb_total_tds",
-        label="Total TDs",
-        full_name="QB Total Touchdowns",
-        description="Passing plus rushing touchdowns — all scores the QB accounted for.",
-        shape="count",
-        polarity="higher",
-        source="D",
-        since=1999,
-        status="planned",
-    ),
-    _clutch(
-        name="qb_total_td_rate",
-        label="Total TD %",
-        full_name="QB Total Touchdown Rate",
-        description="Total touchdowns divided by dropbacks plus designed carries.",
-        shape="rate",
-        polarity="higher",
-        source="D",
-        denominator="dropbacks + designed carries",
-        since=1999,
-        status="planned",
-    ),
-    _clutch(
-        name="qb_red_zone_td_pass_pct",
-        label="RZ TD %",
-        full_name="QB Red Zone Touchdown Pass Percentage",
-        description="Touchdown passes divided by attempts inside the opponent's 20.",
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="red-zone pass attempts",
-        since=1999,
-        status="planned",
-    ),
-    _clutch(
-        name="qb_red_zone_epa_per_dropback",
-        label="RZ EPA/DB",
-        full_name="QB Red Zone EPA Per Dropback",
-        description="Expected points added per dropback inside the opponent's 20.",
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="red-zone dropbacks",
-        since=1999,
-        status="planned",
-    ),
-    _clutch(
-        name="qb_2pt_conversions",
-        label="2-Pt Conv",
-        full_name="QB Two-Point Conversions",
-        description="Two-point conversions passed or run in.",
-        shape="count",
-        polarity="higher",
-        source="PLS",
-        since=1999,
-        status="planned",
-    ),
-    _clutch(
-        name="qb_late_close_epa_per_dropback",
-        label="Clutch EPA/DB",
-        full_name="QB Late & Close EPA Per Dropback",
-        description=(
-            "EPA per dropback in the fourth quarter or overtime of one-score games — "
-            "performance when it mattered most."
-        ),
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="late-and-close dropbacks",
-        since=1999,
-        status="planned",
-    ),
-    _clutch(
-        name="qb_third_down_conversion_rate",
-        label="3rd Down Conv %",
-        full_name="QB Third Down Conversion Rate",
-        description="Third-down dropbacks converted into first downs or touchdowns.",
-        shape="rate",
-        polarity="higher",
-        source="PBP",
-        denominator="third-down dropbacks",
-        since=1999,
-        status="planned",
-    ),
 )
 
 QB_TURNOVER_METRICS: tuple[MetricDef, ...] = (
@@ -1459,28 +686,6 @@ QB_TURNOVER_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="D",
         since=1999,
-    ),
-    _turnovers(
-        name="qb_fumbles",
-        label="Fumbles",
-        full_name="QB Fumbles",
-        description="Sack and rushing fumbles combined, whether or not lost.",
-        shape="count",
-        polarity="lower",
-        source="PLS",
-        since=1999,
-        status="planned",
-    ),
-    _turnovers(
-        name="qb_fumbles_lost",
-        label="Fumbles Lost",
-        full_name="QB Fumbles Lost",
-        description="Sack and rushing fumbles the defense recovered.",
-        shape="count",
-        polarity="lower",
-        source="PLS",
-        since=1999,
-        status="planned",
     ),
     _turnovers(
         name="qb_rushing_fumbles",
@@ -1502,44 +707,6 @@ QB_TURNOVER_METRICS: tuple[MetricDef, ...] = (
         source="PLS",
         since=1999,
     ),
-    _turnovers(
-        name="qb_giveaways",
-        label="Giveaways",
-        full_name="QB Giveaways",
-        description="Interceptions plus fumbles lost.",
-        shape="count",
-        polarity="lower",
-        source="D",
-        since=1999,
-        status="planned",
-    ),
-    _turnovers(
-        name="qb_giveaway_rate",
-        label="Giveaway %",
-        full_name="QB Giveaway Rate",
-        description="Giveaways divided by dropbacks plus designed carries.",
-        shape="rate",
-        polarity="lower",
-        source="D",
-        denominator="dropbacks + designed carries",
-        since=1999,
-        status="planned",
-    ),
-    _turnovers(
-        name="qb_turnover_epa",
-        label="TO EPA",
-        full_name="QB Turnover EPA",
-        description=(
-            "Expected points lost on this quarterback's giveaway plays — how costly the "
-            "turnovers were, not just how many."
-        ),
-        shape="count",
-        polarity="higher",
-        source="PBP",
-        since=1999,
-        note="Values are negative; closer to zero means cheaper turnovers.",
-        status="planned",
-    ),
 )
 
 QB_METRICS: tuple[MetricDef, ...] = (
@@ -1547,7 +714,6 @@ QB_METRICS: tuple[MetricDef, ...] = (
     + QB_IDENTITY_METRICS
     + QB_VOLUME_METRICS
     + QB_EFFICIENCY_METRICS
-    + QB_ADVANCED_METRICS
     + QB_PRESSURE_METRICS
     + QB_RUSHING_METRICS
     + QB_CLUTCH_METRICS

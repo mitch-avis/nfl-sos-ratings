@@ -28,10 +28,6 @@ Shape = Literal["count", "rate", "avg", "flag", "id", "score"]
 Polarity = Literal["higher", "lower", "neutral"]
 """Which end of the scale is good for the subject of the row."""
 
-Status = Literal["implemented", "planned"]
-"""Whether the pipeline currently produces the metric or it is catalogued
-for the play-by-play metric expansion."""
-
 
 @dataclass(frozen=True, slots=True)
 class MetricDef:
@@ -50,7 +46,6 @@ class MetricDef:
     denominator: str | None = None
     since: int | None = None
     duplicate_of: str | None = None
-    status: Status = "implemented"
     contextual: bool = False
     formula: str | None = None
     note: str | None = None
@@ -117,7 +112,6 @@ class MetricFields(TypedDict):
     denominator: NotRequired[str | None]
     since: NotRequired[int | None]
     duplicate_of: NotRequired[str | None]
-    status: NotRequired[Status]
     contextual: NotRequired[bool]
     formula: NotRequired[str | None]
     note: NotRequired[str | None]
