@@ -6,9 +6,8 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Current state (2026-10-04)
 
-- `main` holds the points-based ratings, the follow-up work merged from `chore/audit-follow-ups`,
-  and (on branch `feat/prior-season-penalty`, not pushed) previous-season ridge penalties for the
-  team fit.
+- `main` (pushed) holds the points-based ratings, the follow-up work, and previous-season ridge
+  penalties for the team fit.
 - Published team ratings: `team_rating` (points per game against an average team) with
   `offense_rating`, `defense_rating`, and `special_teams_rating` adding up to it,
   head-to-head-excluded `sos`, and `SRS` as the score-based reference. The team fit reuses the
@@ -27,8 +26,9 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Next steps
 
-1. Push `feat/prior-season-penalty` and fast-forward `main` once the maintainer approves.
-2. Rebuild 2026 weekly as games are played (`nfl-sos-ratings season`).
+1. Rank ranges and a garbage-time win-probability filter: see
+   `.agents/rank-ranges-and-wp-filter-plan.md`.
+2. Rebuild 2026 weekly as games are played (`nfl-sos-ratings season`, ask first).
 
 ## Validation snapshot
 

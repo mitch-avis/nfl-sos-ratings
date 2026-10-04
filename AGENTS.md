@@ -132,6 +132,8 @@ next steps change. A stale plan document is a repo bug.
 - `.agents/ratings-simplification-plan.md`: the points-based rating rework, its pre-registered
   validation rule, and the remaining tasks (2026 in-season support).
 - `.agents/frontend-ui-kickoff-plan.md`: the analyst web UI.
+- `.agents/rank-ranges-and-wp-filter-plan.md`: bootstrap rank ranges and the garbage-time
+  win-probability filter.
 
 Fold completed one-off workstreams into `current-status.md` or the still-active plan instead of
 leaving stale plan files behind. When a task introduces a pattern the codebase does not have yet,
