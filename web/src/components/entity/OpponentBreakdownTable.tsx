@@ -1,11 +1,10 @@
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { useTheme } from '@/app/ThemeProvider'
-import { MetricLabel } from '@/components/common/MetricLabel'
+import { SortableHeader } from '@/components/common/SortableHeader'
 import type { OpponentBreakdownTable as Breakdown } from '@/domain/detailAnalytics'
 import { compareDetailCellValues, formatDetailCellValue } from '@/domain/detailUi'
-import { getMetricMetadata } from '@/domain/metricMetadata'
+import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
 import { buildColumnStats, getHeatCellStyle } from '@/domain/tableState'
 
 interface SortState {
@@ -62,18 +61,12 @@ export function OpponentBreakdownTable({ breakdown }: { breakdown: Breakdown }) 
                   aria-sort={sorted ? (activeSort.desc ? 'descending' : 'ascending') : undefined}
                   className="h-10 border-b px-2 text-left font-medium whitespace-nowrap text-muted-foreground"
                 >
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 hover:text-foreground"
-                    onClick={() => setSort(nextSort(column.id))}
-                  >
-                    <MetricLabel column={column.id} label={column.label} tooltip={column.tooltip} />
-                    {sorted ? (
-                      activeSort.desc ? <ArrowDown className="size-3.5" /> : <ArrowUp className="size-3.5" />
-                    ) : (
-                      <ArrowUpDown className="size-3.5 opacity-40" aria-hidden />
-                    )}
-                  </button>
+                  <SortableHeader
+                    label={column.label ?? getMetricMetadata(column.id).label}
+                    hint={column.tooltip ?? getMetricTooltip(column.id)}
+                    direction={sorted ? (activeSort.desc ? 'desc' : 'asc') : false}
+                    onSort={() => setSort(nextSort(column.id))}
+                  />
                 </th>
               )
             })}

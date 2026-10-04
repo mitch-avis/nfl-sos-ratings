@@ -17,11 +17,14 @@ export function RankIntervalTrack({
   count,
   size = 'row',
   ticks = [],
+  showPublished = size === 'row',
 }: {
   range: RankRange
   count: number
   size?: TrackSize
   ticks?: number[]
+  /** The published-rank diamond; off by default on mini tracks, which sit beside the rank. */
+  showPublished?: boolean
 }) {
   const { q025, q250, q500, q750, q975 } = range.rank
   return (
@@ -50,7 +53,7 @@ export function RankIntervalTrack({
           style={at(rankCenter(q500, count))}
         />
       ) : null}
-      {range.publishedRank !== q500 && range.publishedRank > 0 ? (
+      {showPublished && range.publishedRank !== q500 && range.publishedRank > 0 ? (
         <span
           className={cn(
             'absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-45 border-2 border-foreground bg-card',

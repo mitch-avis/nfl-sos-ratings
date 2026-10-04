@@ -6,21 +6,29 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp, ArrowUpDown, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
-import type { EntityConfig, RowValue, TablePayload } from '@/api/types'
+import type { EntityConfig, EntityKind, RowValue, TablePayload } from '@/api/types'
 import { useTheme } from '@/app/ThemeProvider'
+import { Hint } from '@/components/common/Hint'
 import { InfoTooltip } from '@/components/common/InfoTooltip'
 import { MetricLabel } from '@/components/common/MetricLabel'
+import { SortableHeader } from '@/components/common/SortableHeader'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { formatValue } from '@/domain/format'
-import { getMetricMetadata } from '@/domain/metricMetadata'
-import { ordinal, rankRangeSummary, type RankRange } from '@/domain/rankRanges'
+import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
+import {
+  ordinal,
+  rankChanceText,
+  rankRangeHeadline,
+  rankRangeSummary,
+  type RankRange,
+} from '@/domain/rankRanges'
 import { buildColumnStats, buildColumnWidths, getHeatCellStyle, sanitizeSorting } from '@/domain/tableState'
 import { cn } from '@/utils/cn'
 
@@ -47,23 +55,28 @@ interface EntityTableProps {
 const CONTROL_COLUMNS = ['compare', 'rank']
 const RANK_RANGE_COLUMN = 'rank_range'
 
-function RankRangeCell({ range, count }: { range: RankRange | undefined; count: number }) {
+function RankRangeCell({ kind, range, count }: { kind: EntityKind; range: RankRange | undefined; count: number }) {
   const { q250, q750 } = range?.rank ?? { q250: null, q750: null }
   if (!range || q250 === null || q750 === null) return <span className="text-muted-foreground">-</span>
   return (
-    <span className="flex items-center gap-2" title={rankRangeSummary(range)}>
-      <span className="w-16 text-right">{q250 === q750 ? ordinal(q250) : `${ordinal(q250)}–${ordinal(q750)}`}</span>
-      <span className="w-20">
-        <RankIntervalTrack range={range} count={count} size="mini" />
-      </span>
-    </span>
+    <Hint
+      content={
+        <>
+          <div className="font-medium">
+            {range.label}: {rankRangeHeadline(range)}
+          </div>
+          <div className="text-muted-foreground">{rankChanceText(kind, range)}</div>
+        </>
+      }
+    >
+      <button type="button" aria-label={rankRangeSummary(range)} className="flex items-center gap-2 rounded-sm text-left">
+        <span className="w-16 text-right">{q250 === q750 ? ordinal(q250) : `${ordinal(q250)}–${ordinal(q750)}`}</span>
+        <span className="w-24">
+          <RankIntervalTrack range={range} count={count} size="mini" />
+        </span>
+      </button>
+    </Hint>
   )
-}
-
-function SortIcon({ direction }: { direction: false | 'asc' | 'desc' }) {
-  if (direction === 'asc') return <ArrowUp className="size-3.5" aria-label="sorted ascending" />
-  if (direction === 'desc') return <ArrowDown className="size-3.5" aria-label="sorted descending" />
-  return <ArrowUpDown className="size-3.5 opacity-40" aria-hidden />
 }
 
 /**
@@ -141,13 +154,17 @@ export function EntityTable({
           />
         </span>
       ),
-      size: 176,
+      size: 196,
       enableSorting: false,
       cell: ({ row }) => (
-        <RankRangeCell range={byId.get(String(row.original[config.identityKey] ?? ''))} count={rankRanges.length} />
+        <RankRangeCell
+          kind={config.kind}
+          range={byId.get(String(row.original[config.identityKey] ?? ''))}
+          count={rankRanges.length}
+        />
       ),
     }
-  }, [config.defaultSortColumn, config.identityKey, rankRanges, selectedColumns])
+  }, [config.defaultSortColumn, config.identityKey, config.kind, rankRanges, selectedColumns])
 
   const columns = useMemo<ColumnDef<Row>[]>(
     () => [
@@ -256,14 +273,12 @@ export function EntityTable({
                         )}
                       >
                         {header.column.getCanSort() ? (
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 hover:text-foreground"
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            <SortIcon direction={sorted} />
-                          </button>
+                          <SortableHeader
+                            label={getMetricMetadata(header.column.id).label}
+                            hint={getMetricTooltip(header.column.id)}
+                            direction={sorted}
+                            onSort={(event) => header.column.getToggleSortingHandler()?.(event)}
+                          />
                         ) : (
                           flexRender(header.column.columnDef.header, header.getContext())
                         )}

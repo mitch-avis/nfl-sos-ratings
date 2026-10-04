@@ -1,12 +1,15 @@
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
+import { ChartTooltipCard } from '@/components/common/ChartTooltip'
 import { formatChance, ordinal, rankHistogram, type RankRange } from '@/domain/rankRanges'
+import { useHasHover } from '@/hooks/use-has-hover'
 
 /**
  * P(rank = k) across resamples: one column per rank, the published rank in the full series color
  * and the others lighter. A visually hidden table carries the same numbers for screen readers.
  */
 export function RankHistogram({ range }: { range: RankRange }) {
+  const hasHover = useHasHover()
   const bars = rankHistogram(range)
   if (bars.length === 0) return null
   // Plot whole percents so the axis picks clean ticks (0, 4, 8, ...) rather than 3.5% steps.
@@ -26,10 +29,18 @@ export function RankHistogram({ range }: { range: RankRange }) {
               tickFormatter={(value: number) => `${value}%`}
             />
             <Tooltip
-              cursor={{ fill: 'var(--muted)' }}
-              formatter={(value) => [formatChance(Number(value) / 100), 'Chance']}
-              labelFormatter={(rank) => `Ranked ${ordinal(Number(rank))}`}
-              contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8 }}
+              trigger={hasHover ? 'hover' : 'click'}
+              cursor={{ fill: 'var(--muted)', fillOpacity: 0.6 }}
+              content={({ active, payload }) => {
+                const bar = payload?.[0]?.payload as (typeof points)[number] | undefined
+                if (!active || !bar) return null
+                return (
+                  <ChartTooltipCard
+                    title={bar.published ? `Ranked ${ordinal(bar.rank)} (published rank)` : `Ranked ${ordinal(bar.rank)}`}
+                    rows={[{ label: 'Share of resamples', value: formatChance(bar.probability), color: 'var(--chart-1)' }]}
+                  />
+                )
+              }}
             />
             <Bar dataKey="percent" maxBarSize={24} radius={[4, 4, 0, 0]} isAnimationActive={false}>
               {points.map((bar) => (

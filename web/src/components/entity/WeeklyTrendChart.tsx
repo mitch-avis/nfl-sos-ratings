@@ -11,10 +11,12 @@ import {
 } from 'recharts'
 
 import type { RowValue } from '@/api/types'
+import { ChartTooltipCard } from '@/components/common/ChartTooltip'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatValue } from '@/domain/format'
 import { getMetricMetadata } from '@/domain/metricMetadata'
 import { buildTrendPoints, meanReference, type TrendPoint, type TrendReference } from '@/domain/trend'
+import { useHasHover } from '@/hooks/use-has-hover'
 
 /**
  * A line chart of one metric by week. The metric picker offers the numeric `columns`.
@@ -36,6 +38,7 @@ export function WeeklyTrendChart({
     [columns, rows],
   )
   const [picked, setPicked] = useState<string | null>(null)
+  const hasHover = useHasHover()
   const column = picked !== null && numericColumns.includes(picked) ? picked : numericColumns[0]
   const points = useMemo(() => (column ? buildTrendPoints(rows, column) : []), [column, rows])
   if (!column || points.length < 2) return null
@@ -67,12 +70,17 @@ export function WeeklyTrendChart({
             <XAxis dataKey="week" tickLine={false} className="text-xs" />
             <YAxis tickLine={false} width={56} className="text-xs" tickFormatter={(value: number) => formatValue(value)} />
             <Tooltip
-              formatter={(value) => [formatValue(Number(value)), label]}
-              labelFormatter={(week, payload) => {
-                const opponent = (payload?.[0]?.payload as TrendPoint | undefined)?.opponent
-                return opponent ? `Week ${week} vs ${opponent}` : `Week ${week}`
+              trigger={hasHover ? 'hover' : 'click'}
+              content={({ active, payload }) => {
+                const point = payload?.[0]?.payload as TrendPoint | undefined
+                if (!active || !point) return null
+                return (
+                  <ChartTooltipCard
+                    title={point.opponent ? `Week ${point.week} vs ${point.opponent}` : `Week ${point.week}`}
+                    rows={[{ label, value: formatValue(point.value), color: 'var(--chart-1)' }]}
+                  />
+                )
               }}
-              contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8 }}
             />
             {line ? <ReferenceLine y={line.value} stroke="var(--muted-foreground)" strokeDasharray="4 4" /> : null}
             <Line type="monotone" dataKey="value" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
