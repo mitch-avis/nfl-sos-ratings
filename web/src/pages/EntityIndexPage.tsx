@@ -6,7 +6,6 @@ import type { EntityKind, SeasonDataset } from '@/api/types'
 import { useEntityPageState } from '@/app/EntityViewStateProvider'
 import { ErrorState } from '@/components/common/ErrorState'
 import { PageHeader } from '@/components/common/PageHeader'
-import { StatTile } from '@/components/common/StatTile'
 import { ComparisonPanel } from '@/components/entity/ComparisonPanel'
 import { EntityTable } from '@/components/entity/EntityTable'
 import { RankRangeChart } from '@/components/entity/RankRangeChart'
@@ -16,7 +15,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { getEntityConfig } from '@/domain/entityConfig'
-import { humanizeGroup } from '@/domain/format'
 import {
   canResetPageView,
   reconcileCompareIds,
@@ -116,17 +114,6 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
     return requested.length > 0 ? requested : config.compareColumns
   }, [config.compareColumns, config.identityColumns, kind, seasonView.selectedColumns])
   const { viewState } = state
-  const enabledSubcategories = Object.entries(viewState.activeSubcategories)
-    .filter(([, enabled]) => enabled)
-    .map(([label]) => label)
-  const selectedSlice =
-    viewState.primaryView === 'ratings'
-      ? 'Rating columns'
-      : [kind === 'teams' ? viewState.teamCategory : null, enabledSubcategories.join(', ')]
-          .filter(Boolean)
-          .join(': ')
-  const totalCount = seasonView.table.rows.length
-  const displayCount = displayTable.rows.length
   const season = dataset.season
   const gamesSoFar = getInProgressGames(season, dataset.teams.rows)
 
@@ -147,21 +134,21 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
         </Alert>
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)]">
-        <Card className="gap-2 px-4 py-3">
-          <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Use first</div>
-          <div className="font-semibold">{config.primaryRankingLabel}</div>
-          <p className="text-sm text-muted-foreground">{config.primaryRankingDescription}</p>
-        </Card>
-        <Card className="gap-2 px-4 py-3">
-          <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Reading notes</div>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+      <Card className="gap-2 px-4 py-3">
+        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Use first</div>
+        <div className="font-semibold">{config.primaryRankingLabel}</div>
+        <p className="max-w-prose text-sm text-muted-foreground">{config.primaryRankingDescription}</p>
+        <details className="text-sm">
+          <summary className="w-fit cursor-pointer py-1 font-medium text-muted-foreground hover:text-foreground">
+            Reading notes
+          </summary>
+          <ul className="mt-1 max-w-prose list-disc space-y-1 pl-5 text-muted-foreground">
             {config.pageNotes.map((note) => (
               <li key={note}>{note}</li>
             ))}
           </ul>
-        </Card>
-      </div>
+        </details>
+      </Card>
 
       {kind === 'qbs' ? (
         <Card className="px-4 py-3">
@@ -186,20 +173,6 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
           </CardContent>
         </Card>
       ) : null}
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile
-          label="Rows shown"
-          value={displayCount}
-          footnote={
-            displayCount === totalCount
-              ? `${config.singularLabel} rows available for this season.`
-              : `${displayCount} of ${totalCount} ${config.singularLabel} rows.`
-          }
-        />
-        <StatTile label="Current view" value={humanizeGroup(viewState.primaryView)} footnote="One stat view at a time." />
-        <StatTile label="Metrics in view" value={seasonView.metricColumns.length} footnote={selectedSlice} />
-      </div>
 
       <ComparisonPanel
         compareColumns={compareColumns}

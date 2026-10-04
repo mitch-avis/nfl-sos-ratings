@@ -195,6 +195,54 @@ describe('QB index', () => {
     // Assert
     expect(screen.getByText('Backup Arm')).toBeInTheDocument()
   })
+
+  it('leaves the raw player ID out of the table', async () => {
+    // Act
+    renderApp('/qbs?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('link', { name: 'Bo Nix' })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /QB ID/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('index header', () => {
+  it('keeps the reading notes folded away until asked for', async () => {
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByText('Reading notes')).toBeVisible()
+    expect(screen.getByText(/SRS is the classic point-margin rating/)).not.toBeVisible()
+  })
+
+  it('leaves out the summary tiles that repeat the table header', async () => {
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('heading', { name: /Team Ratings Index · 2025/ })).toBeInTheDocument()
+    expect(screen.queryByText('Rows shown')).not.toBeInTheDocument()
+  })
+})
+
+describe('phone layout', () => {
+  afterEach(() => {
+    window.innerWidth = 1024
+  })
+
+  it('pins only the name column so the stats have room', async () => {
+    // Arrange
+    window.innerWidth = 402
+
+    // Act
+    renderApp('/qbs?season=2025')
+
+    // Assert
+    await screen.findByRole('link', { name: 'Bo Nix' })
+    const pinned = screen.getAllByRole('columnheader').filter((header) => header.classList.contains('sticky'))
+    expect(pinned.map((header) => header.textContent)).toEqual(['QB'])
+  })
 })
 
 describe('team detail', () => {

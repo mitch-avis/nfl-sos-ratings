@@ -30,6 +30,7 @@ import {
   type RankRange,
 } from '@/domain/rankRanges'
 import { buildColumnStats, buildColumnWidths, getHeatCellStyle, sanitizeSorting } from '@/domain/tableState'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/utils/cn'
 
 import { RankIntervalTrack } from './RankInterval'
@@ -54,6 +55,7 @@ interface EntityTableProps {
 
 const CONTROL_COLUMNS = ['compare', 'rank']
 const RANK_RANGE_COLUMN = 'rank_range'
+const PHONE_PINNED_MAX_WIDTH = 120
 
 function RankRangeCell({ kind, range, count }: { kind: EntityKind; range: RankRange | undefined; count: number }) {
   const { q250, q750 } = range?.rank ?? { q250: null, q750: null }
@@ -130,15 +132,17 @@ export function EntityTable({
     () => buildColumnWidths(table.rows, selectedColumns, config.identityColumns),
     [config.identityColumns, selectedColumns, table.rows],
   )
+  const isPhone = useIsMobile()
+  // On a phone only the name stays pinned, at a capped width, so the stats keep most of the screen.
   const stickyOffsets = useMemo(() => {
     const offsets: Record<string, number> = {}
     let left = 0
-    for (const id of [...CONTROL_COLUMNS, ...config.identityColumns]) {
+    for (const id of isPhone ? [config.labelKey] : [...CONTROL_COLUMNS, ...config.identityColumns]) {
       offsets[id] = left
       left += columnWidths[id] ?? 120
     }
     return offsets
-  }, [columnWidths, config.identityColumns])
+  }, [columnWidths, config.identityColumns, config.labelKey, isPhone])
 
   const rankRangeColumn = useMemo<ColumnDef<Row> | null>(() => {
     if (!rankRanges || !selectedColumns.includes(config.defaultSortColumn)) return null
@@ -170,8 +174,8 @@ export function EntityTable({
     () => [
       {
         id: 'compare',
-        header: () => 'Compare',
-        size: columnWidths.compare ?? 108,
+        header: () => (isPhone ? <span className="sr-only">Compare</span> : 'Compare'),
+        size: isPhone ? 40 : (columnWidths.compare ?? 108),
         enableSorting: false,
         cell: ({ row }) => {
           const entityId = String(row.original[config.identityKey] ?? '')
@@ -211,7 +215,7 @@ export function EntityTable({
         return column === config.defaultSortColumn && rankRangeColumn ? [metricColumn, rankRangeColumn] : [metricColumn]
       }),
     ],
-    [basePath, columnWidths, compareIds, config, filteredRows, onToggleCompare, rankRangeColumn, season, selectedColumns],
+    [basePath, columnWidths, compareIds, config, filteredRows, isPhone, onToggleCompare, rankRangeColumn, season, selectedColumns],
   )
 
   const reactTable = useReactTable({
@@ -225,9 +229,9 @@ export function EntityTable({
 
   const cellStyle = (columnId: string, width: number): CSSProperties => {
     const left = stickyOffsets[columnId]
-    return left === undefined
-      ? { minWidth: width, width }
-      : { left, minWidth: width, width, maxWidth: width }
+    if (left === undefined) return { minWidth: width, width }
+    const pinnedWidth = isPhone ? Math.min(width, PHONE_PINNED_MAX_WIDTH) : width
+    return { left, minWidth: pinnedWidth, width: pinnedWidth, maxWidth: pinnedWidth }
   }
 
   return (
@@ -302,7 +306,7 @@ export function EntityTable({
                       <td
                         key={cell.id}
                         style={{ ...cellStyle(columnId, cell.column.getSize()), ...heat }}
-                        className={cn('px-2 py-1.5 whitespace-nowrap', sticky && 'sticky z-10 bg-card')}
+                        className={cn('px-2 py-1.5 whitespace-nowrap', sticky && 'sticky z-10 truncate bg-card')}
                       >
                         {columnId === 'rank' ? rowIndex + 1 : flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>

@@ -5,6 +5,7 @@ import type {
   RowValue,
   TablePayload,
 } from '@/api/types';
+import { getEntityConfig } from './entityConfig';
 
 type DataRow = Record<string, RowValue>;
 
@@ -183,6 +184,7 @@ export function buildSeasonViewTable(
   state: ResolvedEntityViewState,
 ): DerivedTableView {
   const identityColumns = sourceTable.column_groups.identity ?? [];
+  const shownIdentityColumns = identityColumns.filter((column) => getEntityConfig(kind).identityColumns.includes(column));
   const ratingColumns = sourceTable.column_groups.ratings ?? [];
   const metricColumns =
     state.primaryView === 'ratings'
@@ -194,7 +196,7 @@ export function buildSeasonViewTable(
             && matchesTaxonomy(kind, sourceTable.column_metadata?.[column], state)
             && matchesSeasonView(column, sourceTable.column_metadata?.[column], state.primaryView),
         );
-  const selectedColumns = [...identityColumns, ...metricColumns];
+  const selectedColumns = [...shownIdentityColumns, ...metricColumns];
   const rows = sourceTable.rows.map((row) =>
     transformSeasonRow(kind, row, metricColumns, state.primaryView, sourceTable.column_metadata ?? {}),
   );

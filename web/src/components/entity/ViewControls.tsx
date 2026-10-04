@@ -27,7 +27,12 @@ function ToggleRow({
   onSelect: (option: string) => void
 }) {
   return (
-    <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
+    // On phones the options stay on one row that scrolls sideways instead of wrapping into four.
+    <div
+      role="group"
+      aria-label={label}
+      className="flex w-full min-w-0 gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin] sm:w-auto sm:flex-wrap sm:overflow-visible sm:pb-0"
+    >
       {options.map((option) => {
         const active = isActive(option)
         return (
@@ -36,6 +41,7 @@ function ToggleRow({
             type="button"
             size="sm"
             variant={active ? 'default' : 'outline'}
+            className="shrink-0"
             aria-pressed={active}
             onClick={() => onSelect(option)}
           >
