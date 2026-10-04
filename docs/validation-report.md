@@ -145,9 +145,9 @@ Informative only; it does not gate anything.
 
 | Entity | Metric | Pairs | Pearson | Spearman |
 | --- | --- | --- | --- | --- |
-| qb | adj_qb_epa_per_dropback | 605 | 0.461 | 0.448 |
-| qb | qb_any_a | 605 | 0.403 | 0.388 |
-| qb | qb_passer_rating | 605 | 0.473 | 0.475 |
+| qb | adj_qb_epa_per_dropback | 601 | 0.455 | 0.441 |
+| qb | qb_any_a | 601 | 0.392 | 0.377 |
+| qb | qb_passer_rating | 601 | 0.464 | 0.469 |
 | team | SRS | 829 | 0.437 | 0.425 |
 | team | team_rating | 829 | 0.434 | 0.427 |
 
@@ -162,8 +162,8 @@ Pearson 0.892, mean Spearman 0.874. QBR is a reference, not a fitting target.
 | 2007 | 28 | 0.914 | 0.906 |
 | 2008 | 31 | 0.846 | 0.837 |
 | 2009 | 28 | 0.961 | 0.956 |
-| 2010 | 31 | 0.931 | 0.921 |
-| 2011 | 32 | 0.945 | 0.954 |
+| 2010 | 31 | 0.930 | 0.918 |
+| 2011 | 32 | 0.944 | 0.954 |
 | 2012 | 32 | 0.932 | 0.919 |
 | 2013 | 34 | 0.868 | 0.870 |
 | 2014 | 32 | 0.889 | 0.858 |

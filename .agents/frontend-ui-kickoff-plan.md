@@ -42,7 +42,8 @@ has since been removed).
     follows the current sort. The QBs page now lists only `qb_is_eligible` passers by default
     ("Show QBs below the qualifier" adds the rest), and the season-in-progress notice stays until
     every team has finished.
-  - Still unverified: Recharts tooltips on a real touch device (`trigger="click"` there).
+  - The maintainer confirmed on an iPhone (2026-10-04) that tapping a chart point opens its
+    tooltip (Recharts `trigger="click"` on touch screens).
 - Port to `web/` (landed 2026-10-02, commits 298da87 and 68d39ac on
   `chore/strict-tooling-and-web`):
   - the frontend moved from `ui/web/` (plain CSS, hand-rolled components) to `web/`: React 19,

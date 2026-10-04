@@ -176,8 +176,9 @@ across thresholds whichever way they move.
     QBs, Drew Lock among them); 1999 lost 3 qualifiers and 2000 lost 2 to the duplicate fix, and
     1999-2000 `adj_qb_epa_per_dropback` moved by up to 0.041 and 0.064 (read against a pre-fix copy
     of `data/`). Team outputs did not change.
-  - Not rerun: `nfl-sos-ratings validate`. Its QB year-over-year and QBR correlations predate these
-    fixes; rerunning waits on the maintainer.
+  - `nfl-sos-ratings validate` rerun afterwards (maintainer-approved): team results and the adopt
+    decision unchanged; QB year-over-year Pearson moved to 0.455 (adjusted EPA per dropback), 0.464
+    (passer rating), and 0.392 (ANY/A) over 601 pairs (was 605); QBR means unchanged.
 - [x] WP decisions answered by the maintainer.
 - [ ] WP bins in the loader layer (guarded columns), engine refits per threshold, API parameter.
 - [ ] Slider (shadcn) with URL state, debounce, exploration label.
