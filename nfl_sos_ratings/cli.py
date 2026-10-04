@@ -37,6 +37,12 @@ COMMANDS: tuple[Command, ...] = (
         "nfl_sos_ratings.pipeline",
     ),
     Command(
+        "schedules",
+        "data",
+        "Rank every team-season in data/ by strength of schedule.",
+        "nfl_sos_ratings.schedules",
+    ),
+    Command(
         "validate",
         "validation",
         "Run the walk-forward validation and rewrite docs/validation-report.md.",

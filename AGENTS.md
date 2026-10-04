@@ -74,6 +74,7 @@ door or any command prints usage without running anything (commands are listed i
 ```bash
 .venv/bin/nfl-sos-ratings season [--season N]  # one season (default SEASON in config.py)
 .venv/bin/nfl-sos-ratings pipeline             # every season START_YEAR..END_YEAR, rewrites data/
+.venv/bin/nfl-sos-ratings schedules ...        # ranks every team-season's sos in data/
 .venv/bin/nfl-sos-ratings validate ...         # regenerates docs/validation-report.md
 .venv/bin/nfl-sos-ratings catalog              # regenerates the stats catalogs in docs/
 .venv/bin/nfl-sos-ratings web [--port 8080]    # analyst web app (web/dist) plus its API
