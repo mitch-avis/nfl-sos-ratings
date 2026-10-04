@@ -134,6 +134,35 @@ seven games (four 2025 playoff games and 2026 weeks 1-3). Written before either 
   results overstates the evidence, so the report also gives each part (postseason, 2026) on its
   own.
 
+### Implementation choices for checks A and B (written 2026-10-04, before either ran)
+
+The checks above leave some details open; these are fixed before any result is seen.
+
+- Check A, teams: the penalty is the scrimmage penalty `fit_team_ratings` chooses for the full
+  season, and the full fit and every refit use `fit_unit_ridge` on the same scrimmage rows. Cut
+  points are the 1/3 and 2/3 quantiles (NumPy linear interpolation) of the full fit's 32 offense
+  effects and, separately, its 32 defense effects. A unit is top-tercile when its refit effect is
+  above the upper cut and bottom-tercile when below the lower cut; a positive defense effect is a
+  better defense, so a top-tercile defense is a strong one. Weights are scrimmage plays.
+- Check A, passers: rows are `qb_game_logs` rows with a dropback, the penalty is the one
+  `fit_qb_ratings` chooses, and for each pair of teams that met the refit drops every passer row of
+  their games. Rows whose passer has no other rows cannot be predicted; they are dropped and
+  counted. Passer cut points are the 1/3 and 2/3 quantiles of the full-fit effects of the season's
+  qualifying passers (`qb_is_eligible`), defense cut points those of the 32 pass-defense effects.
+  Weights are dropbacks.
+- Check A, both: the statistic pools 1999-2025; each bootstrap resample draws 27 seasons with
+  replacement, and the interval is the 2.5th to 97.5th percentile.
+- Check B: postseason rows are built like regular-season rows (play-by-play dropbacks, official
+  weekly passing EPA) from postseason play-by-play, snap counts, and weekly player stats. A
+  postseason host is home (+1, the visitor -1) and the Super Bowl is neutral (0); 2026 rows use
+  `is_home` as the published fit does. sigma squared is the mean of dropbacks times squared
+  residual over the 2025 regular-season rows of qualifying passers, residuals from the full 2025
+  fit with no degrees-of-freedom correction. z is the dropback-weighted mean residual divided by
+  sigma over the square root of total dropbacks, reported for the postseason, 2026, and both.
+- Commands: `nfl-sos-ratings check-additivity --data-dir data --start-season 1999 --end-season
+  2025` and `nfl-sos-ratings check-passer --data-dir data --model-season 2025 --name "Drake
+  Maye"`. Both only read; the passer check downloads the postseason data.
+
 ## Retired metric backlog
 
 The registry's `planned` entries (stats catalogued but never computed) were removed on 2026-10-04
