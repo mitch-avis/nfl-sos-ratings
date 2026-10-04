@@ -6,7 +6,7 @@ import pytest
 
 from nfl_sos_ratings import cli, composite_weights, main, pipeline, ui_api
 from nfl_sos_ratings.config import SEASON
-from nfl_sos_ratings.validation import qsos_audit, walk_forward
+from nfl_sos_ratings.validation import walk_forward
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -94,7 +94,7 @@ def test_pipeline_runs_the_multi_season_build(monkeypatch: pytest.MonkeyPatch) -
 
 @pytest.mark.parametrize(
     ("command", "module"),
-    [("validate", walk_forward), ("qsos-audit", qsos_audit), ("web", ui_api)],
+    [("validate", walk_forward), ("web", ui_api)],
 )
 def test_options_pass_through_to_the_command(
     command: str, module: object, monkeypatch: pytest.MonkeyPatch

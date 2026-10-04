@@ -131,7 +131,6 @@ extend-allowed-calls = ["polars.lit"]
 "nfl_sos_ratings/opponent_stats.py" = ["T201"]
 "nfl_sos_ratings/composite_weights.py" = ["T201"]
 "nfl_sos_ratings/validation/walk_forward.py" = ["T201"]
-"nfl_sos_ratings/validation/qsos_audit.py" = ["T201"]
 
 # --------------------------------------------------------------------------------------------
 # Type checking: ty and pyright (strict)

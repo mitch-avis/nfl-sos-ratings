@@ -49,12 +49,6 @@ COMMANDS: tuple[Command, ...] = (
         "nfl_sos_ratings.composite_weights",
     ),
     Command(
-        "qsos-audit",
-        "validation",
-        "Print (or write) the QB schedule-strength audit.",
-        "nfl_sos_ratings.validation.qsos_audit",
-    ),
-    Command(
         "web",
         "web",
         "Serve the analyst web app (built into web/dist) and its API.",
