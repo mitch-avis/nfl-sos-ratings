@@ -116,6 +116,39 @@ describe('team index', () => {
   })
 })
 
+describe('season in progress', () => {
+  it('flags a partial season above the team index', async () => {
+    // Arrange
+    const partial = {
+      ...SEASON_2025,
+      season: 2026,
+      teams: {
+        ...SEASON_2025.teams,
+        rows: SEASON_2025.teams.rows.map((row) => ({ ...row, games_played: 3 })),
+      },
+    }
+    vi.stubGlobal(
+      'fetch',
+      stubApi({ '/api/seasons': { seasons: [2026] }, '/api/metadata': REGISTRY, '/api/seasons/2026': partial }),
+    )
+
+    // Act
+    renderApp('/teams?season=2026')
+
+    // Assert
+    expect(await screen.findByText(/Season in progress/)).toHaveTextContent('3 games')
+  })
+
+  it('shows no notice for a completed season', async () => {
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('heading', { name: /Team Ratings Index · 2025/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Season in progress/)).not.toBeInTheDocument()
+  })
+})
+
 describe('QB index', () => {
   it('hides unrated QBs by default', async () => {
     // Act

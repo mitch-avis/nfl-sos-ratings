@@ -13,3 +13,21 @@ export function getRegularSeasonGameCount(season: number): number {
 export function getQuarterbackQualifierAttempts(season: number): number {
   return getRegularSeasonGameCount(season) * QUALIFIER_ATTEMPTS_PER_GAME
 }
+
+/**
+ * Games played so far when the season is still in progress, or null once it is complete.
+ *
+ * A season is in progress while no team has played a full regular season. Returns null when the
+ * rows carry no `games_played` values.
+ */
+export function getInProgressGames(
+  season: number,
+  teamRows: ReadonlyArray<Record<string, unknown>>,
+): number | null {
+  const played = teamRows
+    .map((row) => row.games_played)
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  if (played.length === 0) return null
+  const mostGames = Math.max(...played)
+  return mostGames < getRegularSeasonGameCount(season) ? mostGames : null
+}

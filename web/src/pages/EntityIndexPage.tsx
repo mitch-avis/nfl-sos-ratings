@@ -8,6 +8,7 @@ import { StatTile } from '@/components/common/StatTile'
 import { ComparisonPanel } from '@/components/entity/ComparisonPanel'
 import { EntityTable } from '@/components/entity/EntityTable'
 import { ViewControls } from '@/components/entity/ViewControls'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -19,7 +20,11 @@ import {
   toggleCompareId,
   toggleSubcategoryPatch,
 } from '@/domain/pageViewState'
-import { getQuarterbackQualifierAttempts, getRegularSeasonGameCount } from '@/domain/seasonRules'
+import {
+  getInProgressGames,
+  getQuarterbackQualifierAttempts,
+  getRegularSeasonGameCount,
+} from '@/domain/seasonRules'
 import { buildSeasonViewTable } from '@/domain/viewModel'
 
 function sameIds(left: string[], right: string[]): boolean {
@@ -108,6 +113,7 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
   const totalCount = seasonView.table.rows.length
   const displayCount = displayTable.rows.length
   const season = dataset.season
+  const gamesSoFar = getInProgressGames(season, dataset.teams.rows)
 
   return (
     <div className="flex flex-col gap-5">
@@ -115,6 +121,16 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
         title={`${config.title} · ${season}`}
         description="Every rating and stat compares each subject with the opponents it actually faced. Sort, filter, and switch views; open a row for its game-by-game detail."
       />
+
+      {gamesSoFar !== null ? (
+        <Alert>
+          <AlertTitle>Season in progress: up to {gamesSoFar} games per team</AlertTitle>
+          <AlertDescription>
+            Ratings use only the games played so far. With this few games they are pulled strongly
+            toward the league average and will move as the season goes on.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)]">
         <Card className="gap-2 px-4 py-3">

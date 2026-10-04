@@ -11,7 +11,11 @@ import {
   toggleCompareId,
   toggleSubcategoryPatch,
 } from './pageViewState'
-import { getQuarterbackQualifierAttempts, getRegularSeasonGameCount } from './seasonRules'
+import {
+  getInProgressGames,
+  getQuarterbackQualifierAttempts,
+  getRegularSeasonGameCount,
+} from './seasonRules'
 import { buildTrendPoints } from './trend'
 
 describe('page view state', () => {
@@ -92,6 +96,36 @@ describe('season rules', () => {
 
     // Assert
     expect(count).toBe(games)
+  })
+
+  it('reports games played so far while a season is in progress', () => {
+    // Arrange
+    const rows = [{ team: 'NE', games_played: 3 }, { team: 'DEN', games_played: 4 }]
+
+    // Act
+    const games = getInProgressGames(2026, rows)
+
+    // Assert
+    expect(games).toBe(4)
+  })
+
+  it('reports nothing once every team has a full season', () => {
+    // Arrange
+    const rows = [{ team: 'NE', games_played: 17 }, { team: 'DEN', games_played: 17 }]
+
+    // Act
+    const games = getInProgressGames(2025, rows)
+
+    // Assert
+    expect(games).toBeNull()
+  })
+
+  it('reports nothing when games played is unknown', () => {
+    // Act
+    const games = getInProgressGames(2026, [{ team: 'NE' }])
+
+    // Assert
+    expect(games).toBeNull()
   })
 
   it('qualifies quarterbacks at 14 attempts per team game', () => {
