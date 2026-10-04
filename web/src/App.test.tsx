@@ -251,6 +251,21 @@ describe('QB index', () => {
   })
 })
 
+describe('qb detail', () => {
+  it('says why a QB below the qualifier has no rank range', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/qbs/rating-ranges': QB_RANK_RANGES }))
+
+    // Act
+    renderApp('/qbs/qb-3?season=2025')
+
+    // Assert
+    expect(await screen.findByText(/Not ranked: below the qualifier/)).toHaveTextContent(
+      'Not ranked: below the qualifier (25 of 238 pass attempts), so no rank range.',
+    )
+  })
+})
+
 describe('rank column', () => {
   it('explains that Rank follows the current sort', async () => {
     // Arrange

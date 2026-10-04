@@ -4,6 +4,7 @@ import { ApiError } from '@/api/client'
 import type { RankRangesPayload } from '@/api/types'
 
 import {
+  belowQualifierText,
   formatChance,
   isMissingRankRanges,
   ordinal,
@@ -223,4 +224,20 @@ test('isMissingRankRanges is true only for a 404', () => {
 
   // Assert
   assert.deepEqual(results, [true, false, false])
+})
+
+test('belowQualifierText gives a QB below the qualifier his attempts against what he needs', () => {
+  // Act
+  const text = belowQualifierText({ qb_is_eligible: false, qb_attempts_total: 25, qb_attempt_qualifier: 42 })
+
+  // Assert
+  assert.equal(text, 'Not ranked: below the qualifier (25 of 42 pass attempts), so no rank range.')
+})
+
+test('belowQualifierText says nothing for a qualifying QB', () => {
+  // Act
+  const text = belowQualifierText({ qb_is_eligible: true, qb_attempts_total: 300, qb_attempt_qualifier: 42 })
+
+  // Assert
+  assert.isNull(text)
 })

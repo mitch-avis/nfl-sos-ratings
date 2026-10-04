@@ -23,6 +23,8 @@ import { Input } from '@/components/ui/input'
 import { formatFixed, formatValue } from '@/domain/format'
 import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
 import {
+  belowQualifierDetail,
+  belowQualifierText,
   ordinal,
   rankChanceText,
   rankRangeHeadline,
@@ -65,12 +67,9 @@ const PHONE_PINNED_MAX_WIDTH = 120
 
 /** The cell for a QB below the qualifier, who is not ranked: why, with his attempts. */
 function BelowQualifierCell({ row }: { row: Row }) {
-  const attempts = typeof row.qb_attempts_total === 'number' ? row.qb_attempts_total : null
-  const needed = typeof row.qb_attempt_qualifier === 'number' ? row.qb_attempt_qualifier : null
-  const detail =
-    attempts !== null && needed !== null ? `${attempts} of ${needed} pass attempts` : 'too few pass attempts'
+  const detail = belowQualifierDetail(row) ?? 'too few pass attempts'
   return (
-    <Hint content={`Not ranked: below the qualifier (${detail}), so no rank range.`}>
+    <Hint content={belowQualifierText(row)}>
       <button
         type="button"
         aria-label={`Below the qualifier: ${detail}`}

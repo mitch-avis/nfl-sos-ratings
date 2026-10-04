@@ -27,7 +27,13 @@ import { getEntityConfig, getEntityRow, getFullTeamName } from '@/domain/entityC
 import { humanizeGroup } from '@/domain/format'
 import { getGroupDescription } from '@/domain/metricMetadata'
 import { canResetPageView, toggleSubcategoryPatch } from '@/domain/pageViewState'
-import { isMissingRankRanges, parseRankRanges, rankChanceText, rankRangeHeadline } from '@/domain/rankRanges'
+import {
+  belowQualifierText,
+  isMissingRankRanges,
+  parseRankRanges,
+  rankChanceText,
+  rankRangeHeadline,
+} from '@/domain/rankRanges'
 import { buildRatingHistoryChart, isMissingRatingHistory } from '@/domain/ratingHistory'
 import {
   buildGameLogColumnSelection,
@@ -135,6 +141,12 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
 
       {rankRangesQuery.isError && !isMissingRankRanges(rankRangesQuery.error) ? (
         <ErrorState error={rankRangesQuery.error} title="Could not load the rank ranges" />
+      ) : null}
+      {rankRangesQuery.data && !rankRange && belowQualifierText(row) ? (
+        <Card className="gap-2 px-4 py-3">
+          <div className="text-sm font-medium">Rank range</div>
+          <p className="text-sm text-muted-foreground">{belowQualifierText(row)}</p>
+        </Card>
       ) : null}
       {rankRange ? (
         <Card className="gap-4">

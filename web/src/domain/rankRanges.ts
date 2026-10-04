@@ -146,3 +146,23 @@ export function rankHistogram(range: RankRange): Array<{ rank: number; probabili
 export function isMissingRankRanges(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404
 }
+
+/**
+ * For a QB below the qualifier, what he has against what he needs, for example `25 of 42 pass
+ * attempts`; null for anyone else. The numbers come from `qb_attempts_total` and the backend's
+ * per-QB `qb_attempt_qualifier`.
+ */
+export function belowQualifierDetail(row: Record<string, RowValue>): string | null {
+  if (row.qb_is_eligible !== false) return null
+  const attempts = row.qb_attempts_total
+  const needed = row.qb_attempt_qualifier
+  return typeof attempts === 'number' && typeof needed === 'number'
+    ? `${attempts} of ${needed} pass attempts`
+    : 'too few pass attempts'
+}
+
+/** The sentence that says a QB below the qualifier is not ranked, or null for anyone else. */
+export function belowQualifierText(row: Record<string, RowValue>): string | null {
+  const detail = belowQualifierDetail(row)
+  return detail === null ? null : `Not ranked: below the qualifier (${detail}), so no rank range.`
+}
