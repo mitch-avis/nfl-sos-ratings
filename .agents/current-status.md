@@ -28,8 +28,13 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 1. Rank ranges and a garbage-time win-probability filter: see
    `.agents/rank-ranges-and-wp-filter-plan.md`. Branch `feat/rank-ranges` (not pushed) has the
-   plan, the WP decisions, the weighted bootstrap engine, and the rank-range summary; the
-   registry, pipeline output, API, web views, and the whole WP feature are still to do.
+   whole rank-range feature in code: the bootstrap engine, the registry entries, the
+   `{season}_rating_ranges` and `{season}_qb_rating_ranges` outputs of `run_season`, the
+   `/api/seasons/{season}/{teams|qbs}/rating-ranges` endpoints, and the web views. `data/` does
+   not have the range files yet: producing them needs a `pipeline` (and 2026 `season`) run, which
+   waits on the maintainer. Run it with `OPENBLAS_NUM_THREADS=1`: one season's two range files
+   took 2.3 s single-threaded versus 20 s wall (about 7 CPU minutes) with default threading, with
+   identical output (scratch timing on 2025, 2026-10-04). The WP feature is still to do.
 2. Rebuild 2026 weekly as games are played (`nfl-sos-ratings season`, ask first).
 
 ## Validation snapshot
