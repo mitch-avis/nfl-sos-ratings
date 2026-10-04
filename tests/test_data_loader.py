@@ -9,6 +9,7 @@ from tests.stubs import stub
 
 def test_load_weekly_team_stats_enriches_and_filters(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify weekly team stats are built from REG PBP with player-stat defense add-ons."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC", "2025_01_DEN_KC", "2025_01_DEN_KC", "2025_01_DEN_KC"],
@@ -65,8 +66,10 @@ def test_load_weekly_team_stats_enriches_and_filters(monkeypatch: pytest.MonkeyP
     )
     monkeypatch.setattr(data_loader.nfl, "load_schedules", stub(lambda: schedule))
 
+    # Act
     result = data_loader.load_weekly_team_stats(2025)
 
+    # Assert
     assert result.height == 2
     assert result.filter(pl.col("team") == "DEN").select("total_yards").item() == 30.0
     assert result.filter(pl.col("team") == "DEN").select("points_for").item() == 24
@@ -76,6 +79,7 @@ def test_load_weekly_team_stats_enriches_and_filters(monkeypatch: pytest.MonkeyP
 
 def test_load_weekly_team_stats_normalizes_rams_alias(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify PBP-backed weekly team data uses canonical Rams abbreviations."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_LA_SEA"],
@@ -131,8 +135,10 @@ def test_load_weekly_team_stats_normalizes_rams_alias(monkeypatch: pytest.Monkey
     )
     monkeypatch.setattr(data_loader.nfl, "load_schedules", stub(lambda: schedule))
 
+    # Act
     result = data_loader.load_weekly_team_stats(2025)
 
+    # Assert
     assert result.select("team").item() == "LAR"
     assert result.select("opponent_team").item() == "SEA"
 
@@ -141,6 +147,7 @@ def test_load_weekly_team_stats_prefers_official_team_stats_for_published_splits
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify official weekly team stats replace published split columns and mirrors."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC", "2025_01_DEN_KC", "2025_01_DEN_KC"],
@@ -221,7 +228,10 @@ def test_load_weekly_team_stats_prefers_official_team_stats_for_published_splits
     monkeypatch.setattr(data_loader.nfl, "load_team_stats", stub(lambda: team_stats))
     monkeypatch.setattr(data_loader.nfl, "load_schedules", stub(lambda: schedule))
 
+    # Act
     result = data_loader.load_weekly_team_stats(2025).sort("team")
+
+    # Assert
     den = result.filter(pl.col("team") == "DEN")
 
     assert den.select("passing_yards").item() == 250.0
@@ -249,6 +259,7 @@ def test_load_weekly_team_stats_prefers_official_team_stats_for_published_splits
 
 def test_load_schedule_filters_regular_season(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify schedule loading keeps only regular-season games."""
+    # Arrange
     schedule = pl.DataFrame(
         {
             "game_type": ["REG", "POST"],
@@ -259,14 +270,17 @@ def test_load_schedule_filters_regular_season(monkeypatch: pytest.MonkeyPatch) -
 
     monkeypatch.setattr(data_loader.nfl, "load_schedules", stub(lambda: schedule))
 
+    # Act
     result = data_loader.load_schedule(2025)
 
+    # Assert
     assert result.height == 1
     assert result.select("away_team").item() == "KC"
 
 
 def test_load_schedule_normalizes_rams_alias(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify schedule team columns use the canonical Rams abbreviation."""
+    # Arrange
     schedule = pl.DataFrame(
         {
             "game_type": ["REG"],
@@ -277,8 +291,10 @@ def test_load_schedule_normalizes_rams_alias(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr(data_loader.nfl, "load_schedules", stub(lambda: schedule))
 
+    # Act
     result = data_loader.load_schedule(2025)
 
+    # Assert
     assert result.select("home_team").item() == "LAR"
 
 
@@ -287,14 +303,17 @@ def test_load_snap_counts_data_returns_typed_empty_before_source_floor(
 ) -> None:
     """Verify pre-2012 snap-count loads short-circuit to an empty typed frame."""
 
+    # Arrange
     def _unexpected_snap_counts_call(seasons: int) -> pl.DataFrame:
         msg = f"snap counts loader should not run for season {seasons}"
         raise AssertionError(msg)
 
     monkeypatch.setattr(data_loader.nfl, "load_snap_counts", _unexpected_snap_counts_call)
 
+    # Act
     result = data_loader.load_snap_counts_data(2000)
 
+    # Assert
     assert result.is_empty()
     assert result.schema == {
         "game_id": pl.String,
@@ -311,6 +330,7 @@ def test_load_qb_identity_crosswalk_skips_weekly_rosters_before_source_floor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify pre-2002 QB identity loading falls back to players data only."""
+    # Arrange
     players = pl.DataFrame(
         {
             "gsis_id": ["00-0031234"],
@@ -331,8 +351,10 @@ def test_load_qb_identity_crosswalk_skips_weekly_rosters_before_source_floor(
         _unexpected_rosters_weekly_call,
     )
 
+    # Act
     result = data_loader.load_qb_identity_crosswalk(2001)
 
+    # Assert
     assert result.to_dicts() == [
         {
             "qb_id": "00-0031234",
@@ -347,6 +369,7 @@ def test_load_qb_stats_merges_pbp_and_snap_counts_by_canonical_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify QB loading uses canonical identity instead of qb_name to merge sources."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC", "2025_01_DEN_KC"],
@@ -408,8 +431,10 @@ def test_load_qb_stats_merges_pbp_and_snap_counts_by_canonical_identity(
         stub(lambda: rosters_weekly),
     )
 
+    # Act
     result = data_loader.load_qb_stats(2025)
 
+    # Assert
     assert result.height == 1
     assert result.select("game_id").item() == "2025_01_DEN_KC"
     assert result.select("week").item() == 1
@@ -441,6 +466,7 @@ def test_load_qb_stats_merges_pbp_and_snap_counts_by_canonical_identity(
 
 def test_load_qb_stats_excludes_non_qb_trick_passers(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify QB loading drops passers whose authoritative position is not QB."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC", "2025_01_DEN_KC"],
@@ -502,8 +528,10 @@ def test_load_qb_stats_excludes_non_qb_trick_passers(monkeypatch: pytest.MonkeyP
         stub(lambda: rosters_weekly),
     )
 
+    # Act
     result = data_loader.load_qb_stats(2025)
 
+    # Assert
     assert result.height == 1
     assert result.select("qb_id").item() == "00-0031234"
     assert result.select("qb_name").item() == "John Doe"
@@ -513,6 +541,7 @@ def test_load_qb_stats_prefers_official_weekly_player_stats_for_attempt_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify official weekly player stats replace attempt-based QB game fields."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC", "2025_01_DEN_KC"],
@@ -601,8 +630,10 @@ def test_load_qb_stats_prefers_official_weekly_player_stats_for_attempt_fields(
         stub(lambda: rosters_weekly),
     )
 
+    # Act
     result = data_loader.load_qb_stats(2025)
 
+    # Assert
     assert result.height == 1
     assert result.select("qb_dropbacks").item() == 2
     assert result.select("qb_attempts").item() == 5
@@ -624,6 +655,7 @@ def test_load_qb_stats_prefers_official_weekly_player_stats_for_attempt_fields(
 
 def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify QB loading keeps individual game rows from PBP plus snap counts."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC"] * 5,
@@ -690,8 +722,10 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
         stub(lambda: rosters_weekly),
     )
 
+    # Act
     result = data_loader.load_qb_stats(2025).sort(["team_abbr", "week"])
 
+    # Assert
     assert result.columns == [
         "game_id",
         "week",
@@ -943,6 +977,7 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
 
 def test_load_qb_stats_normalizes_rams_alias(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify QB game rows use the canonical Rams abbreviation."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_LA_SEA"],
@@ -1004,8 +1039,10 @@ def test_load_qb_stats_normalizes_rams_alias(monkeypatch: pytest.MonkeyPatch) ->
         stub(lambda: rosters_weekly),
     )
 
+    # Act
     result = data_loader.load_qb_stats(2025)
 
+    # Assert
     assert result.select("team_abbr").item() == "LAR"
 
 
@@ -1013,6 +1050,7 @@ def test_load_pbp_data_filters_regular_season_and_normalizes_teams(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify PBP loading keeps regular season rows and normalizes team columns."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "season_type": ["REG", "POST"],
@@ -1027,8 +1065,10 @@ def test_load_pbp_data_filters_regular_season_and_normalizes_teams(
 
     monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
 
+    # Act
     result = data_loader.load_pbp_data(2025)
 
+    # Assert
     assert result.height == 1
     assert result.select("posteam").item() == "LAR"
     assert result.select("defteam").item() == "SEA"
@@ -1040,6 +1080,7 @@ def test_load_playoff_pbp_data_filters_postseason_and_normalizes_teams(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify the validation-only playoff PBP loader keeps postseason rows only."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "season_type": ["REG", "POST"],
@@ -1054,8 +1095,10 @@ def test_load_playoff_pbp_data_filters_postseason_and_normalizes_teams(
 
     monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
 
+    # Act
     result = data_loader.load_playoff_pbp_data(2025)
 
+    # Assert
     assert result.height == 1
     assert result.select("week").item() == 20
     assert result.select("posteam").item() == "DEN"
@@ -1066,6 +1109,7 @@ def test_load_weekly_player_stats_filters_regular_season_and_normalizes_teams(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify weekly player stats are REG-filtered and team columns are normalized."""
+    # Arrange
     player_stats = pl.DataFrame(
         {
             "season_type": ["REG", "POST"],
@@ -1084,8 +1128,10 @@ def test_load_weekly_player_stats_filters_regular_season_and_normalizes_teams(
         stub(lambda: player_stats),
     )
 
+    # Act
     result = data_loader.load_weekly_player_stats(2025)
 
+    # Assert
     assert result.height == 1
     assert result.select("team").item() == "LAR"
     assert result.select("opponent_team").item() == "SEA"
@@ -1096,6 +1142,7 @@ def test_load_snap_counts_data_normalizes_team_when_season_type_is_absent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify snap-count loading normalizes team abbreviations without assuming season_type."""
+    # Arrange
     snap_counts = pl.DataFrame(
         {
             "season": [2025],
@@ -1109,8 +1156,10 @@ def test_load_snap_counts_data_normalizes_team_when_season_type_is_absent(
 
     monkeypatch.setattr(data_loader.nfl, "load_snap_counts", stub(lambda: snap_counts))
 
+    # Act
     result = data_loader.load_snap_counts_data(2025)
 
+    # Assert
     assert result.height == 1
     assert result.select("team").item() == "LAR"
     assert result.select("offense_snaps").item() == 58.0
@@ -1120,6 +1169,7 @@ def test_load_espn_qbr_filters_regular_season_and_normalizes_teams(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify QBR loading keeps regular season only and canonicalizes team codes."""
+    # Arrange
     qbr = pl.DataFrame(
         {
             "season": [2025, 2025, 2024],
@@ -1138,8 +1188,10 @@ def test_load_espn_qbr_filters_regular_season_and_normalizes_teams(
 
     monkeypatch.setattr(data_loader, "_fetch_release_parquet", fake_fetch)
 
+    # Act
     result = data_loader.load_espn_qbr("season", seasons=[2025])
 
+    # Assert
     assert requested == [data_loader.ESPN_QBR_RELEASE_URLS["season"]]
     assert result.height == 1
     assert result.select("team_abb").item() == "WAS"
@@ -1150,6 +1202,7 @@ def test_load_espn_qbr_week_level_keeps_all_seasons_and_normalizes_opponents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify week-level QBR uses the week asset and normalizes opponent codes too."""
+    # Arrange
     qbr = pl.DataFrame(
         {
             "season": [2024, 2025],
@@ -1167,8 +1220,10 @@ def test_load_espn_qbr_week_level_keeps_all_seasons_and_normalizes_opponents(
 
     monkeypatch.setattr(data_loader, "_fetch_release_parquet", fake_fetch)
 
+    # Act
     result = data_loader.load_espn_qbr("week")
 
+    # Assert
     assert requested == [data_loader.ESPN_QBR_RELEASE_URLS["week"]]
     assert result.height == 2
     assert result.select("opp_abb").to_series().to_list() == ["LV", "WAS"]
@@ -1176,9 +1231,12 @@ def test_load_espn_qbr_week_level_keeps_all_seasons_and_normalizes_opponents(
 
 def test_load_espn_qbr_rejects_unknown_level() -> None:
     """Verify an unknown QBR level fails fast with a clear error."""
+    # Arrange
     from typing import Literal, cast
 
     bad_level = cast("Literal['season', 'week']", "quarter")
+
+    # Act & Assert
     with pytest.raises(ValueError, match="season"):
         data_loader.load_espn_qbr(bad_level)
 
@@ -1187,6 +1245,7 @@ def test_fetch_release_parquet_reads_downloaded_bytes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify the release download helper parses Parquet bytes from the response."""
+    # Arrange
     import io
     import urllib.request
     from contextlib import contextmanager
@@ -1201,8 +1260,10 @@ def test_fetch_release_parquet_reads_downloaded_bytes(
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
+    # Act
     result = data_loader._fetch_release_parquet("https://example.invalid/x.parquet")
 
+    # Assert
     assert result.select("season").item() == 2025
 
 
@@ -1210,6 +1271,7 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify official rushing fields and derived QB rates flow into game rows."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC"] * 6,
@@ -1342,8 +1404,10 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
         stub(lambda: rosters_weekly),
     )
 
+    # Act
     result = data_loader.load_qb_stats(2025)
 
+    # Assert
     row = result.to_dicts()[0]
     assert row["qb_carries"] == 5
     assert row["qb_rushing_yards"] == 35.0
