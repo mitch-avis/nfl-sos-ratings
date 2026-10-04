@@ -108,7 +108,8 @@ RATING_METRICS: tuple[MetricDef, ...] = (
             "The average Team Rating of the opponents this team played, one entry per game, in "
             "points per game. Each opponent is rated without its games against this team, so "
             "beating an opponent badly cannot make that opponent look weaker here. Positive "
-            "means a harder-than-average schedule. Context, not a team grade."
+            "means a harder-than-average schedule. Early in a season, opponents that have played "
+            "no one else yet are left out. Context, not a team grade."
         ),
         shape="score",
         polarity="higher",

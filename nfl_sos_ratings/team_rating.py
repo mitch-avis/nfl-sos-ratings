@@ -152,8 +152,13 @@ def fit_team_ratings(
 
 
 def _ratings_without(game_logs: pl.DataFrame, team: str, fit: TeamRatingFit) -> pl.DataFrame:
-    """Rate every other team from a refit that drops all games involving ``team``."""
+    """Rate every other team from a refit that drops all games involving ``team``.
+
+    Returns an empty frame when no games remain, as can happen in the first weeks of a season.
+    """
     others = game_logs.filter((pl.col("team") != team) & (pl.col("opponent_team") != team))
+    if others.is_empty():
+        return pl.DataFrame(schema={"team": pl.String, "team_rating": pl.Float64})
     scrimmage = fit_unit_ridge(
         _unit_rows(others, SCRIMMAGE_PLAYS_COLUMN, SCRIMMAGE_EPA_COLUMN),
         _UNIT_COLUMNS,
@@ -180,29 +185,24 @@ def compute_team_schedule_strength(game_logs: pl.DataFrame, fit: TeamRatingFit) 
         fit: The full-season fit whose penalties and per-game scales the refits reuse.
 
     Returns:
-        One row per team with ``team`` and ``sos`` in points per game.
-
-    Raises:
-        ValueError: If an opponent has no games left once the team's own games are removed.
+        One row per team with ``team`` and ``sos`` in points per game. Early in a season an
+        opponent may have played no one else yet; such games are skipped, and ``sos`` is null
+        when no opponent can be rated.
 
     """
     _require_columns(game_logs)
     teams: list[str] = fit.ratings.get_column("team").to_list()
-    values: list[float] = []
+    values: list[float | None] = []
     for team in teams:
         opponent_ratings = _ratings_without(game_logs, team, fit).select(
             pl.col("team").alias("opponent_team"), pl.col("team_rating").alias("sos")
         )
-        faced = (
+        rated = (
             game_logs.filter(pl.col("team") == team)
             .select("opponent_team")
-            .join(opponent_ratings, on="opponent_team", how="left")
+            .join(opponent_ratings, on="opponent_team", how="inner")
         )
-        unmatched = faced.filter(pl.col("sos").is_null()).get_column("opponent_team").to_list()
-        if unmatched:
-            msg = f"no head-to-head-excluded rating for {team} opponents: {', '.join(unmatched)}"
-            raise ValueError(msg)
-        values.append(float(np.mean(faced.get_column("sos").to_numpy())))
+        values.append(float(np.mean(rated.get_column("sos").to_numpy())) if rated.height else None)
     return pl.DataFrame({"team": teams, "sos": values})
 
 

@@ -33,7 +33,7 @@ played. Start here when ranking teams.
 | `defense_rating` | Def Rating | score | - | 1999 | D | Points per game the defense prevented compared with an average defense, measured by scrimmage EPA per play allowed and adjusted for the offenses it faced. Higher is better. |
 | `special_teams_rating` | ST Rating | score | - | 1999 | D | Points per game gained on special-teams plays (kicks, punts, returns, field goals, and extra points) compared with an average team, adjusted for the opponents faced. |
 | `SRS` | SRS | score | - | 1999 | D | A classic point-margin rating solved across the whole league at once. Positive means the team outscored opponents by more than an average team would have against the same schedule, measured in points per game. |
-| `sos` | SoS | score | - | 1999 | D | The average Team Rating of the opponents this team played, one entry per game, in points per game. Each opponent is rated without its games against this team, so beating an opponent badly cannot make that opponent look weaker here. Positive means a harder-than-average schedule. Context, not a team grade. |
+| `sos` | SoS | score | - | 1999 | D | The average Team Rating of the opponents this team played, one entry per game, in points per game. Each opponent is rated without its games against this team, so beating an opponent badly cannot make that opponent look weaker here. Positive means a harder-than-average schedule. Early in a season, opponents that have played no one else yet are left out. Context, not a team grade. |
 
 ## Overall
 

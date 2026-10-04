@@ -107,7 +107,7 @@ def test_fit_qb_ratings_ignores_game_outcomes() -> None:
     assert result.equals(baseline)
 
 
-def test_compute_qb_faced_pass_defense_defense_without_other_passers_raises_value_error() -> None:
+def test_compute_qb_faced_pass_defense_skips_defenses_without_other_passers() -> None:
     # Arrange
     qb_games = pl.DataFrame(
         {
@@ -120,6 +120,8 @@ def test_compute_qb_faced_pass_defense_defense_without_other_passers_raises_valu
     )
     fit = fit_qb_ratings(qb_games, ridge_lambda=10.0)
 
-    # Act & Assert
-    with pytest.raises(ValueError, match="no head-to-head-excluded defense rating"):
-        compute_qb_faced_pass_defense(qb_games, fit)
+    # Act
+    faced = compute_qb_faced_pass_defense(qb_games, fit)
+
+    # Assert
+    assert faced.get_column("qb_faced_pass_defense").null_count() == faced.height

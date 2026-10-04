@@ -59,7 +59,9 @@ The published team columns, all in points per game against an average team on a 
 `sos` is the average `team_rating` of the opponents a team played, one entry per game, so a
 division rival met twice counts twice. Each opponent is rated from a refit that leaves out every
 game involving the team being evaluated. That keeps a team's own results out of its schedule: a
-team that beats an opponent badly cannot make that opponent look weaker in its own `sos`.
+team that beats an opponent badly cannot make that opponent look weaker in its own `sos`. Early in
+a season an opponent may not have played anyone else yet; it is left out until it has, and `sos`
+stays empty until at least one opponent can be rated.
 
 `nfl-sos-ratings schedules` ranks every completed team-season on `sos`, so one schedule can be
 placed in the full history the data covers.

@@ -96,29 +96,31 @@ def compute_qb_faced_pass_defense(qb_games: pl.DataFrame, fit: QbRatingFit) -> p
 
     Returns:
         One row per passer with ``qb_id`` and ``qb_faced_pass_defense`` in EPA per dropback.
-
-    Raises:
-        ValueError: If a faced defense has no games against other passers.
+        Defenses that have faced no other passer yet are skipped, and the value is null when
+        none of the passer's defenses can be rated.
 
     """
     _require_columns(qb_games)
     rows = _rated_rows(qb_games)
     passers: list[str] = fit.ratings.get_column(QB_ID_COLUMN).to_list()
-    values: list[float] = []
+    values: list[float | None] = []
     for passer in passers:
-        refit = fit_unit_ridge(
-            rows.filter(pl.col(QB_ID_COLUMN) != passer),
-            _UNIT_COLUMNS,
-            ridge_lambda=fit.ridge_lambda,
+        others = rows.filter(pl.col(QB_ID_COLUMN) != passer)
+        defense = (
+            fit_unit_ridge(others, _UNIT_COLUMNS, ridge_lambda=fit.ridge_lambda).defense
+            if not others.is_empty()
+            else {}
         )
-        own = rows.filter(pl.col(QB_ID_COLUMN) == passer)
-        defenses = own.get_column("opponent_team").to_list()
-        unmatched = sorted({team for team in defenses if team not in refit.defense})
-        if unmatched:
-            msg = f"no head-to-head-excluded defense rating for {passer}: {', '.join(unmatched)}"
-            raise ValueError(msg)
+        own = rows.filter(
+            (pl.col(QB_ID_COLUMN) == passer) & pl.col("opponent_team").is_in(list(defense))
+        )
+        if own.is_empty():
+            values.append(None)
+            continue
         weights = own.get_column(QB_DROPBACKS_COLUMN).cast(pl.Float64).to_numpy()
-        effects = np.array([refit.defense[team] for team in defenses], dtype=np.float64)
+        effects = np.array(
+            [defense[team] for team in own.get_column("opponent_team").to_list()], dtype=np.float64
+        )
         values.append(float(np.average(effects, weights=weights)))
     return pl.DataFrame({QB_ID_COLUMN: passers, "qb_faced_pass_defense": values})
 

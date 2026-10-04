@@ -29,7 +29,7 @@ Start here when ranking QBs.
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | `adj_qb_epa_per_dropback` | Adj EPA/DB | rate | dropbacks | 1999 | D | The quarterback's expected points added per dropback after adjusting for the pass defenses he faced. It reads on the same scale as raw EPA per dropback, and small samples are pulled toward the league average. Higher is better. |
-| `qb_faced_pass_defense` | Faced Pass D | rate | dropbacks | 1999 | D | The average quality of the pass defenses this quarterback faced, weighted by his dropbacks, in EPA per dropback prevented. Each defense is rated without its games against this quarterback. Positive means tougher defenses. Context, not a QB grade. |
+| `qb_faced_pass_defense` | Faced Pass D | rate | dropbacks | 1999 | D | The average quality of the pass defenses this quarterback faced, weighted by his dropbacks, in EPA per dropback prevented. Each defense is rated without its games against this quarterback. Positive means tougher defenses. Early in a season, defenses that have faced no other passer yet are left out. Context, not a QB grade. |
 
 ## Identity & Availability
 

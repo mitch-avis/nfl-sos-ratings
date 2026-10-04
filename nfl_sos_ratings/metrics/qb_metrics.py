@@ -39,7 +39,8 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "The average quality of the pass defenses this quarterback faced, weighted by his "
             "dropbacks, in EPA per dropback prevented. Each defense is rated without its games "
-            "against this quarterback. Positive means tougher defenses. Context, not a QB grade."
+            "against this quarterback. Positive means tougher defenses. Early in a season, "
+            "defenses that have faced no other passer yet are left out. Context, not a QB grade."
         ),
         shape="rate",
         polarity="higher",

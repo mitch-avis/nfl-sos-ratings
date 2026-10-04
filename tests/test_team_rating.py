@@ -182,11 +182,36 @@ def test_fit_team_ratings_ignores_game_outcomes() -> None:
     assert result.equals(baseline)
 
 
-def test_compute_team_schedule_strength_opponent_without_other_games_raises_value_error() -> None:
+def test_compute_team_schedule_strength_skips_opponents_without_other_games() -> None:
     # Arrange
-    game_logs = _game_logs((("AAA", "BBB"), ("BBB", "AAA"), ("CCC", "DDD"), ("DDD", "CCC")))
+    games = (
+        ("AAA", "BBB"),
+        ("BBB", "AAA"),
+        ("CCC", "DDD"),
+        ("DDD", "CCC"),
+        ("AAA", "CCC"),
+        ("EEE", "FFF"),
+        ("FFF", "EEE"),
+    )
+    game_logs = _game_logs(games)
     fit = fit_team_ratings(game_logs, scrimmage_lambda=10.0, special_teams_lambda=10.0)
 
-    # Act & Assert
-    with pytest.raises(ValueError, match="no head-to-head-excluded rating"):
-        compute_team_schedule_strength(game_logs, fit)
+    # Act
+    sos = compute_team_schedule_strength(game_logs, fit)
+
+    # Assert
+    by_team = dict(sos.iter_rows())
+    assert by_team["EEE"] is None
+    assert by_team["AAA"] is not None
+
+
+def test_compute_team_schedule_strength_with_no_other_games_is_null() -> None:
+    # Arrange
+    game_logs = _game_logs((("AAA", "BBB"), ("BBB", "AAA")))
+    fit = fit_team_ratings(game_logs, scrimmage_lambda=10.0, special_teams_lambda=10.0)
+
+    # Act
+    sos = compute_team_schedule_strength(game_logs, fit)
+
+    # Assert
+    assert sos.get_column("sos").null_count() == 2
