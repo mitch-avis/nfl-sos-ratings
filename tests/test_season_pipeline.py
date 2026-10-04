@@ -158,3 +158,65 @@ def test_run_season_combined_file_carries_the_team_rating(season_outputs: Path) 
 
     # Assert
     assert combined.get_column("team_rating").null_count() == 0
+
+
+def test_played_schedule_drops_games_without_final_scores() -> None:
+    # Arrange
+    schedule = pl.DataFrame(
+        {
+            "home_team": ["BUF", "NE"],
+            "away_team": ["MIA", "NYJ"],
+            "home_score": [24, None],
+            "away_score": [17, None],
+        }
+    )
+
+    # Act
+    played = main.played_schedule(schedule)
+
+    # Assert
+    assert played.select("home_team", "away_team").rows() == [("BUF", "MIA")]
+
+
+def test_played_schedule_keeps_a_schedule_without_score_columns() -> None:
+    # Arrange
+    schedule = _schedule_df()
+
+    # Act
+    played = main.played_schedule(schedule)
+
+    # Assert
+    assert played.equals(schedule)
+
+
+def test_run_season_profiles_opponents_from_played_games_only(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange
+    unplayed = pl.DataFrame(
+        {"game_id": ["2025_18_BUF_PIT"], "week": [18], "home_team": ["PIT"], "away_team": ["BUF"]}
+    )
+    schedule = pl.concat([_schedule_df(), unplayed]).with_columns(
+        pl.when(pl.col("home_team") == "PIT").then(None).otherwise(20).alias("home_score"),
+        pl.when(pl.col("home_team") == "PIT").then(None).otherwise(17).alias("away_score"),
+    )
+    seen: list[pl.DataFrame] = []
+    real_profiles = main.compute_all_opponent_profiles
+
+    def recording_profiles(
+        weekly_df: pl.DataFrame, schedule_df: pl.DataFrame
+    ) -> tuple[pl.DataFrame | None, dict[str, list[dict[str, str | bool | int]]]]:
+        seen.append(schedule_df)
+        return real_profiles(weekly_df, schedule_df)
+
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(main, "load_weekly_team_stats", stub(_weekly_df))
+    monkeypatch.setattr(main, "load_schedule", stub(lambda: schedule))
+    monkeypatch.setattr(main, "load_qb_stats", stub(_qb_df))
+    monkeypatch.setattr(main, "compute_all_opponent_profiles", recording_profiles)
+
+    # Act
+    main.run_season(2025)
+
+    # Assert
+    assert "PIT" not in seen[0].get_column("home_team").to_list()

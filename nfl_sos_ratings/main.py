@@ -115,6 +115,18 @@ def _write_data_file(frame: pl.DataFrame, season: int, suffix: str) -> Path:
     return data_path
 
 
+def played_schedule(schedule_df: pl.DataFrame) -> pl.DataFrame:
+    """Return only the games that have final scores, so in-progress seasons skip future games.
+
+    A schedule without score columns is returned unchanged.
+    """
+    if not {"home_score", "away_score"} <= set(schedule_df.columns):
+        return schedule_df
+    return schedule_df.filter(
+        pl.col("home_score").is_not_null() & pl.col("away_score").is_not_null()
+    )
+
+
 def build_team_ratings(weekly_df: pl.DataFrame) -> pl.DataFrame:
     """Return one row per team with the published ratings, schedule strength, and SRS."""
     fit = fit_team_ratings(weekly_df)
@@ -141,8 +153,8 @@ def _load_season_frames(season: int) -> tuple[pl.DataFrame, pl.DataFrame, pl.Dat
     weekly_df = load_weekly_team_stats(season)
     print(f"  {weekly_df.height} team-game rows loaded.")
     print("Loading schedule...")
-    schedule_df = load_schedule(season)
-    print(f"  {schedule_df.height} games loaded.")
+    schedule_df = played_schedule(load_schedule(season))
+    print(f"  {schedule_df.height} played games loaded.")
     print("Loading QB game stats...")
     qb_df = load_qb_stats(season)
     print(f"  {qb_df.height} QB-game rows loaded.\n")

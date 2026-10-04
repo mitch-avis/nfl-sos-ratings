@@ -1,12 +1,13 @@
 """Configuration constants for NFL Strength of Schedule analysis."""
 
-# Season range for the full pipeline run (nfl-sos-pipeline command).
-# 2016 is the first season with available Next Gen Stats data.
+# Completed seasons: the range `nfl-sos-ratings pipeline` builds and `validate` evaluates.
 START_YEAR: int = 1999
 END_YEAR: int = 2025
 
-# Single-season target — used by main.py when invoked directly.
-SEASON: int = END_YEAR
+# Default for `nfl-sos-ratings season`: the current season, which may still be in progress. A
+# partial season rates only the games played so far, and its ratings lean hard on the league
+# average until enough games are in.
+SEASON: int = 2026
 
 # Data directory for generated Parquet files
 DATA_DIR: str = "data"

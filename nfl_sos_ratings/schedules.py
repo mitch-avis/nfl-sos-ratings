@@ -18,23 +18,31 @@ from nfl_sos_ratings.config import DATA_DIR
 
 _RATINGS_FILE = re.compile(r"^(?P<season>\d{4})_ratings\.parquet$")
 _DEFAULT_TOP = 10
+# Every completed season since 1999 has at least 16 games per team; fewer means still in progress.
+_COMPLETE_SEASON_MIN_GAMES = 16
 
 
 def rank_schedules(data_dir: Path) -> pl.DataFrame:
     """Return every team-season with its ``sos`` and its softest and hardest rank overall.
 
     Rank 1 is the softest (``softest_rank``) or hardest (``hardest_rank``) schedule in the data.
-    Ratings files without an ``sos`` column (older outputs) are skipped.
+    Ratings files without an ``sos`` column (older outputs) and seasons still in progress (no team
+    with a full season of games) are skipped.
     """
     frames: list[pl.DataFrame] = []
     for path in sorted(data_dir.glob("*_ratings.parquet")):
         match = _RATINGS_FILE.match(path.name)
-        if match is None or "sos" not in pl.read_parquet_schema(path):
+        schema = pl.read_parquet_schema(path)
+        if match is None or "sos" not in schema:
+            continue
+        ratings = pl.read_parquet(path)
+        if (
+            "games_played" in schema
+            and ratings.select(pl.col("games_played").max()).item() < _COMPLETE_SEASON_MIN_GAMES
+        ):
             continue
         frames.append(
-            pl.read_parquet(path, columns=["team", "sos"]).with_columns(
-                pl.lit(int(match["season"])).alias("season")
-            )
+            ratings.select("team", "sos").with_columns(pl.lit(int(match["season"])).alias("season"))
         )
     if not frames:
         return pl.DataFrame(
@@ -62,8 +70,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="nfl-sos-ratings schedules",
         description=(
-            "Rank every team-season in data/ by strength of schedule (sos, points per game). "
-            "With --team and --season, report where that schedule ranks."
+            "Rank every completed team-season in data/ by strength of schedule (sos, points per "
+            "game). With --team and --season, report where that schedule ranks."
         ),
     )
     parser.add_argument("--data-dir", default=DATA_DIR, help="Directory of Parquet outputs.")

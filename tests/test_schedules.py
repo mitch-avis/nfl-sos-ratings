@@ -18,6 +18,7 @@ def _write_ratings(data_dir: Path, season: int, sos: dict[str, float]) -> None:
             "team": list(sos),
             "sos": list(sos.values()),
             "team_rating": [0.0] * len(sos),
+            "games_played": [17] * len(sos),
         }
     ).write_parquet(data_dir / f"{season}_ratings.parquet")
 
@@ -70,3 +71,22 @@ def test_main_prints_the_rank_of_one_team_season(
 
     # Assert
     assert "2025 AAA: sos -3.00, softest 1 of 6" in capsys.readouterr().out
+
+
+def test_rank_schedules_skips_seasons_still_in_progress(tmp_path: Path) -> None:
+    # Arrange
+    _write_ratings(tmp_path, 2025, {"AAA": 1.0, "BBB": -1.0})
+    pl.DataFrame(
+        {
+            "team": ["AAA", "BBB"],
+            "sos": [-9.0, 9.0],
+            "team_rating": [0.0, 0.0],
+            "games_played": [3, 3],
+        }
+    ).write_parquet(tmp_path / "2026_ratings.parquet")
+
+    # Act
+    ranked = rank_schedules(tmp_path)
+
+    # Assert
+    assert ranked.get_column("season").unique().to_list() == [2025]
