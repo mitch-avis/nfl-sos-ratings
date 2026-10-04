@@ -22,11 +22,7 @@ import {
   toggleSubcategoryPatch,
 } from '@/domain/pageViewState'
 import { isMissingRankRanges, parseRankRanges } from '@/domain/rankRanges'
-import {
-  getInProgressGames,
-  getQuarterbackQualifierAttempts,
-  getRegularSeasonGameCount,
-} from '@/domain/seasonRules'
+import { getInProgressGames } from '@/domain/seasonRules'
 import { buildSeasonViewTable } from '@/domain/viewModel'
 
 function sameIds(left: string[], right: string[]): boolean {
@@ -103,7 +99,7 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
     if (kind !== 'qbs' || state.showUnratedRows) return seasonView.table
     return {
       ...seasonView.table,
-      rows: seasonView.table.rows.filter((row) => row.adj_qb_epa_per_dropback != null),
+      rows: seasonView.table.rows.filter((row) => row.qb_is_eligible === true),
     }
   }, [kind, seasonView.table, state.showUnratedRows])
   const compareColumns = useMemo(() => {
@@ -159,16 +155,13 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
                 checked={state.showUnratedRows}
                 onCheckedChange={(checked) => update({ showUnratedRows: checked })}
               />
-              <Label htmlFor="show-unrated">Show unrated or empty QB rows</Label>
+              <Label htmlFor="show-unrated">Show QBs below the qualifier</Label>
             </div>
             <p className="text-sm text-muted-foreground">
-              Includes quarterbacks who played at least one offensive snap but finished below the
-              rating threshold of {getQuarterbackQualifierAttempts(season, gamesSoFar)} pass attempts
-              (14 per team game{' '}
-              {gamesSoFar !== null
-                ? `over the ${gamesSoFar} games played so far`
-                : `in this ${getRegularSeasonGameCount(season)}-game season`}
-              ).
+              The table ranks quarterbacks with at least 14 pass attempts per game his team has
+              played{gamesSoFar !== null ? ' so far, so teams that have had a bye need fewer' : ''}.
+              Switch on to list the passers below that mark too; they have no rank range. Each
+              quarterback&apos;s number is the Qualifier Att column in Raw Total Stats.
             </p>
           </CardContent>
         </Card>

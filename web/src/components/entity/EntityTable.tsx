@@ -57,8 +57,38 @@ const CONTROL_COLUMNS = ['compare', 'rank']
 const RANK_RANGE_COLUMN = 'rank_range'
 const PHONE_PINNED_MAX_WIDTH = 120
 
-function RankRangeCell({ kind, range, count }: { kind: EntityKind; range: RankRange | undefined; count: number }) {
+/** The cell for a QB below the qualifier, who is not ranked: why, with his attempts. */
+function BelowQualifierCell({ row }: { row: Row }) {
+  const attempts = typeof row.qb_attempts_total === 'number' ? row.qb_attempts_total : null
+  const needed = typeof row.qb_attempt_qualifier === 'number' ? row.qb_attempt_qualifier : null
+  const detail =
+    attempts !== null && needed !== null ? `${attempts} of ${needed} pass attempts` : 'too few pass attempts'
+  return (
+    <Hint content={`Not ranked: below the qualifier (${detail}), so no rank range.`}>
+      <button
+        type="button"
+        aria-label={`Below the qualifier: ${detail}`}
+        className="cursor-help text-muted-foreground underline decoration-muted-foreground/40 decoration-dotted underline-offset-4"
+      >
+        Below qualifier
+      </button>
+    </Hint>
+  )
+}
+
+function RankRangeCell({
+  kind,
+  range,
+  count,
+  row,
+}: {
+  kind: EntityKind
+  range: RankRange | undefined
+  count: number
+  row: Row
+}) {
   const { q250, q750 } = range?.rank ?? { q250: null, q750: null }
+  if (!range && kind === 'qbs' && row.qb_is_eligible === false) return <BelowQualifierCell row={row} />
   if (!range || q250 === null || q750 === null) return <span className="text-muted-foreground">-</span>
   return (
     <Hint
@@ -165,6 +195,7 @@ export function EntityTable({
           kind={config.kind}
           range={byId.get(String(row.original[config.identityKey] ?? ''))}
           count={rankRanges.length}
+          row={row.original}
         />
       ),
     }

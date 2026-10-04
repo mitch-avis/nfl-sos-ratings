@@ -2,7 +2,15 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DEN_GAME_LOGS, DEN_RATING_HISTORY, REGISTRY, SEASON_2025, stubApi, TEAM_RANK_RANGES } from '@/test/fixtures'
+import {
+  DEN_GAME_LOGS,
+  DEN_RATING_HISTORY,
+  QB_RANK_RANGES,
+  REGISTRY,
+  SEASON_2025,
+  stubApi,
+  TEAM_RANK_RANGES,
+} from '@/test/fixtures'
 import { renderApp } from '@/test/renderApp'
 
 const API = {
@@ -158,9 +166,27 @@ describe('season in progress', () => {
     renderApp('/qbs?season=2026')
 
     // Assert
-    expect(await screen.findByText(/rating threshold of/)).toHaveTextContent(
-      '42 pass attempts (14 per team game over the 3 games played so far)',
+    expect(await screen.findByText(/14 pass attempts per game/)).toHaveTextContent(
+      'at least 14 pass attempts per game his team has played',
     )
+  })
+
+  it('keeps the notice up until every team has finished its season', async () => {
+    // Arrange
+    const lastWeek = {
+      ...SEASON_2025,
+      teams: {
+        ...SEASON_2025.teams,
+        rows: SEASON_2025.teams.rows.map((row, index) => ({ ...row, games_played: index === 0 ? 16 : 17 })),
+      },
+    }
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025': lastWeek }))
+
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByText(/Season in progress/)).toHaveTextContent('up to 17 games')
   })
 
   it('shows no notice for a completed season', async () => {
@@ -174,26 +200,44 @@ describe('season in progress', () => {
 })
 
 describe('QB index', () => {
-  it('hides unrated QBs by default', async () => {
+  it('lists only qualifying QBs by default', async () => {
     // Act
     renderApp('/qbs?season=2025')
 
     // Assert
     expect(await screen.findByRole('link', { name: 'Bo Nix' })).toBeInTheDocument()
+    expect(screen.queryByText('Short Sample')).not.toBeInTheDocument()
     expect(screen.queryByText('Backup Arm')).not.toBeInTheDocument()
   })
 
-  it('shows unrated QBs once the switch is on', async () => {
+  it('adds the QBs below the qualifier once the switch is on', async () => {
     // Arrange
     const user = userEvent.setup()
     renderApp('/qbs?season=2025')
     await screen.findByRole('link', { name: 'Bo Nix' })
 
     // Act
-    await user.click(screen.getByRole('switch', { name: 'Show unrated or empty QB rows' }))
+    await user.click(screen.getByRole('switch', { name: 'Show QBs below the qualifier' }))
 
     // Assert
+    expect(screen.getByText('Short Sample')).toBeInTheDocument()
     expect(screen.getByText('Backup Arm')).toBeInTheDocument()
+  })
+
+  it('says a QB below the qualifier has no rank range, and why', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/qbs/rating-ranges': QB_RANK_RANGES }))
+    const user = userEvent.setup()
+    renderApp('/qbs?season=2025')
+    await screen.findByRole('columnheader', { name: /Rank range/ })
+
+    // Act
+    await user.click(screen.getByRole('switch', { name: 'Show QBs below the qualifier' }))
+
+    // Assert
+    expect(screen.getByRole('button', { name: 'Below the qualifier: 25 of 238 pass attempts' })).toHaveTextContent(
+      'Below qualifier',
+    )
   })
 
   it('leaves the raw player ID out of the table', async () => {
