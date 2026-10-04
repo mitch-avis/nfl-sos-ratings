@@ -73,7 +73,8 @@ The app never recomputes methodology. The backend (`nfl_sos_ratings/ui_data.py` 
 A season is listed only when all six contract files exist: `{season}_team_per_game_stats`,
 `{season}_qb_per_game_stats`, `{season}_combined`, `{season}_qb_combined`, `{season}_ratings`, and
 `{season}_qb_ratings` (all `.parquet`). Game-log views also read `{season}_team_game_logs` and
-`{season}_qb_game_logs`.
+`{season}_qb_game_logs`, and the rating-history chart reads `{season}_ratings_by_week` and
+`{season}_qb_ratings_by_week`; the chart is left out when a season has no history file.
 
 ## Layout
 

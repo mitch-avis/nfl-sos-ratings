@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
 
-import { useEntityGameLogs } from '@/api/queries'
+import { useEntityGameLogs, useRatingHistory } from '@/api/queries'
 import type { EntityKind, SeasonDataset } from '@/api/types'
 import { useEntityPageState } from '@/app/EntityViewStateProvider'
 import { ErrorState } from '@/components/common/ErrorState'
@@ -26,13 +26,14 @@ import { getEntityConfig, getEntityRow, getFullTeamName } from '@/domain/entityC
 import { humanizeGroup } from '@/domain/format'
 import { getGroupDescription } from '@/domain/metricMetadata'
 import { canResetPageView, toggleSubcategoryPatch } from '@/domain/pageViewState'
+import { buildRatingHistoryChart, isMissingRatingHistory } from '@/domain/ratingHistory'
 import {
   buildGameLogColumnSelection,
   buildSeasonViewTable,
   deriveLegacyDetailSurfaceId,
 } from '@/domain/viewModel'
 
-/** One team's or QB's season: current-view values, weekly log, trend, and opponent ledger. */
+/** One team's or QB's season: current-view values, rating by week, weekly log, and opponents. */
 export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset: SeasonDataset }) {
   const config = getEntityConfig(kind)
   const state = useEntityPageState(kind)
@@ -42,10 +43,15 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
   const seasonView = useMemo(() => buildSeasonViewTable(kind, dataset[kind], viewState), [dataset, kind, viewState])
   const row = getEntityRow(seasonView.table, kind, entityId)
   const gameLogsQuery = useEntityGameLogs(kind, season, row ? entityId : '')
+  const ratingHistoryQuery = useRatingHistory(kind, season, row ? entityId : '')
 
   const enrichedGameLogs = useMemo(
     () => (gameLogsQuery.data ? enrichGameLogsWithOpponentRatings(gameLogsQuery.data, dataset.teams) : null),
     [dataset.teams, gameLogsQuery.data],
+  )
+  const ratingHistoryChart = useMemo(
+    () => (ratingHistoryQuery.data ? buildRatingHistoryChart(kind, ratingHistoryQuery.data) : null),
+    [kind, ratingHistoryQuery.data],
   )
   const weeklyHighlights = useMemo(
     () => (enrichedGameLogs && row ? buildWeeklyHighlights(kind, row, enrichedGameLogs) : []),
@@ -114,6 +120,28 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
           />
         </CardContent>
       </Card>
+
+      {ratingHistoryQuery.isError && !isMissingRatingHistory(ratingHistoryQuery.error) ? (
+        <ErrorState error={ratingHistoryQuery.error} title="Could not load the rating history" />
+      ) : null}
+      {ratingHistoryChart ? (
+        <Card className="gap-4">
+          <CardHeader>
+            <CardTitle className="text-base">Rating by week</CardTitle>
+            <CardDescription>
+              Each point is the rating fit on the {season} games through that week, so early weeks sit
+              near average and spread out as games accumulate. The last point is the rating above.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <WeeklyTrendChart
+              rows={ratingHistoryChart.rows}
+              columns={ratingHistoryChart.columns}
+              reference={ratingHistoryChart.reference}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="gap-4">
         <CardHeader className="flex flex-wrap items-start justify-between gap-2">

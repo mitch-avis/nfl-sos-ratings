@@ -166,3 +166,21 @@ export function stubApi(routes: Record<string, unknown>): typeof fetch {
     })
   }) as typeof fetch
 }
+
+export const DEN_RATING_HISTORY: TablePayload = {
+  rows: [
+    { week: 1, team: 'DEN', games_played: 1, team_rating: 1.2, offense_rating: 0.6 },
+    { week: 2, team: 'DEN', games_played: 2, team_rating: 3.4, offense_rating: 1.5 },
+    { week: 3, team: 'DEN', games_played: 3, team_rating: 5.1, offense_rating: 2.2 },
+  ],
+  visible_columns: ['week', 'team', 'games_played', 'team_rating', 'offense_rating'],
+  column_groups: {
+    identity: ['week', 'team'],
+    sample: ['games_played'],
+    ratings: ['team_rating', 'offense_rating'],
+  },
+  column_metadata: {
+    team_rating: columnMeta('Team Rating'),
+    offense_rating: columnMeta('Off Rating'),
+  },
+}

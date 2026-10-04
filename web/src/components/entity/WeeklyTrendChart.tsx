@@ -14,18 +14,22 @@ import type { RowValue } from '@/api/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatValue } from '@/domain/format'
 import { getMetricMetadata } from '@/domain/metricMetadata'
-import { buildTrendPoints, type TrendPoint } from '@/domain/trend'
+import { buildTrendPoints, meanReference, type TrendPoint, type TrendReference } from '@/domain/trend'
 
 /**
- * A line chart of one game-log metric by week, with the season mean as a reference line.
- * The metric picker offers the numeric columns of the current view.
+ * A line chart of one metric by week. The metric picker offers the numeric `columns`.
+ *
+ * `reference` is the dashed line: `'mean'` (the default) draws the mean of the points shown, a
+ * `TrendReference` draws a fixed value, and `null` draws none.
  */
 export function WeeklyTrendChart({
   rows,
   columns,
+  reference = 'mean',
 }: {
   rows: Array<Record<string, RowValue>>
   columns: string[]
+  reference?: 'mean' | TrendReference | null
 }) {
   const numericColumns = useMemo(
     () => columns.filter((column) => column !== 'week' && rows.some((row) => typeof row[column] === 'number')),
@@ -36,7 +40,7 @@ export function WeeklyTrendChart({
   const points = useMemo(() => (column ? buildTrendPoints(rows, column) : []), [column, rows])
   if (!column || points.length < 2) return null
 
-  const mean = points.reduce((total, point) => total + point.value, 0) / points.length
+  const line = reference === 'mean' ? meanReference(points) : reference
   const label = getMetricMetadata(column).label
 
   return (
@@ -70,12 +74,12 @@ export function WeeklyTrendChart({
               }}
               contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8 }}
             />
-            <ReferenceLine y={mean} stroke="var(--muted-foreground)" strokeDasharray="4 4" />
+            {line ? <ReferenceLine y={line.value} stroke="var(--muted-foreground)" strokeDasharray="4 4" /> : null}
             <Line type="monotone" dataKey="value" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-xs text-muted-foreground">Dashed line: the mean of the games shown ({formatValue(mean)}).</p>
+      {line ? <p className="text-xs text-muted-foreground">{line.caption}</p> : null}
     </div>
   )
 }

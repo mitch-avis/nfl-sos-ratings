@@ -66,3 +66,19 @@ export function useEntityGameLogs(kind: EntityKind, season: number, entityId: st
     },
   })
 }
+
+/** One team's or QB's rating as of each week; seasons built before rating histories answer 404. */
+export function useRatingHistory(kind: EntityKind, season: number, entityId: string) {
+  return useQuery({
+    queryKey: ['rating-history', kind, season, entityId],
+    enabled: entityId !== '',
+    queryFn: async ({ signal }) => {
+      const payload = await apiFetch<TablePayload>(
+        `/api/seasons/${season}/${kind}/${encodeURIComponent(entityId)}/rating-history`,
+        signal,
+      )
+      hydrateColumnMetadata(payload.column_metadata)
+      return payload
+    },
+  })
+}

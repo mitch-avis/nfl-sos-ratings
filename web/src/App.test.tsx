@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DEN_GAME_LOGS, REGISTRY, SEASON_2025, stubApi } from '@/test/fixtures'
+import { DEN_GAME_LOGS, DEN_RATING_HISTORY, REGISTRY, SEASON_2025, stubApi } from '@/test/fixtures'
 import { renderApp } from '@/test/renderApp'
 
 const API = {
@@ -182,6 +182,48 @@ describe('team detail', () => {
     expect(await screen.findByRole('heading', { name: 'Denver Broncos' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Season Ratings' })).toHaveTextContent('Team Rating8.40')
     expect(await screen.findByRole('link', { name: '2025_02_DEN_IND' })).toHaveAttribute('target', '_blank')
+  })
+
+  it('charts the rating by week when the season has a rating history', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/teams/DEN/rating-history': DEN_RATING_HISTORY }))
+
+    // Act
+    renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    expect(await screen.findByText('Rating by week')).toBeInTheDocument()
+    expect(screen.getByText('Team Rating by week')).toBeInTheDocument()
+    expect(screen.getByText('Dashed line: an average team (0).')).toBeInTheDocument()
+  })
+
+  it('leaves the rating chart out for a season without a rating history', async () => {
+    // Act
+    renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('link', { name: '2025_02_DEN_IND' })).toBeInTheDocument()
+    expect(screen.queryByText('Rating by week')).not.toBeInTheDocument()
+    expect(screen.queryByText('Could not load the rating history')).not.toBeInTheDocument()
+  })
+
+  it('reports a rating-history failure other than a missing file', async () => {
+    // Arrange
+    const api = stubApi(API)
+    vi.stubGlobal('fetch', (async (input: RequestInfo | URL) =>
+      String(input).endsWith('/rating-history')
+        ? new Response(JSON.stringify({ detail: 'disk read failed' }), {
+            status: 500,
+            headers: { 'content-type': 'application/json' },
+          })
+        : api(input)) as typeof fetch)
+
+    // Act
+    renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    expect(await screen.findByText('Could not load the rating history')).toBeInTheDocument()
+    expect(screen.getByText('disk read failed')).toBeInTheDocument()
   })
 
   it('returns to the index for an unknown team', async () => {
