@@ -111,10 +111,21 @@ across thresholds whichever way they move.
 
 ## Tasks
 
-- [x] Weighted ridge engine with the equivalence test (1000 resamples of 2025 take about 1 s
-  each for teams and QBs).
-- [ ] Rank-range computation (teams and QBs) with calibration test and timing.
-- [ ] Registry suffix rules and entries, `catalog`; pipeline writes the range files.
+- [x] Weighted ridge engine with the equivalence test (scratch timing: 1000 resamples of 2025 take
+  about 1 s each for teams and QBs).
+- [x] Rank-range computation: `team_rating.bootstrap_team_ratings`,
+  `qb_rating.bootstrap_qb_ratings`, and `rating_ranges.summarize_rank_ranges` (`RangeColumns`,
+  `TEAM_RANGE_COLUMNS`,
+  `QB_RANGE_COLUMNS`); the calibration test passes the pre-set tolerance. Column names it emits:
+  `team_rank` / `qb_rank` (published rank), `{rating}_q025` ... `_q975` and `{rank}_q025` ...
+  `_q975`, `{rank}_missing_share`, `{rank}_top5_probability`, `{rank}_top10_probability`,
+  `{rank}_probabilities` (list).
+- [ ] Registry: base metrics `team_rank`, `qb_rank`, and the `_missing_share`, `_top5_probability`,
+  `_top10_probability`, `_probabilities` columns; quantile suffix rules `_q025` ... `_q975` in
+  `metrics/registry.py` `DEFAULT_SUFFIX_RULES`; then `nfl-sos-ratings catalog`.
+- [ ] `main.run_season` writes `{season}_rating_ranges` (team fit with previous-season penalties,
+  every team eligible) and `{season}_qb_rating_ranges` (QB fit, eligible = `qb_is_eligible`), with
+  `BOOTSTRAP_RESAMPLES` / `BOOTSTRAP_SEED`; season-pipeline tests first.
 - [ ] Rank-range API and web views; methodology caveats.
 - [ ] Ask to run `season` / `pipeline` for the range files.
 - [x] WP decisions answered by the maintainer.

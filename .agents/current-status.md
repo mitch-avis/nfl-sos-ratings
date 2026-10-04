@@ -27,7 +27,9 @@ history (the composite-rating era and its experiments) is in git, before commit 
 ## Next steps
 
 1. Rank ranges and a garbage-time win-probability filter: see
-   `.agents/rank-ranges-and-wp-filter-plan.md`.
+   `.agents/rank-ranges-and-wp-filter-plan.md`. Branch `feat/rank-ranges` (not pushed) has the
+   plan, the WP decisions, the weighted bootstrap engine, and the rank-range summary; the
+   registry, pipeline output, API, web views, and the whole WP feature are still to do.
 2. Rebuild 2026 weekly as games are played (`nfl-sos-ratings season`, ask first).
 
 ## Validation snapshot
