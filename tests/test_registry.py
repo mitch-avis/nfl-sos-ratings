@@ -39,8 +39,6 @@ _OUTPUT_COLUMN_SAMPLES = (
     "opp_passing_yards",
     "opp_qb_epa_per_dropback",
     "qopp_qb_sack_rate",
-    "diff_passing_epa_per_offensive_snap",
-    "diff_qb_any_a",
     "team_rating",
     "offense_rating",
     "defense_rating",

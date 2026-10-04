@@ -128,8 +128,6 @@ extend-allowed-calls = ["polars.lit"]
 # replaces it in these modules.
 "nfl_sos_ratings/main.py" = ["T201"]
 "nfl_sos_ratings/pipeline.py" = ["T201"]
-"nfl_sos_ratings/opponent_stats.py" = ["T201"]
-"nfl_sos_ratings/composite_weights.py" = ["T201"]
 "nfl_sos_ratings/validation/walk_forward.py" = ["T201"]
 
 # --------------------------------------------------------------------------------------------

@@ -533,40 +533,6 @@ def compute_all_teams_per_game(weekly_df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def compute_all_teams_qb_per_game(qb_df: pl.DataFrame) -> pl.DataFrame:
-    """Compute per-game QB averages for all teams from game-level QB data.
-
-    Returns a DataFrame with one row per team and per-game averages for every
-    QB stat column.
-    """
-    source = qb_df
-    if {"team_abbr", "week"}.issubset(set(qb_df.columns)):
-        sort_keys = [
-            column
-            for column in ("qb_offense_snaps", "qb_dropbacks", "qb_attempts")
-            if column in qb_df.columns
-        ]
-        if sort_keys:
-            source = (
-                qb_df.sort(sort_keys, descending=[True] * len(sort_keys))
-                .group_by(["team_abbr", "week"])
-                .first()
-            )
-
-    qb_stat_cols = [
-        col
-        for col, dtype in zip(source.columns, source.dtypes, strict=True)
-        if dtype.is_numeric() and col != "week"
-    ]
-
-    return (
-        source.group_by("team_abbr")
-        .agg([pl.col(c).mean().alias(c) for c in qb_stat_cols])
-        .rename({"team_abbr": "team"})
-        .sort("team")
-    )
-
-
 def compute_win_totals(weekly_df: pl.DataFrame) -> pl.DataFrame:
     """Compute wins, losses, ties, and win_pct per team from weekly game results.
 
@@ -621,40 +587,4 @@ def compute_team_stats_excluding_opponent(
         [pl.lit(team).alias("team")]
         + [pl.col(c).mean().alias(c) for c in stat_cols]
         + [pl.lit(games).alias("games_included")]
-    )
-
-
-def compute_qb_stats_excluding_opponent(
-    qb_df: pl.DataFrame,
-    weekly_df: pl.DataFrame,
-    team: str,
-    exclude_opponent: str,
-) -> pl.DataFrame | None:
-    """Compute per-game QB averages for `team`.
-
-    Exclude weeks where they played `exclude_opponent`.
-    Uses weekly_df to identify which weeks to exclude.
-    Returns None if no games remain.
-    """
-    qb_stat_cols = [
-        col
-        for col, dtype in zip(qb_df.columns, qb_df.dtypes, strict=True)
-        if dtype.is_numeric() and col != "week"
-    ]
-
-    # Find weeks where team played the exclude_opponent
-    exclude_weeks = (
-        weekly_df.filter((pl.col("team") == team) & (pl.col("opponent_team") == exclude_opponent))
-        .select("week")
-        .to_series()
-        .to_list()
-    )
-
-    filtered = qb_df.filter((pl.col("team_abbr") == team) & (~pl.col("week").is_in(exclude_weeks)))
-
-    if filtered.height == 0:
-        return None
-
-    return filtered.select(
-        [pl.lit(team).alias("team")] + [pl.col(c).mean().alias(c) for c in qb_stat_cols]
     )

@@ -35,8 +35,8 @@ TEAM_RATING_COLUMNS = (
     "SRS",
 )
 QB_RATING_COLUMNS = ("adj_qb_epa_per_dropback", "qb_faced_pass_defense")
-TEAM_EXCLUDED_PREFIXES = ("qb_", "opp_qb_", "Q", "diff_", "adj_")
-QB_EXCLUDED_PREFIXES = ("diff_", "adj_")
+TEAM_EXCLUDED_PREFIXES: tuple[str, ...] = ()
+QB_EXCLUDED_PREFIXES: tuple[str, ...] = ()
 QB_PER_DROPBACK_RATE_COLUMNS = (
     "qb_epa_per_dropback",
     "qb_pass_yards_per_dropback",

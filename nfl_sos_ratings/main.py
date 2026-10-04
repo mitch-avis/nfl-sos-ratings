@@ -1,8 +1,8 @@
 """Single-season pipeline: load one season, compute team and QB ratings, write Parquet outputs.
 
 Team ratings come from ``team_rating`` (points per game, opponent-adjusted EPA) and QB ratings
-from ``qb_rating`` (adjusted EPA per dropback). Head-to-head-excluded opponent profiles and the
-``diff_*`` columns are written beside them for the analyst UI's descriptive views.
+from ``qb_rating`` (adjusted EPA per dropback). Head-to-head-excluded opponent profiles are
+written beside them for the analyst UI's descriptive views.
 """
 
 import argparse
@@ -29,11 +29,7 @@ from nfl_sos_ratings.team_rating import (
     compute_team_schedule_strength,
     fit_team_ratings,
 )
-from nfl_sos_ratings.team_stats import (
-    compute_all_teams_per_game,
-    compute_all_teams_qb_per_game,
-    compute_win_totals,
-)
+from nfl_sos_ratings.team_stats import compute_all_teams_per_game, compute_win_totals
 
 TEAM_RATINGS_ORDER = ("team", "games_played", *TEAM_RATING_COLUMNS, "sos", "SRS")
 QB_RATINGS_ORDER = (
@@ -53,26 +49,6 @@ _QB_IDENTITY_KEYS = ("qb_id", "qb_name", "team")
 def _matching_qb_join_keys(left: pl.DataFrame, right: pl.DataFrame) -> list[str]:
     """Return the QB identity keys both frames share."""
     return [key for key in _QB_IDENTITY_KEYS if key in left.columns and key in right.columns]
-
-
-def _with_qb_differentials(qb_combined: pl.DataFrame) -> pl.DataFrame:
-    """Add ``diff_<stat> = <stat> - qopp_<stat>`` for every paired QB stat."""
-    exprs = [
-        (pl.col(column) - pl.col(f"qopp_{column}")).alias(f"diff_{column}")
-        for column in qb_combined.columns
-        if column.startswith("qb_") and f"qopp_{column}" in qb_combined.columns
-    ]
-    return qb_combined.with_columns(exprs) if exprs else qb_combined
-
-
-def _with_diff_columns(combined: pl.DataFrame) -> pl.DataFrame:
-    """Add ``diff_<stat> = <stat> - opp_<stat>`` for every paired team stat."""
-    exprs = [
-        (pl.col(column) - pl.col(f"opp_{column}")).alias(f"diff_{column}")
-        for column in combined.columns
-        if f"opp_{column}" in combined.columns
-    ]
-    return combined.with_columns(exprs) if exprs else combined
 
 
 def _build_team_game_logs(weekly_df: pl.DataFrame) -> pl.DataFrame:
@@ -180,11 +156,7 @@ def run_season(season: int) -> None:
     _write_data_file(qb_game_logs, season, "qb_game_logs")
 
     win_totals = compute_win_totals(weekly_df)
-    team_combined = (
-        compute_all_teams_per_game(weekly_df)
-        .join(compute_all_teams_qb_per_game(qb_df), on="team", how="left")
-        .join(win_totals, on="team", how="left")
-    )
+    team_combined = compute_all_teams_per_game(weekly_df).join(win_totals, on="team", how="left")
     _write_data_file(team_combined, season, "team_per_game_stats")
 
     qb_season_stats = compute_qb_season_stats(qb_df, weekly_df=weekly_df).join(
@@ -200,20 +172,13 @@ def run_season(season: int) -> None:
         _write_data_file(qb_opp_profiles, season, "qb_opponent_profiles")
 
     print("Computing team opponent profiles...")
-    opp_team_df, opp_qb_df, _ = compute_all_opponent_profiles(weekly_df, qb_df, schedule_df)
-    opp_combined = (
-        opp_team_df.join(opp_qb_df, on="team", how="left")
-        if opp_team_df is not None and opp_qb_df is not None
-        else opp_team_df
-    )
-    if opp_combined is not None:
-        _write_data_file(opp_combined, season, "opponent_profiles")
-        team_combined = _with_diff_columns(
-            team_combined.join(
-                opp_combined.rename({c: f"opp_{c}" for c in opp_combined.columns if c != "team"}),
-                on="team",
-                how="left",
-            )
+    opp_profiles, _ = compute_all_opponent_profiles(weekly_df, schedule_df)
+    if opp_profiles is not None:
+        _write_data_file(opp_profiles, season, "opponent_profiles")
+        team_combined = team_combined.join(
+            opp_profiles.rename({c: f"opp_{c}" for c in opp_profiles.columns if c != "team"}),
+            on="team",
+            how="left",
         )
 
     print("Fitting team ratings...")
@@ -228,12 +193,8 @@ def run_season(season: int) -> None:
     print("Fitting QB ratings...")
     qb_combined = qb_season_stats
     if qb_opp_profiles is not None:
-        qb_combined = _with_qb_differentials(
-            qb_combined.join(
-                qb_opp_profiles,
-                on=_matching_qb_join_keys(qb_combined, qb_opp_profiles),
-                how="left",
-            )
+        qb_combined = qb_combined.join(
+            qb_opp_profiles, on=_matching_qb_join_keys(qb_combined, qb_opp_profiles), how="left"
         )
     qb_combined = qb_combined.join(build_qb_ratings(qb_game_logs), on="qb_id", how="left")
     _write_data_file(qb_combined, season, "qb_combined")

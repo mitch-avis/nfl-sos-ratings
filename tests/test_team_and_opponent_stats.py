@@ -41,17 +41,6 @@ def _weekly_df() -> pl.DataFrame:
     )
 
 
-def _qb_df() -> pl.DataFrame:
-    return pl.DataFrame(
-        {
-            "team_abbr": ["DEN", "DEN", "KC", "KC", "KC", "LAC", "LAC"],
-            "week": [1, 2, 1, 2, 3, 2, 3],
-            "qb_passer_rating": [100.0, 97.0, 88.0, 111.0, 109.0, 94.0, 96.0],
-            "qb_aggressiveness": [12.0, 11.0, 10.0, 13.5, 13.0, 9.5, 10.5],
-        }
-    )
-
-
 def _schedule_df() -> pl.DataFrame:
     return pl.DataFrame(
         {
@@ -86,18 +75,6 @@ def test_compute_all_teams_per_game_returns_one_row_per_team() -> None:
     assert per_game.height == 3
 
 
-def test_compute_all_teams_qb_per_game_returns_one_row_per_team() -> None:
-    """Verify team-level QB per-game aggregation returns one row per team."""
-    # Arrange
-    qb = _qb_df()
-
-    # Act
-    qb_per_game = team_stats.compute_all_teams_qb_per_game(qb)
-
-    # Assert
-    assert qb_per_game.height == 3
-
-
 def test_compute_win_totals_counts_wins() -> None:
     """Verify win totals count each team's wins."""
     # Arrange
@@ -108,31 +85,6 @@ def test_compute_win_totals_counts_wins() -> None:
 
     # Assert
     assert win_totals.filter(pl.col("team") == "DEN").select("wins").item() == 2
-
-
-def test_compute_all_teams_qb_per_game_prefers_majority_snaps_then_dropbacks() -> None:
-    """Verify primary team QB selection uses snaps and dropbacks before attempts."""
-    # Arrange
-    qb = pl.DataFrame(
-        {
-            "team_abbr": ["DEN", "DEN", "DEN"],
-            "week": [1, 1, 1],
-            "qb_name": ["Snap Leader", "Attempt Leader", "Dropback Leader"],
-            "qb_attempts": [20, 30, 18],
-            "qb_dropbacks": [22, 21, 24],
-            "qb_offense_snaps": [45, 40, 40],
-            "qb_passer_rating": [101.0, 95.0, 98.0],
-        }
-    )
-
-    # Act
-    result = team_stats.compute_all_teams_qb_per_game(qb)
-
-    # Assert
-    assert result.select("team").item() == "DEN"
-    assert result.select("qb_offense_snaps").item() == 45.0
-    assert result.select("qb_dropbacks").item() == 22.0
-    assert result.select("qb_passer_rating").item() == 101.0
 
 
 def test_compute_team_snap_counts_from_pbp_counts_scrimmage_snaps() -> None:
@@ -462,20 +414,6 @@ def test_compute_team_stats_excluding_opponent_removes_head_to_head_games() -> N
     assert team_result.select("passing_yards").item() == 255.0
 
 
-def test_compute_qb_stats_excluding_opponent_removes_head_to_head_weeks() -> None:
-    """Verify the QB exclusion helper removes weeks against the excluded opponent."""
-    # Arrange
-    weekly = _weekly_df()
-    qb = _qb_df()
-
-    # Act
-    qb_result = team_stats.compute_qb_stats_excluding_opponent(qb, weekly, "KC", "DEN")
-
-    # Assert
-    assert qb_result is not None
-    assert qb_result.select("qb_passer_rating").item() == 110.0
-
-
 def test_compute_team_stats_excluding_opponent_returns_none_without_games() -> None:
     """Verify the team exclusion helper returns None when no games remain."""
     # Arrange
@@ -483,19 +421,6 @@ def test_compute_team_stats_excluding_opponent_returns_none_without_games() -> N
 
     # Act
     result = team_stats.compute_team_stats_excluding_opponent(weekly, "DEN", "KC")
-
-    # Assert
-    assert result is None
-
-
-def test_compute_qb_stats_excluding_opponent_returns_none_without_games() -> None:
-    """Verify the QB exclusion helper returns None when no weeks remain."""
-    # Arrange
-    weekly = _weekly_df().filter((pl.col("team") == "DEN") & (pl.col("opponent_team") == "KC"))
-    qb = _qb_df().filter((pl.col("team_abbr") == "DEN") & (pl.col("week") == 1))
-
-    # Act
-    result = team_stats.compute_qb_stats_excluding_opponent(qb, weekly, "DEN", "KC")
 
     # Assert
     assert result is None
@@ -522,19 +447,17 @@ def test_is_division_opponent_recognizes_division_rivals() -> None:
     assert result is True
 
 
-def test_compute_opponent_profile_returns_team_and_qb_profiles() -> None:
-    """Verify a single-team opponent profile carries both profiles and per-opponent details."""
+def test_compute_opponent_profile_returns_the_team_profile_and_details() -> None:
+    """Verify a single-team opponent profile carries the profile and per-opponent details."""
     # Arrange
     weekly = _weekly_df()
-    qb = _qb_df()
     schedule = _schedule_df()
 
     # Act
-    profile = opponent_stats.compute_opponent_profile(weekly, qb, "DEN", schedule)
+    profile = opponent_stats.compute_opponent_profile(weekly, "DEN", schedule)
 
     # Assert
     assert profile["team_stats"] is not None
-    assert profile["qb_stats"] is not None
     assert profile["team_stats"].select("team").item() == "DEN"
     assert len(profile["opponent_details"]) == 2
 
@@ -543,15 +466,13 @@ def test_compute_all_opponent_profiles_returns_profiles_for_every_team() -> None
     """Verify all-team opponent profiles cover every team with details."""
     # Arrange
     weekly = _weekly_df()
-    qb = _qb_df()
     schedule = _schedule_df()
 
     # Act
-    all_team, all_qb, details = opponent_stats.compute_all_opponent_profiles(weekly, qb, schedule)
+    all_team, details = opponent_stats.compute_all_opponent_profiles(weekly, schedule)
 
     # Assert
     assert all_team is not None
-    assert all_qb is not None
     assert sorted(details) == ["DEN", "KC", "LAC"]
 
 
@@ -570,78 +491,16 @@ def test_opponent_profile_handles_missing_opponent_stats() -> None:
             "rushing_yards": [100],
         }
     )
-    qb = pl.DataFrame({"team_abbr": [], "week": [], "qb_passer_rating": []}, strict=False)
     schedule = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})
 
     # Act
-    profile = opponent_stats.compute_opponent_profile(weekly, qb, "DEN", schedule)
+    profile = opponent_stats.compute_opponent_profile(weekly, "DEN", schedule)
 
     # Assert
     assert profile["team_stats"] is None
-    assert profile["qb_stats"] is None
     assert profile["opponent_details"] == [
         {"opponent": "KC", "division": True, "games_included": 0}
     ]
-
-
-def test_compute_all_opponent_profiles_handles_missing_qb_rows(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Verify all-team opponent profile assembly works when QB rows are missing."""
-    # Arrange
-    weekly = pl.DataFrame({"team": ["DEN", "KC"]})
-    qb = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_passer_rating": [100.0]})
-    schedule = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})
-
-    def fake_profile(
-        weekly_df: pl.DataFrame, qb_df: pl.DataFrame, team: str, schedule_df: pl.DataFrame
-    ) -> opponent_stats.OpponentProfile:
-        return {
-            "team_stats": pl.DataFrame({"team": [team], "points_for": [20.0]}),
-            "qb_stats": None,
-            "opponents": ["KC"],
-            "opponent_details": [],
-        }
-
-    monkeypatch.setattr(opponent_stats, "compute_opponent_profile", fake_profile)
-
-    # Act
-    all_team, all_qb, details = opponent_stats.compute_all_opponent_profiles(weekly, qb, schedule)
-
-    # Assert
-    assert all_team is not None
-    assert all_qb is None
-    assert sorted(details) == ["DEN", "KC"]
-
-
-def test_compute_all_opponent_profiles_handles_missing_team_rows(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Verify all-team opponent profile assembly works when team rows are missing."""
-    # Arrange
-    weekly = pl.DataFrame({"team": ["DEN", "KC"]})
-    qb = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_passer_rating": [100.0]})
-    schedule = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})
-
-    def fake_profile(
-        weekly_df: pl.DataFrame, qb_df: pl.DataFrame, team: str, schedule_df: pl.DataFrame
-    ) -> opponent_stats.OpponentProfile:
-        return {
-            "team_stats": None,
-            "qb_stats": pl.DataFrame({"team": [team], "qb_passer_rating": [95.0]}),
-            "opponents": ["KC"],
-            "opponent_details": [],
-        }
-
-    monkeypatch.setattr(opponent_stats, "compute_opponent_profile", fake_profile)
-
-    # Act
-    all_team, all_qb, details = opponent_stats.compute_all_opponent_profiles(weekly, qb, schedule)
-
-    # Assert
-    assert all_team is None
-    assert all_qb is not None
-    assert sorted(details) == ["DEN", "KC"]
 
 
 def test_compute_win_totals_counts_a_shutout_loss() -> None:
@@ -663,3 +522,25 @@ def test_compute_win_totals_counts_a_shutout_loss() -> None:
     # Assert
     kc = totals.filter(pl.col("team") == "KC").row(0, named=True)
     assert (kc["wins"], kc["losses"], kc["win_pct"]) == (1, 1, 0.5)
+
+
+def test_compute_opponent_profile_averages_each_opponent_once_without_head_to_head() -> None:
+    """Verify each opponent is profiled from its other games and weighted equally."""
+    # Arrange
+    weekly = pl.DataFrame(
+        {
+            "team": ["DEN", "DEN", "KC", "KC", "KC", "LAC", "LAC"],
+            "opponent_team": ["KC", "KC", "DEN", "DEN", "BUF", "MIA", "NYJ"],
+            "week": [1, 2, 1, 2, 3, 1, 2],
+            "points_for": [24, 21, 17, 20, 30, 10, 14],
+        }
+    )
+    schedule = pl.DataFrame({"home_team": ["DEN", "KC", "LAC"], "away_team": ["KC", "DEN", "DEN"]})
+
+    # Act
+    profile = opponent_stats.compute_opponent_profile(weekly, "DEN", schedule)
+
+    # Assert
+    # KC without DEN games scored 30; LAC scored 10 and 14 (mean 12); equal weight -> 21.
+    assert profile["team_stats"] is not None
+    assert profile["team_stats"].get_column("points_for").item() == 21.0

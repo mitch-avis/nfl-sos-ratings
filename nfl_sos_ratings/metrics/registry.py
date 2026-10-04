@@ -31,38 +31,8 @@ class RegistryValidationError(ValueError):
 # A layman description shorter than this is a label, not a sentence.
 _MIN_DESCRIPTION_LENGTH = 20
 
-# Longest prefixes first so adj_off_/adj_def_ win over the bare adj_ rule.
+# Longest prefixes first so qopp_ wins over opp_.
 DEFAULT_PREFIX_RULES: tuple[PrefixRule, ...] = (
-    PrefixRule(
-        prefix="adj_off_",
-        label_template="Adj Off {label}",
-        full_name_template="{full_name} (Offense Side, Simultaneously Adjusted)",
-        description_note=(
-            "This is the offense-side share of the stat from the simultaneous ridge model, "
-            "which solves every team's offense and defense at once so each value is already "
-            "adjusted for the schedule played."
-        ),
-    ),
-    PrefixRule(
-        prefix="adj_def_",
-        label_template="Adj Def {label}",
-        full_name_template="{full_name} (Defense Side, Simultaneously Adjusted)",
-        description_note=(
-            "This is the defense-side share of the stat from the simultaneous ridge model: "
-            "how much of it this defense takes away from (or gives to) opponents compared "
-            "with an average defense, already adjusted for the schedule played."
-        ),
-    ),
-    PrefixRule(
-        prefix="adj_",
-        label_template="Adj {label}",
-        full_name_template="Simultaneously Adjusted {full_name}",
-        description_note=(
-            "This is a schedule-adjusted estimate from the simultaneous ridge model, which "
-            "solves every quarterback and defense at the same time instead of averaging "
-            "opponents one hop out."
-        ),
-    ),
     PrefixRule(
         prefix="qopp_",
         label_template="Opp {label}",
@@ -84,15 +54,6 @@ DEFAULT_PREFIX_RULES: tuple[PrefixRule, ...] = (
             "head-to-head games excluded), not a grade of the selected team."
         ),
         contextual=True,
-    ),
-    PrefixRule(
-        prefix="diff_",
-        label_template="{label} Diff",
-        full_name_template="{full_name} vs. Opponents Faced",
-        description_note=(
-            "This subtracts the faced-opponents context from the subject's own value on the "
-            "same stat, so positive means better than the schedule would suggest."
-        ),
     ),
     PrefixRule(
         prefix="season_delta_",
