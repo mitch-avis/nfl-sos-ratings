@@ -11,8 +11,10 @@ from nfl_sos_ratings.ui_data import (
     MissingSeasonContractError,
     discover_available_seasons,
     load_qb_game_log_payload,
+    load_qb_rating_history_payload,
     load_season_ui_dataset,
     load_team_game_log_payload,
+    load_team_rating_history_payload,
 )
 
 if TYPE_CHECKING:
@@ -356,3 +358,82 @@ def test_load_team_game_log_payload_unknown_team_raises_lookup_error(tmp_path: P
     # Act & Assert
     with pytest.raises(MissingEntityRowsError, match="NOPE"):
         load_team_game_log_payload(tmp_path, 2024, "NOPE")
+
+
+def _seed_rating_histories(data_dir: Path) -> None:
+    """Write team and QB rating histories for two teams over two weeks."""
+    _write_table(
+        data_dir / "2024_ratings_by_week.parquet",
+        ("week,team,games_played,offense_rating,defense_rating,special_teams_rating,team_rating"),
+        "2,DET,2,3.0,1.0,0.5,4.5\n1,DET,1,1.0,0.5,0.2,1.7\n1,KC,1,-0.5,0.0,0.1,-0.4",
+    )
+    _write_table(
+        data_dir / "2024_qb_ratings_by_week.parquet",
+        "week,qb_id,qb_games_played,qb_dropbacks,adj_qb_epa_per_dropback",
+        "1,qb-1,1,38,0.05\n2,qb-1,2,74,0.09\n1,qb-2,1,41,0.02",
+    )
+
+
+def test_load_team_rating_history_payload_lists_the_teams_weeks_in_order(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    _seed_rating_histories(tmp_path)
+
+    # Act
+    payload = load_team_rating_history_payload(tmp_path, 2024, "DET")
+
+    # Assert
+    assert [row["week"] for row in payload["rows"]] == [1, 2]
+
+
+def test_load_team_rating_history_payload_puts_the_headline_rating_first(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    _seed_rating_histories(tmp_path)
+
+    # Act
+    payload = load_team_rating_history_payload(tmp_path, 2024, "DET")
+
+    # Assert
+    assert payload["column_groups"] == {
+        "identity": ["week", "team"],
+        "sample": ["games_played"],
+        "ratings": ["team_rating", "offense_rating", "defense_rating", "special_teams_rating"],
+    }
+
+
+def test_load_qb_rating_history_payload_groups_sample_and_rating_columns(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    _seed_rating_histories(tmp_path)
+
+    # Act
+    payload = load_qb_rating_history_payload(tmp_path, 2024, "qb-1")
+
+    # Assert
+    assert [row["qb_dropbacks"] for row in payload["rows"]] == [38, 74]
+    assert payload["column_groups"] == {
+        "identity": ["week", "qb_id"],
+        "sample": ["qb_games_played", "qb_dropbacks"],
+        "ratings": ["adj_qb_epa_per_dropback"],
+    }
+
+
+def test_load_team_rating_history_payload_without_the_file_raises_missing_contract(
+    tmp_path: Path,
+) -> None:
+    # Act & Assert
+    with pytest.raises(MissingSeasonContractError, match="ratings_by_week"):
+        load_team_rating_history_payload(tmp_path, 2024, "DET")
+
+
+def test_load_qb_rating_history_payload_unknown_qb_raises_lookup_error(tmp_path: Path) -> None:
+    # Arrange
+    _seed_rating_histories(tmp_path)
+
+    # Act & Assert
+    with pytest.raises(MissingEntityRowsError, match="rating-history rows for qb-9"):
+        load_qb_rating_history_payload(tmp_path, 2024, "qb-9")

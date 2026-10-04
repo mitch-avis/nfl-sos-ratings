@@ -66,6 +66,9 @@ The app never recomputes methodology. The backend (`nfl_sos_ratings/ui_data.py` 
 - `GET /api/seasons/{season}`: team and QB rows for one season
 - `GET /api/seasons/{season}/teams/{team}/game-logs` and
   `GET /api/seasons/{season}/qbs/{qb_id}/game-logs`
+- `GET /api/seasons/{season}/teams/{team}/rating-history` and
+  `GET /api/seasons/{season}/qbs/{qb_id}/rating-history`: the rating as of each week, each fit on
+  the games through that week
 
 A season is listed only when all six contract files exist: `{season}_team_per_game_stats`,
 `{season}_qb_per_game_stats`, `{season}_combined`, `{season}_qb_combined`, `{season}_ratings`, and

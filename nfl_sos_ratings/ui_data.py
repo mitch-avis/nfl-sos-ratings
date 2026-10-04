@@ -26,6 +26,8 @@ REQUIRED_CONTRACT_SUFFIXES = (
 )
 TEAM_GAME_LOG_SUFFIX = "team_game_logs"
 QB_GAME_LOG_SUFFIX = "qb_game_logs"
+TEAM_RATING_HISTORY_SUFFIX = "ratings_by_week"
+QB_RATING_HISTORY_SUFFIX = "qb_ratings_by_week"
 TEAM_RATING_COLUMNS = (
     "team_rating",
     "offense_rating",
@@ -50,7 +52,7 @@ class MissingSeasonContractError(FileNotFoundError):
 
 
 class MissingEntityRowsError(LookupError):
-    """Raised when a requested entity has no rows in a per-entity UI file, such as game logs."""
+    """Raised when a requested entity has no rows in a per-entity UI file (game logs, history)."""
 
 
 class TablePayload(TypedDict):
@@ -115,6 +117,24 @@ def load_qb_game_log_payload(data_dir: Path, season: int, qb_id: str) -> TablePa
     frame = _load_season_file(data_dir, season, QB_GAME_LOG_SUFFIX)
     filtered = _filter_entity_rows(frame, "qb_id", qb_id, season, "QB game-log")
     return _build_qb_game_log_payload(filtered)
+
+
+def load_team_rating_history_payload(data_dir: Path, season: int, team: str) -> TablePayload:
+    """Load one team's week-by-week rating history for a season."""
+    frame = _load_season_file(data_dir, season, TEAM_RATING_HISTORY_SUFFIX)
+    filtered = _filter_entity_rows(frame, "team", team, season, "team rating-history")
+    return _build_rating_history_payload(
+        filtered, ("week", "team"), ("games_played",), TEAM_RATING_COLUMNS
+    )
+
+
+def load_qb_rating_history_payload(data_dir: Path, season: int, qb_id: str) -> TablePayload:
+    """Load one quarterback's week-by-week rating history for a season."""
+    frame = _load_season_file(data_dir, season, QB_RATING_HISTORY_SUFFIX)
+    filtered = _filter_entity_rows(frame, "qb_id", qb_id, season, "QB rating-history")
+    return _build_rating_history_payload(
+        filtered, ("week", "qb_id"), ("qb_games_played", "qb_dropbacks"), QB_RATING_COLUMNS
+    )
 
 
 def _build_contract_paths(data_dir: Path, season: int) -> dict[str, Path]:
@@ -346,6 +366,27 @@ def _build_qb_game_log_payload(frame: pl.DataFrame) -> TablePayload:
             "raw_totals": raw_totals,
             "per_dropback_rates": per_dropback_rates,
         },
+        "column_metadata": get_registry().column_metadata(visible_columns),
+    }
+
+
+def _build_rating_history_payload(
+    frame: pl.DataFrame,
+    identity: tuple[str, ...],
+    sample: tuple[str, ...],
+    ratings: tuple[str, ...],
+) -> TablePayload:
+    """Return a rating-history payload: identity, sample size, then ratings, headline first."""
+    groups = {
+        "identity": _ordered_existing_columns(frame.columns, identity),
+        "sample": _ordered_existing_columns(frame.columns, sample),
+        "ratings": _ordered_existing_columns(frame.columns, ratings),
+    }
+    visible_columns = [column for columns in groups.values() for column in columns]
+    return {
+        "rows": frame.select(visible_columns).to_dicts(),
+        "visible_columns": visible_columns,
+        "column_groups": groups,
         "column_metadata": get_registry().column_metadata(visible_columns),
     }
 

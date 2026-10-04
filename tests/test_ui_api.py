@@ -176,6 +176,69 @@ def test_get_qb_game_logs_return_the_selected_qb_rows(tmp_path: Path) -> None:
     assert response.json()["column_groups"]["per_dropback_rates"] == ["qb_epa_per_dropback"]
 
 
+def _seed_rating_histories(data_dir: Path) -> None:
+    """Write a season contract plus team and QB rating histories."""
+    _seed_season_contract(data_dir, 2024)
+    _write_table(
+        data_dir / "2024_ratings_by_week.parquet",
+        "week,team,games_played,team_rating",
+        "1,DET,1,1.7\n2,DET,2,4.5\n1,KC,1,-0.4",
+    )
+    _write_table(
+        data_dir / "2024_qb_ratings_by_week.parquet",
+        "week,qb_id,qb_games_played,qb_dropbacks,adj_qb_epa_per_dropback",
+        "1,qb-1,1,38,0.05\n2,qb-1,2,74,0.09",
+    )
+
+
+def test_get_team_rating_history_returns_the_teams_weeks(tmp_path: Path) -> None:
+    # Arrange
+    _seed_rating_histories(tmp_path)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get("/api/seasons/2024/teams/DET/rating-history")
+
+    # Assert
+    assert response.status_code == 200
+    assert [row["team_rating"] for row in response.json()["rows"]] == [1.7, 4.5]
+
+
+def test_get_qb_rating_history_returns_the_qbs_weeks(tmp_path: Path) -> None:
+    # Arrange
+    _seed_rating_histories(tmp_path)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get("/api/seasons/2024/qbs/qb-1/rating-history")
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json()["column_groups"]["ratings"] == ["adj_qb_epa_per_dropback"]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/seasons/2024/teams/NOPE/rating-history",
+        "/api/seasons/2024/qbs/nope/rating-history",
+        "/api/seasons/2023/teams/DET/rating-history",
+    ],
+)
+def test_rating_history_for_an_unknown_entity_or_season_returns_not_found(
+    tmp_path: Path, path: str
+) -> None:
+    # Arrange
+    _seed_rating_histories(tmp_path)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get(path)
+
+    # Assert
+    assert response.status_code == 404
+
+
 def test_get_metadata_returns_registry_payload(tmp_path: Path) -> None:
     """The metadata endpoint serves the full metric registry."""
     # Arrange

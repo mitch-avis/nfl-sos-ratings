@@ -21,8 +21,10 @@ from nfl_sos_ratings.ui_data import (
     TablePayload,
     discover_available_seasons,
     load_qb_game_log_payload,
+    load_qb_rating_history_payload,
     load_season_ui_dataset,
     load_team_game_log_payload,
+    load_team_rating_history_payload,
 )
 
 # The built single-page app: `cd web && npm run build` writes it here.
@@ -79,6 +81,45 @@ def mount_frontend(app: FastAPI, dist_dir: Path) -> None:
     app.include_router(router)
 
 
+def _entity_router(data_dir: Path) -> APIRouter:
+    """Return the per-team and per-QB routes: game logs and rating history for one season."""
+    router = APIRouter()
+
+    @router.get("/api/seasons/{season}/teams/{team}/game-logs")
+    def get_team_game_logs(season: int, team: str) -> TablePayload:
+        """Return additive team game logs for one team and season."""
+        try:
+            return load_team_game_log_payload(data_dir, season, team)
+        except (MissingSeasonContractError, MissingEntityRowsError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @router.get("/api/seasons/{season}/qbs/{qb_id}/game-logs")
+    def get_qb_game_logs(season: int, qb_id: str) -> TablePayload:
+        """Return additive QB game logs for one quarterback and season."""
+        try:
+            return load_qb_game_log_payload(data_dir, season, qb_id)
+        except (MissingSeasonContractError, MissingEntityRowsError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @router.get("/api/seasons/{season}/teams/{team}/rating-history")
+    def get_team_rating_history(season: int, team: str) -> TablePayload:
+        """Return one team's ratings as of each week, each fit on the games through that week."""
+        try:
+            return load_team_rating_history_payload(data_dir, season, team)
+        except (MissingSeasonContractError, MissingEntityRowsError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @router.get("/api/seasons/{season}/qbs/{qb_id}/rating-history")
+    def get_qb_rating_history(season: int, qb_id: str) -> TablePayload:
+        """Return one quarterback's rating as of each week, fit on the games through that week."""
+        try:
+            return load_qb_rating_history_payload(data_dir, season, qb_id)
+        except (MissingSeasonContractError, MissingEntityRowsError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    return router
+
+
 def create_app(data_dir: Path | None = None, *, web_dist: Path | None = None) -> FastAPI:
     """Create the analyst API, plus the built web app from ``web_dist`` (default ``web/dist``)."""
     resolved_data_dir = data_dir or Path(DATA_DIR)
@@ -119,22 +160,7 @@ def create_app(data_dir: Path | None = None, *, web_dist: Path | None = None) ->
         except MissingSeasonContractError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/api/seasons/{season}/teams/{team}/game-logs")
-    def get_team_game_logs(season: int, team: str) -> TablePayload:
-        """Return additive team game logs for one team and season."""
-        try:
-            return load_team_game_log_payload(resolved_data_dir, season, team)
-        except (MissingSeasonContractError, MissingEntityRowsError) as error:
-            raise HTTPException(status_code=404, detail=str(error)) from error
-
-    @app.get("/api/seasons/{season}/qbs/{qb_id}/game-logs")
-    def get_qb_game_logs(season: int, qb_id: str) -> TablePayload:
-        """Return additive QB game logs for one quarterback and season."""
-        try:
-            return load_qb_game_log_payload(resolved_data_dir, season, qb_id)
-        except (MissingSeasonContractError, MissingEntityRowsError) as error:
-            raise HTTPException(status_code=404, detail=str(error)) from error
-
+    app.include_router(_entity_router(resolved_data_dir))
     mount_frontend(app, web_dist or DEFAULT_WEB_DIST)
     return app
 
