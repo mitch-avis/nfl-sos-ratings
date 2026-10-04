@@ -1,13 +1,12 @@
 """In-season penalty test: previous-season ridge penalties against per-fit cross-validation.
 
-Early in a season the published team fit cross-validates its ridge penalty on a few weeks of
-games, and that choice is unstable: sometimes it lands on the grid's largest penalty and every
-team rates near zero. This test compares two walk-forward team ratings built from the same
-pre-week games:
+Cross-validating the team fit's ridge penalty on a few weeks of games is unstable: sometimes it
+lands on the grid's largest penalty and every team rates near zero. This test compares two
+walk-forward team ratings built from the same pre-week games:
 
-- ``TeamRating`` (incumbent): ``fit_team_ratings`` cross-validating every snapshot, as published.
-- ``TeamRatingPriorPenalty`` (candidate): ``fit_team_ratings`` with the previous season's
-  full-season scrimmage and special-teams penalties.
+- ``CrossValidatedPenalty`` (incumbent): ``fit_team_ratings`` cross-validating every snapshot.
+- ``PriorSeasonPenalty`` (candidate): ``fit_team_ratings`` with the previous season's
+  full-season scrimmage and special-teams penalties, the estimator the pipeline now publishes.
 
 Both go through the walk-forward harness's prior-only margin projection from prediction week 2.
 The primary window is prediction weeks 2-5 and the guard is weeks 6 and later; each gets a paired
@@ -30,9 +29,7 @@ from nfl_sos_ratings.config import DATA_DIR, END_YEAR
 from nfl_sos_ratings.ridge import DEFAULT_RIDGE_LAMBDAS
 from nfl_sos_ratings.team_rating import TeamRatingFit, fit_team_ratings
 from nfl_sos_ratings.validation.walk_forward import (
-    TEAM_RATING_BASELINE,
     build_snapshot_feature_rows,
-    build_team_rating_feature_rows,
     compute_pairwise_mae_bootstrap,
     evaluate_feature_rows,
     score_prediction_rows,
@@ -41,13 +38,26 @@ from nfl_sos_ratings.validation.walk_forward import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-CANDIDATE_BASELINE = "TeamRatingPriorPenalty"
+CANDIDATE_BASELINE = "PriorSeasonPenalty"
+INCUMBENT_BASELINE = "CrossValidatedPenalty"
 FIRST_SCORED_WEEK = 2
 GUARD_FIRST_WEEK = 6
 DEFAULT_START_SEASON = 2000
 PENALTY_TABLE_WEEKS = (2, 3, 4, 5)
 
 type Interval = tuple[float, float]
+
+
+def build_cross_validated_feature_rows(game_logs: pl.DataFrame, season: int) -> pl.DataFrame:
+    """Build walk-forward rows from team ratings that cross-validate every snapshot's penalty."""
+
+    def snapshot(prior_games: pl.DataFrame) -> pl.DataFrame:
+        """Rate the pre-week games with a penalty cross-validated on those games."""
+        return fit_team_ratings(prior_games).ratings.select(
+            "team", pl.col("team_rating").alias("rating")
+        )
+
+    return build_snapshot_feature_rows(game_logs, season, INCUMBENT_BASELINE, snapshot)
 
 
 def build_prior_penalty_feature_rows(
@@ -80,7 +90,7 @@ def compare_windows(predictions: pl.DataFrame) -> pl.DataFrame:
         [
             compute_pairwise_mae_bootstrap(
                 _window(predictions, window),
-                baselines=[CANDIDATE_BASELINE, TEAM_RATING_BASELINE],
+                baselines=[CANDIDATE_BASELINE, INCUMBENT_BASELINE],
                 splits=("overall",),
             ).with_columns(pl.lit(window).alias("window"))
             for window in ("primary", "guard")
@@ -166,7 +176,7 @@ def main(argv: list[str] | None = None) -> None:
         )
         features.extend(
             [
-                build_team_rating_feature_rows(game_logs, season),
+                build_cross_validated_feature_rows(game_logs, season),
                 build_prior_penalty_feature_rows(game_logs, season, prior_fit),
             ]
         )
@@ -175,7 +185,7 @@ def main(argv: list[str] | None = None) -> None:
 
     _say(
         f"In-season penalty test, {args.start_season}-{args.end_season}: "
-        f"{CANDIDATE_BASELINE} (candidate) against {TEAM_RATING_BASELINE} (incumbent)"
+        f"{CANDIDATE_BASELINE} (candidate) against {INCUMBENT_BASELINE} (incumbent)"
     )
     intervals: dict[str, Interval] = {}
     for window, title in (
@@ -204,6 +214,8 @@ def main(argv: list[str] | None = None) -> None:
 
 __all__ = [
     "CANDIDATE_BASELINE",
+    "INCUMBENT_BASELINE",
+    "build_cross_validated_feature_rows",
     "build_prior_penalty_feature_rows",
     "compare_windows",
     "main",

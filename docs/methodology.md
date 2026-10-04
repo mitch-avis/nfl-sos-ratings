@@ -37,10 +37,18 @@ those defenses' strengths account for every offense they faced, and so on throug
 schedule. This is the original idea behind the project, rating a team by the opponents it played
 and by who those opponents played, carried through to every level at once.
 
-The fit includes a ridge penalty on the team strengths, chosen by five-fold cross-validation with
-whole games held out. The penalty pulls estimates toward average in proportion to how little
-evidence there is. Over a full season every team has a similar number of plays, so the pull is
-similar for all of them; after three or four games it is much stronger, which is the point.
+The fit includes a ridge penalty on the team strengths. The penalty pulls estimates toward average
+in proportion to how little evidence there is. Over a full season every team has a similar number
+of plays, so the pull is similar for all of them; after three or four games it is much stronger,
+which is the point.
+
+The penalty's strength is the one five-fold cross-validation (whole games held out) chose for the
+whole previous season. Cross-validating on a season's own games works over a full season but not
+over a few weeks, where it sometimes picks the largest penalty on offer and rates every team as
+average. In the walk-forward check the previous season's choice had a mean absolute error of 10.967
+points against 11.158 for prediction weeks 2-5 (difference -0.191, 95% interval -0.335 to -0.053)
+and tied from week 6 on (`nfl-sos-ratings check-in-season-penalty --data-dir data --start-season
+2000 --end-season 2025`). 1999, the first season of play-by-play, cross-validates its own.
 
 Special teams get the same fit over kicks, punts, returns, field goals, and extra points, with each
 team's possession units and coverage units estimated separately and then added together.
@@ -92,11 +100,11 @@ quarterback led, adjusted for the defenses it faced.
 ## Ratings Through the Season
 
 Each season also gets a rating history: `team_rating` with its three parts, and
-`adj_qb_epa_per_dropback`, refit on the games through each week. Every week reuses the ridge
-penalty chosen for the season (or the season so far), because one or two weeks of games are too
-few for cross-validation to choose one reliably. With the penalty fixed, the pull toward average
-depends only on how much evidence there is: early-week ratings sit close to average and spread out
-as games accumulate, and the last week's ratings are the season's. `sos` and
+`adj_qb_epa_per_dropback`, refit on the games through each week. Every week reuses the season fit's
+ridge penalty (the previous season's for teams, the season's own cross-validated one for
+quarterbacks), because one or two weeks of games are too few to choose one. With the penalty fixed,
+the pull toward average depends only on how much evidence there is: early-week ratings sit close to
+average and spread out as games accumulate, and the last week's ratings are the season's. `sos` and
 `qb_faced_pass_defense` are not refit week by week. The histories are the `ratings_by_week` and
 `qb_ratings_by_week` files.
 
@@ -107,8 +115,8 @@ as games accumulate, and the last week's ratings are the season's. `sos` and
 - **Score-based margin.** `SRS` (the classic point-margin rating) is published beside
   `team_rating` as a reference built from final scores rather than plays.
 - **Playoffs.** Postseason games are excluded.
-- **Other seasons.** Each season is rated on its own games; nothing carries over from the year
-  before.
+- **Other seasons.** Each season is rated on its own games; only the team fit's two ridge penalties
+  carry over from the year before.
 
 ## Judgment Calls
 
@@ -120,16 +128,17 @@ Every rating rests on choices. These are the ones that matter most here:
 - The model is additive: a strong offense is assumed to gain the same amount against every defense.
 - Strengths become points per game through the league's average plays per game, so two teams with
   the same per-play strength get the same rating whatever their pace.
-- The ridge penalty is chosen by cross-validation rather than by hand.
+- Ridge penalties are chosen by cross-validation rather than by hand: on the previous season's
+  games for teams, on the season's own games for quarterbacks.
 
 ## How the Ratings Are Checked
 
-The walk-forward check rebuilds `team_rating` each week from that season's earlier games only,
-fits a margin model on earlier predictions only, and predicts the coming week's home margins.
-`SRS` and raw EPA margin built from the same games are the comparisons, and Elo, which carries
-ratings across seasons and so sees more information, is shown as a reference. The decision rule
-was written before the first run: `team_rating` stays the headline unless its mean absolute error
-is significantly worse than raw EPA's or SRS's in a paired bootstrap.
+The walk-forward check rebuilds `team_rating` each week from that season's earlier games only (with
+the previous season's penalties, as published), fits a margin model on earlier predictions only, and
+predicts the coming week's home margins. `SRS` and raw EPA margin built from the same games are the
+comparisons, and Elo, which carries ratings across seasons and so sees more information, is shown as
+a reference. The decision rule was written before the first run: `team_rating` stays the headline
+unless its mean absolute error is significantly worse than raw EPA's or SRS's in a paired bootstrap.
 
 The quarterback checks are year-over-year stability beside passer rating and ANY/A, and the
 per-season correlation with ESPN QBR, which is a reference, not a target.

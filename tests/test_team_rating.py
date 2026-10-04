@@ -10,6 +10,7 @@ from nfl_sos_ratings.team_rating import (
     compute_team_schedule_strength,
     fit_team_ratings,
     fit_team_ratings_by_week,
+    fit_team_ratings_with_previous_penalties,
     scrimmage_rows,
 )
 
@@ -313,3 +314,27 @@ def test_scrimmage_rows_hold_epa_per_play_weighted_by_plays() -> None:
     first = rows.row(0, named=True)
     assert (first["team"], first["opponent_team"]) == ("AAA", "BBB")
     assert (first["plays"], first["epa_per_play"]) == pytest.approx((60, 0.02 + 0.10 - 0.08 + 0.01))
+
+
+def test_fit_team_ratings_with_previous_penalties_reuses_the_previous_seasons_penalties() -> None:
+    # Arrange
+    previous = fit_team_ratings(
+        _game_logs(_PARTIAL), scrimmage_lambda=12.0, special_teams_lambda=34.0
+    )
+
+    # Act
+    fit = fit_team_ratings_with_previous_penalties(_game_logs(), previous)
+
+    # Assert
+    assert (fit.scrimmage_lambda, fit.special_teams_lambda) == (12.0, 34.0)
+
+
+def test_fit_team_ratings_with_previous_penalties_without_one_cross_validates() -> None:
+    # Arrange
+    game_logs = _game_logs()
+
+    # Act
+    fit = fit_team_ratings_with_previous_penalties(game_logs, None)
+
+    # Assert
+    assert fit.ratings.equals(fit_team_ratings(game_logs).ratings)

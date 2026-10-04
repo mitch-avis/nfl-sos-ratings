@@ -20,6 +20,12 @@ judged against their own opponents, and so on through the whole schedule.
 opponent is rated from a refit that leaves out every game involving the team being evaluated, so a
 team beating up on an opponent cannot make that opponent look weaker in its own schedule strength.
 
+The ridge penalties come from the previous season: ``fit_team_ratings_with_previous_penalties``
+reuses the penalties cross-validation chose for the whole previous season. A few weeks of games are
+too few to choose a penalty reliably (cross-validation sometimes picks the largest, rating every
+team near zero), and the previous season's choice predicted early-season games better without
+costing anything later. The first play-by-play season cross-validates its own.
+
 The rating history (``fit_team_ratings_by_week``) refits the ratings on the games through each
 week with the season's penalties, so each week's row shows the rating as the evidence then
 supported it.
@@ -172,6 +178,29 @@ def fit_team_ratings(
     )
 
 
+def fit_team_ratings_with_previous_penalties(
+    game_logs: pl.DataFrame, previous: TeamRatingFit | None
+) -> TeamRatingFit:
+    """Fit the published team ratings: this season's games with the previous season's penalties.
+
+    Args:
+        game_logs: This season's team-game rows, as :func:`fit_team_ratings` takes them.
+        previous: The previous season's full-season fit (penalties cross-validated), or ``None``
+            for a season without a previous one, which cross-validates its own penalties.
+
+    Returns:
+        The season fit.
+
+    """
+    if previous is None:
+        return fit_team_ratings(game_logs)
+    return fit_team_ratings(
+        game_logs,
+        scrimmage_lambda=previous.scrimmage_lambda,
+        special_teams_lambda=previous.special_teams_lambda,
+    )
+
+
 def fit_team_ratings_by_week(game_logs: pl.DataFrame, fit: TeamRatingFit) -> pl.DataFrame:
     """Return each team's ratings as of every week, each fit on the games through that week.
 
@@ -286,5 +315,6 @@ __all__ = [
     "compute_team_schedule_strength",
     "fit_team_ratings",
     "fit_team_ratings_by_week",
+    "fit_team_ratings_with_previous_penalties",
     "scrimmage_rows",
 ]

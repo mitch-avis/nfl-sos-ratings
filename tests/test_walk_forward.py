@@ -8,6 +8,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from nfl_sos_ratings.team_rating import fit_team_ratings
 from nfl_sos_ratings.validation import walk_forward
 from nfl_sos_ratings.validation.report import (
     ValidationReportInputs,
@@ -24,6 +25,7 @@ from nfl_sos_ratings.validation.walk_forward import (
     compute_stability_metrics,
     evaluate_feature_rows,
     evaluate_team_decision,
+    run_walk_forward_backtest,
     score_prediction_rows,
 )
 from tests.stubs import stub
@@ -145,10 +147,10 @@ def test_build_team_rating_feature_rows_ignores_the_predicted_week_and_later() -
         .otherwise(pl.col("offensive_epa"))
         .alias("offensive_epa")
     )
-    baseline = build_team_rating_feature_rows(game_logs, 2025).filter(pl.col("week") == 3)
+    baseline = build_team_rating_feature_rows(game_logs, 2025, None).filter(pl.col("week") == 3)
 
     # Act
-    result = build_team_rating_feature_rows(perturbed, 2025).filter(pl.col("week") == 3)
+    result = build_team_rating_feature_rows(perturbed, 2025, None).filter(pl.col("week") == 3)
 
     # Assert
     assert result.get_column("rating_diff").to_list() == pytest.approx(
@@ -161,10 +163,51 @@ def test_build_team_rating_feature_rows_labels_the_team_rating_baseline() -> Non
     game_logs = _team_game_logs()
 
     # Act
-    feature_rows = build_team_rating_feature_rows(game_logs, 2025)
+    feature_rows = build_team_rating_feature_rows(game_logs, 2025, None)
 
     # Assert
     assert feature_rows.get_column("baseline").unique().to_list() == [TEAM_RATING_BASELINE]
+
+
+def test_build_team_rating_feature_rows_use_the_previous_seasons_penalties() -> None:
+    # Arrange
+    game_logs = _team_game_logs()
+    previous = fit_team_ratings(game_logs, scrimmage_lambda=12.0, special_teams_lambda=34.0)
+    snapshot = fit_team_ratings(
+        game_logs.filter(pl.col("week") < 3), scrimmage_lambda=12.0, special_teams_lambda=34.0
+    ).ratings
+    rating = dict(snapshot.select("team", "team_rating").iter_rows())
+
+    # Act
+    feature_rows = build_team_rating_feature_rows(game_logs, 2025, previous)
+
+    # Assert
+    week_three = feature_rows.filter(pl.col("week") == 3).sort("game_id")
+    assert week_three.get_column("rating_diff").to_list() == pytest.approx(
+        [rating["A"] - rating["C"], rating["B"] - rating["D"]]
+    )
+
+
+def test_run_walk_forward_backtest_needs_the_previous_seasons_game_logs(tmp_path: Path) -> None:
+    # Arrange
+    _with_epa_margin(_team_game_logs()).write_parquet(tmp_path / "2025_team_game_logs.parquet")
+
+    # Act & Assert
+    with pytest.raises(FileNotFoundError, match="2024_team_game_logs"):
+        run_walk_forward_backtest(tmp_path, [2025])
+
+
+def test_run_walk_forward_backtest_first_play_by_play_season_cross_validates(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    _with_epa_margin(_team_game_logs()).write_parquet(tmp_path / "1999_team_game_logs.parquet")
+
+    # Act
+    predictions = run_walk_forward_backtest(tmp_path, [1999], start_week=2)
+
+    # Assert
+    assert predictions.filter(pl.col("baseline") == "TeamRating").height == 4
 
 
 def test_evaluate_feature_rows_fits_only_on_prior_weeks() -> None:
@@ -449,7 +492,7 @@ def test_main_writes_a_report_with_the_decision(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Arrange
-    for season in (2024, 2025):
+    for season in (2023, 2024, 2025):
         _with_epa_margin(_team_game_logs()).write_parquet(
             tmp_path / f"{season}_team_game_logs.parquet"
         )
@@ -494,7 +537,7 @@ def test_build_home_game_frame_missing_columns_raises_value_error() -> None:
 
     # Act & Assert
     with pytest.raises(ValueError, match="point_margin"):
-        build_team_rating_feature_rows(game_logs, 2025)
+        build_team_rating_feature_rows(game_logs, 2025, None)
 
 
 @pytest.mark.parametrize(

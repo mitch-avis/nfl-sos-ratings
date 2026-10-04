@@ -48,7 +48,8 @@ Recorded qualitatively; each item names the code that shows it.
 - Model: `mean EPA per play = intercept + offense[team] - defense[opponent] + home_field`, weighted
   by plays (equivalent to the play-level least-squares fit), with the ridge penalty on the offense
   and defense effects only. The penalty is chosen by deterministic k-fold cross-validation with
-  folds grouped by game over a grid wide enough that the choice is interior.
+  folds grouped by game over a grid wide enough that the choice is interior. Since 2026-10-04 the
+  published fit reuses the previous season's full-season choice (see the in-season penalty test).
 - Points: `offense_rating` and `defense_rating` are the effects times the season's league-average
   offensive plays per team-game, so both read as points per game versus an average unit.
 - Special teams: one row per team-game with net special-teams EPA (own special-play EPA minus the
@@ -235,7 +236,11 @@ From `nfl-sos-ratings check-in-season-penalty --data-dir data --start-season 200
 - Guard, weeks 6 and later (4,737 games): 10.650 against 10.644; -0.005, interval -0.048 to
   +0.037, a tie.
 - Reading as written: recommend the candidate. The only interval that excludes zero is the
-  primary one, in the candidate's favor. Adoption waits on the maintainer.
+  primary one, in the candidate's favor.
+- Adopted by the maintainer (2026-10-04): `fit_team_ratings_with_previous_penalties` is the
+  published team fit and the walk-forward `TeamRating`; 1999 cross-validates. The test command
+  now labels its baselines `CrossValidatedPenalty` (was `TeamRating`) and `PriorSeasonPenalty`
+  (was `TeamRatingPriorPenalty`); the numbers above are unchanged by the relabel.
 
 ## Retired metric backlog
 

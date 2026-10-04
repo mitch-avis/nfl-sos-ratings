@@ -9,7 +9,12 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings import main
-from nfl_sos_ratings.team_rating import TEAM_RATING_COLUMNS
+from nfl_sos_ratings.team_rating import (
+    TEAM_RATING_COLUMNS,
+    TeamRatingFit,
+    fit_team_ratings,
+    fit_team_ratings_with_previous_penalties,
+)
 from tests.stubs import stub
 
 if TYPE_CHECKING:
@@ -197,6 +202,82 @@ def test_run_season_writes_the_weekly_qb_rating_history(season_outputs: Path) ->
     # Assert
     last_week = history.filter(pl.col("week") == len(_games()))
     assert sorted(last_week.get_column("qb_id").to_list()) == [f"qb-{team}" for team in _TEAMS]
+
+
+def _recording_previous_fits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[TeamRatingFit | None]:
+    """Record the previous-season fit ``run_season`` passes to the team fit; behavior is real."""
+    seen: list[TeamRatingFit | None] = []
+
+    def recording(game_logs: pl.DataFrame, previous: TeamRatingFit | None) -> TeamRatingFit:
+        seen.append(previous)
+        return fit_team_ratings_with_previous_penalties(game_logs, previous)
+
+    monkeypatch.setattr(main, "fit_team_ratings_with_previous_penalties", recording)
+    return seen
+
+
+def _patch_loaders(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[int]:
+    """Point the pipeline at ``tmp_path`` and the synthetic league; return the loaded seasons."""
+    loaded: list[int] = []
+
+    def weekly(season: int) -> pl.DataFrame:
+        loaded.append(season)
+        return _weekly_df()
+
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(main, "load_weekly_team_stats", weekly)
+    monkeypatch.setattr(main, "load_schedule", stub(_schedule_df))
+    monkeypatch.setattr(main, "load_qb_stats", stub(_qb_df))
+    return loaded
+
+
+def test_run_season_fits_teams_with_the_previous_seasons_penalties(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange
+    _patch_loaders(monkeypatch, tmp_path)
+    previous_logs = main._build_team_game_logs(_weekly_df()).with_columns(
+        pl.col("offensive_epa") * 1.5
+    )
+    previous_logs.write_parquet(tmp_path / "2024_team_game_logs.parquet")
+    seen = _recording_previous_fits(monkeypatch)
+
+    # Act
+    main.run_season(2025)
+
+    # Assert
+    previous = seen[0]
+    assert previous is not None
+    assert previous.ratings.equals(fit_team_ratings(previous_logs).ratings)
+
+
+def test_run_season_loads_a_previous_season_missing_from_data(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange
+    loaded = _patch_loaders(monkeypatch, tmp_path)
+
+    # Act
+    main.run_season(2025)
+
+    # Assert
+    assert sorted(loaded) == [2024, 2025]
+
+
+def test_run_season_first_play_by_play_season_cross_validates(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange
+    loaded = _patch_loaders(monkeypatch, tmp_path)
+    seen = _recording_previous_fits(monkeypatch)
+
+    # Act
+    main.run_season(1999)
+
+    # Assert
+    assert (loaded, seen) == ([1999], [None])
 
 
 def test_played_schedule_drops_games_without_final_scores() -> None:

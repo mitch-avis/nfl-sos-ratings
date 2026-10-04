@@ -29,6 +29,8 @@ ESPN_QBR_RELEASE_URLS: dict[str, str] = {
     ),
 }
 
+# nflverse play-by-play starts in 1999, so that season has no previous season in the data.
+PBP_START_SEASON = 1999
 SNAP_COUNTS_START_SEASON = 2012
 _CACHE_MODE_VARIABLE = "NFLREADPY_CACHE"
 # Seconds to wait on an nflverse release download before failing instead of hanging.

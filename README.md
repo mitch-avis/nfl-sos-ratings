@@ -47,7 +47,9 @@ The full write-up, including its limits, is [docs/methodology.md]. In short:
    offense's strength, minus that defense's strength, plus home field. Because every team is
    solved at once, an offense is judged against the defenses it faced, each of those defenses is
    judged against every offense it faced, and so on through the whole schedule.
-3. A ridge penalty, chosen by cross-validation, pulls small samples toward average.
+3. A ridge penalty pulls small samples toward average. For teams its strength is the one
+   cross-validation chose for the previous season, which stays reliable a few weeks into a season;
+   quarterbacks cross-validate their own season.
 4. Per-play strengths become points per game by multiplying by the league's average plays per
    game. Special teams gets the same treatment on kicks, punts, and returns.
 5. Strength of schedule refits the model once per team without that team's games, so a team that

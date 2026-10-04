@@ -10,12 +10,13 @@ from nfl_sos_ratings.team_rating import fit_team_ratings
 from nfl_sos_ratings.validation import in_season_penalty
 from nfl_sos_ratings.validation.in_season_penalty import (
     CANDIDATE_BASELINE,
+    INCUMBENT_BASELINE,
+    build_cross_validated_feature_rows,
     build_prior_penalty_feature_rows,
     compare_windows,
     reading,
     scrimmage_penalty_table,
 )
-from nfl_sos_ratings.validation.walk_forward import TEAM_RATING_BASELINE
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -90,11 +91,29 @@ def test_build_prior_penalty_feature_rows_rate_teams_with_the_previous_seasons_p
     )
 
 
+def test_build_cross_validated_feature_rows_choose_each_snapshots_penalty() -> None:
+    # Arrange
+    game_logs = _game_logs(2021)
+    snapshot = fit_team_ratings(game_logs.filter(pl.col("week") < 7)).ratings
+    week_seven = game_logs.filter((pl.col("week") == 7) & pl.col("is_home")).row(0, named=True)
+    rating = dict(snapshot.select("team", "team_rating").iter_rows())
+
+    # Act
+    rows = build_cross_validated_feature_rows(game_logs, 2021)
+
+    # Assert
+    row = rows.filter(pl.col("week") == 7).row(0, named=True)
+    assert row["baseline"] == INCUMBENT_BASELINE
+    assert row["rating_diff"] == pytest.approx(
+        rating[week_seven["team"]] - rating[week_seven["opponent_team"]]
+    )
+
+
 def test_compare_windows_scores_weeks_two_to_five_apart_from_later_weeks() -> None:
     # Arrange
     errors = {(CANDIDATE_BASELINE, week): 1.0 for week in range(2, 9)}
-    errors |= {(TEAM_RATING_BASELINE, week): 2.0 for week in range(2, 6)}
-    errors |= {(TEAM_RATING_BASELINE, week): 1.0 for week in range(6, 9)}
+    errors |= {(INCUMBENT_BASELINE, week): 2.0 for week in range(2, 6)}
+    errors |= {(INCUMBENT_BASELINE, week): 1.0 for week in range(6, 9)}
 
     # Act
     windows = compare_windows(_predictions(errors))

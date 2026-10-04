@@ -15,6 +15,7 @@ import polars as pl
 
 from nfl_sos_ratings.config import DATA_DIR, SEASON
 from nfl_sos_ratings.data_loader import (
+    PBP_START_SEASON,
     load_qb_stats,
     load_schedule,
     load_weekly_team_stats,
@@ -37,6 +38,7 @@ from nfl_sos_ratings.team_rating import (
     compute_team_schedule_strength,
     fit_team_ratings,
     fit_team_ratings_by_week,
+    fit_team_ratings_with_previous_penalties,
 )
 from nfl_sos_ratings.team_stats import compute_all_teams_per_game, compute_win_totals
 
@@ -157,6 +159,23 @@ def build_qb_ratings(qb_game_logs: pl.DataFrame, fit: QbRatingFit | None = None)
     return fit.ratings.join(compute_qb_faced_pass_defense(qb_game_logs, fit), on="qb_id")
 
 
+def _previous_season_fit(season: int) -> TeamRatingFit | None:
+    """Return the previous season's full-season team fit, whose penalties this season reuses.
+
+    The previous season's game logs come from ``DATA_DIR`` when built, otherwise from nflverse.
+    The first play-by-play season has no previous season and returns ``None``.
+    """
+    if season <= PBP_START_SEASON:
+        return None
+    path = Path(DATA_DIR) / f"{season - 1}_team_game_logs.parquet"
+    if path.exists():
+        previous_logs = pl.read_parquet(path)
+    else:
+        print(f"Loading {season - 1} team stats for the ridge penalties...")
+        previous_logs = _build_team_game_logs(load_weekly_team_stats(season - 1))
+    return fit_team_ratings(previous_logs)
+
+
 def _load_season_frames(season: int) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
     """Load one season's team game rows, schedule, and QB game rows."""
     print("Loading weekly team stats...")
@@ -207,7 +226,7 @@ def run_season(season: int) -> None:
         )
 
     print("Fitting team ratings...")
-    team_fit = fit_team_ratings(weekly_df)
+    team_fit = fit_team_ratings_with_previous_penalties(weekly_df, _previous_season_fit(season))
     ratings = build_team_ratings(weekly_df, team_fit)
     _write_data_file(ratings, season, "ratings")
     _write_data_file(

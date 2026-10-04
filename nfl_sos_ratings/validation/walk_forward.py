@@ -4,7 +4,8 @@ Team check: for every week from ``--start-week`` on, each baseline is rebuilt fr
 games played before the week, a margin model ``home_margin = k * rating_gap + home_edge`` is fit
 on earlier predictions only, and the week's home margins are predicted. The baselines are:
 
-- ``TeamRating``: the published points-based team rating from ``team_rating.fit_team_ratings``,
+- ``TeamRating``: the published points-based team rating from
+  ``team_rating.fit_team_ratings_with_previous_penalties`` (the previous season's ridge penalties),
   called on the same team-game rows the pipeline publishes, so the validated estimator is the
   published one.
 - ``SRS``: the simple rating system on point margin, from the same games.
@@ -34,9 +35,13 @@ import numpy as np
 import polars as pl
 
 from nfl_sos_ratings.config import DATA_DIR, END_YEAR, START_YEAR
-from nfl_sos_ratings.data_loader import load_espn_qbr
+from nfl_sos_ratings.data_loader import PBP_START_SEASON, load_espn_qbr
 from nfl_sos_ratings.srs import solve_srs
-from nfl_sos_ratings.team_rating import fit_team_ratings
+from nfl_sos_ratings.team_rating import (
+    TeamRatingFit,
+    fit_team_ratings,
+    fit_team_ratings_with_previous_penalties,
+)
 from nfl_sos_ratings.validation.report import ValidationReportInputs, write_validation_report
 
 if TYPE_CHECKING:
@@ -211,13 +216,6 @@ def build_snapshot_feature_rows(
     return pl.concat(frames) if frames else pl.DataFrame(schema=_FEATURE_SCHEMA)
 
 
-def _team_rating_snapshot(prior_games: pl.DataFrame) -> pl.DataFrame:
-    """Return the published team rating fit on the given games."""
-    return fit_team_ratings(prior_games).ratings.select(
-        "team", pl.col("team_rating").alias("rating")
-    )
-
-
 def _srs_snapshot(prior_games: pl.DataFrame) -> pl.DataFrame:
     """Return SRS on point margin fit on the given games."""
     return solve_srs(prior_games, response_col="point_margin").select(
@@ -230,11 +228,36 @@ def _raw_epa_snapshot(prior_games: pl.DataFrame) -> pl.DataFrame:
     return prior_games.group_by("team").agg(pl.col("epa_margin_per_play").mean().alias("rating"))
 
 
-def build_team_rating_feature_rows(game_logs: pl.DataFrame, season: int) -> pl.DataFrame:
-    """Build walk-forward rows from week-by-week snapshots of the published team rating."""
-    return build_snapshot_feature_rows(
-        game_logs, season, TEAM_RATING_BASELINE, _team_rating_snapshot
-    )
+def build_team_rating_feature_rows(
+    game_logs: pl.DataFrame, season: int, previous: TeamRatingFit | None
+) -> pl.DataFrame:
+    """Build walk-forward rows from week-by-week snapshots of the published team rating.
+
+    ``previous`` is the previous season's full-season fit, whose penalties every snapshot reuses,
+    or ``None`` for the first play-by-play season.
+    """
+
+    def snapshot(prior_games: pl.DataFrame) -> pl.DataFrame:
+        """Return the published team rating fit on the pre-week games."""
+        return fit_team_ratings_with_previous_penalties(prior_games, previous).ratings.select(
+            "team", pl.col("team_rating").alias("rating")
+        )
+
+    return build_snapshot_feature_rows(game_logs, season, TEAM_RATING_BASELINE, snapshot)
+
+
+def previous_season_fit(data_dir: Path, season: int) -> TeamRatingFit | None:
+    """Return the full-season team fit of the season before ``season``, read from ``data_dir``.
+
+    Returns ``None`` for the first play-by-play season.
+
+    Raises:
+        FileNotFoundError: If the previous season's game logs are not in ``data_dir``.
+
+    """
+    if season <= PBP_START_SEASON:
+        return None
+    return fit_team_ratings(pl.read_parquet(data_dir / f"{season - 1}_team_game_logs.parquet"))
 
 
 def build_srs_feature_rows(game_logs: pl.DataFrame, season: int) -> pl.DataFrame:
@@ -535,9 +558,10 @@ def run_walk_forward_backtest(
     feature_frames: list[pl.DataFrame] = []
     for season in sorted(seasons):
         game_logs = pl.read_parquet(data_dir / f"{season}_team_game_logs.parquet")
+        previous = previous_season_fit(data_dir, season)
         feature_frames.extend(
             [
-                build_team_rating_feature_rows(game_logs, season),
+                build_team_rating_feature_rows(game_logs, season, previous),
                 build_srs_feature_rows(game_logs, season),
                 build_raw_epa_feature_rows(game_logs, season),
                 build_elo_feature_rows(
@@ -748,6 +772,7 @@ __all__ = [
     "evaluate_feature_rows",
     "evaluate_team_decision",
     "main",
+    "previous_season_fit",
     "run_walk_forward_backtest",
     "score_prediction_rows",
 ]
