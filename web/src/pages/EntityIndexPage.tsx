@@ -83,6 +83,12 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
     if (!sameIds(compareIds, state.compareIds)) update({ compareIds })
   }, [compareIds, state.compareIds, update])
   const setCompareIds = useCallback((ids: string[]) => update({ compareIds: ids }), [update])
+  // Stable across unrelated re-renders (another query settling, for example), so the table does not
+  // rebuild its columns and remount every checkbox.
+  const toggleCompare = useCallback(
+    (entityId: string) => update({ compareIds: toggleCompareId(compareIds, entityId) }),
+    [compareIds, update],
+  )
   useCompareQuerySync(kind, dataset, compareIds, setCompareIds)
 
   const seasonView = useMemo(() => buildSeasonViewTable(kind, table, state.viewState), [kind, state.viewState, table])
@@ -212,7 +218,7 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
         }
         onQueryChange={(query) => update({ query })}
         onSortingChange={(sorting) => update({ sorting })}
-        onToggleCompare={(entityId) => update({ compareIds: toggleCompareId(compareIds, entityId) })}
+        onToggleCompare={toggleCompare}
         query={state.query}
         season={season}
         selectedColumns={seasonView.selectedColumns}
