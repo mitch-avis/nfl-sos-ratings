@@ -3,11 +3,16 @@
 import math
 from typing import TYPE_CHECKING
 
+import numpy as np
 import polars as pl
 import pytest
 
 from nfl_sos_ratings.validation import walk_forward
-from nfl_sos_ratings.validation.report import ValidationReportInputs, build_validation_report_text
+from nfl_sos_ratings.validation.report import (
+    ValidationReportInputs,
+    build_validation_report_text,
+    markdown_table,
+)
 from nfl_sos_ratings.validation.walk_forward import (
     TEAM_RATING_BASELINE,
     EloConfig,
@@ -432,3 +437,235 @@ def test_compute_qbr_correlations_joins_qbs_by_team_and_name(
     # Assert
     assert correlations.row(0, named=True)["joined_rows"] == 3
     assert correlations.row(0, named=True)["pearson"] == pytest.approx(1.0)
+
+
+def _with_epa_margin(game_logs: pl.DataFrame) -> pl.DataFrame:
+    """Add the raw EPA margin per play the RawEPA baseline reads."""
+    return game_logs.with_columns((pl.col("offensive_epa") / 60).alias("epa_margin_per_play"))
+
+
+def test_main_writes_a_report_with_the_decision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange
+    for season in (2024, 2025):
+        _with_epa_margin(_team_game_logs()).write_parquet(
+            tmp_path / f"{season}_team_game_logs.parquet"
+        )
+        _write_season_files(tmp_path, season, 0.0)
+    qbr = pl.DataFrame(
+        {
+            "season": [2024, 2025],
+            "game_week": ["Season Total"] * 2,
+            "team_abb": ["A", "A"],
+            "name_display": ["One", "One"],
+            "qbr_total": [70.0, 71.0],
+        }
+    )
+    monkeypatch.setattr(walk_forward, "load_espn_qbr", stub(lambda: qbr))
+    report = tmp_path / "report.md"
+
+    # Act
+    walk_forward.main(
+        [
+            "--data-dir",
+            str(tmp_path),
+            "--start-season",
+            "2024",
+            "--end-season",
+            "2025",
+            "--start-week",
+            "2",
+            "--report-path",
+            str(report),
+        ]
+    )
+
+    # Assert
+    text = report.read_text(encoding="utf-8")
+    assert "## Decision Rule" in text
+    assert "| TeamRating |" in text
+
+
+def test_build_home_game_frame_missing_columns_raises_value_error() -> None:
+    # Arrange
+    game_logs = _team_game_logs().drop("point_margin")
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="point_margin"):
+        build_team_rating_feature_rows(game_logs, 2025)
+
+
+@pytest.mark.parametrize(
+    ("rating_diff", "home_margin", "expected"),
+    [([], [], (0.0, 0.0)), ([1.0], [3.0], (0.0, 3.0)), ([2.0, 2.0], [1.0, 5.0], (0.0, 3.0))],
+)
+def test_fit_margin_projection_degenerate_inputs_fall_back_to_the_mean(
+    rating_diff: list[float], home_margin: list[float], expected: tuple[float, float]
+) -> None:
+    # Arrange
+    rows = pl.DataFrame(
+        {"rating_diff": rating_diff, "home_margin": home_margin},
+        schema={"rating_diff": pl.Float64, "home_margin": pl.Float64},
+    )
+
+    # Act
+    fitted = walk_forward._fit_margin_projection(rows)
+
+    # Assert
+    assert fitted == pytest.approx(expected)
+
+
+def test_evaluate_feature_rows_without_scored_weeks_returns_an_empty_frame() -> None:
+    # Arrange
+    rows = pl.DataFrame(
+        {
+            "season": [2025],
+            "week": [1],
+            "baseline": ["X"],
+            "game_id": ["g1"],
+            "home_team": ["A"],
+            "away_team": ["B"],
+            "rating_diff": [1.0],
+            "home_margin": [3.0],
+        }
+    )
+
+    # Act
+    predictions = evaluate_feature_rows(rows, start_week=5)
+
+    # Assert
+    assert predictions.is_empty()
+    assert "predicted_margin" in predictions.columns
+
+
+def test_split_prediction_rows_unknown_split_raises_value_error() -> None:
+    # Arrange
+    predictions = pl.DataFrame({"week": [5]})
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="unsupported split"):
+        walk_forward._split_prediction_rows(predictions, "midseason")
+
+
+def test_compute_pairwise_mae_bootstrap_skips_pairs_missing_a_baseline() -> None:
+    # Arrange
+    predictions = pl.DataFrame(
+        {
+            "season": [2025],
+            "week": [5],
+            "baseline": ["X"],
+            "game_id": ["g1"],
+            "home_team": ["A"],
+            "away_team": ["B"],
+            "predicted_margin": [1.0],
+            "home_margin": [0.0],
+        }
+    )
+
+    # Act
+    deltas = compute_pairwise_mae_bootstrap(predictions, baselines=["X", "SRS"], resamples=8)
+
+    # Assert
+    assert deltas.is_empty()
+
+
+def test_compute_qbr_correlations_before_qbr_exists_returns_no_rows(tmp_path: Path) -> None:
+    # Act
+    correlations = compute_qbr_correlations(tmp_path, [2004, 2005])
+
+    # Assert
+    assert correlations.is_empty()
+
+
+def test_pearson_without_spread_is_nan() -> None:
+    # Arrange
+    flat = np.array([1.0, 1.0, 1.0])
+
+    # Act
+    value = walk_forward._pearson(flat, np.array([1.0, 2.0, 3.0]))
+
+    # Assert
+    assert math.isnan(value)
+
+
+def test_compute_stability_metrics_single_season_returns_no_pairs(tmp_path: Path) -> None:
+    # Arrange
+    _write_season_files(tmp_path, 2025, 0.0)
+
+    # Act
+    stability = compute_stability_metrics(tmp_path, [2025])
+
+    # Assert
+    assert stability.is_empty()
+
+
+def test_build_validation_report_text_reports_when_no_interval_excludes_zero() -> None:
+    # Arrange
+    inputs = _report_inputs()
+    quiet = ValidationReportInputs(
+        **{
+            **{field: getattr(inputs, field) for field in inputs.__dataclass_fields__},
+            "mae_deltas": inputs.mae_deltas.filter(~pl.col("distinguishable_from_zero")),
+            "qbr_correlations": inputs.qbr_correlations.clear(),
+        }
+    )
+
+    # Act
+    text = build_validation_report_text(quiet)
+
+    # Assert
+    assert "No paired-bootstrap interval excludes zero." in text
+    assert "No season in range has ESPN QBR." in text
+
+
+def test_markdown_table_shows_missing_values_as_dashes() -> None:
+    # Act
+    table = markdown_table(["A", "B"], [[None, 1.23456]])
+
+    # Assert
+    assert table.splitlines()[-1] == "| - | 1.235 |"
+
+
+def test_compute_pairwise_mae_bootstrap_skips_baselines_without_shared_games() -> None:
+    # Arrange
+    predictions = pl.DataFrame(
+        {
+            "season": [2025, 2025],
+            "week": [5, 6],
+            "baseline": ["X", "SRS"],
+            "game_id": ["g1", "g2"],
+            "home_team": ["A", "C"],
+            "away_team": ["B", "D"],
+            "predicted_margin": [1.0, 2.0],
+            "home_margin": [0.0, 0.0],
+        }
+    )
+
+    # Act
+    deltas = compute_pairwise_mae_bootstrap(predictions, baselines=["X", "SRS"], resamples=8)
+
+    # Assert
+    assert deltas.is_empty()
+
+
+def test_compute_qbr_correlations_accepts_qbr_without_a_week_column(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange
+    _write_season_files(tmp_path, 2025, 0.0)
+    qbr = pl.DataFrame(
+        {
+            "season": [2025, 2025, 2025],
+            "team_abb": ["A", "B", "C"],
+            "name_display": ["One", "Two", "Three"],
+            "qbr_total": [70.0, 60.0, 50.0],
+        }
+    )
+    monkeypatch.setattr(walk_forward, "load_espn_qbr", stub(lambda: qbr))
+
+    # Act
+    correlations = compute_qbr_correlations(tmp_path, [2025])
+
+    # Assert
+    assert correlations.row(0, named=True)["joined_rows"] == 3

@@ -122,18 +122,24 @@ def _decision_section(inputs: ValidationReportInputs) -> list[str]:
     return [*lines, ""]
 
 
+def _finite_mean(frame: pl.DataFrame, column: str) -> str:
+    """Return the mean of a column's finite values to three places, or ``-`` when there are none."""
+    values = frame.get_column(column).to_numpy()
+    finite = values[np.isfinite(values)]
+    return f"{float(finite.mean()):.3f}" if finite.size else "-"
+
+
 def _qbr_section(qbr_correlations: pl.DataFrame) -> list[str]:
     """Return the ESPN QBR reference table and its mean correlations."""
     lines = ["## ESPN QBR Reference", ""]
     if qbr_correlations.is_empty():
         return [*lines, "No season in range has ESPN QBR.", ""]
-    mean_pearson = float(np.nanmean(qbr_correlations.get_column("pearson").to_numpy()))
-    mean_spearman = float(np.nanmean(qbr_correlations.get_column("spearman").to_numpy()))
     lines.append(
         _paragraph(
             "Per-season correlation between adjusted EPA per dropback and ESPN QBR for qualified "
-            f"passers. Mean Pearson {mean_pearson:.3f}, mean Spearman {mean_spearman:.3f}. "
-            "QBR is a reference, not a fitting target."
+            f"passers. Mean Pearson {_finite_mean(qbr_correlations, 'pearson')}, mean Spearman "
+            f"{_finite_mean(qbr_correlations, 'spearman')}. QBR is a reference, not a fitting "
+            "target."
         )
     )
     lines.extend(

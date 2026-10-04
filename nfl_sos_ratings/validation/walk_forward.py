@@ -73,6 +73,19 @@ _FEATURE_SCHEMA: dict[str, type[pl.DataType]] = {
 }
 
 
+_BOOTSTRAP_SCHEMA: dict[str, type[pl.DataType]] = {
+    "baseline_a": pl.String,
+    "baseline_b": pl.String,
+    "split": pl.String,
+    "games": pl.Int64,
+    "mae_delta": pl.Float64,
+    "ci_lower": pl.Float64,
+    "ci_upper": pl.Float64,
+    "probability_baseline_a_not_worse": pl.Float64,
+    "distinguishable_from_zero": pl.Boolean,
+}
+
+
 @dataclass(frozen=True, slots=True)
 class EloConfig:
     """Fixed constants for the simple team Elo baseline."""
@@ -469,7 +482,7 @@ def compute_pairwise_mae_bootstrap(
                     "distinguishable_from_zero": bool(ci_upper < 0.0 or ci_lower > 0.0),
                 }
             )
-    return pl.DataFrame(rows).sort(["split", "baseline_a", "baseline_b"])
+    return pl.DataFrame(rows, schema=_BOOTSTRAP_SCHEMA).sort(["split", "baseline_a", "baseline_b"])
 
 
 def evaluate_team_decision(
@@ -600,7 +613,16 @@ def compute_stability_metrics(data_dir: Path, seasons: Sequence[int]) -> pl.Data
                     entity, metric, paired.get_column(metric), paired.get_column(f"{metric}_next")
                 )
             )
-    return pl.DataFrame(rows).sort(["entity", "metric"])
+    return pl.DataFrame(
+        rows,
+        schema={
+            "entity": pl.String,
+            "metric": pl.String,
+            "paired_rows": pl.Int64,
+            "pearson": pl.Float64,
+            "spearman": pl.Float64,
+        },
+    ).sort(["entity", "metric"])
 
 
 def compute_qbr_correlations(data_dir: Path, seasons: Sequence[int]) -> pl.DataFrame:
