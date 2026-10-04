@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from nfl_sos_ratings.config import DATA_DIR
 from nfl_sos_ratings.metrics import get_registry
 from nfl_sos_ratings.ui_data import (
-    MissingEntityGameLogError,
+    MissingEntityRowsError,
     MissingSeasonContractError,
     SeasonDataset,
     TablePayload,
@@ -124,7 +124,7 @@ def create_app(data_dir: Path | None = None, *, web_dist: Path | None = None) ->
         """Return additive team game logs for one team and season."""
         try:
             return load_team_game_log_payload(resolved_data_dir, season, team)
-        except (MissingSeasonContractError, MissingEntityGameLogError) as error:
+        except (MissingSeasonContractError, MissingEntityRowsError) as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
     @app.get("/api/seasons/{season}/qbs/{qb_id}/game-logs")
@@ -132,7 +132,7 @@ def create_app(data_dir: Path | None = None, *, web_dist: Path | None = None) ->
         """Return additive QB game logs for one quarterback and season."""
         try:
             return load_qb_game_log_payload(resolved_data_dir, season, qb_id)
-        except (MissingSeasonContractError, MissingEntityGameLogError) as error:
+        except (MissingSeasonContractError, MissingEntityRowsError) as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
     mount_frontend(app, web_dist or DEFAULT_WEB_DIST)

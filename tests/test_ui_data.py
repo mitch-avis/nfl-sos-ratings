@@ -7,7 +7,7 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings.ui_data import (
-    MissingEntityGameLogError,
+    MissingEntityRowsError,
     MissingSeasonContractError,
     discover_available_seasons,
     load_qb_game_log_payload,
@@ -345,7 +345,7 @@ def test_load_qb_game_log_payload_without_the_id_column_raises_lookup_error(
     _write_table(tmp_path / "2024_qb_game_logs.parquet", "game_id,week,team", "g1,1,DET")
 
     # Act & Assert
-    with pytest.raises(MissingEntityGameLogError, match="qb_id"):
+    with pytest.raises(MissingEntityRowsError, match="qb_id"):
         load_qb_game_log_payload(tmp_path, 2024, "qb-1")
 
 
@@ -354,5 +354,5 @@ def test_load_team_game_log_payload_unknown_team_raises_lookup_error(tmp_path: P
     _seed_game_logs(tmp_path)
 
     # Act & Assert
-    with pytest.raises(MissingEntityGameLogError, match="NOPE"):
+    with pytest.raises(MissingEntityRowsError, match="NOPE"):
         load_team_game_log_payload(tmp_path, 2024, "NOPE")

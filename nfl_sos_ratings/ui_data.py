@@ -49,8 +49,8 @@ class MissingSeasonContractError(FileNotFoundError):
     """Raised when a requested season does not have the complete UI contract."""
 
 
-class MissingEntityGameLogError(LookupError):
-    """Raised when a requested entity does not have game-log rows in the UI contract."""
+class MissingEntityRowsError(LookupError):
+    """Raised when a requested entity has no rows in a per-entity UI file, such as game logs."""
 
 
 class TablePayload(TypedDict):
@@ -105,15 +105,15 @@ def load_season_ui_dataset(data_dir: Path, season: int) -> SeasonDataset:
 
 def load_team_game_log_payload(data_dir: Path, season: int, team: str) -> TablePayload:
     """Load additive team game logs for one team and season."""
-    frame = _load_game_log_frame(data_dir, season, TEAM_GAME_LOG_SUFFIX)
-    filtered = _filter_entity_game_logs(frame, "team", team, season, "team")
+    frame = _load_season_file(data_dir, season, TEAM_GAME_LOG_SUFFIX)
+    filtered = _filter_entity_rows(frame, "team", team, season, "team game-log")
     return _build_team_game_log_payload(filtered)
 
 
 def load_qb_game_log_payload(data_dir: Path, season: int, qb_id: str) -> TablePayload:
     """Load additive quarterback game logs for one QB and season."""
-    frame = _load_game_log_frame(data_dir, season, QB_GAME_LOG_SUFFIX)
-    filtered = _filter_entity_game_logs(frame, "qb_id", qb_id, season, "QB")
+    frame = _load_season_file(data_dir, season, QB_GAME_LOG_SUFFIX)
+    filtered = _filter_entity_rows(frame, "qb_id", qb_id, season, "QB game-log")
     return _build_qb_game_log_payload(filtered)
 
 
@@ -253,8 +253,8 @@ def _build_qb_payload(frame: pl.DataFrame) -> TablePayload:
     }
 
 
-def _load_game_log_frame(data_dir: Path, season: int, suffix: str) -> pl.DataFrame:
-    """Read one additive game-log Parquet file for the requested season."""
+def _load_season_file(data_dir: Path, season: int, suffix: str) -> pl.DataFrame:
+    """Read one per-entity Parquet file, such as the game logs, for the requested season."""
     file_path = data_dir / f"{season}_{suffix}.parquet"
     if not file_path.exists():
         msg = f"Season {season} is missing UI contract files: {file_path.name}"
@@ -262,22 +262,25 @@ def _load_game_log_frame(data_dir: Path, season: int, suffix: str) -> pl.DataFra
     return pl.read_parquet(file_path)
 
 
-def _filter_entity_game_logs(
+def _filter_entity_rows(
     frame: pl.DataFrame,
     column: str,
     entity_id: str,
     season: int,
-    entity_label: str,
+    rows_label: str,
 ) -> pl.DataFrame:
-    """Return game-log rows for the requested entity or raise a clear lookup error."""
+    """Return the requested entity's rows, sorted by week, or raise a clear lookup error.
+
+    ``rows_label`` names the entity and the file in messages, for example ``"QB game-log"``.
+    """
     if column not in frame.columns:
-        msg = f"Season {season} {entity_label} game logs do not include the {column} column."
-        raise MissingEntityGameLogError(msg)
+        msg = f"Season {season} {rows_label} rows do not include the {column} column."
+        raise MissingEntityRowsError(msg)
 
     filtered = frame.filter(pl.col(column) == entity_id)
     if filtered.is_empty():
-        msg = f"Season {season} has no UI game-log rows for {entity_label} {entity_id}."
-        raise MissingEntityGameLogError(msg)
+        msg = f"Season {season} has no UI {rows_label} rows for {entity_id}."
+        raise MissingEntityRowsError(msg)
     return filtered.sort([key for key in ("week", "game_id") if key in filtered.columns])
 
 
