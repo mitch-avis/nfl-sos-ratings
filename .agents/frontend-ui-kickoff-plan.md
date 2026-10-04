@@ -22,7 +22,28 @@ has since been removed).
 
 - Status: in progress. The analyst shell, compare/reset behavior, and detail pages are shipped, and
   the whole frontend now lives in `web/` on nfl-predictor's stack.
-- Last updated: 2026-10-02.
+- Last updated: 2026-10-04.
+- UX audit (2026-10-04, maintainer-requested; checked in Chrome at desktop width and at 402 px,
+  the iPhone 17 Pro's CSS width, on the rebuilt `data/`). Landed on `feat/rank-ranges`:
+  - One hint card style everywhere (`components/common/Hint`, `hintStyles.ts`, restyled
+    `ui/tooltip.tsx`, `ChartTooltipCard` for Recharts): hover or focus with a mouse, tap on touch
+    screens (`(hover: none)`, Radix popover). Sortable headers (`SortableHeader`) keep a tap for
+    sorting and add an info button on touch screens.
+  - The league rank-range chart reads out the active row above the rows instead of floating a
+    tooltip over its neighbors.
+  - Phones (below 768 px): only the name column stays pinned (capped at 120 px), Compare shrinks
+    to its checkbox, the QB ID column is gone everywhere, the view toggles scroll on one row, the
+    index reading notes fold into a disclosure, and the three summary tiles are gone.
+  - Open, for the maintainer to decide (P2):
+    - Per-metric fixed decimals: `format.formatValue` mixes 2 and 3 decimals in one column
+      (`0.75` vs `5.919`); points-per-game ratings could show 1-2 decimals, EPA rates 3.
+    - The glossary cards repeat the label as the full name ("Team Rating / Team Rating").
+    - Rated QBs below the qualifier show "-" in the Rank range column with no explanation.
+    - The index table scrolls inside a 75vh box, so phones scroll a box inside the page.
+    - The Rank column is the position under the current sort, not the published rank, next to a
+      Rank range column that is always about the published rating.
+    - Touch behavior of Recharts tooltips (`trigger="click"` on touch screens) is untested on a
+      real device.
 - Port to `web/` (landed 2026-10-02, commits 298da87 and 68d39ac on
   `chore/strict-tooling-and-web`):
   - the frontend moved from `ui/web/` (plain CSS, hand-rolled components) to `web/`: React 19,
