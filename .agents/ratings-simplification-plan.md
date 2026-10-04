@@ -163,6 +163,69 @@ The checks above leave some details open; these are fixed before any result is s
   2025` and `nfl-sos-ratings check-passer --data-dir data --model-season 2025 --name "Drake
   Maye"`. Both only read; the passer check downloads the postseason data.
 
+### Results of checks A and B (2026-10-04)
+
+Check A, from `nfl-sos-ratings check-additivity --data-dir data --start-season 1999 --end-season
+2025` (2000 season-block resamples, seed 0):
+
+- Teams: top offenses' mean residual -0.0156 EPA per play against bottom-tercile defenses (101,601
+  plays) and +0.0123 against top-tercile defenses (105,725 plays). Contrast -0.0278, interval
+  -0.0403 to -0.0161: entirely below zero, the opposite of the claim.
+- Passers: -0.0201 against bottom-tercile defenses (53,575 dropbacks), +0.0362 against top-tercile
+  defenses (55,551 dropbacks), 305 rows without a prediction. Contrast -0.0563, interval -0.0738 to
+  -0.0405: entirely below zero, the opposite of the claim.
+- Strong units fall short of the additive prediction against weak opponents and beat it against
+  strong ones, so a soft schedule does not inflate a rating through this mechanism; if anything it
+  deflates it. The check does not say why (game script is one untested possibility).
+
+Check B, from `nfl-sos-ratings check-passer --data-dir data --model-season 2025 --name "Drake
+Maye"` (2025 fit: adjusted EPA per dropback +0.210, penalty 177.828, sigma 1.535 per dropback):
+
+- 2025 postseason (LAC, HOU, DEN, SEA; 4 games, 142 dropbacks): actual -0.285, predicted +0.112,
+  residual -0.398, z -3.09.
+- 2026 weeks 1-3 (SEA, PIT, JAX; 3 games, 89 dropbacks): actual -0.225, predicted +0.141, residual
+  -0.366, z -2.25.
+- Both: 7 games, 231 dropbacks, residual -0.386, z -3.82.
+- Every part reads "the 2025 rating overstated the passer against these opponents". The window was
+  named after the games were seen, which overstates the evidence, and the 2026 part faces changed
+  rosters. Check A says the overstatement is not the additive model's systematic bias.
+
+## Pre-registered in-season penalty test (written 2026-10-04, before any run)
+
+The 2026 build (`nfl-sos-ratings season`, games through week 4) rates every team within 0.04
+points of zero (`data/2026_ratings.parquet`): cross-validation picks the grid's largest scrimmage
+penalty (100,000). A scratch scan of 1999-2026 found that happens through week 2 in 9 of 28
+seasons, week 3 in 4, week 4 in 2 (2003, 2026), and week 5 in none, with full-season penalties
+always 316, 562, or 1000; the command below prints the same table, and its run replaces these
+counts. The maintainer chose to keep the fixed season penalty for rating histories and to test a
+better in-season penalty.
+
+- Hypothesis: a team rating fit with the previous season's full-season penalties (scrimmage and
+  special teams, each chosen by that season's cross-validation) predicts held-out home margins in
+  the first weeks at least as well as one that cross-validates each in-season fit.
+- Candidate `TeamRatingPriorPenalty`: `fit_team_ratings` on the pre-week games with the previous
+  season's full-season penalties. Incumbent `TeamRating`: `fit_team_ratings` cross-validating
+  every snapshot, as published. Both use only games before the predicted week; the candidate also
+  uses the previous completed season's games, through its two penalties only.
+- Window: seasons 2000-2025 (1999 has no previous season in `data/`), the walk-forward harness's
+  prior-only margin projection, prediction weeks 2 and later. Primary metric: MAE over prediction
+  weeks 2-5 (snapshots from weeks 1-4, where cross-validation is unstable). Guard: MAE over weeks 6
+  and later.
+- Statistics: candidate-minus-incumbent MAE with the harness's paired game bootstrap (2000
+  resamples, seed 0, 95% percentile interval), primary and guard separately.
+- Decision rule: primary interval entirely below zero and guard interval not entirely above zero:
+  recommend the candidate. Primary interval including zero and guard not entirely above zero: a
+  tie, and the recommendation is the candidate as the simpler option (no in-season tuning, and no
+  all-zero ratings). Primary or guard interval entirely above zero: keep cross-validation. Every
+  interval that excludes zero is reported, and the decision goes to the maintainer either way.
+- Scope if adopted: the published team fit uses the previous season's penalties from 2000 on
+  (1999 keeps cross-validation), so the validated estimator stays the published one. That changes
+  every published team rating slightly and needs `data/` and the validation report regenerated,
+  each asked for separately. The QB fit keeps cross-validation; 2026 QB penalties are interior.
+- Command: `nfl-sos-ratings check-in-season-penalty --data-dir data --start-season 2000
+  --end-season 2025` (read-only). It also prints each season's cross-validated scrimmage penalty
+  through weeks 2-5 and the full season.
+
 ## Retired metric backlog
 
 The registry's `planned` entries (stats catalogued but never computed) were removed on 2026-10-04
