@@ -182,9 +182,7 @@ def run_season(season: int) -> None:
     _write_data_file(qb_season_stats, season, "qb_per_game_stats")
 
     print("Computing QB opponent profiles...")
-    qb_opp_profiles, _ = compute_qb_opponent_profiles(
-        weekly_df, qb_df, schedule_df, qb_season_stats
-    )
+    qb_opp_profiles, _ = compute_qb_opponent_profiles(weekly_df, qb_df, qb_season_stats)
     if qb_opp_profiles is not None:
         _write_data_file(qb_opp_profiles, season, "qb_opponent_profiles")
 

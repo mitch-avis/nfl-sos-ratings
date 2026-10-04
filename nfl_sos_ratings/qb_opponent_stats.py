@@ -235,20 +235,12 @@ def _qb_opponent_rows(
     return opp_rows, team_details
 
 
-def _qb_profile_agg_exprs(combined: pl.DataFrame, *, weighted: bool) -> list[pl.Expr]:
-    """Return the opponent-profile averages, weighted by games included when requested."""
+def _qb_profile_agg_exprs(combined: pl.DataFrame) -> list[pl.Expr]:
+    """Return the opponent-profile averages, one equal-weight entry per faced opponent."""
     available_cols = [col for col in DEFENSIVE_CONTEXT_COLS if col in combined.columns]
     available_cols.extend(
         col for col in combined.columns if col.startswith("qopp_qb_") and col not in available_cols
     )
-    if weighted:
-        denominator = pl.col("games_included").sum()
-        return [
-            ((pl.col(col) * pl.col("games_included")).sum() / denominator).alias(
-                col if col.startswith("qopp_") else f"qopp_{col}"
-            )
-            for col in available_cols
-        ]
     return [
         pl.col(col).mean().alias(col if col.startswith("qopp_") else f"qopp_{col}")
         for col in available_cols
@@ -258,20 +250,17 @@ def _qb_profile_agg_exprs(combined: pl.DataFrame, *, weighted: bool) -> list[pl.
 def compute_qb_opponent_profiles(
     weekly_df: pl.DataFrame,
     qb_df: pl.DataFrame,
-    schedule_df: pl.DataFrame,
     qb_season_df: pl.DataFrame,
-    *,
-    weighted: bool = False,
 ) -> tuple[pl.DataFrame | None, dict[str, list[dict[str, str | bool | int]]]]:
     """Compute QB opponent profiles for each individual quarterback season row."""
     weekly_df = _normalize_team_abbreviations(weekly_df, ["team", "opponent_team"])
     qb_df = _normalize_team_abbreviations(qb_df, ["team_abbr"])
-    schedule_df = _normalize_team_abbreviations(schedule_df, ["home_team", "away_team"])
     qb_season_df = _normalize_team_abbreviations(qb_season_df, ["team"])
 
     qb_keys = [key for key in ("qb_id", "qb_name") if key in qb_season_df.columns]
     if not qb_keys:
-        qb_keys = ["team"]
+        msg = "qb_season_df needs a qb_id or qb_name column to profile each quarterback"
+        raise ValueError(msg)
 
     details: dict[str, list[dict[str, str | bool | int]]] = {}
     profile_rows: list[pl.DataFrame] = []
@@ -304,7 +293,7 @@ def compute_qb_opponent_profiles(
         if not opp_rows:
             continue
         combined = pl.concat(opp_rows)
-        agg_exprs = _qb_profile_agg_exprs(combined, weighted=weighted)
+        agg_exprs = _qb_profile_agg_exprs(combined)
         if not agg_exprs:
             continue
 

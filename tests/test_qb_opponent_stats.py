@@ -31,12 +31,6 @@ def test_compute_qb_opponent_profiles_excludes_head_to_head() -> None:
             "qb_aggressiveness": [11.0, 8.5, 9.0],
         }
     )
-    schedule_df = pl.DataFrame(
-        {
-            "home_team": ["DEN", "DEN"],
-            "away_team": ["KC", "LAC"],
-        }
-    )
     qb_season_df = pl.DataFrame(
         {
             "qb_id": ["QB_DEN"],
@@ -53,7 +47,6 @@ def test_compute_qb_opponent_profiles_excludes_head_to_head() -> None:
     profiles, details = qb_opponent_stats.compute_qb_opponent_profiles(
         weekly_df,
         qb_df,
-        schedule_df,
         qb_season_df,
     )
 
@@ -92,12 +85,6 @@ def test_compute_qb_opponent_profiles_counts_actual_games_faced() -> None:
             "qb_passer_rating": [100.0, 99.0, 98.0, 120.0, 60.0],
         }
     )
-    schedule_df = pl.DataFrame(
-        {
-            "home_team": ["DEN", "DEN", "DEN"],
-            "away_team": ["KC", "KC", "BUF"],
-        }
-    )
     qb_season_df = pl.DataFrame(
         {
             "qb_id": ["QB_DEN"],
@@ -110,7 +97,6 @@ def test_compute_qb_opponent_profiles_counts_actual_games_faced() -> None:
     profiles, details = qb_opponent_stats.compute_qb_opponent_profiles(
         weekly_df,
         qb_df,
-        schedule_df,
         qb_season_df,
     )
 
@@ -145,12 +131,6 @@ def test_compute_qb_opponent_profiles_skips_qb_without_reconstructable_opponents
             "qb_passer_rating": [80.0, 90.0, 70.0],
         }
     )
-    schedule_df = pl.DataFrame(
-        {
-            "home_team": ["DEN", "KC", "DEN"],
-            "away_team": ["KC", "DEN", "BUF"],
-        }
-    )
     qb_season_df = pl.DataFrame(
         {
             "qb_id": ["QB_DEN"],
@@ -164,7 +144,6 @@ def test_compute_qb_opponent_profiles_skips_qb_without_reconstructable_opponents
     profiles, details = qb_opponent_stats.compute_qb_opponent_profiles(
         weekly_df,
         qb_df,
-        schedule_df,
         qb_season_df,
     )
 
@@ -198,12 +177,6 @@ def test_compute_qb_opponent_profiles_uses_each_qbs_actual_opponents() -> None:
             "qb_passer_rating": [100.0, 95.0, 70.0, 110.0],
         }
     )
-    schedule_df = pl.DataFrame(
-        {
-            "home_team": ["DEN", "DEN"],
-            "away_team": ["KC", "BUF"],
-        }
-    )
     qb_season_df = pl.DataFrame(
         {
             "qb_id": ["QB_DEN_1", "QB_DEN_2"],
@@ -216,7 +189,6 @@ def test_compute_qb_opponent_profiles_uses_each_qbs_actual_opponents() -> None:
     profiles, details = qb_opponent_stats.compute_qb_opponent_profiles(
         weekly_df,
         qb_df,
-        schedule_df,
         qb_season_df,
     )
 
@@ -255,12 +227,6 @@ def test_compute_qb_opponent_profiles_uses_majority_snap_games_only() -> None:
             "qb_passer_rating": [100.0, 80.0, 95.0, 110.0, 70.0, 105.0],
         }
     )
-    schedule_df = pl.DataFrame(
-        {
-            "home_team": ["DEN", "DEN"],
-            "away_team": ["KC", "BUF"],
-        }
-    )
     qb_season_df = pl.DataFrame(
         {
             "qb_id": ["QB_A", "QB_B"],
@@ -273,7 +239,6 @@ def test_compute_qb_opponent_profiles_uses_majority_snap_games_only() -> None:
     profiles, details = qb_opponent_stats.compute_qb_opponent_profiles(
         weekly_df,
         qb_df,
-        schedule_df,
         qb_season_df,
     )
 
@@ -310,12 +275,6 @@ def test_compute_qb_opponent_profiles_handles_rams_alias_mismatch() -> None:
             "qb_passer_rating": [105.0, 88.0],
         }
     )
-    schedule_df = pl.DataFrame(
-        {
-            "home_team": ["LA", "ARI"],
-            "away_team": ["SEA", "SF"],
-        }
-    )
     qb_season_df = pl.DataFrame(
         {
             "qb_id": ["QB_LAR"],
@@ -329,7 +288,6 @@ def test_compute_qb_opponent_profiles_handles_rams_alias_mismatch() -> None:
     profiles, details = qb_opponent_stats.compute_qb_opponent_profiles(
         weekly_df,
         qb_df,
-        schedule_df,
         qb_season_df,
     )
 
@@ -381,14 +339,12 @@ def test_compute_qb_opponent_profiles_derives_allowed_efficiency_rates() -> None
             ],
         }
     )
-    schedule_df = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})
     qb_season_df = pl.DataFrame({"qb_id": ["QB_DEN"], "qb_name": ["Denver QB"], "team": ["DEN"]})
 
     # Act
     profiles, _ = qb_opponent_stats.compute_qb_opponent_profiles(
         weekly_df,
         qb_df,
-        schedule_df,
         qb_season_df,
     )
 
@@ -401,3 +357,140 @@ def test_compute_qb_opponent_profiles_derives_allowed_efficiency_rates() -> None
     assert profiles.select("qopp_qb_any_a").item() == pytest.approx(355.0 / 63.0)
     assert profiles.select("qopp_qb_sack_rate").item() == pytest.approx(3.0 / 67.0)
     assert profiles.select("qopp_qb_td_int_margin_rate").item() == pytest.approx(2.0 / 67.0)
+
+
+def _weekly(rows: list[tuple[str, str, int]]) -> pl.DataFrame:
+    """Return team-game rows from (team, opponent, week) with one defensive stat."""
+    return pl.DataFrame(
+        {
+            "team": [team for team, _, _ in rows],
+            "opponent_team": [opponent for _, opponent, _ in rows],
+            "week": [week for _, _, week in rows],
+            "points_allowed": [20] * len(rows),
+        }
+    )
+
+
+def test_allowed_stats_for_a_defense_without_other_games_is_none() -> None:
+    # Arrange
+    weekly = _weekly([("DEN", "KC", 1), ("KC", "DEN", 1)])
+    qb_df = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_attempts": [30]})
+
+    # Act
+    allowed = qb_opponent_stats._compute_qb_allowed_stats_excluding_team(weekly, qb_df, "KC", "DEN")
+
+    # Assert
+    assert allowed is None
+
+
+def test_allowed_stats_without_matching_qb_rows_is_none() -> None:
+    # Arrange
+    weekly = _weekly([("BUF", "KC", 2), ("KC", "BUF", 2)])
+    qb_df = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_attempts": [30]})
+
+    # Act
+    allowed = qb_opponent_stats._compute_qb_allowed_stats_excluding_team(weekly, qb_df, "KC", "DEN")
+
+    # Assert
+    assert allowed is None
+
+
+def test_allowed_stats_without_numeric_qb_columns_is_none() -> None:
+    # Arrange
+    weekly = _weekly([("BUF", "KC", 2), ("KC", "BUF", 2)])
+    qb_df = pl.DataFrame({"team_abbr": ["BUF"], "week": [2], "qb_name": ["Bills QB"]})
+
+    # Act
+    allowed = qb_opponent_stats._compute_qb_allowed_stats_excluding_team(weekly, qb_df, "KC", "DEN")
+
+    # Assert
+    assert allowed is None
+
+
+@pytest.mark.parametrize(
+    "qb_df",
+    [
+        pl.DataFrame({"qb_name": ["A"], "qb_attempts": [10]}),
+        pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_name": ["A"]}),
+    ],
+)
+def test_select_primary_qb_games_returns_rows_it_cannot_rank(qb_df: pl.DataFrame) -> None:
+    # Act
+    selected = qb_opponent_stats._select_primary_qb_games(qb_df)
+
+    # Assert
+    assert selected.equals(qb_df)
+
+
+def test_details_key_without_identity_values_uses_the_team_label() -> None:
+    # Act
+    key = qb_opponent_stats._details_key({"qb_id": None}, ["qb_id"], "DEN")
+
+    # Assert
+    assert key == "DEN"
+
+
+def test_identity_filter_without_identity_values_matches_nothing() -> None:
+    # Arrange
+    rows = pl.DataFrame({"qb_id": ["a", "b"]})
+
+    # Act
+    matched = rows.filter(qb_opponent_stats._qb_identity_filter({"qb_id": None}, ["qb_id"]))
+
+    # Assert
+    assert matched.is_empty()
+
+
+def test_compute_qb_opponent_profiles_without_qb_identity_raises_value_error() -> None:
+    # Arrange
+    weekly = _weekly([("DEN", "KC", 1), ("KC", "DEN", 1)])
+    qb_df = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_attempts": [30]})
+    qb_season_df = pl.DataFrame({"team": ["DEN"]})
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="qb_id or qb_name"):
+        qb_opponent_stats.compute_qb_opponent_profiles(weekly, qb_df, qb_season_df)
+
+
+def test_compute_qb_opponent_profiles_skips_opponents_without_other_games() -> None:
+    # Arrange
+    weekly = _weekly([("DEN", "KC", 1), ("KC", "DEN", 1)])
+    qb_df = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_id": ["q1"], "qb_attempts": [30]})
+    qb_season_df = pl.DataFrame({"qb_id": ["q1"], "team": ["DEN"]})
+
+    # Act
+    profiles, details = qb_opponent_stats.compute_qb_opponent_profiles(weekly, qb_df, qb_season_df)
+
+    # Assert
+    assert profiles is None
+    assert details["q1"] == [{"opponent": "KC", "division": True, "games_included": 0}]
+
+
+def test_compute_qb_opponent_profiles_without_context_columns_returns_none() -> None:
+    # Arrange
+    weekly = pl.DataFrame(
+        {
+            "team": ["DEN", "KC", "KC", "BUF"],
+            "opponent_team": ["KC", "DEN", "BUF", "KC"],
+            "week": [1, 1, 2, 2],
+        }
+    )
+    qb_df = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_id": ["q1"]})
+    qb_season_df = pl.DataFrame({"qb_id": ["q1"], "team": ["DEN"]})
+
+    # Act
+    profiles, _ = qb_opponent_stats.compute_qb_opponent_profiles(weekly, qb_df, qb_season_df)
+
+    # Assert
+    assert profiles is None
+
+
+def test_allowed_rate_exprs_skip_numerators_that_are_absent() -> None:
+    # Arrange
+    allowed = pl.DataFrame({"qb_attempts": [20, 30], "qb_pass_yards": [150.0, 250.0]})
+
+    # Act
+    exprs = qb_opponent_stats._qb_allowed_rate_exprs(set(allowed.columns))
+
+    # Assert
+    assert allowed.select(exprs).columns == ["qopp_qb_yards_per_attempt"]
