@@ -1,5 +1,13 @@
 # Frontend / UI Kickoff Plan
 
+> [!NOTE]
+> On 2026-10-04 the published ratings were replaced (see `ratings-simplification-plan.md`). Team
+> columns are now `team_rating`, `offense_rating`, `defense_rating`, `special_teams_rating`, `sos`,
+> and `SRS` in points per game; QB columns are `adj_qb_epa_per_dropback`, `qb_epa_per_dropback`,
+> and `qb_faced_pass_defense`. Schedule tiers read the opponent's league rank (top 10 Tougher,
+> bottom 10 Softer). Dated log entries below keep the names that existed at the time; the open
+> items use the current names.
+
 ## Purpose
 
 This document is the handoff plan for the first dedicated visualization/UI session after the current
@@ -461,13 +469,13 @@ Execution notes for the next detail-page slice:
    opponent ledger" without becoming another wide uncurated dump.
 5. Default grouped-opponent columns should stay compact and high-signal.
 6. For teams, the default grouped view should keep identity first (`opponent_team`, `games`,
-   `weeks`) and then prefer one overall difficulty column (`opp_SaCR` or `opp_SRS`), one
-   opponent-side context column (`opp_SaDR` for offense reading or `opp_SaOR` for defense reading),
-   and one or two subject-performance columns such as `point_margin` or a core efficiency rate when
-   those columns exist for the active surface.
-7. For QBs, the default grouped view should keep identity first and then prefer `opp_SaDR`,
-   `opp_SaCR`, `point_margin`, and one or two core QB performance columns such as
-   `qb_epa_per_dropback`, `qb_any_a`, or `qb_passer_rating` when available.
+   `weeks`) and then prefer one overall difficulty column (`opp_team_rating` or `opp_SRS`), one
+   opponent-side context column (`opp_defense_rating` for offense reading or `opp_offense_rating`
+   for defense reading), and one or two subject-performance columns such as `point_margin` or a
+   core efficiency rate when those columns exist for the active surface.
+7. For QBs, the default grouped view should keep identity first and then prefer
+   `opp_defense_rating`, `opp_team_rating`, `point_margin`, and one or two core QB performance
+   columns such as `qb_epa_per_dropback`, `qb_any_a`, or `qb_passer_rating` when available.
 8. Derived grouped-opponent columns should be additive summaries that are easy to defend from the
    current trustworthy inputs.
 9. Good examples are:
@@ -479,9 +487,9 @@ Execution notes for the next detail-page slice:
 11. Weekly opponent-strength overlays should be treated as season-context labels, not as single-game
     ratings.
 12. Match the context column to the surface being read: team offense views should emphasize
-    `opp_SaDR`; team defense views should emphasize `opp_SaOR`; team overall/result views should
-    emphasize `opp_SaCR` or `opp_SRS`; QB passing views should emphasize `opp_SaDR`, with `opp_SaCR`
-    only as broader team context.
+    `opp_defense_rating`; team defense views should emphasize `opp_offense_rating`; team
+    overall/result views should emphasize `opp_team_rating` or `opp_SRS`; QB passing views should
+    emphasize `opp_defense_rating`, with `opp_team_rating` only as broader team context.
 13. If a weekly delta surface is added, the safest default is subject-week versus subject-season
     baseline on the same metric.
 14. Do not subtract unlike units or imply that a season rating is the expected output of one game
@@ -507,16 +515,16 @@ Status: started. The weekly trend line chart on detail pages (item 5) landed wit
 Recommended first chart set:
 
 1. Team offense vs defense quadrant:
-   - x-axis `SaOR`
-   - y-axis `SaDR`
+   - x-axis `offense_rating`
+   - y-axis `defense_rating`
 2. Team overall rating rank chart:
-   - sortable bar/dot plot with `SaCR`, `SaOvR`, `SRS`
+   - sortable bar/dot plot with `team_rating`, `SRS`, and `sos`
 3. QB adjusted performance vs schedule strength:
-   - x-axis `QSoS`
-   - y-axis `QSaOR`
+   - x-axis `qb_faced_pass_defense`
+   - y-axis `adj_qb_epa_per_dropback`
 4. QB outcome overlay:
-   - x-axis `QSaOR`
-   - y-axis `QOutcome`
+   - x-axis `adj_qb_epa_per_dropback`
+   - y-axis `qb_win_pct`
    - now unblocked by the late-game metrics fix, but still worth spot-checking against the current
      overhaul plan before implementation
 5. Weekly trend charts for detail pages should come before optional radar or profile charts.
