@@ -1,8 +1,10 @@
 # Ratings Simplification Plan
 
-Active plan for replacing the composite team and QB ratings with one points-based team rating and
-one adjusted-EPA QB rating, pruning the surfaces that grew around them, and then adding in-season
-2026 support. Branch: `refactor/points-based-ratings`.
+Decision record for replacing the composite team and QB ratings with one points-based team rating
+and one adjusted-EPA QB rating, pruning the surfaces that grew around them, and adding in-season
+2026 support (branch `refactor/points-based-ratings`, merged). Every task below is done; it stays
+as the record of the rating specifications, the pre-registered rules and their results, and the
+retired-metric list. Open work is in `.agents/roadmap.md`.
 
 ## Decisions (maintainer sign-off, 2026-10-03)
 

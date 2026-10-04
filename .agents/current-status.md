@@ -20,22 +20,25 @@ history (the composite-rating era and its experiments) is in git, before commit 
   page. Week rows reuse the season fit's penalties.
 - Decisions, audits, pre-registered rules, and check results (additivity, passer holdout,
   in-season penalty) are in `.agents/ratings-simplification-plan.md`.
-- `data/` was rebuilt on 2026-10-04 with `nfl-sos-ratings pipeline` (1999-2025) and
-  `nfl-sos-ratings season` (2026 through week 4; team ratings now spread like other seasons).
-- `docs/validation-report.md` was regenerated after the penalty change; the rule still reads adopt.
+- Branch `feat/rank-ranges` (every commit since `main`'s `d5929ed`, not pushed) adds bootstrap rank
+  ranges (`{season}_rating_ranges`, `{season}_qb_rating_ranges`, their API and web views), the QB
+  data fixes (duplicated QB-game rows, deterministic tie-breaks) and the per-team QB qualifier
+  (`qb_attempt_qualifier`), and the UX audit changes (one hint style that also opens on tap, phone
+  layout, fixed decimals per column). Details: `.agents/roadmap.md`, "Settled background".
+- `data/` (1999-2026, range files included) was rebuilt on 2026-10-04 for that branch with
+  `OPENBLAS_NUM_THREADS=1 nfl-sos-ratings pipeline` and `nfl-sos-ratings season --season 2026`
+  (2026 through week 4).
+- `docs/validation-report.md` was regenerated on 2026-10-04 after the QB data fixes; the rule still
+  reads adopt.
 
 ## Next steps
 
-1. Rank ranges and a garbage-time win-probability filter: see
-   `.agents/rank-ranges-and-wp-filter-plan.md`. Branch `feat/rank-ranges` (not pushed) has the
-   whole rank-range feature in code: the bootstrap engine, the registry entries, the
-   `{season}_rating_ranges` and `{season}_qb_rating_ranges` outputs of `run_season`, the
-   `/api/seasons/{season}/{teams|qbs}/rating-ranges` endpoints, and the web views. `data/` was
-   rebuilt with the range files on 2026-10-04 (`OPENBLAS_NUM_THREADS=1 nfl-sos-ratings
-   pipeline`, then `season --season 2026`), and again after the QB data fixes (duplicate QB-game
-   rows, deterministic tie-breaks, per-team qualifier): details in the plan's Tasks. The WP feature
-   is still to do.
-2. Rebuild 2026 weekly as games are played (`nfl-sos-ratings season`, ask first).
+All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order: push
+and open a pull request for `feat/rank-ranges` (approved), a note for nfl-predictor, three small
+fixes (single-threaded BLAS by default, deterministic row order, a data-diff command), the
+garbage-time WP filter and its pre-registered test, head-to-head chances and more rank-range
+views, weekly 2026 refresh automation, frontend follow-ups, a project logger, and retired stats on
+request. Until A1 lands, rebuild 2026 weekly with `nfl-sos-ratings season` (ask first).
 
 ## Validation snapshot
 
@@ -54,16 +57,14 @@ rebuilt `data/`.
 
 ## Open items
 
-- The head-to-head-excluded refits run many small NumPy solves, and multithreaded BLAS spends far
-  more CPU time than wall time on them; limiting BLAS threads could make `pipeline` cheaper.
-- Carried over: a colored project logger (as in nfl-predictor) would retire the per-file `T201`
-  print ignores in `pyproject.toml`. `pytest-html` and `pytest-metadata` stay as dev dependencies
-  (decided 2026-10-02).
-- Frontend follow-ups: `.agents/frontend-ui-kickoff-plan.md`.
+Tracked in `.agents/roadmap.md` (BLAS threading is S1, the project logger S4, frontend follow-ups
+F1-F6). `pytest-html` and `pytest-metadata` stay as dev dependencies (decided 2026-10-02).
 
 ## What the next agent should do first
 
-1. Read `.agents/ratings-simplification-plan.md` for the decisions and the remaining task.
+1. Read `.agents/roadmap.md` and start at the first unchecked workstream; the decision record
+   (rating specifications, pre-registered rules and results) is
+   `.agents/ratings-simplification-plan.md`.
 2. If the task challenges the rating methodology, start from `docs/methodology.md` and
    `docs/validation-report.md`, and write a falsifiable protocol and decision rule in an `.agents/`
    plan before changing code.

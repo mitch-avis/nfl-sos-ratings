@@ -130,11 +130,12 @@ next steps change. A stale plan document is a repo bug.
 
 - `.agents/current-status.md`: repo status, validation snapshot, active backlog, next-agent
   guidance. Every session that lands work leaves it accurate enough to resume without chat history.
-- `.agents/ratings-simplification-plan.md`: the points-based rating rework, its pre-registered
-  validation rule, and the remaining tasks (2026 in-season support).
-- `.agents/frontend-ui-kickoff-plan.md`: the analyst web UI.
-- `.agents/rank-ranges-and-wp-filter-plan.md`: bootstrap rank ranges and the garbage-time
-  win-probability filter.
+- `.agents/roadmap.md`: the single active plan, every open workstream in the recommended order
+  (the WP filter, rank-range extensions, refresh automation, frontend follow-ups, and fixes).
+- `.agents/ratings-simplification-plan.md`: decision record for the points-based ratings (rating
+  specifications, pre-registered rules and their results, the retired-metric list).
+- `.agents/frontend-ui-kickoff-plan.md`: the web app's build history, design direction, and the
+  2026-10-04 UX audit.
 
 Fold completed one-off workstreams into `current-status.md` or the still-active plan instead of
 leaving stale plan files behind. When a task introduces a pattern the codebase does not have yet,

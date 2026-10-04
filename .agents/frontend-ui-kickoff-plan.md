@@ -1,5 +1,9 @@
 # Frontend / UI Kickoff Plan
 
+Since 2026-10-04 this file is the frontend's build history, design direction, and UX audit record.
+Open frontend work (F1-F6, the WP slider, and the rank-range views still to come) lives in
+`.agents/roadmap.md`.
+
 > [!NOTE]
 > On 2026-10-04 the published ratings were replaced (see `ratings-simplification-plan.md`). Team
 > columns are now `team_rating`, `offense_rating`, `defense_rating`, `special_teams_rating`, `sos`,
@@ -259,16 +263,8 @@ Phase status summary:
 - Phase 4. High-value charts: started (weekly trend chart on detail pages).
 - Phase 5. Design polish: in progress.
 
-Outstanding follow-ups explicitly queued for the next agent session:
-
-1. Keep strengthening the weekly-log detail pages now that the weekly trend chart has landed;
-  keep them table-first, and check the chart against live use before adding more chart types.
-2. Refine the new grouped opponent ledgers after live use, especially if one team or QB weekly
-  surface wants a different primary performance metric or a tighter default column mix.
-3. Add opponent-strength or rating-delta context to the weekly views carefully, without implying
-  that a repeated season-long opponent rating is a true single-game rating.
-4. Revisit the compare workflow only after the weekly/detail surfaces settle, with the next step
-  being a pinned side-by-side layout rather than more compact-strip patching.
+The follow-ups once queued here (weekly-log detail pages, opponent ledgers, opponent-strength
+context, a pinned side-by-side compare) moved to `.agents/roadmap.md` as F1-F4 on 2026-10-04.
 
 ## Hard prerequisite
 
