@@ -292,8 +292,19 @@ def compute_qb_game_volumes_from_pbp(
                 & pl.col("passer_player_name").is_not_null()
                 & (pl.col("qb_dropback").fill_null(0) > 0)
             )
-            .group_by(["game_id", "week", "posteam", "passer_player_id", "passer_player_name"])
-            .agg(pl.col("qb_dropback").sum().cast(pl.Int64).alias("qb_dropbacks"))
+            # One group per passer even when the play-by-play tags his name two ways in a game.
+            .with_columns(
+                pl.coalesce([pl.col("passer_player_id"), pl.col("passer_player_name")]).alias(
+                    "_passer_key"
+                )
+            )
+            .group_by(["game_id", "week", "posteam", "_passer_key"])
+            .agg(
+                pl.col("passer_player_id").drop_nulls().first(),
+                pl.col("passer_player_name").drop_nulls().sort().first(),
+                pl.col("qb_dropback").sum().cast(pl.Int64).alias("qb_dropbacks"),
+            )
+            .drop("_passer_key")
             .rename(
                 {
                     "posteam": "team_abbr",
@@ -446,9 +457,18 @@ def compute_qb_game_stats_from_pbp(
             & pl.col("passer_player_name").is_not_null()
             & (pl.col("qb_dropback").fill_null(0) > 0)
         )
-        .group_by(["game_id", "week", "posteam", "passer_player_id", "passer_player_name"])
+        # One group per passer: play-by-play sometimes tags the same passer two ways in one game
+        # ("T.Pike" and "T.Pike (3rd QB)"), so the name is only the fallback key for a missing id.
+        .with_columns(
+            pl.coalesce([pl.col("passer_player_id"), pl.col("passer_player_name")]).alias(
+                "_passer_key"
+            )
+        )
+        .group_by(["game_id", "week", "posteam", "_passer_key"])
         .agg(
             [
+                pl.col("passer_player_id").drop_nulls().first(),
+                pl.col("passer_player_name").drop_nulls().sort().first(),
                 pl.col("pass").fill_null(0).sum().cast(pl.Int64).alias("qb_attempts"),
                 pl.col("complete_pass").fill_null(0).sum().cast(pl.Int64).alias("qb_completions"),
                 pl.col("passing_yards").fill_null(0.0).sum().alias("qb_pass_yards"),
@@ -474,6 +494,7 @@ def compute_qb_game_stats_from_pbp(
                 cpoe.alias("qb_completion_percentage_above_expectation"),
             ]
         )
+        .drop("_passer_key")
         .rename(
             {
                 "posteam": "team_abbr",

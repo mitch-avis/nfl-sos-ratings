@@ -1129,3 +1129,35 @@ def test_late_game_flags_ignore_rows_without_a_real_team() -> None:
         {"team_abbr": "ATL", "qb_fourth_quarter_comeback": 0},
         {"team_abbr": "DAL", "qb_fourth_quarter_comeback": 0},
     ]
+
+
+def test_compute_qb_game_stats_from_pbp_keeps_one_row_when_a_passers_name_varies() -> None:
+    # Arrange
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2010_09_NO_CAR"] * 3,
+            "week": [9] * 3,
+            "posteam": ["CAR"] * 3,
+            "passer_player_id": ["GSIS_P"] * 3,
+            "passer_player_name": ["T.Pike", "T.Pike (3rd QB)", "T.Pike (3rd QB)"],
+            "qb_dropback": [1, 1, 1],
+            "pass": [1, 1, 1],
+            "complete_pass": [1, 0, 1],
+            "passing_yards": [12.0, 0.0, 8.0],
+            "yards_gained": [12.0, 0.0, 8.0],
+            "pass_touchdown": [0, 0, 0],
+            "interception": [0, 0, 0],
+            "sack": [0, 0, 0],
+            "fumble_lost": [0, 0, 0],
+            "qb_epa": [0.5, -0.4, 0.2],
+            "cpoe": [None, None, None],
+        }
+    )
+
+    # Act
+    result = qb_stats.compute_qb_game_stats_from_pbp(pbp)
+
+    # Assert
+    assert result.select("qb_id", "qb_attempts").to_dicts() == [
+        {"qb_id": "GSIS_P", "qb_attempts": 3}
+    ]
