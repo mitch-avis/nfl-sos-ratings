@@ -1695,3 +1695,24 @@ def test_filter_postseason_without_a_season_type_column_keeps_no_rows() -> None:
     # Assert
     assert result.is_empty()
     assert result.columns == ["game_id", "team"]
+
+
+def test_load_playoff_qb_stats_without_postseason_plays_is_typed_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    regular_season_only = pl.DataFrame(
+        {"game_id": ["2025_01_DEN_KC"], "season_type": ["REG"], "posteam": ["DEN"]}
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: regular_season_only))
+    monkeypatch.setattr(data_loader.nfl, "load_snap_counts", stub(pl.DataFrame))
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(pl.DataFrame))
+    monkeypatch.setattr(data_loader.nfl, "load_players", pl.DataFrame)
+    monkeypatch.setattr(data_loader.nfl, "load_rosters_weekly", stub(pl.DataFrame))
+
+    # Act
+    result = data_loader.load_playoff_qb_stats(2025)
+
+    # Assert
+    assert result.is_empty()
+    assert result.schema["qb_epa_per_dropback"] == pl.Float64

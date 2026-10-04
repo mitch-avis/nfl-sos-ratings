@@ -362,6 +362,46 @@ def compute_qb_game_volumes_from_pbp(
     )
 
 
+# The columns and types `compute_qb_game_stats_from_pbp` returns, with or without plays.
+_QB_GAME_STATS_SCHEMA: dict[str, type[pl.DataType]] = {
+    "game_id": pl.String,
+    "week": pl.Int64,
+    "team_abbr": pl.String,
+    "qb_name": pl.String,
+    "qb_id": pl.String,
+    "snap_player_id": pl.String,
+    "qb_dropbacks": pl.Int64,
+    "qb_offense_snaps": pl.Int64,
+    "qb_attempts": pl.Int64,
+    "qb_completions": pl.Int64,
+    "qb_pass_yards": pl.Float64,
+    "qb_pass_touchdowns": pl.Int64,
+    "qb_interceptions": pl.Int64,
+    "qb_sacks": pl.Int64,
+    "qb_sack_yards_lost": pl.Float64,
+    "qb_sack_fumbles_lost": pl.Int64,
+    "qb_passing_epa": pl.Float64,
+    "qb_designed_carries": pl.Int64,
+    "qb_designed_rush_yards": pl.Float64,
+    "qb_designed_rush_epa": pl.Float64,
+    "qb_scrambles": pl.Int64,
+    "qb_scramble_yards": pl.Float64,
+    "qb_kneels": pl.Int64,
+    "qb_epa_per_dropback": pl.Float64,
+    "qb_pass_yards_per_dropback": pl.Float64,
+    "qb_td_int_margin_rate": pl.Float64,
+    "qb_sack_rate": pl.Float64,
+    "qb_any_a": pl.Float64,
+    "qb_scramble_rate": pl.Float64,
+    "qb_yards_per_scramble": pl.Float64,
+    "qb_designed_yards_per_carry": pl.Float64,
+    "qb_designed_epa_per_carry": pl.Float64,
+    "qb_fourth_quarter_comeback": pl.Int64,
+    "qb_game_winning_drive": pl.Int64,
+    "qb_completion_percentage_above_expectation": pl.Float64,
+}
+
+
 def compute_qb_game_stats_from_pbp(
     pbp_df: pl.DataFrame,
     snap_counts_df: pl.DataFrame | None = None,
@@ -375,33 +415,13 @@ def compute_qb_game_stats_from_pbp(
     """
     volumes = compute_qb_game_volumes_from_pbp(pbp_df, snap_counts_df, qb_identity_df)
     if volumes.is_empty():
-        return volumes.with_columns(
-            pl.lit(0).cast(pl.Int64).alias("qb_attempts"),
-            pl.lit(0).cast(pl.Int64).alias("qb_completions"),
-            pl.lit(0.0).alias("qb_pass_yards"),
-            pl.lit(0).cast(pl.Int64).alias("qb_pass_touchdowns"),
-            pl.lit(0).cast(pl.Int64).alias("qb_interceptions"),
-            pl.lit(0).cast(pl.Int64).alias("qb_sacks"),
-            pl.lit(0.0).alias("qb_sack_yards_lost"),
-            pl.lit(0).cast(pl.Int64).alias("qb_sack_fumbles_lost"),
-            pl.lit(0.0).alias("qb_passing_epa"),
-            pl.lit(0).cast(pl.Int64).alias("qb_designed_carries"),
-            pl.lit(0.0).alias("qb_designed_rush_yards"),
-            pl.lit(0.0).alias("qb_designed_rush_epa"),
-            pl.lit(0).cast(pl.Int64).alias("qb_scrambles"),
-            pl.lit(0.0).alias("qb_scramble_yards"),
-            pl.lit(0).cast(pl.Int64).alias("qb_kneels"),
-            pl.lit(None, dtype=pl.Float64).alias("qb_completion_percentage_above_expectation"),
-            pl.lit(None, dtype=pl.Float64).alias("qb_scramble_rate"),
-            pl.lit(None, dtype=pl.Float64).alias("qb_yards_per_scramble"),
-            pl.lit(None, dtype=pl.Float64).alias("qb_designed_yards_per_carry"),
-            pl.lit(None, dtype=pl.Float64).alias("qb_designed_epa_per_carry"),
-        )
+        return pl.DataFrame(schema=_QB_GAME_STATS_SCHEMA)
 
     pbp_columns = set(pbp_df.columns)
     sack_yards = (
         pl.col("yards_gained").fill_null(0.0) if "yards_gained" in pbp_columns else pl.lit(0.0)
     )
+    cpoe = pl.col("cpoe").mean() if "cpoe" in pbp_columns else pl.lit(None, dtype=pl.Float64)
 
     pbp_stats = (
         pbp_df.filter(
@@ -434,7 +454,7 @@ def compute_qb_game_stats_from_pbp(
                 .cast(pl.Int64)
                 .alias("qb_sack_fumbles_lost"),
                 pl.col("qb_epa").fill_null(0.0).sum().alias("qb_passing_epa"),
-                pl.col("cpoe").mean().alias("qb_completion_percentage_above_expectation"),
+                cpoe.alias("qb_completion_percentage_above_expectation"),
             ]
         )
         .rename(
@@ -675,45 +695,7 @@ def compute_qb_game_stats_from_pbp(
             .cast(pl.Int64)
             .alias("qb_game_winning_drive"),
         )
-        .select(
-            [
-                "game_id",
-                "week",
-                "team_abbr",
-                "qb_name",
-                "qb_id",
-                "snap_player_id",
-                "qb_dropbacks",
-                "qb_offense_snaps",
-                "qb_attempts",
-                "qb_completions",
-                "qb_pass_yards",
-                "qb_pass_touchdowns",
-                "qb_interceptions",
-                "qb_sacks",
-                "qb_sack_yards_lost",
-                "qb_sack_fumbles_lost",
-                "qb_passing_epa",
-                "qb_designed_carries",
-                "qb_designed_rush_yards",
-                "qb_designed_rush_epa",
-                "qb_scrambles",
-                "qb_scramble_yards",
-                "qb_kneels",
-                "qb_epa_per_dropback",
-                "qb_pass_yards_per_dropback",
-                "qb_td_int_margin_rate",
-                "qb_sack_rate",
-                "qb_any_a",
-                "qb_scramble_rate",
-                "qb_yards_per_scramble",
-                "qb_designed_yards_per_carry",
-                "qb_designed_epa_per_carry",
-                "qb_fourth_quarter_comeback",
-                "qb_game_winning_drive",
-                "qb_completion_percentage_above_expectation",
-            ]
-        )
+        .select(list(_QB_GAME_STATS_SCHEMA))
         .sort(["team_abbr", "week", "game_id", "qb_name"])
     )
 

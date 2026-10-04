@@ -969,3 +969,46 @@ def test_compute_qb_game_volumes_from_pbp_without_dropbacks_or_qb_snaps_is_empty
 
     # Assert
     assert volumes.is_empty()
+
+
+def _one_dropback_pbp() -> pl.DataFrame:
+    """Return play-by-play with a single completed pass, without a ``cpoe`` column."""
+    return pl.DataFrame(
+        {
+            "game_id": ["2005_01_DEN_KC"],
+            "week": [1],
+            "posteam": ["DEN"],
+            "passer_player_id": ["00-0031234"],
+            "passer_player_name": ["J.Doe"],
+            "qb_dropback": [1],
+            "pass": [1],
+            "complete_pass": [1],
+            "passing_yards": [12.0],
+            "pass_touchdown": [0],
+            "interception": [0],
+            "sack": [0],
+            "fumble_lost": [0],
+            "qb_epa": [0.8],
+        }
+    )
+
+
+def test_compute_qb_game_stats_from_pbp_without_plays_has_the_full_schema() -> None:
+    # Arrange
+    full = qb_stats.compute_qb_game_stats_from_pbp(_one_dropback_pbp())
+
+    # Act
+    empty = qb_stats.compute_qb_game_stats_from_pbp(pl.DataFrame())
+
+    # Assert
+    assert empty.schema == full.schema
+
+
+def test_compute_qb_game_stats_from_pbp_without_cpoe_leaves_it_null() -> None:
+    # Act
+    games = qb_stats.compute_qb_game_stats_from_pbp(_one_dropback_pbp())
+
+    # Assert
+    row = games.row(0, named=True)
+    assert row["qb_completion_percentage_above_expectation"] is None
+    assert row["qb_epa_per_dropback"] == pytest.approx(0.8)

@@ -47,9 +47,6 @@ rebuilt `data/`.
 
 ## Open items
 
-- `data_loader._build_qb_stats` (shared by `load_qb_stats` and `load_playoff_qb_stats`) fails on
-  an empty play-by-play frame (its final select expects `qb_epa_per_dropback`) and assumes a `cpoe`
-  column; real seasons have both, so this has not bitten.
 - The head-to-head-excluded refits run many small NumPy solves, and multithreaded BLAS spends far
   more CPU time than wall time on them; limiting BLAS threads could make `pipeline` cheaper.
 - Carried over: a colored project logger (as in nfl-predictor) would retire the per-file `T201`
