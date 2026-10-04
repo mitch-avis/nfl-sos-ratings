@@ -56,8 +56,8 @@ class UnitFit:
 
 
 @dataclass(frozen=True, slots=True)
-class _System:
-    """A weighted design matrix with its labels and penalty mask."""
+class UnitDesign:
+    """A weighted design matrix with its labels and penalty mask, built once and refit often."""
 
     design: FloatArray
     response: FloatArray
@@ -78,8 +78,13 @@ def _home_signs(rows: pl.DataFrame, home_column: str | None) -> FloatArray:
     return np.asarray(signs.to_numpy(), dtype=np.float64)
 
 
-def _build_system(rows: pl.DataFrame, columns: UnitColumns) -> _System:
-    """Return the design matrix, response, weights, and fold groups for ``rows``."""
+def build_unit_design(rows: pl.DataFrame, columns: UnitColumns) -> UnitDesign:
+    """Return the design matrix, response, weights, and fold groups for ``rows``.
+
+    Raises:
+        ValueError: If no row has an offense, defense, and response.
+
+    """
     rows = rows.drop_nulls([columns.offense, columns.defense, columns.response])
     if rows.is_empty():
         msg = "fit_unit_ridge received no rows with an offense, defense, and response"
@@ -125,7 +130,7 @@ def _build_system(rows: pl.DataFrame, columns: UnitColumns) -> _System:
     )
     penalized = np.zeros(design.shape[1], dtype=np.float64)
     penalized[fixed_count:] = 1.0
-    return _System(
+    return UnitDesign(
         design=design,
         response=np.asarray(rows.get_column(columns.response).cast(pl.Float64).to_numpy()),
         weights=weights,
@@ -155,7 +160,7 @@ def _solve(gram: FloatArray, moment: FloatArray, penalty: FloatArray) -> FloatAr
         return solution
 
 
-def _cross_validated_lambda(system: _System, candidates: FloatArray) -> float:
+def _cross_validated_lambda(system: UnitDesign, candidates: FloatArray) -> float:
     """Return the candidate penalty with the lowest mean held-out weighted squared error."""
     ordered = np.sort(np.asarray(candidates, dtype=np.float64))
     group_count = int(system.groups.max()) + 1
@@ -207,7 +212,7 @@ def fit_unit_ridge(
         ValueError: If no row has an offense, defense, and response.
 
     """
-    system = _build_system(rows, columns)
+    system = build_unit_design(rows, columns)
     resolved_lambda = (
         ridge_lambda
         if ridge_lambda is not None
@@ -232,6 +237,46 @@ def fit_unit_ridge(
         defense={
             label: float(coefficients[defense_start + index])
             for index, label in enumerate(system.defense_labels)
+        },
+    )
+
+
+def solve_unit_design(design: UnitDesign, ridge_lambda: float, multipliers: FloatArray) -> UnitFit:
+    """Refit a prebuilt design with each row's weight scaled by ``multipliers``.
+
+    With a fixed penalty, a row counted k times enters the fit exactly as one row with k times the
+    weight, so a bootstrap resample of games is a vector of per-row game counts, and a refit that
+    leaves games out gives them a multiplier of 0. Units whose rows all have zero weight are left
+    out of the result, as they would be absent from a fit on the resampled rows themselves.
+
+    Args:
+        design: From :func:`build_unit_design`.
+        ridge_lambda: The fixed penalty.
+        multipliers: One non-negative factor per design row.
+
+    Returns:
+        The solved effects for the units with weight.
+
+    """
+    weights = design.weights * multipliers
+    gram, moment = _normal_equations(design.design, design.response, weights)
+    coefficients = _solve(gram, moment, design.penalized * ridge_lambda)
+    column_weight = (design.design != 0.0).T.astype(np.float64) @ weights
+    offense_start = 2 if design.has_home else 1
+    defense_start = offense_start + len(design.offense_labels)
+    return UnitFit(
+        intercept=float(coefficients[0]),
+        home_field=float(coefficients[1]) if design.has_home else 0.0,
+        ridge_lambda=float(ridge_lambda),
+        offense={
+            label: float(coefficients[offense_start + index])
+            for index, label in enumerate(design.offense_labels)
+            if column_weight[offense_start + index] > 0.0
+        },
+        defense={
+            label: float(coefficients[defense_start + index])
+            for index, label in enumerate(design.defense_labels)
+            if column_weight[defense_start + index] > 0.0
         },
     )
 
@@ -271,7 +316,10 @@ __all__ = [
     "CROSS_VALIDATION_FOLDS",
     "DEFAULT_RIDGE_LAMBDAS",
     "UnitColumns",
+    "UnitDesign",
     "UnitFit",
+    "build_unit_design",
     "fit_unit_ridge",
     "predict_unit",
+    "solve_unit_design",
 ]

@@ -2,10 +2,13 @@
 
 import itertools
 
+import numpy as np
 import polars as pl
 import pytest
 
 from nfl_sos_ratings.qb_rating import (
+    QbRatingResampler,
+    bootstrap_qb_ratings,
     compute_qb_faced_pass_defense,
     fit_qb_ratings,
     fit_qb_ratings_by_week,
@@ -203,3 +206,44 @@ def test_qb_rating_rows_keep_only_rows_with_a_dropback() -> None:
 
     # Assert
     assert rows.height == qb_games.height - 2
+
+
+def test_qb_rating_resampler_matches_a_fit_on_duplicated_games() -> None:
+    # Arrange
+    qb_games = _qb_games(dropbacks={"CCC": 70})
+    fit = fit_qb_ratings(qb_games, ridge_lambda=10.0)
+    resampler = QbRatingResampler(qb_games, fit)
+    counts = np.array([(index * 5) % 3 for index in range(len(resampler.game_ids))])
+    duplicated = pl.concat(
+        [
+            qb_games.filter(pl.col("game_id") == game_id).with_columns(
+                pl.lit(f"{game_id}#{copy}").alias("game_id")
+            )
+            for game_id, count in zip(resampler.game_ids, counts, strict=True)
+            for copy in range(int(count))
+        ]
+    )
+    expected = fit_qb_ratings(duplicated, ridge_lambda=10.0).ratings.sort("qb_id")
+
+    # Act
+    ratings = resampler.ratings(counts).sort("qb_id")
+
+    # Assert
+    assert ratings.get_column("qb_id").to_list() == expected.get_column("qb_id").to_list()
+    assert ratings.get_column("adj_qb_epa_per_dropback").to_list() == pytest.approx(
+        expected.get_column("adj_qb_epa_per_dropback").to_list()
+    )
+
+
+def test_bootstrap_qb_ratings_is_reproducible_for_a_seed() -> None:
+    # Arrange
+    qb_games = _qb_games()
+    fit = fit_qb_ratings(qb_games, ridge_lambda=10.0)
+    first = bootstrap_qb_ratings(qb_games, fit, resamples=4, seed=1)
+
+    # Act
+    second = bootstrap_qb_ratings(qb_games, fit, resamples=4, seed=1)
+
+    # Assert
+    assert second.equals(first)
+    assert second.columns == ["draw", "qb_id", "adj_qb_epa_per_dropback"]

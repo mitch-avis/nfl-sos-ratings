@@ -6,7 +6,13 @@ import numpy as np
 import polars as pl
 import pytest
 
-from nfl_sos_ratings.ridge import UnitColumns, fit_unit_ridge, predict_unit
+from nfl_sos_ratings.ridge import (
+    UnitColumns,
+    build_unit_design,
+    fit_unit_ridge,
+    predict_unit,
+    solve_unit_design,
+)
 
 _TEAMS = ("AAA", "BBB", "CCC", "DDD")
 _OFFENSE = {"AAA": 0.10, "BBB": 0.05, "CCC": -0.05, "DDD": -0.10}
@@ -206,3 +212,51 @@ def test_predict_unit_unknown_unit_is_nan() -> None:
 
     # Assert
     assert np.isnan(predicted).all()
+
+
+def test_solve_unit_design_with_multiplicities_matches_a_fit_on_duplicated_rows() -> None:
+    # Arrange
+    rows = _schedule_rows()
+    counts = np.array([2, 0, 1, 3, 1, 0, 1, 2, 0, 1, 1, 2], dtype=np.float64)
+    game_ids = sorted(rows.get_column("game_id").unique().to_list())
+    duplicated = pl.concat(
+        [
+            rows.filter(pl.col("game_id") == game_id).with_columns(
+                pl.lit(f"{game_id}#{copy}").alias("game_id")
+            )
+            for game_id, count in zip(game_ids, counts, strict=True)
+            for copy in range(int(count))
+        ]
+    )
+    expected = fit_unit_ridge(duplicated, _COLUMNS, ridge_lambda=5.0)
+    design = build_unit_design(rows, _COLUMNS)
+    multipliers = counts[[game_ids.index(g) for g in rows.get_column("game_id").to_list()]]
+
+    # Act
+    fit = solve_unit_design(design, 5.0, multipliers)
+
+    # Assert
+    assert fit.offense == pytest.approx(expected.offense)
+    assert fit.defense == pytest.approx(expected.defense)
+    assert (fit.intercept, fit.home_field) == pytest.approx(
+        (expected.intercept, expected.home_field)
+    )
+
+
+def test_solve_unit_design_leaves_out_units_without_weight() -> None:
+    # Arrange
+    rows = _schedule_rows()
+    design = build_unit_design(rows, _COLUMNS)
+    multipliers = np.where(
+        (rows.get_column("team") == "AAA").to_numpy()
+        | (rows.get_column("opponent_team") == "AAA").to_numpy(),
+        0.0,
+        1.0,
+    )
+
+    # Act
+    fit = solve_unit_design(design, 5.0, multipliers)
+
+    # Assert
+    assert "AAA" not in fit.offense
+    assert "AAA" not in fit.defense

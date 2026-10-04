@@ -34,9 +34,17 @@ supported it.
 from dataclasses import dataclass
 
 import numpy as np
+import numpy.typing as npt
 import polars as pl
 
-from nfl_sos_ratings.ridge import UnitColumns, UnitFit, fit_unit_ridge
+from nfl_sos_ratings.ridge import (
+    UnitColumns,
+    UnitDesign,
+    UnitFit,
+    build_unit_design,
+    fit_unit_ridge,
+    solve_unit_design,
+)
 
 SCRIMMAGE_PLAYS_COLUMN = "offensive_snaps"
 SCRIMMAGE_EPA_COLUMN = "offensive_epa"
@@ -178,6 +186,82 @@ def fit_team_ratings(
     )
 
 
+class TeamRatingResampler:
+    """Refit the team ratings on resampled games, reusing one fit's fixed penalties.
+
+    Built once per season; each call to :meth:`ratings` takes a count per game (how many times a
+    bootstrap resample drew it) and returns what :func:`fit_team_ratings` would return on the
+    resampled games with duplicates relabeled, without rebuilding anything.
+    """
+
+    def __init__(self, game_logs: pl.DataFrame, fit: TeamRatingFit) -> None:
+        """Build the scrimmage and special-teams designs for ``game_logs``."""
+        _require_columns(game_logs)
+        self._fit = fit
+        self.game_ids: list[str] = sorted(game_logs.get_column("game_id").unique().to_list())
+        index = {game_id: position for position, game_id in enumerate(self.game_ids)}
+        self._units: list[tuple[UnitDesign, npt.NDArray[np.int64], npt.NDArray[np.float64]]] = []
+        for plays_column, epa_column in (
+            (SCRIMMAGE_PLAYS_COLUMN, SCRIMMAGE_EPA_COLUMN),
+            (SPECIAL_TEAMS_PLAYS_COLUMN, SPECIAL_TEAMS_EPA_COLUMN),
+        ):
+            rows = _unit_rows(game_logs, plays_column, epa_column).drop_nulls(
+                ["team", "opponent_team", _RESPONSE]
+            )
+            self._units.append(
+                (
+                    build_unit_design(rows, TEAM_UNIT_COLUMNS),
+                    np.array(
+                        [index[game_id] for game_id in rows.get_column("game_id")], dtype=np.int64
+                    ),
+                    np.asarray(rows.get_column(_WEIGHT).to_numpy(), dtype=np.float64),
+                )
+            )
+
+    def ratings(self, game_counts: npt.ArrayLike) -> pl.DataFrame:
+        """Return the four rating columns for the games weighted by ``game_counts``.
+
+        Args:
+            game_counts: How many times each game in ``game_ids`` is drawn, in that order.
+
+        """
+        counts = np.asarray(game_counts, dtype=np.float64)
+        fits: list[UnitFit] = []
+        plays_per_game: list[float] = []
+        for (design, games, plays), ridge_lambda in zip(
+            self._units,
+            (self._fit.scrimmage_lambda, self._fit.special_teams_lambda),
+            strict=True,
+        ):
+            multipliers = counts[games]
+            fits.append(solve_unit_design(design, ridge_lambda, multipliers))
+            plays_per_game.append(float((multipliers * plays).sum() / multipliers.sum()))
+        return _ratings_frame(fits[0], fits[1], plays_per_game[0], plays_per_game[1])
+
+
+def bootstrap_team_ratings(
+    game_logs: pl.DataFrame, fit: TeamRatingFit, *, resamples: int, seed: int
+) -> pl.DataFrame:
+    """Return ``team_rating`` for every team in ``resamples`` game-bootstrap resamples.
+
+    Each resample draws the season's games with replacement and refits with ``fit``'s penalties.
+
+    Returns:
+        Long rows with ``draw``, ``team``, and ``team_rating``.
+
+    """
+    resampler = TeamRatingResampler(game_logs, fit)
+    rng = np.random.default_rng(seed)
+    game_count = len(resampler.game_ids)
+    frames = [
+        resampler.ratings(
+            np.bincount(rng.integers(0, game_count, game_count), minlength=game_count)
+        ).select(pl.lit(draw).alias("draw"), "team", "team_rating")
+        for draw in range(resamples)
+    ]
+    return pl.concat(frames)
+
+
 def fit_team_ratings_with_previous_penalties(
     game_logs: pl.DataFrame, previous: TeamRatingFit | None
 ) -> TeamRatingFit:
@@ -312,6 +396,8 @@ __all__ = [
     "TEAM_RATING_COLUMNS",
     "TEAM_UNIT_COLUMNS",
     "TeamRatingFit",
+    "TeamRatingResampler",
+    "bootstrap_team_ratings",
     "compute_team_schedule_strength",
     "fit_team_ratings",
     "fit_team_ratings_by_week",

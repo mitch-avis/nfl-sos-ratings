@@ -2,11 +2,14 @@
 
 import itertools
 
+import numpy as np
 import polars as pl
 import pytest
 
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
+    TeamRatingResampler,
+    bootstrap_team_ratings,
     compute_team_schedule_strength,
     fit_team_ratings,
     fit_team_ratings_by_week,
@@ -338,3 +341,53 @@ def test_fit_team_ratings_with_previous_penalties_without_one_cross_validates() 
 
     # Assert
     assert fit.ratings.equals(fit_team_ratings(game_logs).ratings)
+
+
+def _duplicated(game_logs: pl.DataFrame, game_ids: list[str], counts: np.ndarray) -> pl.DataFrame:
+    """Return ``game_logs`` with each game repeated ``count`` times under distinct game IDs."""
+    return pl.concat(
+        [
+            game_logs.filter(pl.col("game_id") == game_id).with_columns(
+                pl.lit(f"{game_id}#{copy}").alias("game_id")
+            )
+            for game_id, count in zip(game_ids, counts, strict=True)
+            for copy in range(int(count))
+        ]
+    )
+
+
+def test_team_rating_resampler_matches_a_fit_on_duplicated_games() -> None:
+    # Arrange
+    game_logs = _game_logs(_PARTIAL)
+    fit = fit_team_ratings(game_logs, scrimmage_lambda=10.0, special_teams_lambda=20.0)
+    resampler = TeamRatingResampler(game_logs, fit)
+    counts = np.array([(index * 7) % 3 for index in range(len(resampler.game_ids))])
+    expected = fit_team_ratings(
+        _duplicated(game_logs, resampler.game_ids, counts),
+        scrimmage_lambda=10.0,
+        special_teams_lambda=20.0,
+    ).ratings.sort("team")
+
+    # Act
+    ratings = resampler.ratings(counts).sort("team")
+
+    # Assert
+    assert ratings.get_column("team").to_list() == expected.get_column("team").to_list()
+    assert ratings.get_column("team_rating").to_list() == pytest.approx(
+        expected.get_column("team_rating").to_list()
+    )
+
+
+def test_bootstrap_team_ratings_is_reproducible_for_a_seed() -> None:
+    # Arrange
+    game_logs = _game_logs(_PARTIAL)
+    fit = fit_team_ratings(game_logs, scrimmage_lambda=10.0, special_teams_lambda=20.0)
+    first = bootstrap_team_ratings(game_logs, fit, resamples=5, seed=3)
+
+    # Act
+    second = bootstrap_team_ratings(game_logs, fit, resamples=5, seed=3)
+
+    # Assert
+    assert second.equals(first)
+    assert second.columns == ["draw", "team", "team_rating"]
+    assert second.get_column("draw").n_unique() == 5

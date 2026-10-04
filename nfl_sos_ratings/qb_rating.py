@@ -18,9 +18,10 @@ with the season's penalty, so each week's row shows the rating as the evidence t
 from dataclasses import dataclass
 
 import numpy as np
+import numpy.typing as npt
 import polars as pl
 
-from nfl_sos_ratings.ridge import UnitColumns, fit_unit_ridge
+from nfl_sos_ratings.ridge import UnitColumns, build_unit_design, fit_unit_ridge, solve_unit_design
 
 QB_ID_COLUMN = "qb_id"
 QB_DROPBACKS_COLUMN = "qb_dropbacks"
@@ -150,6 +151,63 @@ def fit_qb_ratings_by_week(qb_games: pl.DataFrame, fit: QbRatingFit) -> pl.DataF
     return pl.concat(frames)
 
 
+class QbRatingResampler:
+    """Refit the QB rating on resampled games, reusing one fit's fixed penalty.
+
+    The QB counterpart of ``team_rating.TeamRatingResampler``: :meth:`ratings` takes a count per
+    game and returns what :func:`fit_qb_ratings` would return on the resampled games.
+    """
+
+    def __init__(self, qb_games: pl.DataFrame, fit: QbRatingFit) -> None:
+        """Build the passer-versus-defense design for ``qb_games``."""
+        _require_columns(qb_games)
+        self._ridge_lambda = fit.ridge_lambda
+        rows = _rated_rows(qb_games).drop_nulls(
+            [QB_ID_COLUMN, "opponent_team", QB_EPA_PER_DROPBACK_COLUMN]
+        )
+        self.game_ids: list[str] = sorted(rows.get_column("game_id").unique().to_list())
+        index = {game_id: position for position, game_id in enumerate(self.game_ids)}
+        self._design = build_unit_design(rows, QB_UNIT_COLUMNS)
+        self._games = np.array(
+            [index[game_id] for game_id in rows.get_column("game_id")], dtype=np.int64
+        )
+
+    def ratings(self, game_counts: npt.ArrayLike) -> pl.DataFrame:
+        """Return ``qb_id`` and ``adj_qb_epa_per_dropback`` for passers in the drawn games."""
+        counts = np.asarray(game_counts, dtype=np.float64)
+        fit = solve_unit_design(self._design, self._ridge_lambda, counts[self._games])
+        passers = sorted(fit.offense)
+        return pl.DataFrame(
+            {
+                QB_ID_COLUMN: passers,
+                "adj_qb_epa_per_dropback": [fit.intercept + fit.offense[qb] for qb in passers],
+            },
+            schema={QB_ID_COLUMN: pl.String, "adj_qb_epa_per_dropback": pl.Float64},
+        )
+
+
+def bootstrap_qb_ratings(
+    qb_games: pl.DataFrame, fit: QbRatingFit, *, resamples: int, seed: int
+) -> pl.DataFrame:
+    """Return ``adj_qb_epa_per_dropback`` for every passer in each game-bootstrap resample.
+
+    Returns:
+        Long rows with ``draw``, ``qb_id``, and ``adj_qb_epa_per_dropback``; a passer with no
+        dropbacks in a resample has no row for that draw.
+
+    """
+    resampler = QbRatingResampler(qb_games, fit)
+    rng = np.random.default_rng(seed)
+    game_count = len(resampler.game_ids)
+    frames = [
+        resampler.ratings(
+            np.bincount(rng.integers(0, game_count, game_count), minlength=game_count)
+        ).select(pl.lit(draw).alias("draw"), QB_ID_COLUMN, "adj_qb_epa_per_dropback")
+        for draw in range(resamples)
+    ]
+    return pl.concat(frames)
+
+
 def compute_qb_faced_pass_defense(qb_games: pl.DataFrame, fit: QbRatingFit) -> pl.DataFrame:
     """Return each passer's dropback-weighted faced pass defense, head-to-head excluded.
 
@@ -194,6 +252,8 @@ __all__ = [
     "QB_ID_COLUMN",
     "QB_UNIT_COLUMNS",
     "QbRatingFit",
+    "QbRatingResampler",
+    "bootstrap_qb_ratings",
     "compute_qb_faced_pass_defense",
     "fit_qb_ratings",
     "fit_qb_ratings_by_week",
