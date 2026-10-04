@@ -81,20 +81,18 @@ slider defaults to 0% and runs 0-30%; a setting of X drops plays whose win proba
 or above 1 - X (Football Perspective, Adam Steele's QB recaps: 4% drops plays "below 4% or above
 96%"). Not confirmed: whether it uses `wp` or `vegas_wp`, and whether the cut is inclusive.
 
-Decisions for the maintainer (recommendation first):
+Decisions (answered by the maintainer 2026-10-04):
 
-- WP column: `wp` (recommended). It reflects score, clock, and field position only. `vegas_wp`
-  adds the pregame spread, so early plays of a mismatch would already look like garbage time and
-  the filter would trim the best and worst teams' normal plays. Fairly sure; a source showing
-  rbsdm uses `vegas_wp` would not change the recommendation, only the comparison to rbsdm.
-- Special teams: leave unfiltered (recommended). Garbage time is about offense and defense
-  play-calling and effort; special teams is a small share and its WP extremes are mostly end-game
-  kneels and onside kicks. Cost: the published sum mixes filtered and unfiltered parts. Moderately
-  sure.
-- Range and step: 0-30% in 1% steps, as rbsdm (recommended); always below 50%.
+- WP column: `wp` (score, clock, field position). `vegas_wp` adds the pregame spread, so early
+  plays of a mismatch would already look like garbage time.
+- Special teams: filtered too. The maintainer leaned that way; onside kicks and backup coverage
+  units are concrete garbage-time effects on special teams, and one play set keeps
+  `team_rating`'s three parts consistent. Special-teams plays get the same WP bins, so the choice
+  stays cheap to revisit.
+- Range and step: 0-30% in 1% steps, as rbsdm; default 0%.
 - Rule: keep a play when `min(wp, 1 - wp) >= X`; X = 0 keeps every play with a `wp`.
 
-Architecture: per team-game, store scrimmage plays and EPA summed in 1% bins of
+Architecture: per team-game, store scrimmage and special-teams plays and EPA summed in 1% bins of
 `min(wp, 1 - wp)` (bins 0-50); a threshold X keeps bins >= X, so any threshold is a cumulative sum
 and the API refits on demand with the weighted engine (milliseconds, `sos` included). QB: per
 passer-game dropbacks and play-level passing EPA in the same bins; at 0% compare with the official
@@ -115,7 +113,7 @@ across thresholds whichever way they move.
 - [ ] Registry suffix rules and entries, `catalog`; pipeline writes the range files.
 - [ ] Rank-range API and web views; methodology caveats.
 - [ ] Ask to run `season` / `pipeline` for the range files.
-- [ ] WP decisions answered by the maintainer.
+- [x] WP decisions answered by the maintainer.
 - [ ] WP bins in the loader layer (guarded columns), engine refits per threshold, API parameter.
 - [ ] Slider (shadcn) with URL state, debounce, exploration label.
 - [ ] Pre-register and (after asking) run the WP walk-forward test.
