@@ -1433,3 +1433,112 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
     assert row["qb_yards_per_scramble"] == pytest.approx(12.0)
     assert row["qb_designed_yards_per_carry"] == pytest.approx(8.0)
     assert row["qb_designed_epa_per_carry"] == pytest.approx(0.5)
+
+
+def test_load_qb_identity_crosswalk_without_any_sources_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    monkeypatch.setattr(data_loader.nfl, "load_players", stub(pl.DataFrame))
+    monkeypatch.setattr(data_loader.nfl, "load_rosters_weekly", stub(pl.DataFrame))
+
+    # Act
+    crosswalk = data_loader.load_qb_identity_crosswalk(2025)
+
+    # Assert
+    assert crosswalk.is_empty()
+    assert crosswalk.columns == ["qb_id", "snap_player_id", "qb_name", "qb_position"]
+
+
+def test_load_official_weekly_qb_stats_without_player_ids_is_empty() -> None:
+    # Act
+    official = data_loader._load_official_weekly_qb_stats(
+        pl.DataFrame({"week": [1]}), pl.DataFrame()
+    )
+
+    # Assert
+    assert official.is_empty()
+
+
+def test_override_qb_game_stats_without_official_rows_keeps_the_input() -> None:
+    # Arrange
+    qb_df = pl.DataFrame({"qb_id": ["q1"], "week": [1], "qb_attempts": [30]})
+
+    # Act
+    result = data_loader._override_qb_game_stats_with_official_weekly(qb_df, pl.DataFrame())
+
+    # Assert
+    assert result.equals(qb_df)
+
+
+def test_load_official_weekly_team_surface_without_rows_is_typed_empty() -> None:
+    # Act
+    surface = data_loader._load_official_weekly_team_surface(pl.DataFrame())
+
+    # Assert
+    assert surface.is_empty()
+    assert "official_passing_yards" in surface.columns
+
+
+def test_override_team_game_stats_without_official_rows_keeps_the_input() -> None:
+    # Arrange
+    team_df = pl.DataFrame({"team": ["DEN"], "week": [1], "passing_yards": [250.0]})
+
+    # Act
+    result = data_loader._override_team_game_stats_with_official_weekly(team_df, pl.DataFrame())
+
+    # Assert
+    assert result.equals(team_df)
+
+
+def test_load_playoff_pbp_data_without_a_season_type_column_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    pbp = pl.DataFrame({"game_id": ["g1"], "posteam": ["DEN"]})
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+
+    # Act
+    playoff = data_loader.load_playoff_pbp_data(2025)
+
+    # Assert
+    assert playoff.is_empty()
+    assert playoff.columns == ["game_id", "posteam"]
+
+
+def test_load_espn_qbr_without_a_season_type_column_keeps_every_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    qbr = pl.DataFrame({"season": [2025], "team_abb": ["WSH"], "qbr_total": [55.0]})
+    monkeypatch.setattr(data_loader, "_fetch_release_parquet", stub(lambda: qbr))
+
+    # Act
+    result = data_loader.load_espn_qbr("season")
+
+    # Assert
+    assert result.get_column("team_abb").to_list() == ["WAS"]
+
+
+def test_load_official_weekly_qb_stats_without_an_identity_crosswalk_keeps_player_ids() -> None:
+    # Arrange
+    player_stats = pl.DataFrame(
+        {
+            "game_id": ["g1"],
+            "week": [1],
+            "team": ["DEN"],
+            "player_id": ["00-0039732"],
+            "player_display_name": ["Bo Nix"],
+            "position": ["QB"],
+            "attempts": [30],
+        }
+    )
+
+    # Act
+    official = data_loader._load_official_weekly_qb_stats(
+        player_stats, data_loader._empty_qb_identity_crosswalk()
+    )
+
+    # Assert
+    assert official.height == 1
+    assert "qb_name" not in official.columns

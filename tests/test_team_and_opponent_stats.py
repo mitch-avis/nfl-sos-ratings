@@ -544,3 +544,67 @@ def test_compute_opponent_profile_averages_each_opponent_once_without_head_to_he
     # KC without DEN games scored 30; LAC scored 10 and 14 (mean 12); equal weight -> 21.
     assert profile["team_stats"] is not None
     assert profile["team_stats"].get_column("points_for").item() == 21.0
+
+
+def test_aggregate_defense_only_player_stats_empty_input_is_typed_empty() -> None:
+    # Act
+    result = team_stats._aggregate_defense_only_player_stats(pl.DataFrame())
+
+    # Assert
+    assert result.is_empty()
+    assert result.columns == ["team", "opponent_team", "week"]
+
+
+def test_aggregate_defense_only_player_stats_without_defense_columns_is_typed_empty() -> None:
+    # Arrange
+    player_stats = pl.DataFrame({"team": ["DEN"], "opponent_team": ["KC"], "week": [1]})
+
+    # Act
+    result = team_stats._aggregate_defense_only_player_stats(player_stats)
+
+    # Assert
+    assert result.is_empty()
+
+
+def test_compute_team_game_stats_from_pbp_empty_input_is_typed_empty() -> None:
+    # Act
+    result = team_stats.compute_team_game_stats_from_pbp(
+        pl.DataFrame(), pl.DataFrame(), pl.DataFrame()
+    )
+
+    # Assert
+    assert result.is_empty()
+    assert "is_home" in result.columns
+
+
+def test_compute_team_snap_counts_from_pbp_empty_input_is_typed_empty() -> None:
+    # Act
+    result = team_stats.compute_team_snap_counts_from_pbp(pl.DataFrame())
+
+    # Assert
+    assert result.is_empty()
+    assert {"offensive_snaps", "defensive_snaps"} <= set(result.columns)
+
+
+def test_compute_team_game_stats_from_pbp_without_possession_rows_is_empty() -> None:
+    # Arrange
+    pbp = pl.DataFrame(
+        {"game_id": ["g1"], "week": [1], "posteam": [None], "defteam": [None], "epa": [0.0]},
+        schema_overrides={"posteam": pl.String, "defteam": pl.String},
+    )
+    schedule = pl.DataFrame(
+        {
+            "game_id": ["g1"],
+            "week": [1],
+            "home_team": ["DEN"],
+            "away_team": ["KC"],
+            "home_score": [24],
+            "away_score": [17],
+        }
+    )
+
+    # Act
+    result = team_stats.compute_team_game_stats_from_pbp(pbp, pl.DataFrame(), schedule)
+
+    # Assert
+    assert result.is_empty()
