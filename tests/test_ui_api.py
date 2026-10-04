@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from nfl_sos_ratings import ui_api
+from nfl_sos_ratings.rating_ranges import TEAM_RANGE_COLUMNS, summarize_rank_ranges
 from nfl_sos_ratings.ui_api import create_app
 
 if TYPE_CHECKING:
@@ -257,6 +258,44 @@ def test_get_metadata_returns_registry_payload(tmp_path: Path) -> None:
     assert payload["metrics"]["qb_sack_rate"]["polarity"] == "lower"
     assert "points per game" in payload["metrics"]["team_rating"]["description"]
     assert "pools" not in payload
+
+
+def _seed_rating_ranges(data_dir: Path) -> None:
+    """Write a season contract plus a team rank-range file (no QB file)."""
+    _seed_season_contract(data_dir, 2024)
+    draws = pl.DataFrame({"draw": [0, 0], "team": ["DET", "KC"], "team_rating": [2.0, 1.0]})
+    summarize_rank_ranges(
+        draws, draws.select("team", "team_rating"), TEAM_RANGE_COLUMNS
+    ).write_parquet(data_dir / "2024_rating_ranges.parquet")
+
+
+def test_get_team_rating_ranges_returns_every_team(tmp_path: Path) -> None:
+    # Arrange
+    _seed_rating_ranges(tmp_path)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get("/api/seasons/2024/teams/rating-ranges")
+
+    # Assert
+    assert response.status_code == 200
+    assert [row["team"] for row in response.json()["rows"]] == ["DET", "KC"]
+
+
+@pytest.mark.parametrize(
+    "path", ["/api/seasons/2024/qbs/rating-ranges", "/api/seasons/2023/teams/rating-ranges"]
+)
+def test_rating_ranges_without_the_file_return_not_found(tmp_path: Path, path: str) -> None:
+    # Arrange
+    _seed_rating_ranges(tmp_path)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get(path)
+
+    # Assert
+    assert response.status_code == 404
+    assert "rating_ranges.parquet" in response.json()["detail"]
 
 
 def _write_frontend_build(dist_dir: Path) -> None:

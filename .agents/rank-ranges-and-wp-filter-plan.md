@@ -130,7 +130,11 @@ across thresholds whichever way they move.
   among `qb_is_eligible`, with `qb_name` and primary `team` joined in), 1000 resamples, seed 0.
   The season-pipeline tests patch the count to 50 for speed. README data-files list and the
   methodology caveats (`docs/methodology.md`, "Rank Ranges") landed with it.
-- [ ] Rank-range API and web views.
+- [x] Rank-range API: `GET /api/seasons/{season}/{teams|qbs}/rating-ranges`
+  (`ui_data.load_team_rating_ranges_payload` / `load_qb_rating_ranges_payload`, served by
+  `ui_api._rating_ranges_router`); rows by published rank, column groups `identity`, `published`,
+  `rating_range`, `rank_range`, `rank_chances`; a missing file is a 404.
+- [ ] Rank-range web views (league interval chart, detail histogram and headline, table column).
 - [ ] Ask to run `season` / `pipeline` for the range files.
 - [x] WP decisions answered by the maintainer.
 - [ ] WP bins in the loader layer (guarded columns), engine refits per threshold, API parameter.
