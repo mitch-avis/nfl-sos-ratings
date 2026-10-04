@@ -120,13 +120,17 @@ across thresholds whichever way they move.
   `team_rank` / `qb_rank` (published rank), `{rating}_q025` ... `_q975` and `{rank}_q025` ...
   `_q975`, `{rank}_missing_share`, `{rank}_top5_probability`, `{rank}_top10_probability`,
   `{rank}_probabilities` (list).
-- [ ] Registry: base metrics `team_rank`, `qb_rank`, and the `_missing_share`, `_top5_probability`,
-  `_top10_probability`, `_probabilities` columns; quantile suffix rules `_q025` ... `_q975` in
-  `metrics/registry.py` `DEFAULT_SUFFIX_RULES`; then `nfl-sos-ratings catalog`.
-- [ ] `main.run_season` writes `{season}_rating_ranges` (team fit with previous-season penalties,
-  every team eligible) and `{season}_qb_rating_ranges` (QB fit, eligible = `qb_is_eligible`), with
-  `BOOTSTRAP_RESAMPLES` / `BOOTSTRAP_SEED`; season-pipeline tests first.
-- [ ] Rank-range API and web views; methodology caveats.
+- [x] Registry: base metrics `team_rank`, `qb_rank`, and their `_missing_share`,
+  `_top5_probability`, `_top10_probability`, `_probabilities` columns (shape `rate`, denominator
+  bootstrap resamples; ranks are `score` with polarity `lower`); quantile suffix rules `_q025` ...
+  `_q975` built from `rating_ranges.RANGE_QUANTILES` in `DEFAULT_SUFFIX_RULES`; catalogs
+  regenerated. A test resolves every column `summarize_rank_ranges` emits.
+- [x] `main.run_season` writes `{season}_rating_ranges` (`build_team_rating_ranges`: the season
+  team fit, every team ranked) and `{season}_qb_rating_ranges` (`build_qb_rating_ranges`: ranked
+  among `qb_is_eligible`, with `qb_name` and primary `team` joined in), 1000 resamples, seed 0.
+  The season-pipeline tests patch the count to 50 for speed. README data-files list and the
+  methodology caveats (`docs/methodology.md`, "Rank Ranges") landed with it.
+- [ ] Rank-range API and web views.
 - [ ] Ask to run `season` / `pipeline` for the range files.
 - [x] WP decisions answered by the maintainer.
 - [ ] WP bins in the loader layer (guarded columns), engine refits per threshold, API parameter.

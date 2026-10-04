@@ -26,15 +26,24 @@ from nfl_sos_ratings.opponent_stats import compute_all_opponent_profiles
 from nfl_sos_ratings.qb_opponent_stats import compute_qb_opponent_profiles
 from nfl_sos_ratings.qb_rating import (
     QbRatingFit,
+    bootstrap_qb_ratings,
     compute_qb_faced_pass_defense,
     fit_qb_ratings,
     fit_qb_ratings_by_week,
 )
 from nfl_sos_ratings.qb_stats import compute_qb_season_stats
+from nfl_sos_ratings.rating_ranges import (
+    BOOTSTRAP_RESAMPLES,
+    BOOTSTRAP_SEED,
+    QB_RANGE_COLUMNS,
+    TEAM_RANGE_COLUMNS,
+    summarize_rank_ranges,
+)
 from nfl_sos_ratings.srs import solve_srs
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
     TeamRatingFit,
+    bootstrap_team_ratings,
     compute_team_schedule_strength,
     fit_team_ratings,
     fit_team_ratings_by_week,
@@ -159,6 +168,41 @@ def build_qb_ratings(qb_game_logs: pl.DataFrame, fit: QbRatingFit | None = None)
     return fit.ratings.join(compute_qb_faced_pass_defense(qb_game_logs, fit), on="qb_id")
 
 
+def build_team_rating_ranges(weekly_df: pl.DataFrame, fit: TeamRatingFit) -> pl.DataFrame:
+    """Return every team's rating and rank ranges over game-bootstrap resamples of the season.
+
+    Each resample redraws the season's games with replacement and refits with ``fit``'s
+    penalties; ranks are among all teams in the resample (see ``rating_ranges``).
+    """
+    draws = bootstrap_team_ratings(
+        weekly_df, fit, resamples=BOOTSTRAP_RESAMPLES, seed=BOOTSTRAP_SEED
+    )
+    return summarize_rank_ranges(draws, fit.ratings, TEAM_RANGE_COLUMNS)
+
+
+def build_qb_rating_ranges(
+    qb_game_logs: pl.DataFrame, fit: QbRatingFit, qb_combined: pl.DataFrame
+) -> pl.DataFrame:
+    """Return the eligible passers' rating and rank ranges over game-bootstrap resamples.
+
+    Ranks in each resample are among the passers ``qb_combined`` flags ``qb_is_eligible`` for the
+    full season, and each row carries the passer's name and primary team for display.
+    """
+    eligible = qb_combined.filter(pl.col("qb_is_eligible"))
+    draws = bootstrap_qb_ratings(
+        qb_game_logs, fit, resamples=BOOTSTRAP_RESAMPLES, seed=BOOTSTRAP_SEED
+    )
+    ranges = summarize_rank_ranges(
+        draws, fit.ratings, QB_RANGE_COLUMNS, eligible=eligible.get_column("qb_id").to_list()
+    )
+    identity = eligible.select(
+        [key for key in _QB_IDENTITY_KEYS if key in eligible.columns]
+    ).unique("qb_id", keep="first")
+    return ranges.join(identity, on="qb_id", how="left", maintain_order="left").select(
+        *identity.columns, pl.exclude(identity.columns)
+    )
+
+
 def _previous_season_fit(season: int) -> TeamRatingFit | None:
     """Return the previous season's full-season team fit, whose penalties this season reuses.
 
@@ -235,6 +279,8 @@ def run_season(season: int) -> None:
         "combined",
     )
     _write_data_file(fit_team_ratings_by_week(weekly_df, team_fit), season, "ratings_by_week")
+    print(f"Resampling games {BOOTSTRAP_RESAMPLES} times for team rank ranges...")
+    _write_data_file(build_team_rating_ranges(weekly_df, team_fit), season, "rating_ranges")
 
     print("Fitting QB ratings...")
     qb_combined = qb_season_stats
@@ -253,6 +299,10 @@ def run_season(season: int) -> None:
         "qb_ratings",
     )
     _write_data_file(fit_qb_ratings_by_week(qb_game_logs, qb_fit), season, "qb_ratings_by_week")
+    print(f"Resampling games {BOOTSTRAP_RESAMPLES} times for QB rank ranges...")
+    _write_data_file(
+        build_qb_rating_ranges(qb_game_logs, qb_fit, qb_combined), season, "qb_rating_ranges"
+    )
 
     with pl.Config(tbl_cols=-1, tbl_rows=40, float_precision=2):
         print(f"\n{season} team ratings (points per game vs an average team):")
