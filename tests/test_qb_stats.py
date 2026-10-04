@@ -1105,3 +1105,27 @@ def test_compute_qb_season_stats_qualifies_against_the_qbs_own_team_games() -> N
     # Assert
     eligible = dict(zip(result["qb_id"], result["qb_is_eligible"], strict=True))
     assert eligible == {"QB_SEA": True, "QB_KC": False}
+
+
+def test_late_game_flags_ignore_rows_without_a_real_team() -> None:
+    # Arrange
+    plays = pl.DataFrame(
+        {
+            "game_id": ["g1"] * 4,
+            "posteam": ["ATL", "DAL", "", "ATL"],
+            "qtr": [4, 4, 4, 4],
+            "score_differential": [-10, 10, 0, -17],
+            "score_differential_post": [-10, 17, 0, -17],
+            "posteam_score": [0, 10, 0, 7],
+            "posteam_score_post": [0, 17, 0, 7],
+        }
+    )
+
+    # Act
+    flags = qb_stats._compute_team_late_game_flags_from_pbp(plays)
+
+    # Assert
+    assert flags.sort("team_abbr").select("team_abbr", "qb_fourth_quarter_comeback").to_dicts() == [
+        {"team_abbr": "ATL", "qb_fourth_quarter_comeback": 0},
+        {"team_abbr": "DAL", "qb_fourth_quarter_comeback": 0},
+    ]

@@ -134,7 +134,7 @@ def _compute_team_late_game_flags_from_pbp(pbp_df: pl.DataFrame) -> pl.DataFrame
         )
 
     offense = (
-        pbp_df.filter(pl.col("posteam").is_not_null())
+        pbp_df.filter(pl.col("posteam").is_not_null() & (pl.col("posteam") != ""))
         .with_row_index("play_order")
         .sort("play_order")
     )
