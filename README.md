@@ -93,7 +93,8 @@ validation run is `validate --data-dir data --start-season 1999 --end-season 202
 
 `season` and `pipeline` download from nflverse. They cache downloads on disk for a day (nflreadpy's
 filesystem cache) unless `NFLREADPY_CACHE` is set to `memory`, `filesystem`, or `off`. A full
-pipeline run takes over an hour.
+pipeline run with fresh downloads took about 13 minutes on 2026-10-04 (`time
+.venv/bin/nfl-sos-ratings pipeline`).
 
 ## Data Files
 

@@ -1,305 +1,161 @@
 # Ratings Methodology
 
-This page explains what the published team and quarterback ratings mean, what they deliberately
-avoid, and how they are checked.
+This page explains what the team and quarterback ratings measure, how they are computed, what
+they leave out, and how they are checked. The pipeline overview and commands are in [README.md];
+the generated validation output is [validation-report.md].
 
-The short version:
+## The Question
 
-- The ratings are regular-season, schedule-adjusted quality estimates.
-- They are intentionally outcome-free: wins, comeback totals, and similar result stats do not feed
-  the published quality ratings.
-- The published scale is within-season. A rating of `+1.0` means one standard deviation above that
-  season's peers, not one standard deviation above some pooled all-time baseline.
+How good was a team or quarterback, relative to the opponents it actually faced, and to who those
+opponents faced? Records answer a different question. A 14-3 team that played a soft schedule and
+a 10-7 team that played a brutal one can be equally good, and the ratings are built to show that.
 
-See [validation-report.md] for the current report output and [README.md] for the pipeline overview.
+## Building Blocks
 
-## What The Ratings Claim
+**Expected points added (EPA).** nflverse's play-by-play data assigns every play an EPA value: how
+much it changed the offense's expected points, given down, distance, field position, and time. A
+3-yard run on 3rd and 2 is worth more than a 3-yard run on 3rd and 8. EPA is already measured in
+points, so offense, defense, and special teams can be added together without weights.
 
-For teams, the project publishes:
+**Rates, not totals.** Teams run different numbers of plays, so the fit works on EPA per play and
+converts back to points per game only at the end, using the league's average plays per game.
 
-- `SaOR`: offense after adjusting for the defenses actually faced
-- `SaDR`: defense after adjusting for the offenses actually faced
-- `SaSTR`: special teams after adjusting for special-teams context
-- `SaOvR`: overall team quality from those three adjusted pieces
-- `SaCR`: the published weighted team composite
-- `SaOvR_alltime` and `SaCR_alltime`: pooled-reference companion views for readers who want a
-  moving all-time baseline beside the flagship within-season scale
-- `sos`: the played-game mean opponent `SaCR`, kept as descriptive schedule context
+**Regular season only.** Playoff games never feed a rating.
 
-For quarterbacks, the project publishes:
+## Team Ratings
 
-- `QSaOR`: adjusted EPA per dropback from the simultaneous QB solve
-- `QSaOR_alltime`: the pooled-reference companion to `QSaOR`
-- `QSoS`: dropback-weighted pass-defense difficulty from the QB-level solve
-- `adj_def_rushing_epa_per_offensive_snap_faced`: the carry-weighted rush-defense companion lens
-- `faced_opp_SaCR`: equal-game overall opponent team quality over the games played
-- `adj_qb_designed_rush_epa_per_carry`: designed-run EPA per carry after charging those carries
-  against the faced rush-defense lens
-- `QRaw`: the raw-performance composite before schedule adjustment
-- `QSaCR`: the published weighted QB composite
-- `QSaCR_alltime`: the pooled-reference companion to `QSaCR`
-- `QOutcome`: descriptive outcome context only
+Each team-game contributes one row: the offense's EPA per scrimmage play (dropbacks, rushes,
+kneels, and spikes). One weighted least-squares fit explains every row at once:
 
-These ratings try to answer:
-
-- How good was this team relative to the opponents it actually played?
-- How good was this quarterback relative to the defenses he actually faced?
-
-They do not try to answer:
-
-- Who deserved credit for the most wins?
-- Who was most clutch?
-- Who would necessarily be better in a different era with different rules?
-
-## What They Refuse To Use
-
-The published quality ratings do not consume win totals, win percentage, fourth-quarter comebacks,
-game-winning drives, or other result-only outcome stats.
-
-Those fields still exist in the data and in the UI because they are useful context. They are
-surfaced separately so users can compare performance and outcomes without mixing them.
-
-Turnover margin is also kept out of the published quality ratings. It remains a descriptive field,
-not a hidden rating ingredient.
-
-## Scale And Era Meaning
-
-Every published rating is standardized within its own season.
-
-- `0.0` means that season's average qualifying team or quarterback.
-- `+1.0` means one standard deviation better than that season's average.
-- `-1.0` means one standard deviation worse than that season's average.
-
-That scale makes cross-season comparisons readable in an era-honest way. If one QB is `+2.0` in 2007
-and another is `+2.0` in 2024, the claim is not that their raw stat lines were directly equal. The
-claim is that each was two standard deviations better than his own contemporaries.
-
-The important assumption is explicit: cross-season comparison here means within-era dominance, not a
-claim that the environment was identical across rules, strategy, and data eras.
-
-The `_alltime` companions are intentionally separate from that flagship claim.
-
-- They score the same underlying rating surfaces against the pooled published multi-season
-  distribution instead of only the current season.
-- They reward era context: modern offenses and older dominant defenses can look stronger on that
-  pooled baseline for environment reasons, not because every era was interchangeable.
-- Their baseline moves over time: adding a future season can nudge historical all-time values
-  slightly because the pooled reference distribution changed.
-
-## Team Adjustment
-
-The team system is built from play-level EPA on offense and defense, plus a special-teams component.
-
-At a high level, it solves three things at once across the full schedule graph:
-
-- offense strength
-- defense strength
-- home-field advantage
-
-That is done with ridge regression. The ridge penalty shrinks noisy early-season estimates toward
-the mean, which is the point: extreme values from small samples should move less than extreme values
-from large samples.
-
-The published team composite, `SaCR`, is a weighted blend of five standardized components:
-
-- adjusted offensive passing EPA per offensive snap: `0.3829`
-- adjusted offensive rushing EPA per offensive snap: `0.1906`
-- adjusted defensive passing EPA per offensive snap: `0.2716`
-- adjusted defensive rushing EPA per offensive snap: `0.0974`
-- special-teams rating: `0.0575`
-
-The special-teams surface is published separately as `SaSTR` because it is a real part of team
-quality, but a smaller one than offense and defense.
-
-The team `sos` surface is descriptive-only. It is the played-game mean of opponent `SaCR`, so it
-answers a plain-language schedule question: how hard was the overall slate by the project's own
-headline team-quality measure? It does not feed the team grade itself.
-
-## Quarterback Adjustment
-
-The quarterback system is built around QB-controlled passing outcomes, not team record.
-
-The adjustment backbone is adjusted EPA per dropback from a simultaneous ridge solve. Each QB row is
-weighted by dropbacks, so a 40-dropback game carries more evidence than a tiny relief sample.
-
-The published QB composite, `QSaCR`, is a weighted blend of four standardized components:
-
-- adjusted EPA per dropback: `0.6688`
-- adjusted completion percentage above expectation: `0.2146`
-- adjusted sack rate: `0.0673`
-- adjusted TD-INT margin rate: `0.0493`
-
-`QRaw` uses the same design philosophy before schedule adjustment.
-
-Because CPOE is one of the headline composite ingredients, the CPOE-bearing QB composites are
-published for `2006+` only. For `1999-2005`, `QRaw` and `QSaCR` are intentionally null. The project
-does not ship reduced-input versions of those headline metrics, because two different formulas under
-the same name would be easy to misread.
-
-Non-CPOE QB ratings still publish for every season:
-
-- `QSaOR`
-- `QSoS`
-- `faced_opp_SaCR`
-- `QOutcome`
-
-The schedule-context surfaces are intentionally split.
-
-- `QSoS` is the pass-defense lens: a dropback-weighted mean of the defense-side QB ridge
-  coefficients, then standardized within season.
-- `adj_def_rushing_epa_per_offensive_snap_faced` is the rush-defense lens: the carry-weighted mean
-  of the faced rush-defense coefficients from the team solve.
-- `faced_opp_SaCR` is the overall-opponent-quality lens: the equal-game mean of opponent `SaCR`
-  over the games that QB played.
-
-The designed-run companion is intentionally descriptive for now.
-
-- `adj_qb_designed_rush_epa_per_carry` adjusts designed QB rushing value against the faced
-  rush-defense lens.
-- It is published so the next fair-trial refit can evaluate dual-threat rushing without
-  double-counting scramble EPA, but it does not enter the frozen QB composite in the current
-  release.
-
-That distinction matters because a team can be weak overall while still presenting a middling or
-even difficult pass-defense matchup, and because dropback weighting can change the schedule read
-when a QB's hardest and easiest defenses did not all carry the same volume.
-
-## How The Weights Are Chosen
-
-The composite weights are not chosen by win correlation. They are fit to predict next-season
-opponent-adjusted performance.
-
-That choice matters. If a metric predicts future adjusted performance better than another one, it
-deserves more weight. If it mainly tracks wins or good fortune, it does not.
-
-The current frozen fit windows are:
-
-- teams: `1999-2025`
-- quarterbacks: `2006-2025`
-
-The frozen-weight snapshots are recorded in the metrics registry, and the fitting workflow is
-reproducible with:
-
-```bash
-uv run python -m nfl_sos_ratings.composite_weights
+```text
+EPA per play = league average + offense strength - opposing defense strength + home field
 ```
 
-Refitting is deliberate. Weights do not change as a side effect of a normal pipeline run.
+Each row is weighted by its play count, which makes the fit equivalent to fitting every play.
+Because all teams are solved together, an offense's strength accounts for the defenses it faced,
+those defenses' strengths account for every offense they faced, and so on through the whole
+schedule. This is the original idea behind the project, rating a team by the opponents it played
+and by who those opponents played, carried through to every level at once.
 
-## How The Ratings Are Validated
+The fit includes a ridge penalty on the team strengths, chosen by five-fold cross-validation with
+whole games held out. The penalty pulls estimates toward average in proportion to how little
+evidence there is. Over a full season every team has a similar number of plays, so the pull is
+similar for all of them; after three or four games it is much stronger, which is the point.
 
-The main team check is walk-forward margin prediction. At each week cutoff, the system rebuilds
-ratings using only information available before the next games, then predicts next-week home margin
-from the rating gap plus home field.
+Special teams get the same fit over kicks, punts, returns, field goals, and extra points, with each
+team's possession units and coverage units estimated separately and then added together.
 
-The most important comparisons are information-matched baselines:
+The published team columns, all in points per game against an average team on a neutral field:
 
-- raw EPA differential
-- SRS
-- Elo as an external reference baseline
+- `offense_rating`: offensive strength times league-average scrimmage plays per game.
+- `defense_rating`: defensive strength on the same scale; positive means the defense prevented
+  points.
+- `special_teams_rating`: special-teams strength times league-average special-teams plays per
+  game.
+- `team_rating`: the sum of the three.
 
-The current team result is statistical parity with SRS and raw EPA, not a victory over either.
+## Strength of Schedule
 
-On the full held-out window (1999-2025, week 5 onward), the current report records an overall
-margin MAE of `10.700` for the published `SaOvR`, against `10.658` for SRS, `10.695` for raw EPA,
-and `10.580` for Elo. `SaOvR` is numerically slightly behind both information-matched baselines,
-but neither gap is distinguishable from zero in the paired bootstrap:
+`sos` is the average `team_rating` of the opponents a team played, one entry per game, so a
+division rival met twice counts twice. Each opponent is rated from a refit that leaves out every
+game involving the team being evaluated. That keeps a team's own results out of its schedule: a
+team that beats an opponent badly cannot make that opponent look weaker in its own `sos`.
 
-- SRS minus `SaOvR`: `-0.042` MAE, 95% CI `[-0.105, 0.021]`
-- raw EPA minus `SaOvR`: `-0.004` MAE, 95% CI `[-0.050, 0.042]`
+`nfl-sos-ratings schedules` ranks every completed team-season on `sos`, so one schedule can be
+placed in the full history the data covers.
 
-The report also tested a replacement backbone built from play-level EPA weights plus special teams.
-It was significantly worse than both raw EPA and SRS on overall MAE, so it failed the promotion
-rule and is not published.
+## Quarterback Ratings
 
-That is why the methodology page uses the word parity. The result supports the construct
-(schedule-adjusted, outcome-free components that decompose into offense, defense, and special
-teams), not a claim that `SaOvR` predicts margins better than simpler baselines. These numbers come
-from the Acceptance Check and Paired Bootstrap MAE Deltas sections of `docs/validation-report.md`,
-which records the command that generates it.
+Each quarterback-game contributes one row: EPA per dropback, weighted by dropbacks. The fit has
+the same shape, with passers in place of offenses:
 
-On the QB side, the important checks are different. The current report shows that `QSaCR`:
+```text
+EPA per dropback = league average + passer strength - opposing defense strength + home field
+```
 
-- beats passer rating and ANY/A on year-over-year stability
-- tracks ESPN QBR closely, at roughly `0.89 / 0.87` mean Pearson/Spearman correlation in the current
-  report
+- `adj_qb_epa_per_dropback` is league average plus passer strength. It reads on the same scale as
+  raw `qb_epa_per_dropback`, so the two can be compared directly.
+- `qb_faced_pass_defense` is the dropback-weighted average strength of the defenses faced, each
+  rated from a refit without that quarterback's dropbacks. Positive means tougher defenses.
 
-Those are secondary checks, not the target used to fit the metric.
+The adjusted value differs from the raw one for two reasons: the defenses faced, and the ridge pull
+toward average. The pull is strongest for backups with few dropbacks, but a full-season starter's
+adjusted value also sits noticeably closer to average than his raw value, even after an average
+schedule. Read `qb_faced_pass_defense` to see the schedule part on its own.
 
-## The 2025 QB Worked Example
+A quarterback's EPA also reflects his line, receivers, and play-calling. Nothing in public
+play-by-play separates those from the passer, so the rating describes the passing offense the
+quarterback led, adjusted for the defenses it faced.
 
-The motivating concern was simple: could a QB who feasted on weak defenses look better than he
-really was, even after the linear schedule adjustment?
+## What the Ratings Leave Out
 
-The 2025 Drake Maye versus Matthew Stafford comparison was used as the named example. In the current
-report's case-study table:
+- **Outcomes.** Wins, comebacks, game-winning drives, and turnover margin are published as context
+  and never feed a rating. A team's quality is in how it played, which outcomes only partly reflect.
+- **Score-based margin.** `SRS` (the classic point-margin rating) is published beside
+  `team_rating` as a reference built from final scores rather than plays.
+- **Playoffs.** Postseason games are excluded.
+- **Other seasons.** Each season is rated on its own games; nothing carries over from the year
+  before.
 
-- Drake Maye: raw EPA/dropback `0.308`, adjusted EPA/dropback `0.245`
-- Matthew Stafford: raw EPA/dropback `0.244`, adjusted EPA/dropback `0.225`
+## Judgment Calls
 
-Maye's schedule was softer. The faced-defense coefficient was `-0.029` for Maye versus `0.006` for
-Stafford, so the model already penalized him more.
+Every rating rests on choices. These are the ones that matter most here:
 
-The follow-up program then asked whether some missing channel still favored soft-schedule QBs. The
-checks were:
+- EPA comes from nflverse's expected-points model; the ratings inherit its strengths and blind
+  spots.
+- Every scrimmage play counts equally, including plays in lopsided games.
+- The model is additive: a strong offense is assumed to gain the same amount against every defense.
+- Strengths become points per game through the league's average plays per game, so two teams with
+  the same per-play strength get the same rating whatever their pace.
+- The ridge penalty is chosen by cross-validation rather than by hand.
 
-- strong-defense split-half performance
-- placebo split against weaker defenses
-- opponent-offense/game-script spillover
-- leverage filtering
-- playoff out-of-sample prediction
+## How the Ratings Are Checked
 
-The answers were conservative. The strong-defense split produced a signal, but the placebo side
-moved the same way, so the interpretation was not defense-specific. The opponent-offense and
-leverage channels came back null in pooled tests. The leverage-filtered companion hurt both
-stability and playoff correlation, so it was not adopted.
+The walk-forward check rebuilds `team_rating` each week from that season's earlier games only,
+fits a margin model on earlier predictions only, and predicts the coming week's home margins.
+`SRS` and raw EPA margin built from the same games are the comparisons, and Elo, which carries
+ratings across seasons and so sees more information, is shown as a reference. The decision rule
+was written before the first run: `team_rating` stays the headline unless its mean absolute error
+is significantly worse than raw EPA's or SRS's in a paired bootstrap.
 
-The same report now publishes the three QB schedule lenses together and adds a named-QB designed-run
-preview so readers can inspect whether rush-defense softness materially changes the rushing read
-before any future composite refit.
+The quarterback checks are year-over-year stability beside passer rating and ANY/A, and the
+per-season correlation with ESPN QBR, which is a reference, not a target.
 
-The conclusion was not that Maye had no schedule help. It was that the current published composite
-withstood every pre-registered challenge strongly enough that no new QB-path change was justified.
-His edge also survived restriction to top-half defenses, so the final verdict did not depend on
-all-opponent averaging alone.
+### Results
 
-The later schedule-strength audit tightened the interpretation further. By overall opponent quality,
-Maye's 2025 slate was the softest of the named QBs: equal-game `faced_opp_SaCR` was `-0.701`,
-against `-0.329` for Tyler Shough, `-0.155` for Joe Flacco, and `0.127` for J.J. McCarthy (the
-anchor table of `nfl-sos-ratings qsos-audit --data-dir data --start-season 1999 --end-season
-2025`). But `QSoS` (`-1.273`) stayed behind Joe
-Flacco, Tyler Shough, and J.J. McCarthy because it measures pass-defense difficulty, not overall
-team quality, and because dropback weighting flipped the Maye-vs-Shough pass-defense ordering.
-The audit also fixed one outright bug: multi-team QBs were being grouped by QB-plus-team when
-building the faced-defense schedule input, which had slightly understated Flacco's softness before
-the fix.
+From [validation-report.md], generated by `nfl-sos-ratings validate --data-dir data --start-season
+1999 --end-season 2025 --start-week 5 --report-path docs/validation-report.md` over 5,297 games
+from week 5 on:
 
-## Subjective Choices That Remain
+- Overall mean absolute error of the predicted home margin: `team_rating` 10.611 points, SRS
+  10.658, raw EPA 10.695, and Elo 10.580.
+- `team_rating` beats raw EPA: difference -0.084 (95% interval -0.146 to -0.023).
+- `team_rating` against SRS is a statistical tie: difference -0.047 (95% interval -0.113 to
+  +0.020). The rule's outcome is adopt.
+- Elo is not distinguishable from `team_rating` (difference +0.032, interval -0.040 to +0.100),
+  even though Elo carries ratings across seasons and the others start each season from scratch.
+- Year-over-year stability: `team_rating` 0.441 and SRS 0.437 (Pearson). For quarterbacks,
+  adjusted EPA per dropback is 0.461, a little below passer rating's 0.473 and above ANY/A's
+  0.403. Stability is reported, not optimized; the rating measures the season that was played.
+- Adjusted EPA per dropback correlates with ESPN QBR at 0.892 (Pearson) and 0.874 (Spearman) on
+  average across 2006-2025.
 
-Not every choice is purely mechanical. The project is explicit about the remaining judgment calls.
+## Worked Example: 2025 New England
 
-- Component menu: the chosen components are meant to balance predictive value, interpretability, and
-  overlap control.
-- Predictive target: weights target next-season adjusted performance, not wins.
-- Leverage filter default: the flag exists, but the default remains off because the leverage-only
-  companion underperformed the published QB path on both stability and playoff checks.
+These values come from the 2025 files written by `nfl-sos-ratings pipeline`
+(`data/2025_ratings.parquet` and `data/2025_qb_ratings.parquet`) and from `nfl-sos-ratings
+schedules --team NE --season 2025`.
 
-Transparency matters more than pretending those choices do not exist.
+- Schedule: `sos` of -3.55 points per game, the softest of the 861 team-seasons from 1999 to
+  2025, just ahead of the 1999 Rams (-3.49).
+- Team: `team_rating` 5.92 points per game, fifth in 2025, with the second-best `offense_rating`
+  (5.20). `SRS`, built from final scores, was 5.72.
+- Quarterback: Drake Maye's raw EPA per dropback was 0.308. His `qb_faced_pass_defense` was
+  -0.025, the fifth-softest of 33 qualifying passers, and his `adj_qb_epa_per_dropback` was 0.210,
+  first in 2025, ahead of Matthew Stafford's 0.193.
 
-## How To Challenge These Ratings
-
-The right way to challenge the methodology is not to argue from one anecdote. The right way is to
-propose a falsifiable alternative and test it against a fixed gate.
-
-That means:
-
-- define the new hypothesis clearly
-- define the information set it is allowed to use
-- define the decision rule before looking at the result
-- compare it against the current published path and the relevant baselines
-
-That is the standard the current validation report follows, and it is the standard future revisions
-should keep.
+The ratings separate the two questions the season raised: the schedule was historically soft, and
+the passing offense was still the most efficient in the league after accounting for it.
 
 [README.md]: ../README.md
 [validation-report.md]: validation-report.md

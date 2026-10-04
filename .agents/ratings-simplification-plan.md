@@ -118,9 +118,15 @@ done
 - [x] Drop the never-displayed `diff_*`, team-level `opp_qb_*`, and team-level `qb_*` columns
   (which also removes the opponent QB profile's per-appearance averaging bug).
 - [x] Prune the registry: old ratings, rating pools, fit provenance, `planned` stubs, and the
-  categories they left empty. The docs catalogs still need the matching trim.
-- [ ] Update `web/` for the new columns and views.
-- [ ] Load PBP once per season, write each output once, enable the nflreadpy filesystem cache.
-- [ ] Regenerate `data/` and the validation report (ask first), apply the decision rule.
-- [ ] Rewrite `README.md`, `docs/methodology.md`, `AGENTS.md`, and `current-status.md`.
-- [ ] In-season 2026 support with a small-sample flag.
+  categories they left empty.
+- [x] Update `web/` for the new columns and views (rank-based schedule tiers).
+- [x] Enable the nflreadpy filesystem cache and write each output once. Loading PBP once per
+  season was dropped: nflreadpy's in-process cache already avoids the repeat download.
+- [x] Regenerate `data/` and the validation report (approved 2026-10-04). Decision rule: adopt
+  (`team_rating` tied with SRS, significantly better than raw EPA; numbers in
+  `docs/validation-report.md` and `docs/methodology.md`).
+- [x] Rewrite `README.md`, `docs/methodology.md`, `AGENTS.md`, and `current-status.md`; generate
+  the stats catalogs from the registry.
+- [x] In-season 2026 support: played games only, `SEASON` defaults to 2026, and the web app flags
+  a season in progress. Building 2026 into `data/` is still open (needs the go-ahead).
+- [x] All-time schedule leaderboard (`nfl-sos-ratings schedules`).
