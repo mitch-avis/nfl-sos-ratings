@@ -188,3 +188,5 @@ fail_under = 90
 show_missing = true
 skip_empty = true
 exclude_lines = ["pragma: no cover", "if __name__ == \"__main__\":"]
+# Never run by design: typing-only imports, and the `...` body of a Protocol method.
+exclude_also = ["if TYPE_CHECKING:", "^\\s*\\.\\.\\.$"]
