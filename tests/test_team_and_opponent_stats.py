@@ -642,3 +642,24 @@ def test_compute_all_opponent_profiles_handles_missing_team_rows(
     assert all_team is None
     assert all_qb is not None
     assert sorted(details) == ["DEN", "KC"]
+
+
+def test_compute_win_totals_counts_a_shutout_loss() -> None:
+    """Verify a game in which a team scored zero points still counts as a loss."""
+    # Arrange
+    weekly = pl.DataFrame(
+        {
+            "team": ["DEN", "KC", "DEN", "KC"],
+            "opponent_team": ["KC", "DEN", "KC", "DEN"],
+            "week": [1, 1, 2, 2],
+            "points_for": [38, 0, 17, 20],
+            "points_allowed": [0, 38, 20, 17],
+        }
+    )
+
+    # Act
+    totals = team_stats.compute_win_totals(weekly)
+
+    # Assert
+    kc = totals.filter(pl.col("team") == "KC").row(0, named=True)
+    assert (kc["wins"], kc["losses"], kc["win_pct"]) == (1, 1, 0.5)

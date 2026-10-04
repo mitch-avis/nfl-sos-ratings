@@ -570,13 +570,10 @@ def compute_all_teams_qb_per_game(qb_df: pl.DataFrame) -> pl.DataFrame:
 def compute_win_totals(weekly_df: pl.DataFrame) -> pl.DataFrame:
     """Compute wins, losses, ties, and win_pct per team from weekly game results.
 
-    A game counts only when both points_for and points_allowed are non-null
-    and points_for > 0 (filters out unplayed weeks).
+    A game counts when both scores are present; a team held scoreless still records the loss.
     """
     valid = weekly_df.filter(
-        pl.col("points_for").is_not_null()
-        & pl.col("points_allowed").is_not_null()
-        & (pl.col("points_for") > 0)
+        pl.col("points_for").is_not_null() & pl.col("points_allowed").is_not_null()
     )
     return (
         valid.with_columns(
