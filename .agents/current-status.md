@@ -25,21 +25,34 @@ history (the composite-rating era and its experiments) is in git, before commit 
 ## In flight (2026-10-04, branch `chore/audit-follow-ups`, not pushed)
 
 Done on the branch: Arrange-Act-Assert conversion of every test file plus a policy test that
-enforces it (`tests/test_test_layout.py`), the QBR download timeout, coverage raised to 99.15%
-with `fail_under = 90`, several crash fixes found by the new tests, and early-season `sos` /
-`qb_faced_pass_defense` that skip opponents with no other games instead of raising.
+enforces it (`tests/test_test_layout.py`), the QBR download timeout, coverage raised to 99% with
+`fail_under = 90`, several crash fixes found by the new tests, early-season `sos` /
+`qb_faced_pass_defense` that skip opponents with no other games, and:
+
+- Weekly rating history: `fit_team_ratings_by_week` / `fit_qb_ratings_by_week` refit each week's
+  games with the season fit's penalties (the maintainer chose this over per-week
+  cross-validation, which picks grid-edge penalties in weeks 1-2), written as
+  `{season}_ratings_by_week` / `{season}_qb_ratings_by_week`, served at
+  `/api/seasons/{season}/{teams|qbs}/{id}/rating-history`, and charted as "Rating by week" on the
+  detail page. Seasons 1999-2025 have no history files until `pipeline` reruns; the chart is left
+  out for them.
+- 2026 built into `data/` (games through week 4). Its team ratings are all within 0.04 points of
+  zero because cross-validation picks the grid's largest scrimmage penalty; QB ratings are
+  interior. The in-progress QB qualifier text now uses games played so far.
+- Read-only checks `check-additivity` and `check-passer`, run with results recorded in
+  `.agents/ratings-simplification-plan.md` (additivity: the opposite of the claim for teams and
+  passers; Drake Maye holdout: z -3.09 postseason, -2.25 in 2026).
+- `check-in-season-penalty`, the pre-registered test of previous-season penalties against per-fit
+  cross-validation (protocol in the plan). Not run yet.
 
 Not done yet, in order:
 
-1. Weekly rating history: `fit_team_ratings_by_week` / `fit_qb_ratings_by_week` (ratings fit on
-   games through each week, no head-to-head `sos`), `{season}_ratings_by_week` and
-   `{season}_qb_ratings_by_week` outputs, a rating-history API endpoint, and a "Rating by week"
-   chart on the detail page (reuse `WeeklyTrendChart`). Test-first.
-2. Build 2026 with `nfl-sos-ratings season` (approved by the maintainer) and check the web app.
-3. Run the two checks pre-registered in `.agents/ratings-simplification-plan.md` (additivity,
-   passer holdout); implement them as read-only commands, report results as written.
-4. Ask the maintainer about excluding `if TYPE_CHECKING:` blocks and Protocol `...` bodies from
-   coverage (the only uncovered lines left), then push and merge the branch on approval.
+1. Run `nfl-sos-ratings check-in-season-penalty --data-dir data --start-season 2000 --end-season
+   2025` once the maintainer approves (a walk-forward rerun), record its output in the plan, and
+   bring the pre-registered reading to the maintainer.
+2. Ask whether to rerun `pipeline` so 1999-2025 get rating histories (rewrites `data/`).
+3. Ask about excluding `if TYPE_CHECKING:` blocks and Protocol `...` bodies from coverage (the only
+   uncovered lines left), then push and merge the branch on approval.
 
 ## Validation snapshot
 
@@ -57,9 +70,11 @@ Gate state: `scripts/gate.sh --web` passes on the branch's final tree, and
 
 ## Open items
 
-- Build the 2026 season (`nfl-sos-ratings season`; `SEASON` now defaults to 2026). It rates the
-  games played so far, and the web app shows an in-progress notice. Regenerating `data/` needs the
-  maintainer's go-ahead.
+- Rebuild 2026 weekly as games are played (`nfl-sos-ratings season`); each rebuild rewrites only
+  the 2026 files.
+- `data_loader._build_qb_stats` (shared by `load_qb_stats` and `load_playoff_qb_stats`) fails on
+  an empty play-by-play frame (its final select expects `qb_epa_per_dropback`) and assumes a `cpoe`
+  column; real seasons have both, so this has not bitten.
 - The head-to-head-excluded refits run many small NumPy solves, and multithreaded BLAS spends far
   more CPU time than wall time on them; limiting BLAS threads could make `pipeline` cheaper.
 - Carried over: a colored project logger (as in nfl-predictor) would retire the per-file `T201`
