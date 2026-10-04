@@ -25,8 +25,8 @@ history (the composite-rating era and its experiments) is in git, before commit 
 ## In flight (2026-10-04, branch `chore/audit-follow-ups`, not pushed)
 
 Done on the branch: Arrange-Act-Assert conversion of every test file plus a policy test that
-enforces it (`tests/test_test_layout.py`), the QBR download timeout, coverage raised to 99% with
-`fail_under = 90`, several crash fixes found by the new tests, early-season `sos` /
+enforces it (`tests/test_test_layout.py`), the QBR download timeout, coverage raised to 100%
+(floor `fail_under = 90`), several crash fixes found by the new tests, early-season `sos` /
 `qb_faced_pass_defense` that skip opponents with no other games, and:
 
 - Weekly rating history: `fit_team_ratings_by_week` / `fit_qb_ratings_by_week` refit each week's
@@ -43,16 +43,16 @@ enforces it (`tests/test_test_layout.py`), the QBR download timeout, coverage ra
   `.agents/ratings-simplification-plan.md` (additivity: the opposite of the claim for teams and
   passers; Drake Maye holdout: z -3.09 postseason, -2.25 in 2026).
 - `check-in-season-penalty`, the pre-registered test of previous-season penalties against per-fit
-  cross-validation (protocol in the plan). Not run yet.
+  cross-validation, run with the reading "recommend the candidate" (results in the plan).
+- Coverage excludes `if TYPE_CHECKING:` blocks and Protocol `...` bodies (approved); it reads 100%.
 
 Not done yet, in order:
 
-1. Run `nfl-sos-ratings check-in-season-penalty --data-dir data --start-season 2000 --end-season
-   2025` once the maintainer approves (a walk-forward rerun), record its output in the plan, and
-   bring the pre-registered reading to the maintainer.
-2. Ask whether to rerun `pipeline` so 1999-2025 get rating histories (rewrites `data/`).
-3. Ask about excluding `if TYPE_CHECKING:` blocks and Protocol `...` bodies from coverage (the only
-   uncovered lines left), then push and merge the branch on approval.
+1. The maintainer decides whether to adopt previous-season penalties for the published team fit
+   (scope in the plan); if adopted, implement it test-first.
+2. Rerun `pipeline` (approved for after that decision) so every season gets rating histories and
+   any penalty change, then rerun `validate` if the penalty changed (ask first).
+3. Push the branch and fast-forward `main` (approved for after the test result was recorded).
 
 ## Validation snapshot
 

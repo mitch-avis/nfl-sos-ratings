@@ -194,11 +194,10 @@ Maye"` (2025 fit: adjusted EPA per dropback +0.210, penalty 177.828, sigma 1.535
 
 The 2026 build (`nfl-sos-ratings season`, games through week 4) rates every team within 0.04
 points of zero (`data/2026_ratings.parquet`): cross-validation picks the grid's largest scrimmage
-penalty (100,000). A scratch scan of 1999-2026 found that happens through week 2 in 9 of 28
-seasons, week 3 in 4, week 4 in 2 (2003, 2026), and week 5 in none, with full-season penalties
-always 316, 562, or 1000; the command below prints the same table, and its run replaces these
-counts. The maintainer chose to keep the fixed season penalty for rating histories and to test a
-better in-season penalty.
+penalty (100,000). Over 2000-2025 that happens through week 2 in 7 of 26 seasons, week 3 in 3,
+week 4 in 1 (2003), and week 5 in none, and full-season penalties are always 316, 562, or 1000
+(the penalty table printed by the command below). The maintainer chose to keep the fixed season
+penalty for rating histories and to test a better in-season penalty.
 
 - Hypothesis: a team rating fit with the previous season's full-season penalties (scrimmage and
   special teams, each chosen by that season's cross-validation) predicts held-out home margins in
@@ -225,6 +224,18 @@ better in-season penalty.
 - Command: `nfl-sos-ratings check-in-season-penalty --data-dir data --start-season 2000
   --end-season 2025` (read-only). It also prints each season's cross-validated scrimmage penalty
   through weeks 2-5 and the full season.
+
+### Results of the in-season penalty test (2026-10-04)
+
+From `nfl-sos-ratings check-in-season-penalty --data-dir data --start-season 2000 --end-season
+2025` (paired game bootstrap, 2000 resamples, seed 0):
+
+- Primary, prediction weeks 2-5 (1,567 games): `TeamRating` MAE 11.158, `TeamRatingPriorPenalty`
+  10.967; candidate minus incumbent -0.191, interval -0.335 to -0.053, entirely below zero.
+- Guard, weeks 6 and later (4,737 games): 10.650 against 10.644; -0.005, interval -0.048 to
+  +0.037, a tie.
+- Reading as written: recommend the candidate. The only interval that excludes zero is the
+  primary one, in the candidate's favor. Adoption waits on the maintainer.
 
 ## Retired metric backlog
 
