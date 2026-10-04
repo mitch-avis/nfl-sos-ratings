@@ -280,19 +280,15 @@ def compute_team_game_stats_from_pbp(
         ]
         if column in result.columns
     ]
-    if fill_zero_exprs:
-        result = result.with_columns(fill_zero_exprs)
-
-    if {"points_for", "points_allowed"}.issubset(set(result.columns)):
-        result = result.with_columns(
-            (pl.col("points_for") - pl.col("points_allowed")).alias("point_margin"),
-            pl.when(pl.col("points_for") > pl.col("points_allowed"))
-            .then(1.0)
-            .when(pl.col("points_for") < pl.col("points_allowed"))
-            .then(0.0)
-            .otherwise(0.5)
-            .alias("win_value"),
-        )
+    result = result.with_columns(fill_zero_exprs).with_columns(
+        (pl.col("points_for") - pl.col("points_allowed")).alias("point_margin"),
+        pl.when(pl.col("points_for") > pl.col("points_allowed"))
+        .then(1.0)
+        .when(pl.col("points_for") < pl.col("points_allowed"))
+        .then(0.0)
+        .otherwise(0.5)
+        .alias("win_value"),
+    )
 
     turnover_margin_inputs = {
         "def_interceptions": "def_interceptions",
