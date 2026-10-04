@@ -3424,15 +3424,30 @@ SPECIAL_TEAMS_METRICS: tuple[MetricDef, ...] = (
         status="planned",
     ),
     _st_score(
+        name="st_plays",
+        label="ST Plays",
+        full_name="Special Teams Plays",
+        description=(
+            "Special-teams plays where this team had possession: its punts, field goals, and "
+            "extra points, plus kickoffs it received."
+        ),
+        shape="count",
+        polarity="neutral",
+        source="PBP",
+        since=1999,
+    ),
+    _st_score(
         name="st_epa",
         label="ST EPA",
         full_name="Special Teams EPA",
-        description="Total expected points added on special-teams plays.",
+        description=(
+            "Expected points added on the special-teams plays where this team had possession "
+            "(its punts, field goals, and extra points, plus kickoffs it received)."
+        ),
         shape="count",
         polarity="higher",
         source="PBP",
         since=1999,
-        status="planned",
     ),
     _st_score(
         name="st_penalties",

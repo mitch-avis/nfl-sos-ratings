@@ -117,6 +117,11 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     """Aggregate play-level counts per team-game (offense perspective)."""
     columns = plays.columns
     scrimmage = scrimmage_snap_expr(columns)
+    is_special = (
+        value_expr(columns, "special") > 0
+        if "special" in columns
+        else value_expr(columns, "special_teams_play") > 0
+    )
     is_pass_attempt = value_expr(columns, "pass_attempt") > 0
     is_two_point = value_expr(columns, "two_point_attempt") > 0
     is_sack = value_expr(columns, "sack") > 0
@@ -223,6 +228,10 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             .sum()
             .fill_null(0.0)
             .alias("offensive_wpa"),
+            # Special teams from the possession team's side (kicking on punts, field goals, and
+            # extra points; receiving on kickoffs), the input to the special-teams rating.
+            _count(is_special, "st_plays"),
+            value_expr(columns, "epa", 0.0).filter(is_special).sum().fill_null(0.0).alias("st_epa"),
             value_expr(columns, "success", 0).filter(scrimmage).mean().alias("success_rate"),
             value_expr(columns, "success", 0).filter(is_dropback).mean().alias("pass_success_rate"),
             value_expr(columns, "success", 0)
