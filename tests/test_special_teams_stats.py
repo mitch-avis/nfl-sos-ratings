@@ -59,3 +59,25 @@ def test_compute_expanded_team_game_stats_keeps_special_plays_out_of_offensive_e
 
     # Assert
     assert _row(stats, "AAA")["offensive_epa"] == pytest.approx(0.3)
+
+
+@pytest.mark.parametrize(
+    "pbp",
+    [
+        pl.DataFrame(),
+        pl.DataFrame({"game_id": ["g1"], "epa": [0.1]}),
+        pl.DataFrame(
+            {"game_id": ["g1"], "week": [1], "posteam": [None], "defteam": [None], "epa": [0.1]},
+            schema_overrides={"posteam": pl.String, "defteam": pl.String},
+        ),
+    ],
+)
+def test_compute_expanded_team_game_stats_without_possession_plays_is_empty(
+    pbp: pl.DataFrame,
+) -> None:
+    # Act
+    stats = compute_expanded_team_game_stats(pbp)
+
+    # Assert
+    assert stats.is_empty()
+    assert stats.columns == ["team", "opponent_team"]

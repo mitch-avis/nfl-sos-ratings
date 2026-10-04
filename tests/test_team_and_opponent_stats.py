@@ -608,3 +608,23 @@ def test_compute_team_game_stats_from_pbp_without_possession_rows_is_empty() -> 
 
     # Assert
     assert result.is_empty()
+
+
+def test_compute_all_opponent_profiles_without_any_other_games_is_none() -> None:
+    # Arrange
+    weekly = pl.DataFrame(
+        {
+            "team": ["DEN", "KC"],
+            "opponent_team": ["KC", "DEN"],
+            "week": [1, 1],
+            "points_for": [20, 17],
+        }
+    )
+    schedule = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})
+
+    # Act
+    profiles, details = opponent_stats.compute_all_opponent_profiles(weekly, schedule)
+
+    # Assert
+    assert profiles is None
+    assert sorted(details) == ["DEN", "KC"]
