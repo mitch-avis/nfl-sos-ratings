@@ -158,6 +158,9 @@ These are correctness invariants specific to this project. Linters will not catc
 - **Normalize team abbreviations before joining.** nflverse sources disagree (for example `LA`
   versus `LAR`). Route abbreviations through the existing normalization first, or joins silently
   drop rows.
+- **Group a player's plays by id, never by name.** Play-by-play tags one player several ways
+  (`T.Pike` and `T.Pike (3rd QB)`) and leaves `posteam` empty (`""`) on non-plays, which the
+  loader turns into null. Grouping by name or keeping `""` as a team duplicates rows downstream.
 - **Exclude head-to-head games when profiling an opponent.** An opponent's (or defense's) profile
   is built from their games against the rest of the league, excluding games against the team or
   QB being evaluated. This keeps the opponent side independent of the subject. `opponent_stats`

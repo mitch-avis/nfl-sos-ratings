@@ -34,16 +34,15 @@ has since been removed).
   - Phones (below 768 px): only the name column stays pinned (capped at 120 px), Compare shrinks
     to its checkbox, the QB ID column is gone everywhere, the view toggles scroll on one row, the
     index reading notes fold into a disclosure, and the three summary tiles are gone.
-  - Open, for the maintainer to decide (P2):
-    - Per-metric fixed decimals: `format.formatValue` mixes 2 and 3 decimals in one column
-      (`0.75` vs `5.919`); points-per-game ratings could show 1-2 decimals, EPA rates 3.
-    - The glossary cards repeat the label as the full name ("Team Rating / Team Rating").
-    - Rated QBs below the qualifier show "-" in the Rank range column with no explanation.
-    - The index table scrolls inside a 75vh box, so phones scroll a box inside the page.
-    - The Rank column is the position under the current sort, not the published rank, next to a
-      Rank range column that is always about the published rating.
-    - Touch behavior of Recharts tooltips (`trigger="click"` on touch screens) is untested on a
-      real device.
+  - P2 follow-ups, done 2026-10-04 at the maintainer's request: one fixed precision per column
+    (`format.columnDecimals`: whole numbers stay whole, points-per-game scores 2 decimals, others by
+    scale), the glossary loads the registry itself and prints each description once, QBs below the
+    qualifier read "Below qualifier" with attempts against `qb_attempt_qualifier` (table and detail
+    page), the phone table box fills the screen below the app header, and the Rank header says it
+    follows the current sort. The QBs page now lists only `qb_is_eligible` passers by default
+    ("Show QBs below the qualifier" adds the rest), and the season-in-progress notice stays until
+    every team has finished.
+  - Still unverified: Recharts tooltips on a real touch device (`trigger="click"` there).
 - Port to `web/` (landed 2026-10-02, commits 298da87 and 68d39ac on
   `chore/strict-tooling-and-web`):
   - the frontend moved from `ui/web/` (plain CSS, hand-rolled components) to `web/`: React 19,

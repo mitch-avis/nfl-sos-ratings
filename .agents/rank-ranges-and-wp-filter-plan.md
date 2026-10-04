@@ -161,14 +161,23 @@ across thresholds whichever way they move.
   - Maye: published 1st of 33 qualifying QBs; median 2nd; middle 50% 1st-4th; 95% 1st-9th;
     P(top 5) 0.882, P(top 10) 0.984; P(rank 8-10) 0.047, P(rank >= 8) 0.063; missing share 0.
   - These cover game-sampling noise only, not model error.
-- [ ] Make QB tie-breaks deterministic (found by the rebuild): comparing the rebuilt `data/` with
-  a pre-run copy, team outputs were identical and QB ratings differed by about 1e-16, but
-  `qb_stats._qb_primary_team_map` picks a primary team for a QB with equal games on two teams
-  (Trent Edwards 2010: BUF before, JAX after, with wins, losses, `win_pct`) from an unstable
-  sort, and `qopp_qb_fourth_quarter_comeback` moved by up to 0.067 in every season, probably
-  through the same unstable `sort().group_by().first()` in `_select_primary_qb_rows` (not yet
-  confirmed). Fix with stable sorts and explicit tie-break keys plus a shuffled-input test, then
-  ask before rebuilding `data/`.
+- [x] QB data fixes (2026-10-04, maintainer-approved, `data/` rebuilt with `OPENBLAS_NUM_THREADS=1
+  nfl-sos-ratings pipeline`, `season --season 2026`, then `season` for 1999, 2000, 2004, and
+  2008-2011; reruns of 1999, 2000, 2008, and 2010 now give identical files):
+  - Tie-breaks: the primary QB of a team-game goes to the lowest `qb_id` after snaps, dropbacks,
+    and attempts, and a QB's primary team on a games tie goes to his most recent team.
+  - Root cause of the comeback drift: old play-by-play leaves `posteam` empty (`""`) on non-plays;
+    the late-game flags paired each team with that phantom team, doubling flag rows and QB-game
+    rows (80 duplicated QB-games in 1999, 87 in 2000). The loader now treats `""` as null.
+  - A passer tagged two ways in one game ("T.Pike (3rd QB)") split into two rows (9 QB-games in
+    2004 and 2008-2011); the aggregates now group by passer id.
+  - Qualifier (maintainer decision): 14 pass attempts per game the QB's own team has played
+    (`qb_attempt_qualifier`), not 14 times the league's most games. Only 2026 eligibility moved (6
+    QBs, Drew Lock among them); 1999 lost 3 qualifiers and 2000 lost 2 to the duplicate fix, and
+    1999-2000 `adj_qb_epa_per_dropback` moved by up to 0.041 and 0.064 (read against a pre-fix copy
+    of `data/`). Team outputs did not change.
+  - Not rerun: `nfl-sos-ratings validate`. Its QB year-over-year and QBR correlations predate these
+    fixes; rerunning waits on the maintainer.
 - [x] WP decisions answered by the maintainer.
 - [ ] WP bins in the loader layer (guarded columns), engine refits per threshold, API parameter.
 - [ ] Slider (shadcn) with URL state, debounce, exploration label.

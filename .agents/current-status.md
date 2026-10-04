@@ -32,8 +32,9 @@ history (the composite-rating era and its experiments) is in git, before commit 
    `{season}_rating_ranges` and `{season}_qb_rating_ranges` outputs of `run_season`, the
    `/api/seasons/{season}/{teams|qbs}/rating-ranges` endpoints, and the web views. `data/` was
    rebuilt with the range files on 2026-10-04 (`OPENBLAS_NUM_THREADS=1 nfl-sos-ratings
-   pipeline`, then `season --season 2026`); results and a QB tie-break non-determinism the
-   rebuild exposed are in the plan's Tasks. The WP feature is still to do.
+   pipeline`, then `season --season 2026`), and again after the QB data fixes (duplicate QB-game
+   rows, deterministic tie-breaks, per-team qualifier): details in the plan's Tasks. The WP feature
+   is still to do.
 2. Rebuild 2026 weekly as games are played (`nfl-sos-ratings season`, ask first).
 
 ## Validation snapshot
@@ -50,6 +51,10 @@ Generated after adopting previous-season penalties by `nfl-sos-ratings validate 
 
 Gate state: `scripts/gate.sh --web` passes, and `.venv/bin/pytest -m published_data` passes on the
 rebuilt `data/`.
+
+The QB rows of this snapshot (year-over-year Pearson for adjusted EPA per dropback, QBR
+correlations) predate the 2026-10-04 QB data fixes, which moved 1999-2000 QB ratings; the report
+was not rerun. Team numbers are unaffected.
 
 ## Open items
 
