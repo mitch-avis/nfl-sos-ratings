@@ -141,3 +141,6 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
 - **A metric looks wrong.** Inspect the `/api` payload before changing frontend code; the app must
   never silently redefine a column's meaning. Backend contract tests live in
   `tests/test_ui_data.py` and `tests/test_ui_api.py`.
+- **Charts look different with a dark-mode extension.** `index.html` carries
+  `<meta name="darkreader-lock">`, so Dark Reader leaves the app alone; it repainted the rank-range
+  marks invisible and overrode the heat-map colors. Use the header's theme toggle for dark mode.
