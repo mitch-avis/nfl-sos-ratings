@@ -134,7 +134,18 @@ across thresholds whichever way they move.
   (`ui_data.load_team_rating_ranges_payload` / `load_qb_rating_ranges_payload`, served by
   `ui_api._rating_ranges_router`); rows by published rank, column groups `identity`, `published`,
   `rating_range`, `rank_range`, `rank_chances`; a missing file is a 404.
-- [ ] Rank-range web views (league interval chart, detail histogram and headline, table column).
+- [x] Rank-range web views: `RankRangeChart` below the index table (rows by median rank, rank 1
+  left; thick bar middle 50%, thin bar 95%, median dot, diamond for a different published rank;
+  each row a link whose accessible name is the interval in words), a `Rank range` column after the
+  headline rating in the ratings table (`RankIntervalTrack` mini interval), and a detail-page card
+  with the headline, top-5/top-10 chances, and a P(rank = k) `RankHistogram` (Recharts) with a
+  hidden table. Positioned HTML, not Recharts range bars: the thick-over-thin overlay needs two
+  hidden axes in Recharts, and the HTML marks share one component with the table. Missing files
+  (404) hide the views; other errors show an error state. Domain logic in
+  `web/src/domain/rankRanges.ts`. Checked at desktop and 390 px width on scratch range files
+  built from `data/` in `/tmp` (not citable). Browser dark-mode extensions such as Dark Reader
+  repaint the CSS-background marks into invisibility; a `darkreader-lock` meta tag is pending the
+  maintainer's decision.
 - [ ] Ask to run `season` / `pipeline` for the range files.
 - [x] WP decisions answered by the maintainer.
 - [ ] WP bins in the loader layer (guarded columns), engine refits per threshold, API parameter.

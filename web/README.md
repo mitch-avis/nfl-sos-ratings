@@ -97,9 +97,9 @@ web/
       ui/            shadcn/ui primitives
       common/        page header, stat tile, loading, empty, and error states, tooltips
       entity/        entity table, view controls, comparison panel, game logs, opponent
-                     breakdown, weekly trend chart
+                     breakdown, weekly trend chart, rank-range chart and histogram
     domain/          pure view logic: entity config, view state, formatting, metric metadata,
-                     detail analytics, trend points
+                     detail analytics, trend points, rank ranges
     hooks/, utils/   small shared helpers
     test/            test setup, fixtures, render helper
 ```
@@ -117,6 +117,11 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
 - Search filters the visible columns; identity columns stay pinned while scrolling sideways.
   `Reset` restores the default view.
 - Tick rows to compare them. The selection lives in `?compare=` so a comparison can be shared.
+- When a season has rank-range files, the `Ratings` view gains a `Rank range` column (the middle
+  50% of ranks across game-bootstrap resamples, with a mini interval), and a `Rank ranges` chart
+  below the table draws every team or qualifying QB: thick bar for the middle 50%, thin bar for the
+  middle 95%, a dot for the median, and a diamond for the published rank when it differs. The
+  detail page adds the rank headline, the top-5 and top-10 chances, and the chance of each rank.
 - Click a team or QB to open its detail page: stat tiles, metric sections, the weekly trend chart
   (pick any numeric column of the current view; the season mean is drawn as a reference line), the
   game log, and the unique-opponent breakdown.

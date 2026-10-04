@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
+import { useRankRanges } from '@/api/queries'
 import type { EntityKind, SeasonDataset } from '@/api/types'
 import { useEntityPageState } from '@/app/EntityViewStateProvider'
+import { ErrorState } from '@/components/common/ErrorState'
 import { PageHeader } from '@/components/common/PageHeader'
 import { StatTile } from '@/components/common/StatTile'
 import { ComparisonPanel } from '@/components/entity/ComparisonPanel'
 import { EntityTable } from '@/components/entity/EntityTable'
+import { RankRangeChart } from '@/components/entity/RankRangeChart'
 import { ViewControls } from '@/components/entity/ViewControls'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { getEntityConfig } from '@/domain/entityConfig'
@@ -20,6 +23,7 @@ import {
   toggleCompareId,
   toggleSubcategoryPatch,
 } from '@/domain/pageViewState'
+import { isMissingRankRanges, parseRankRanges } from '@/domain/rankRanges'
 import {
   getInProgressGames,
   getQuarterbackQualifierAttempts,
@@ -90,6 +94,11 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
     [compareIds, update],
   )
   useCompareQuerySync(kind, dataset, compareIds, setCompareIds)
+  const rankRangesQuery = useRankRanges(kind, dataset.season)
+  const rankRanges = useMemo(
+    () => (rankRangesQuery.data ? parseRankRanges(kind, rankRangesQuery.data) : undefined),
+    [kind, rankRangesQuery.data],
+  )
 
   const seasonView = useMemo(() => buildSeasonViewTable(kind, table, state.viewState), [kind, state.viewState, table])
   const displayTable = useMemo(() => {
@@ -220,11 +229,32 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
         onSortingChange={(sorting) => update({ sorting })}
         onToggleCompare={toggleCompare}
         query={state.query}
+        rankRanges={rankRanges}
         season={season}
         selectedColumns={seasonView.selectedColumns}
         sorting={state.sorting}
         table={displayTable}
       />
+
+      {rankRangesQuery.isError && !isMissingRankRanges(rankRangesQuery.error) ? (
+        <ErrorState error={rankRangesQuery.error} title="Could not load the rank ranges" />
+      ) : null}
+      {rankRanges && rankRanges.length > 0 ? (
+        <Card className="gap-4">
+          <CardHeader>
+            <CardTitle className="text-base">Rank ranges</CardTitle>
+            <CardDescription>
+              Where each {kind === 'teams' ? 'team' : 'qualifying QB'} ranks when the {season} games are
+              redrawn at random, with repeats, and the ratings are refit on every redraw. The spread
+              shows how much a rank depends on which games happened to be played, not whether the
+              model is right. Seasons in progress show very wide ranges.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RankRangeChart kind={kind} season={season} ranges={rankRanges} />
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   )
 }

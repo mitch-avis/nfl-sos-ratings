@@ -1,6 +1,7 @@
 import type {
   ColumnMetadataPayload,
   MetricRegistryPayload,
+  RankRangesPayload,
   RowValue,
   SeasonDataset,
   TablePayload,
@@ -183,4 +184,30 @@ export const DEN_RATING_HISTORY: TablePayload = {
     team_rating: columnMeta('Team Rating'),
     offense_rating: columnMeta('Off Rating'),
   },
+}
+
+const RANGE_QUANTILES = ['q025', 'q100', 'q250', 'q500', 'q750', 'q900', 'q975']
+
+function teamRankRange(team: string, published: number, ranks: number[], probabilities: number[]) {
+  return {
+    team,
+    team_rank: published,
+    ...Object.fromEntries(RANGE_QUANTILES.map((key, index) => [`team_rank_${key}`, ranks[index]])),
+    ...Object.fromEntries(RANGE_QUANTILES.map((key, index) => [`team_rating_${key}`, 8 - published * 4 + index])),
+    team_rank_top5_probability: 1,
+    team_rank_top10_probability: 1,
+    team_rank_missing_share: 0,
+    team_rank_probabilities: probabilities,
+  }
+}
+
+export const TEAM_RANK_RANGES: RankRangesPayload = {
+  rows: [
+    teamRankRange('DEN', 1, [1, 1, 1, 1, 2, 2, 3], [0.62, 0.3, 0.08]),
+    teamRankRange('KC', 2, [1, 1, 2, 2, 2, 3, 3], [0.3, 0.52, 0.18]),
+    teamRankRange('LV', 3, [2, 2, 3, 3, 3, 3, 3], [0.08, 0.18, 0.74]),
+  ],
+  visible_columns: [],
+  column_groups: {},
+  column_metadata: {},
 }

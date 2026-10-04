@@ -12,6 +12,7 @@ import { Link } from 'react-router'
 
 import type { EntityConfig, RowValue, TablePayload } from '@/api/types'
 import { useTheme } from '@/app/ThemeProvider'
+import { InfoTooltip } from '@/components/common/InfoTooltip'
 import { MetricLabel } from '@/components/common/MetricLabel'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,8 +20,11 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { formatValue } from '@/domain/format'
 import { getMetricMetadata } from '@/domain/metricMetadata'
+import { ordinal, rankRangeSummary, type RankRange } from '@/domain/rankRanges'
 import { buildColumnStats, buildColumnWidths, getHeatCellStyle, sanitizeSorting } from '@/domain/tableState'
 import { cn } from '@/utils/cn'
+
+import { RankIntervalTrack } from './RankInterval'
 
 type Row = Record<string, RowValue>
 
@@ -32,6 +36,8 @@ interface EntityTableProps {
   onSortingChange: (sorting: SortingState) => void
   onToggleCompare: (entityId: string) => void
   query: string
+  /** Bootstrap rank ranges; when given, a "Rank range" column follows the headline rating. */
+  rankRanges?: RankRange[]
   season: number
   selectedColumns: string[]
   sorting: SortingState
@@ -39,6 +45,20 @@ interface EntityTableProps {
 }
 
 const CONTROL_COLUMNS = ['compare', 'rank']
+const RANK_RANGE_COLUMN = 'rank_range'
+
+function RankRangeCell({ range, count }: { range: RankRange | undefined; count: number }) {
+  const { q250, q750 } = range?.rank ?? { q250: null, q750: null }
+  if (!range || q250 === null || q750 === null) return <span className="text-muted-foreground">-</span>
+  return (
+    <span className="flex items-center gap-2" title={rankRangeSummary(range)}>
+      <span className="w-16 text-right">{q250 === q750 ? ordinal(q250) : `${ordinal(q250)}–${ordinal(q750)}`}</span>
+      <span className="w-20">
+        <RankIntervalTrack range={range} count={count} size="mini" />
+      </span>
+    </span>
+  )
+}
 
 function SortIcon({ direction }: { direction: false | 'asc' | 'desc' }) {
   if (direction === 'asc') return <ArrowUp className="size-3.5" aria-label="sorted ascending" />
@@ -58,6 +78,7 @@ export function EntityTable({
   onSortingChange,
   onToggleCompare,
   query,
+  rankRanges,
   season,
   selectedColumns,
   sorting,
@@ -106,6 +127,28 @@ export function EntityTable({
     return offsets
   }, [columnWidths, config.identityColumns])
 
+  const rankRangeColumn = useMemo<ColumnDef<Row> | null>(() => {
+    if (!rankRanges || !selectedColumns.includes(config.defaultSortColumn)) return null
+    const byId = new Map(rankRanges.map((range) => [range.id, range]))
+    return {
+      id: RANK_RANGE_COLUMN,
+      header: () => (
+        <span className="inline-flex items-center gap-1">
+          Rank range
+          <InfoTooltip
+            label="About the rank range"
+            content="The middle 50% of ranks across resampled seasons (the season's games redrawn at random). Thick bar: middle 50%; thin bar: middle 95%; dot: median; diamond: the published rank when it differs. Rank 1 is at the left."
+          />
+        </span>
+      ),
+      size: 176,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <RankRangeCell range={byId.get(String(row.original[config.identityKey] ?? ''))} count={rankRanges.length} />
+      ),
+    }
+  }, [config.defaultSortColumn, config.identityKey, rankRanges, selectedColumns])
+
   const columns = useMemo<ColumnDef<Row>[]>(
     () => [
       {
@@ -126,29 +169,32 @@ export function EntityTable({
         },
       },
       { id: 'rank', header: () => 'Rank', size: columnWidths.rank ?? 76, enableSorting: false, cell: () => null },
-      ...selectedColumns.map<ColumnDef<Row>>((column) => ({
-        id: column,
-        accessorFn: (row) => row[column],
-        header: () => <MetricLabel column={column} />,
-        size: columnWidths[column] ?? 128,
-        sortDescFirst: (() => {
-          const sample = filteredRows.find((row) => row[column] !== null)?.[column]
-          if (typeof sample === 'string') return false
-          return getMetricMetadata(column).polarity !== 'lower'
-        })(),
-        cell: ({ getValue, row }) => {
-          const value = getValue() as RowValue
-          if (column !== config.labelKey) return formatValue(value)
-          const entityId = String(row.original[config.identityKey] ?? '')
-          return (
-            <Link className="font-medium text-primary hover:underline" to={`${basePath}/${encodeURIComponent(entityId)}?season=${season}`}>
-              {formatValue(value)}
-            </Link>
-          )
-        },
-      })),
+      ...selectedColumns.flatMap<ColumnDef<Row>>((column) => {
+        const metricColumn: ColumnDef<Row> = {
+          id: column,
+          accessorFn: (row) => row[column],
+          header: () => <MetricLabel column={column} />,
+          size: columnWidths[column] ?? 128,
+          sortDescFirst: (() => {
+            const sample = filteredRows.find((row) => row[column] !== null)?.[column]
+            if (typeof sample === 'string') return false
+            return getMetricMetadata(column).polarity !== 'lower'
+          })(),
+          cell: ({ getValue, row }) => {
+            const value = getValue() as RowValue
+            if (column !== config.labelKey) return formatValue(value)
+            const entityId = String(row.original[config.identityKey] ?? '')
+            return (
+              <Link className="font-medium text-primary hover:underline" to={`${basePath}/${encodeURIComponent(entityId)}?season=${season}`}>
+                {formatValue(value)}
+              </Link>
+            )
+          },
+        }
+        return column === config.defaultSortColumn && rankRangeColumn ? [metricColumn, rankRangeColumn] : [metricColumn]
+      }),
     ],
-    [basePath, columnWidths, compareIds, config, filteredRows, onToggleCompare, season, selectedColumns],
+    [basePath, columnWidths, compareIds, config, filteredRows, onToggleCompare, rankRangeColumn, season, selectedColumns],
   )
 
   const reactTable = useReactTable({
@@ -233,8 +279,9 @@ export function EntityTable({
                   {row.getVisibleCells().map((cell) => {
                     const columnId = cell.column.id
                     const sticky = stickyOffsets[columnId] !== undefined
-                    const heat = CONTROL_COLUMNS.includes(columnId)
-                      ? undefined
+                    const heat =
+                      CONTROL_COLUMNS.includes(columnId) || columnId === RANK_RANGE_COLUMN
+                        ? undefined
                       : getHeatCellStyle(columnId, (cell.getValue() as RowValue) ?? null, columnStats, theme, palette)
                     return (
                       <td

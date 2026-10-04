@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DEN_GAME_LOGS, DEN_RATING_HISTORY, REGISTRY, SEASON_2025, stubApi } from '@/test/fixtures'
+import { DEN_GAME_LOGS, DEN_RATING_HISTORY, REGISTRY, SEASON_2025, stubApi, TEAM_RANK_RANGES } from '@/test/fixtures'
 import { renderApp } from '@/test/renderApp'
 
 const API = {
@@ -256,6 +256,78 @@ describe('team detail', () => {
 
     // Assert
     await waitFor(() => expect(router.state.location.pathname).toBe('/teams'))
+  })
+})
+
+const RANGES_PATH = '/api/seasons/2025/teams/rating-ranges'
+
+describe('rank ranges', () => {
+  it('charts every team on the index, each row linking to its detail page', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, [RANGES_PATH]: TEAM_RANK_RANGES }))
+
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByText('Rank ranges')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'DEN: published rank 1st, median 1st; middle 50%: 1st–2nd; 95%: 1st–3rd' }),
+    ).toHaveAttribute('href', '/teams/DEN?season=2025')
+  })
+
+  it('adds a rank range column beside the team rating', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, [RANGES_PATH]: TEAM_RANK_RANGES }))
+
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('columnheader', { name: /Rank range/ })).toBeInTheDocument()
+    expect(within(bodyRows()[2]).getByText('3rd')).toBeInTheDocument()
+  })
+
+  it('leaves the rank ranges out for a season without range files', async () => {
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('heading', { name: /Team Ratings Index · 2025/ })).toBeInTheDocument()
+    expect(screen.queryByText('Rank ranges')).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /Rank range/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Could not load the rank ranges')).not.toBeInTheDocument()
+  })
+
+  it('reports a rank-range failure other than a missing file', async () => {
+    // Arrange
+    const api = stubApi(API)
+    vi.stubGlobal('fetch', (async (input: RequestInfo | URL) =>
+      String(input).endsWith('/rating-ranges')
+        ? new Response(JSON.stringify({ detail: 'disk read failed' }), {
+            status: 500,
+            headers: { 'content-type': 'application/json' },
+          })
+        : api(input)) as typeof fetch)
+
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByText('Could not load the rank ranges')).toBeInTheDocument()
+  })
+
+  it('headlines the rank range and its chances on the detail page', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, [RANGES_PATH]: TEAM_RANK_RANGES }))
+
+    // Act
+    renderApp('/teams/KC?season=2025')
+
+    // Assert
+    expect(await screen.findByText('2nd; middle 50%: 2nd; 95%: 1st–3rd')).toBeInTheDocument()
+    expect(screen.getByText('Top 5 in 100% of resamples, top 10 in 100%')).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Chance of each rank' })).toHaveTextContent('2nd52%')
   })
 })
 
