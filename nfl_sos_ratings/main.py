@@ -10,10 +10,6 @@ import io
 import sys
 from pathlib import Path
 
-# Allow direct execution via `python nfl_sos_ratings/main.py`.
-if __package__ in {None, ""}:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 import polars as pl
 
 from nfl_sos_ratings.config import DATA_DIR, SEASON

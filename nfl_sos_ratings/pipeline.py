@@ -3,18 +3,12 @@
 Runs the single-season pipeline for every configured season.
 
 Usage:
-    uv run nfl-sos-pipeline          # uses START_YEAR / END_YEAR from config
-    uv run python -m nfl_sos_ratings.pipeline
+    nfl-sos-ratings pipeline         # uses START_YEAR / END_YEAR from config
 """
 
 import argparse
 import io
 import sys
-from pathlib import Path
-
-# Allow direct execution via `python nfl_sos_ratings/pipeline.py`.
-if __package__ in {None, ""}:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from nfl_sos_ratings.config import END_YEAR, START_YEAR
 from nfl_sos_ratings.data_loader import use_disk_cache_unless_configured
