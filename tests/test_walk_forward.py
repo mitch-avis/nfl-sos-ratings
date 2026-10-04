@@ -1,5 +1,6 @@
 """Tests for the walk-forward validation of the team rating and the QB checks."""
 
+import dataclasses
 import math
 from typing import TYPE_CHECKING
 
@@ -603,12 +604,10 @@ def test_compute_stability_metrics_single_season_returns_no_pairs(tmp_path: Path
 def test_build_validation_report_text_reports_when_no_interval_excludes_zero() -> None:
     # Arrange
     inputs = _report_inputs()
-    quiet = ValidationReportInputs(
-        **{
-            **{field: getattr(inputs, field) for field in inputs.__dataclass_fields__},
-            "mae_deltas": inputs.mae_deltas.filter(~pl.col("distinguishable_from_zero")),
-            "qbr_correlations": inputs.qbr_correlations.clear(),
-        }
+    quiet = dataclasses.replace(
+        inputs,
+        mae_deltas=inputs.mae_deltas.filter(~pl.col("distinguishable_from_zero")),
+        qbr_correlations=inputs.qbr_correlations.clear(),
     )
 
     # Act

@@ -91,6 +91,11 @@ def _schedule_df() -> pl.DataFrame:
     )
 
 
+def _no_profiles() -> tuple[pl.DataFrame | None, dict[str, list[dict[str, str | bool | int]]]]:
+    """Stand in for a profile builder that finds no opponent games."""
+    return None, {}
+
+
 @pytest.fixture
 def season_outputs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Run the real pipeline on the synthetic league with only the loaders patched."""
@@ -244,8 +249,8 @@ def test_run_season_without_opponent_profiles_still_writes_the_ratings(
     monkeypatch.setattr(main, "load_weekly_team_stats", stub(_weekly_df))
     monkeypatch.setattr(main, "load_schedule", stub(_schedule_df))
     monkeypatch.setattr(main, "load_qb_stats", stub(_qb_df))
-    monkeypatch.setattr(main, "compute_qb_opponent_profiles", stub(lambda: (None, {})))
-    monkeypatch.setattr(main, "compute_all_opponent_profiles", stub(lambda: (None, {})))
+    monkeypatch.setattr(main, "compute_qb_opponent_profiles", stub(_no_profiles))
+    monkeypatch.setattr(main, "compute_all_opponent_profiles", stub(_no_profiles))
 
     # Act
     main.run_season(2025)
