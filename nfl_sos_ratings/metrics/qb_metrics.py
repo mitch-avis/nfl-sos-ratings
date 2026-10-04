@@ -202,10 +202,22 @@ QB_IDENTITY_METRICS: tuple[MetricDef, ...] = (
         label="Eligible",
         full_name="QB Eligibility Flag",
         description=(
-            "Whether the quarterback meets the project's minimum-dropback threshold to be "
-            "ranked on the league-wide QBs page."
+            "Whether the quarterback has the qualifying number of pass attempts (14 for every "
+            "game his team has played) to be ranked on the league-wide QBs page."
         ),
         shape="flag",
+        polarity="neutral",
+        source="D",
+    ),
+    _identity(
+        name="qb_attempt_qualifier",
+        label="Qualifier Att",
+        full_name="Qualifying Pass Attempts",
+        description=(
+            "The pass attempts this quarterback needs to be ranked: 14 for every game his team "
+            "has played so far (his main team, for a quarterback who changed teams)."
+        ),
+        shape="count",
         polarity="neutral",
         source="D",
     ),

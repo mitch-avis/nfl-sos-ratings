@@ -107,8 +107,8 @@ Each season writes Parquet files named `{season}_{name}.parquet` under `DATA_DIR
 them for a spreadsheet with `pl.read_parquet(path).write_csv(...)`.
 
 - `ratings`: one row per team with `team_rating`, the three unit ratings, `sos`, and `SRS`.
-- `qb_ratings`: one row per qualifying quarterback (14 attempts per team game) with raw and
-  adjusted EPA per dropback and faced pass defense.
+- `qb_ratings`: one row per qualifying quarterback (14 pass attempts per game his team has played,
+  in `qb_attempt_qualifier`) with raw and adjusted EPA per dropback and faced pass defense.
 - `combined`: one row per team with season stats, the head-to-head-excluded opponent profile
   (`opp_` columns), and the ratings.
 - `qb_combined`: one row per quarterback with season stats, the faced-defense profile (`qopp_`

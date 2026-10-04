@@ -7,6 +7,12 @@ type PolarsCastType = type[pl.Int64 | pl.Float64]
 # Comebacks and game-winning drives count plays from the fourth quarter on (overtime included).
 _FOURTH_QUARTER = 4
 
+# A quarterback is ranked with 14 pass attempts per game his team has played (the usual NFL
+# qualifier); a season without weekly team rows is taken as a full 17-game season.
+QUALIFIER_ATTEMPTS_PER_TEAM_GAME = 14
+FULL_SEASON_TEAM_GAMES = 17
+QUALIFIER_COLUMN = "qb_attempt_qualifier"
+
 _QB_TOTAL_COLUMNS: dict[str, tuple[str, PolarsCastType]] = {
     "qb_attempts": ("qb_attempts_total", pl.Int64),
     "qb_completions": ("qb_completions_total", pl.Int64),
@@ -888,6 +894,7 @@ def compute_qb_season_stats(
                 "qb_games_played": pl.Int64,
                 "qb_attempts_total": pl.Int64,
                 "qb_win_pct": pl.Float64,
+                QUALIFIER_COLUMN: pl.Int64,
                 "qb_is_eligible": pl.Boolean,
             }
         )
@@ -897,11 +904,6 @@ def compute_qb_season_stats(
     if "qb_name" not in qb_df.columns:
         qb_df = qb_df.with_columns(pl.col("team_abbr").alias("qb_name"))
 
-    effective_min_attempts = (
-        min_attempts
-        if min_attempts is not None
-        else _compute_default_qb_attempt_qualifier(weekly_df)
-    )
     qb_keys = ["qb_id", "qb_name"]
 
     season_stats = (
@@ -924,24 +926,44 @@ def compute_qb_season_stats(
     rate_exprs = _qb_season_rate_exprs(set(season_stats.columns))
     if rate_exprs:
         season_stats = season_stats.with_columns(rate_exprs)
+    season_stats = _with_attempt_qualifier(season_stats, weekly_df, min_attempts)
 
     return season_stats.with_columns(
         (
             (pl.col("qb_games_played") >= min_games)
-            & (pl.col("qb_attempts_total") >= effective_min_attempts)
+            & (pl.col("qb_attempts_total") >= pl.col(QUALIFIER_COLUMN))
         ).alias("qb_is_eligible")
     ).sort("team")
 
 
-def _compute_default_qb_attempt_qualifier(weekly_df: pl.DataFrame | None) -> int:
-    """Return the season-appropriate QB attempt qualifier.
+def _with_attempt_qualifier(
+    season_stats: pl.DataFrame, weekly_df: pl.DataFrame | None, min_attempts: int | None
+) -> pl.DataFrame:
+    """Add ``qb_attempt_qualifier``, the pass attempts a quarterback needs to be ranked.
 
-    When weekly team data is available, follow the standard 14 attempts per team game rule using
-    the maximum regular-season team game count in that season. Fall back to the 17-game threshold
-    when weekly data is unavailable.
+    The rule is 14 attempts per game the quarterback's team (his primary team, ``team``) has played,
+    so in a season in progress each team's own game count applies, byes included. ``min_attempts``
+    replaces it with one number for every quarterback. Without weekly team rows, a full season of
+    17 games is assumed; a team missing from them gets the most games any team has played.
     """
+    if min_attempts is not None:
+        return season_stats.with_columns(
+            pl.lit(min_attempts, dtype=pl.Int64).alias(QUALIFIER_COLUMN)
+        )
     if weekly_df is None or weekly_df.is_empty() or "team" not in weekly_df.columns:
-        return 238
+        full_season = FULL_SEASON_TEAM_GAMES * QUALIFIER_ATTEMPTS_PER_TEAM_GAME
+        return season_stats.with_columns(
+            pl.lit(full_season, dtype=pl.Int64).alias(QUALIFIER_COLUMN)
+        )
 
-    team_game_counts = weekly_df.group_by("team").len()
-    return int(team_game_counts.select(pl.col("len").max()).item() * 14)
+    team_games = weekly_df.group_by("team").len("_team_games")
+    most_games = team_games.get_column("_team_games").max()
+    return (
+        season_stats.join(team_games, on="team", how="left")
+        .with_columns(
+            (pl.col("_team_games").fill_null(most_games) * QUALIFIER_ATTEMPTS_PER_TEAM_GAME)
+            .cast(pl.Int64)
+            .alias(QUALIFIER_COLUMN)
+        )
+        .drop("_team_games")
+    )

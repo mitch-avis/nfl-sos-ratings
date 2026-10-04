@@ -114,9 +114,10 @@ A rank depends on which games happened to be played. To show how much, each seas
 redrawn at random with repeats (a game bootstrap: 1000 resamples, each as many games as the season
 has) and the ratings are refit on every resample with the season fit's ridge penalties. Each
 resample is ranked: teams among all teams, quarterbacks among those who qualify for the full
-season. The `rating_ranges` and `qb_rating_ranges` files give, per team or quarterback, the rating
-and rank at the 2.5th, 10th, 25th, 50th, 75th, 90th, and 97.5th percentiles of the resamples, the
-chance of a top-5 and a top-10 rank, and the chance of each rank.
+season (14 pass attempts per game their team has played). The `rating_ranges` and
+`qb_rating_ranges` files give, per team or quarterback, the rating and rank at the 2.5th, 10th,
+25th, 50th, 75th, 90th, and 97.5th percentiles of the resamples, the chance of a top-5 and a top-10
+rank, and the chance of each rank.
 
 - **What the ranges cover.** Game-to-game sampling noise in the shrunken estimate, nothing more.
   They say nothing about whether the model is right: a bias every resample shares (for example,

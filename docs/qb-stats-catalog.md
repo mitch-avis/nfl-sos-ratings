@@ -49,7 +49,8 @@ Who the quarterback is and how much he played.
 | `qb_games_played` | QB Games | count | - | 1999 | PBP | Games in which this quarterback recorded a dropback. |
 | `qb_offense_snaps` | QB Snaps | count | - | 2012 | SNP | Offensive snaps the quarterback played, from snap-count data. |
 | `qb_dropbacks` | Dropbacks | count | - | 1999 | PBP | Pass attempts plus sacks plus scrambles — every play that began as a pass. The natural denominator for QB efficiency stats. |
-| `qb_is_eligible` | Eligible | flag | - | - | D | Whether the quarterback meets the project's minimum-dropback threshold to be ranked on the league-wide QBs page. |
+| `qb_is_eligible` | Eligible | flag | - | - | D | Whether the quarterback has the qualifying number of pass attempts (14 for every game his team has played) to be ranked on the league-wide QBs page. |
+| `qb_attempt_qualifier` | Qualifier Att | count | - | - | D | The pass attempts this quarterback needs to be ranked: 14 for every game his team has played so far (his main team, for a quarterback who changed teams). |
 
 ## Passing Volume
 

@@ -932,11 +932,22 @@ def test_canonicalize_qb_rows_fills_missing_identity_columns() -> None:
 def test_default_qb_attempt_qualifier_without_weekly_data_uses_seventeen_games(
     weekly_df: pl.DataFrame | None,
 ) -> None:
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["DEN"],
+            "week": [1],
+            "qb_id": ["QB_A"],
+            "qb_name": ["QB A"],
+            "qb_attempts": [30],
+        }
+    )
+
     # Act
-    qualifier = qb_stats._compute_default_qb_attempt_qualifier(weekly_df)
+    result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
 
     # Assert
-    assert qualifier == 238
+    assert result.get_column("qb_attempt_qualifier").to_list() == [238]
 
 
 def test_compute_qb_game_volumes_from_pbp_without_dropbacks_or_qb_snaps_is_empty() -> None:
@@ -1066,3 +1077,31 @@ def test_compute_qb_season_stats_gives_a_traded_qb_his_latest_team_on_a_games_ti
 
     # Assert
     assert result.get_column("team").to_list() == ["JAX"]
+
+
+def test_compute_qb_season_stats_qualifies_against_the_qbs_own_team_games() -> None:
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["SEA", "SEA", "KC", "KC", "KC", "KC"],
+            "week": [1, 2, 1, 2, 3, 4],
+            "qb_id": ["QB_SEA", "QB_SEA", "QB_KC", "QB_KC", "QB_KC", "QB_KC"],
+            "qb_name": ["SEA QB", "SEA QB", "KC QB", "KC QB", "KC QB", "KC QB"],
+            "qb_attempts": [24, 24, 12, 12, 12, 12],
+        }
+    )
+    weekly_df = pl.DataFrame(
+        {
+            "team": ["SEA"] * 3 + ["KC"] * 4,
+            "week": [1, 2, 3, 1, 2, 3, 4],
+            "points_for": [20] * 7,
+            "points_allowed": [17] * 7,
+        }
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
+
+    # Assert
+    eligible = dict(zip(result["qb_id"], result["qb_is_eligible"], strict=True))
+    assert eligible == {"QB_SEA": True, "QB_KC": False}
