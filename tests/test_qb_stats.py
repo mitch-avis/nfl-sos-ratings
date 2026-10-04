@@ -8,6 +8,7 @@ from nfl_sos_ratings import qb_stats
 
 def test_compute_qb_season_stats_includes_volume_and_eligibility() -> None:
     """Verify QB season aggregation computes averages, volume, and eligibility flags."""
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "team_abbr": ["DEN", "DEN", "KC", "KC", "KC"],
@@ -28,6 +29,7 @@ def test_compute_qb_season_stats_includes_volume_and_eligibility() -> None:
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_season_stats(
         qb_df,
         weekly_df=weekly_df,
@@ -35,6 +37,7 @@ def test_compute_qb_season_stats_includes_volume_and_eligibility() -> None:
         min_attempts=55,
     )
 
+    # Assert
     qb_a = result.filter(pl.col("qb_id") == "QB_A")
     qb_b = result.filter(pl.col("qb_id") == "QB_B")
 
@@ -51,6 +54,7 @@ def test_compute_qb_season_stats_includes_volume_and_eligibility() -> None:
 
 def test_compute_qb_season_stats_assigns_results_to_primary_qb_only() -> None:
     """Verify QB wins are assigned only to the primary QB for each team-week."""
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "team_abbr": ["DEN", "DEN"],
@@ -72,8 +76,10 @@ def test_compute_qb_season_stats_assigns_results_to_primary_qb_only() -> None:
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
 
+    # Assert
     assert result.filter(pl.col("qb_id") == "QB_A").select("qb_win_pct").item() == 1.0
     assert result.filter(pl.col("qb_id") == "QB_A").select("qb_wins").item() == 1
     assert result.filter(pl.col("qb_id") == "QB_B").select("qb_win_pct").item() == 0.5
@@ -82,6 +88,7 @@ def test_compute_qb_season_stats_assigns_results_to_primary_qb_only() -> None:
 
 def test_compute_qb_season_stats_sums_late_game_totals() -> None:
     """Verify season QB summaries expose summed 4QC and GWD totals."""
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "team_abbr": ["DEN", "DEN"],
@@ -94,14 +101,17 @@ def test_compute_qb_season_stats_sums_late_game_totals() -> None:
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_season_stats(qb_df)
 
+    # Assert
     assert result.select("qb_fourth_quarter_comebacks").item() == 1
     assert result.select("qb_game_winning_drives").item() == 1
 
 
 def test_compute_qb_season_stats_exposes_explicit_per_game_and_total_columns() -> None:
     """Verify season summaries do not mix per-game averages under raw season column names."""
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "team_abbr": ["DEN", "DEN"],
@@ -124,8 +134,10 @@ def test_compute_qb_season_stats_exposes_explicit_per_game_and_total_columns() -
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_season_stats(qb_df)
 
+    # Assert
     assert "qb_attempts" not in result.columns
     assert "qb_completions" not in result.columns
     assert "qb_pass_yards" not in result.columns
@@ -139,6 +151,7 @@ def test_compute_qb_season_stats_exposes_explicit_per_game_and_total_columns() -
 
 def test_compute_qb_season_stats_handles_missing_attempts_column() -> None:
     """Verify missing qb_attempts defaults attempts total to zero and marks ineligible."""
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "team_abbr": ["DEN", "DEN"],
@@ -149,12 +162,14 @@ def test_compute_qb_season_stats_handles_missing_attempts_column() -> None:
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_season_stats(
         qb_df,
         min_games=2,
         min_attempts=1,
     )
 
+    # Assert
     assert result.select("qb_attempts_total").item() == 0
     assert result.select("qb_is_eligible").item() is False
     assert result.select("qb_games_played").item() == 2
@@ -162,6 +177,7 @@ def test_compute_qb_season_stats_handles_missing_attempts_column() -> None:
 
 def test_compute_qb_season_stats_defaults_to_238_attempt_threshold() -> None:
     """Verify default QB eligibility requires a full-season 238-attempt threshold."""
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "team_abbr": ["DEN", "DEN", "KC", "KC"],
@@ -173,8 +189,10 @@ def test_compute_qb_season_stats_defaults_to_238_attempt_threshold() -> None:
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_season_stats(qb_df, min_games=2)
 
+    # Assert
     assert result.filter(pl.col("qb_id") == "QB_A").select("qb_is_eligible").item() is True
     assert result.filter(pl.col("qb_id") == "QB_B").select("qb_is_eligible").item() is False
 
@@ -184,6 +202,7 @@ def test_compute_qb_season_stats_uses_16_game_qualifier_before_2021() -> None:
 
     Weekly team data should drive the default season-length-based eligibility threshold.
     """
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "team_abbr": ["SF"] * 16 + ["JAX"] * 16,
@@ -203,8 +222,10 @@ def test_compute_qb_season_stats_uses_16_game_qualifier_before_2021() -> None:
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
 
+    # Assert
     assert result.filter(pl.col("qb_id") == "QB_A").select("qb_attempts_total").item() == 224
     assert result.filter(pl.col("qb_id") == "QB_A").select("qb_is_eligible").item() is True
     assert result.filter(pl.col("qb_id") == "QB_B").select("qb_attempts_total").item() == 223
@@ -213,6 +234,7 @@ def test_compute_qb_season_stats_uses_16_game_qualifier_before_2021() -> None:
 
 def test_compute_qb_season_stats_default_eligibility_is_attempt_based() -> None:
     """Verify default qualification does not add a separate games-played cutoff."""
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "team_abbr": ["DEN"] * 7,
@@ -224,8 +246,10 @@ def test_compute_qb_season_stats_default_eligibility_is_attempt_based() -> None:
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_season_stats(qb_df)
 
+    # Assert
     assert result.select("qb_games_played").item() == 7
     assert result.select("qb_attempts_total").item() == 238
     assert result.select("qb_is_eligible").item() is True
@@ -233,6 +257,7 @@ def test_compute_qb_season_stats_default_eligibility_is_attempt_based() -> None:
 
 def test_compute_qb_season_stats_derives_attempt_normalized_rates() -> None:
     """Verify season efficiency rates use total attempts instead of game-average volume."""
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "team_abbr": ["DEN", "DEN"],
@@ -246,8 +271,10 @@ def test_compute_qb_season_stats_derives_attempt_normalized_rates() -> None:
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_season_stats(qb_df)
 
+    # Assert
     assert result.select("qb_yards_per_attempt").item() == 6.25
     assert result.select("qb_touchdown_rate").item() == 0.075
     assert result.select("qb_interception_rate").item() == 0.05
@@ -255,6 +282,7 @@ def test_compute_qb_season_stats_derives_attempt_normalized_rates() -> None:
 
 def test_compute_qb_season_stats_derives_dropback_metrics_and_totals() -> None:
     """Verify season QB summaries expose dropback-based totals and advanced rates."""
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "team_abbr": ["DEN", "DEN"],
@@ -273,8 +301,10 @@ def test_compute_qb_season_stats_derives_dropback_metrics_and_totals() -> None:
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_season_stats(qb_df)
 
+    # Assert
     assert result.select("qb_dropbacks_total").item() == 46
     assert result.select("qb_offense_snaps_total").item() == 125
     assert result.select("qb_td_int_differential").item() == 1.0
@@ -287,6 +317,7 @@ def test_compute_qb_season_stats_derives_dropback_metrics_and_totals() -> None:
 
 def test_compute_qb_season_stats_defaults_win_pct_when_results_unavailable() -> None:
     """Verify qb_win_pct does not become NaN when team/week score joins fail."""
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "team_abbr": ["LAC", "LAC"],
@@ -307,13 +338,16 @@ def test_compute_qb_season_stats_defaults_win_pct_when_results_unavailable() -> 
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
 
+    # Assert
     assert result.select("qb_win_pct").item() == 0.5
 
 
 def test_compute_qb_game_volumes_from_pbp_combines_dropbacks_and_snap_counts() -> None:
     """Verify QB game volumes union PBP dropbacks with QB snap-count rows."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC"] * 4,
@@ -341,10 +375,12 @@ def test_compute_qb_game_volumes_from_pbp_combines_dropbacks_and_snap_counts() -
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_game_volumes_from_pbp(pbp, snap_counts).sort(
         ["team_abbr", "qb_name"]
     )
 
+    # Assert
     assert result.to_dicts() == [
         {
             "game_id": "2025_01_DEN_KC",
@@ -391,6 +427,7 @@ def test_compute_qb_game_volumes_from_pbp_combines_dropbacks_and_snap_counts() -
 
 def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
     """Verify PBP-derived QB game stats carry dropbacks, snaps, and core passing metrics."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC"] * 4,
@@ -423,8 +460,10 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_game_stats_from_pbp(pbp, snap_counts).sort("qb_name")
 
+    # Assert
     assert result.to_dicts() == [
         {
             "game_id": "2025_01_DEN_KC",
@@ -542,6 +581,7 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
 
 def test_compute_qb_game_stats_from_pbp_splits_designed_runs_scrambles_and_kneels() -> None:
     """Verify QB rushing PBP splits exclude scrambles and kneels from designed-run value."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_04_BUF_MIA"] * 5,
@@ -593,7 +633,10 @@ def test_compute_qb_game_stats_from_pbp_splits_designed_runs_scrambles_and_kneel
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_game_stats_from_pbp(pbp, snap_counts, qb_identity)
+
+    # Assert
     row = result.row(0, named=True)
 
     assert row["qb_dropbacks"] == 3
@@ -612,6 +655,7 @@ def test_compute_qb_game_stats_from_pbp_splits_designed_runs_scrambles_and_kneel
 
 def test_compute_qb_season_stats_reconciles_designed_rush_components_for_multi_team_qb() -> None:
     """Verify designed-run splits aggregate by QB across teams and reconcile to official carries."""
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "game_id": ["g1", "g2", "g3"],
@@ -632,7 +676,10 @@ def test_compute_qb_season_stats_reconciles_designed_rush_components_for_multi_t
         }
     )
 
+    # Act
     season = qb_stats.compute_qb_season_stats(qb_df)
+
+    # Assert
     row = season.to_dicts()[0]
 
     assert season.height == 1
@@ -657,6 +704,7 @@ def test_compute_qb_season_stats_reconciles_designed_rush_components_for_multi_t
 
 def test_compute_qb_game_stats_from_pbp_assigns_4qc_and_gwd_to_primary_qb() -> None:
     """Verify late-game comeback flags are assigned only to the primary QB row."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC", "2025_01_DEN_KC", "2025_01_DEN_KC"],
@@ -694,8 +742,10 @@ def test_compute_qb_game_stats_from_pbp_assigns_4qc_and_gwd_to_primary_qb() -> N
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_game_stats_from_pbp(pbp, snap_counts).sort("qb_name")
 
+    # Assert
     assert (
         result.filter(pl.col("qb_name") == "Starter QB").select("qb_fourth_quarter_comeback").item()
         == 1
@@ -718,6 +768,7 @@ def test_compute_qb_game_stats_from_pbp_assigns_4qc_and_gwd_to_primary_qb() -> N
 
 def test_compute_qb_game_stats_from_pbp_does_not_assign_4qc_or_gwd_in_loss() -> None:
     """Verify late-game flags are cleared if the team ultimately loses after a late lead."""
+    # Arrange
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_03_NYJ_NE", "2025_03_NYJ_NE"],
@@ -755,7 +806,10 @@ def test_compute_qb_game_stats_from_pbp_does_not_assign_4qc_or_gwd_in_loss() -> 
         }
     )
 
+    # Act
     result = qb_stats.compute_qb_game_stats_from_pbp(pbp, snap_counts)
+
+    # Assert
     tyrod_row = result.filter(pl.col("qb_name") == "Tyrod Taylor")
 
     assert tyrod_row.select("qb_fourth_quarter_comeback").item() == 0
@@ -764,6 +818,7 @@ def test_compute_qb_game_stats_from_pbp_does_not_assign_4qc_or_gwd_in_loss() -> 
 
 def test_compute_qb_season_stats_aggregates_rushing_and_completion_rates() -> None:
     """Verify season totals, per-game fields, and rates for the rushing family."""
+    # Arrange
     qb_df = pl.DataFrame(
         {
             "game_id": ["g1", "g2"],
@@ -791,7 +846,10 @@ def test_compute_qb_season_stats_aggregates_rushing_and_completion_rates() -> No
         }
     )
 
+    # Act
     season = qb_stats.compute_qb_season_stats(qb_df)
+
+    # Assert
     row = season.to_dicts()[0]
 
     assert row["qb_carries_total"] == 10
