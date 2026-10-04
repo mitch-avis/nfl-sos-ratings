@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { formatValue } from '@/domain/format'
+import { formatFixed, formatValue } from '@/domain/format'
 import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
 import {
   ordinal,
@@ -29,7 +29,13 @@ import {
   rankRangeSummary,
   type RankRange,
 } from '@/domain/rankRanges'
-import { buildColumnStats, buildColumnWidths, getHeatCellStyle, sanitizeSorting } from '@/domain/tableState'
+import {
+  buildColumnDecimals,
+  buildColumnStats,
+  buildColumnWidths,
+  getHeatCellStyle,
+  sanitizeSorting,
+} from '@/domain/tableState'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/utils/cn'
 
@@ -158,6 +164,8 @@ export function EntityTable({
   }, [query, selectedColumns, table.rows])
 
   const columnStats = useMemo(() => buildColumnStats(filteredRows, selectedColumns), [filteredRows, selectedColumns])
+  // Decimals come from the whole season, so filtering or searching never changes them.
+  const columnDecimals = useMemo(() => buildColumnDecimals(table.rows, selectedColumns), [selectedColumns, table.rows])
   const columnWidths = useMemo(
     () => buildColumnWidths(table.rows, selectedColumns, config.identityColumns),
     [config.identityColumns, selectedColumns, table.rows],
@@ -234,7 +242,7 @@ export function EntityTable({
           })(),
           cell: ({ getValue, row }) => {
             const value = getValue() as RowValue
-            if (column !== config.labelKey) return formatValue(value)
+            if (column !== config.labelKey) return formatFixed(value, columnDecimals[column] ?? null)
             const entityId = String(row.original[config.identityKey] ?? '')
             return (
               <Link className="font-medium text-primary hover:underline" to={`${basePath}/${encodeURIComponent(entityId)}?season=${season}`}>
@@ -246,7 +254,19 @@ export function EntityTable({
         return column === config.defaultSortColumn && rankRangeColumn ? [metricColumn, rankRangeColumn] : [metricColumn]
       }),
     ],
-    [basePath, columnWidths, compareIds, config, filteredRows, isPhone, onToggleCompare, rankRangeColumn, season, selectedColumns],
+    [
+      basePath,
+      columnDecimals,
+      columnWidths,
+      compareIds,
+      config,
+      filteredRows,
+      isPhone,
+      onToggleCompare,
+      rankRangeColumn,
+      season,
+      selectedColumns,
+    ],
   )
 
   const reactTable = useReactTable({

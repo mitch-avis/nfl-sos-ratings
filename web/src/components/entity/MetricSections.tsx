@@ -1,7 +1,7 @@
 import type { EntityKind, RowValue } from '@/api/types'
 import { MetricLabel } from '@/components/common/MetricLabel'
 import { bucketColumns, detailHeaderLabel } from '@/domain/detailSections'
-import { formatValue } from '@/domain/format'
+import { formatFixed } from '@/domain/format'
 import { cn } from '@/utils/cn'
 
 /** The subject's season values for the current view, grouped by category. */
@@ -10,11 +10,14 @@ export function MetricSections({
   row,
   columns,
   isRatingsView,
+  decimals = {},
 }: {
   kind: EntityKind
   row: Record<string, RowValue>
   columns: string[]
   isRatingsView: boolean
+  /** Fixed decimals per column, from the season table, so values read as they do in the index. */
+  decimals?: Record<string, number | null>
 }) {
   const sections = bucketColumns(kind, isRatingsView, columns)
   return (
@@ -35,7 +38,7 @@ export function MetricSections({
                 <dt className="text-xs text-muted-foreground">
                   <MetricLabel column={column} label={detailHeaderLabel(column)} />
                 </dt>
-                <dd className="tabular text-lg font-semibold">{formatValue(row[column] ?? null)}</dd>
+                <dd className="tabular text-lg font-semibold">{formatFixed(row[column] ?? null, decimals[column] ?? null)}</dd>
               </div>
             ))}
           </dl>

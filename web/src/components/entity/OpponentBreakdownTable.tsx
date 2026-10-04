@@ -5,7 +5,7 @@ import { SortableHeader } from '@/components/common/SortableHeader'
 import type { OpponentBreakdownTable as Breakdown } from '@/domain/detailAnalytics'
 import { compareDetailCellValues, formatDetailCellValue } from '@/domain/detailUi'
 import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
-import { buildColumnStats, getHeatCellStyle } from '@/domain/tableState'
+import { buildColumnDecimals, buildColumnStats, getHeatCellStyle } from '@/domain/tableState'
 
 interface SortState {
   column: string
@@ -32,6 +32,10 @@ export function OpponentBreakdownTable({ breakdown }: { breakdown: Breakdown }) 
     })
     return sorted
   }, [activeSort, breakdown.rows])
+  const decimals = useMemo(
+    () => buildColumnDecimals(rows, breakdown.columns.map((column) => column.id)),
+    [breakdown.columns, rows],
+  )
   const stats = useMemo(
     () => buildColumnStats(rows, breakdown.columns.map((column) => column.id)),
     [breakdown.columns, rows],
@@ -83,7 +87,7 @@ export function OpponentBreakdownTable({ breakdown }: { breakdown: Breakdown }) 
                     className="px-2 py-1.5 whitespace-nowrap"
                     style={getHeatCellStyle(column.id, value, stats, theme, palette)}
                   >
-                    {formatDetailCellValue(column.id, value)}
+                    {formatDetailCellValue(column.id, value, decimals[column.id] ?? null)}
                   </td>
                 )
               })}

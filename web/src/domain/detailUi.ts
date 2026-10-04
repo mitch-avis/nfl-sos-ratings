@@ -1,4 +1,4 @@
-import { formatValue } from './format';
+import { formatFixed } from './format';
 import type { RowValue } from '@/api/types';
 
 export interface ScrollPositionState {
@@ -30,7 +30,7 @@ export function getPageJumpSlots(scrollPosition: ScrollPositionState): PageJumpS
   ];
 }
 
-export function formatDetailCellValue(column: string, value: RowValue): string {
+export function formatDetailCellValue(column: string, value: RowValue, decimals: number | null = null): string {
   if (column === 'win_value' && typeof value === 'number' && Number.isFinite(value)) {
     if (value === 1) {
       return 'W';
@@ -43,7 +43,7 @@ export function formatDetailCellValue(column: string, value: RowValue): string {
     }
   }
 
-  return formatValue(value);
+  return formatFixed(value, decimals);
 }
 
 export function buildGameOverviewUrl(gameId: string): string {

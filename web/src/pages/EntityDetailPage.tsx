@@ -34,6 +34,7 @@ import {
   buildSeasonViewTable,
   deriveLegacyDetailSurfaceId,
 } from '@/domain/viewModel'
+import { buildColumnDecimals } from '@/domain/tableState'
 
 /** One team's or QB's season: current-view values, rating by week, weekly log, and opponents. */
 export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset: SeasonDataset }) {
@@ -127,6 +128,7 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
             row={row}
             columns={metricColumns}
             isRatingsView={viewState.primaryView === 'ratings'}
+            decimals={buildColumnDecimals(seasonView.table.rows, metricColumns)}
           />
         </CardContent>
       </Card>

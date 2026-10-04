@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getEntityLabel } from '@/domain/entityConfig'
-import { formatValue } from '@/domain/format'
-import { buildColumnStats, getHeatCellStyle } from '@/domain/tableState'
+import { formatFixed } from '@/domain/format'
+import { buildColumnDecimals, buildColumnStats, getHeatCellStyle } from '@/domain/tableState'
 
 interface ComparisonPanelProps {
   compareColumns: string[]
@@ -36,6 +36,8 @@ export function ComparisonPanel({
     .filter((row): row is Record<string, RowValue> => row !== undefined)
   if (compareRows.length === 0) return null
   const compareStats = buildColumnStats(compareRows, compareColumns)
+  // The same decimals as the season table below, from every row of the season.
+  const compareDecimals = buildColumnDecimals(table.rows, compareColumns)
 
   return (
     <Card className="gap-4">
@@ -92,7 +94,7 @@ export function ComparisonPanel({
                     key={column}
                     style={getHeatCellStyle(column, row[column] ?? null, compareStats, theme, palette)}
                   >
-                    {formatValue(row[column] ?? null)}
+                    {formatFixed(row[column] ?? null, compareDecimals[column] ?? null)}
                   </TableCell>
                 ))}
               </TableRow>

@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 
-import { formatValue } from './format';
+import { columnDecimals, formatValue } from './format';
 import { getMetricMetadata } from './metricMetadata';
 import type { PaletteMode, RowValue, ThemeMode } from '@/api/types';
 
@@ -167,4 +167,14 @@ export function getHeatCellStyle(
   return {
     backgroundColor: colorToCss(color),
   };
+}
+
+/** Fixed decimal places per column over `rows`, so a column's decimal points line up. */
+export function buildColumnDecimals(
+  rows: ReadonlyArray<Record<string, RowValue>>,
+  columns: readonly string[],
+): Record<string, number | null> {
+  return Object.fromEntries(
+    columns.map((column) => [column, columnDecimals(rows.map((row) => row[column] ?? null), getMetricMetadata(column).shape)]),
+  );
 }
