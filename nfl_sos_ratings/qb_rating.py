@@ -33,7 +33,7 @@ _REQUIRED_COLUMNS = (
     QB_DROPBACKS_COLUMN,
     QB_EPA_PER_DROPBACK_COLUMN,
 )
-_UNIT_COLUMNS = UnitColumns(
+QB_UNIT_COLUMNS = UnitColumns(
     response=QB_EPA_PER_DROPBACK_COLUMN,
     weight=QB_DROPBACKS_COLUMN,
     offense=QB_ID_COLUMN,
@@ -61,6 +61,19 @@ def _rated_rows(qb_games: pl.DataFrame) -> pl.DataFrame:
     return qb_games.filter(pl.col(QB_DROPBACKS_COLUMN) > 0)
 
 
+def qb_rating_rows(qb_games: pl.DataFrame) -> pl.DataFrame:
+    """Return the passer-game rows the QB fit uses: those with a dropback.
+
+    Fit them with ``QB_UNIT_COLUMNS``.
+
+    Raises:
+        ValueError: If a QB-rating column is missing.
+
+    """
+    _require_columns(qb_games)
+    return _rated_rows(qb_games)
+
+
 def fit_qb_ratings(qb_games: pl.DataFrame, *, ridge_lambda: float | None = None) -> QbRatingFit:
     """Fit adjusted EPA per dropback for every passer with a dropback.
 
@@ -77,7 +90,7 @@ def fit_qb_ratings(qb_games: pl.DataFrame, *, ridge_lambda: float | None = None)
 
     """
     _require_columns(qb_games)
-    fit = fit_unit_ridge(_rated_rows(qb_games), _UNIT_COLUMNS, ridge_lambda=ridge_lambda)
+    fit = fit_unit_ridge(_rated_rows(qb_games), QB_UNIT_COLUMNS, ridge_lambda=ridge_lambda)
     passers = sorted(fit.offense)
     return QbRatingFit(
         ratings=pl.DataFrame(
@@ -157,7 +170,7 @@ def compute_qb_faced_pass_defense(qb_games: pl.DataFrame, fit: QbRatingFit) -> p
     for passer in passers:
         others = rows.filter(pl.col(QB_ID_COLUMN) != passer)
         defense = (
-            fit_unit_ridge(others, _UNIT_COLUMNS, ridge_lambda=fit.ridge_lambda).defense
+            fit_unit_ridge(others, QB_UNIT_COLUMNS, ridge_lambda=fit.ridge_lambda).defense
             if not others.is_empty()
             else {}
         )
@@ -179,8 +192,10 @@ __all__ = [
     "QB_DROPBACKS_COLUMN",
     "QB_EPA_PER_DROPBACK_COLUMN",
     "QB_ID_COLUMN",
+    "QB_UNIT_COLUMNS",
     "QbRatingFit",
     "compute_qb_faced_pass_defense",
     "fit_qb_ratings",
     "fit_qb_ratings_by_week",
+    "qb_rating_rows",
 ]

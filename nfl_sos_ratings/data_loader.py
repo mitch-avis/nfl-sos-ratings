@@ -445,6 +445,15 @@ def _filter_regular_season(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
+def _filter_postseason(df: pl.DataFrame) -> pl.DataFrame:
+    """Filter a frame to postseason rows; a frame without a season-type column has none."""
+    if "season_type" in df.columns:
+        return df.filter(pl.col("season_type") == "POST")
+    if "game_type" in df.columns:
+        return df.filter(pl.col("game_type") != "REG")
+    return df.clear()
+
+
 def _fetch_release_parquet(url: str) -> pl.DataFrame:
     """Download one nflverse release Parquet asset into a dataframe."""
     with urllib.request.urlopen(url, timeout=_RELEASE_DOWNLOAD_TIMEOUT_SECONDS) as response:  # noqa: S310 - fixed https URLs above
@@ -883,13 +892,54 @@ def load_schedule(season: int) -> pl.DataFrame:
 
 def load_qb_stats(season: int) -> pl.DataFrame:
     """Load PBP-derived quarterback game stats with snap-count support."""
-    pbp_df = load_pbp_data(season)
-    snap_counts_df = load_snap_counts_data(season)
-    qb_identity_df = load_qb_identity_crosswalk(season)
-    qb_df = compute_qb_game_stats_from_pbp(pbp_df, snap_counts_df, qb_identity_df)
-    official_qb_stats_df = _load_official_weekly_qb_stats(
-        load_weekly_player_stats(season), qb_identity_df
+    return _build_qb_stats(
+        load_pbp_data(season),
+        load_snap_counts_data(season),
+        load_qb_identity_crosswalk(season),
+        load_weekly_player_stats(season),
     )
+
+
+def load_playoff_qb_stats(season: int) -> pl.DataFrame:
+    """Load postseason quarterback game stats, built exactly as :func:`load_qb_stats` builds them.
+
+    This path exists for validation checks only; published ratings never use postseason games.
+    """
+    snap_counts_df = (
+        _empty_snap_counts_data()
+        if _season_is_before_source_floor(season, start_season=SNAP_COUNTS_START_SEASON)
+        else _normalize_team_abbreviations(
+            _filter_postseason(nfl.load_snap_counts(seasons=season)), ["team"]
+        )
+    )
+    weekly_player_stats_df = _normalize_team_abbreviations(
+        _filter_postseason(nfl.load_player_stats(seasons=season, summary_level="week")),
+        ["team", "opponent_team"],
+    )
+    return _build_qb_stats(
+        load_playoff_pbp_data(season),
+        snap_counts_df,
+        load_qb_identity_crosswalk(season),
+        weekly_player_stats_df,
+    )
+
+
+def load_playoff_schedule(season: int) -> pl.DataFrame:
+    """Load the postseason schedule (``game_type`` WC, DIV, CON, or SB) for validation checks."""
+    df = nfl.load_schedules(seasons=season)
+    df = df.filter(pl.col("game_type") != "REG")
+    return _normalize_team_abbreviations(df, ["home_team", "away_team"])
+
+
+def _build_qb_stats(
+    pbp_df: pl.DataFrame,
+    snap_counts_df: pl.DataFrame,
+    qb_identity_df: pl.DataFrame,
+    weekly_player_stats_df: pl.DataFrame,
+) -> pl.DataFrame:
+    """Build QB game stats from play-by-play, overriding passing fields with official stats."""
+    qb_df = compute_qb_game_stats_from_pbp(pbp_df, snap_counts_df, qb_identity_df)
+    official_qb_stats_df = _load_official_weekly_qb_stats(weekly_player_stats_df, qb_identity_df)
     qb_df = _override_qb_game_stats_with_official_weekly(qb_df, official_qb_stats_df)
 
     attempts = pl.col("qb_attempts").cast(pl.Float64)

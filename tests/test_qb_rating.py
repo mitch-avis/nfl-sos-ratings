@@ -9,6 +9,7 @@ from nfl_sos_ratings.qb_rating import (
     compute_qb_faced_pass_defense,
     fit_qb_ratings,
     fit_qb_ratings_by_week,
+    qb_rating_rows,
 )
 
 # Each team has one passer, named after it. The effects average to zero across teams.
@@ -186,3 +187,19 @@ def test_fit_qb_ratings_by_week_without_a_week_column_raises_value_error() -> No
     # Act & Assert
     with pytest.raises(ValueError, match="week"):
         fit_qb_ratings_by_week(qb_games.drop("week"), season_fit)
+
+
+def test_qb_rating_rows_keep_only_rows_with_a_dropback() -> None:
+    # Arrange
+    qb_games = _qb_games().with_columns(
+        pl.when(pl.col("game_id") == "g00")
+        .then(0)
+        .otherwise(pl.col("qb_dropbacks"))
+        .alias("qb_dropbacks")
+    )
+
+    # Act
+    rows = qb_rating_rows(qb_games)
+
+    # Assert
+    assert rows.height == qb_games.height - 2

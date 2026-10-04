@@ -49,6 +49,18 @@ COMMANDS: tuple[Command, ...] = (
         "nfl_sos_ratings.validation.walk_forward",
     ),
     Command(
+        "check-additivity",
+        "validation",
+        "Test whether strong units beat the additive prediction against weak ones (read-only).",
+        "nfl_sos_ratings.validation.additivity",
+    ),
+    Command(
+        "check-passer",
+        "validation",
+        "Score a passer's later games against his rating season's QB model (read-only).",
+        "nfl_sos_ratings.validation.passer_holdout",
+    ),
+    Command(
         "catalog",
         "docs",
         "Regenerate the stats catalogs in docs/ from the metric registry.",

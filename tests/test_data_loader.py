@@ -1542,3 +1542,156 @@ def test_load_official_weekly_qb_stats_without_an_identity_crosswalk_keeps_playe
     # Assert
     assert official.height == 1
     assert "qb_name" not in official.columns
+
+
+def test_load_playoff_qb_stats_keeps_postseason_games_with_official_passing_epa(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    games = ["2025_18_DEN_KC", "2025_19_DEN_LAC"]
+    pbp = pl.DataFrame(
+        {
+            "game_id": games,
+            "season_type": ["REG", "POST"],
+            "week": [18, 19],
+            "posteam": ["DEN", "DEN"],
+            "passer_player_id": ["00-0031234", "00-0031234"],
+            "passer_player_name": ["John Doe", "John Doe"],
+            "qb_dropback": [1, 1],
+            "pass": [1, 1],
+            "complete_pass": [1, 1],
+            "passing_yards": [18.0, 12.0],
+            "pass_touchdown": [0, 0],
+            "interception": [0, 0],
+            "sack": [0, 0],
+            "fumble_lost": [0, 0],
+            "qb_epa": [1.2, 0.4],
+            "cpoe": [4.0, 3.0],
+        }
+    )
+    snap_counts = pl.DataFrame(
+        {
+            "game_id": games,
+            "game_type": ["REG", "WC"],
+            "week": [18, 19],
+            "team": ["DEN", "DEN"],
+            "player": ["John Doe", "John Doe"],
+            "pfr_player_id": ["DoeJo00", "DoeJo00"],
+            "position": ["QB", "QB"],
+            "offense_snaps": [60.0, 58.0],
+        }
+    )
+    player_stats = pl.DataFrame(
+        {
+            "season": [2025, 2025],
+            "week": [18, 19],
+            "season_type": ["REG", "POST"],
+            "game_id": games,
+            "team": ["DEN", "DEN"],
+            "opponent_team": ["KC", "LAC"],
+            "player_id": ["00-0031234", "00-0031234"],
+            "player_display_name": ["John Doe", "John Doe"],
+            "position": ["QB", "QB"],
+            "attempts": [1, 1],
+            "completions": [1, 1],
+            "passing_yards": [18.0, 12.0],
+            "passing_tds": [0, 0],
+            "passing_interceptions": [0, 0],
+            "sacks_suffered": [0, 0],
+            "sack_yards_lost": [0.0, 0.0],
+            "passing_epa": [1.2, 0.5],
+            "passing_cpoe": [4.0, 3.0],
+        }
+    )
+    players = pl.DataFrame(
+        {
+            "gsis_id": ["00-0031234"],
+            "display_name": ["John Doe"],
+            "position": ["QB"],
+            "pfr_id": ["DoeJo00"],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+    monkeypatch.setattr(data_loader.nfl, "load_snap_counts", stub(lambda: snap_counts))
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(lambda: player_stats))
+    monkeypatch.setattr(data_loader.nfl, "load_players", lambda: players)
+    monkeypatch.setattr(data_loader.nfl, "load_rosters_weekly", stub(pl.DataFrame))
+
+    # Act
+    result = data_loader.load_playoff_qb_stats(2025)
+
+    # Assert
+    assert result.select("game_id", "qb_dropbacks", "qb_epa_per_dropback").rows() == [
+        ("2025_19_DEN_LAC", 1, 0.5)
+    ]
+
+
+def test_load_playoff_schedule_keeps_postseason_games(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Arrange
+    schedule = pl.DataFrame(
+        {
+            "game_id": ["2025_18_LA_SF", "2025_22_LA_NE"],
+            "game_type": ["REG", "SB"],
+            "home_team": ["SF", "NE"],
+            "away_team": ["LA", "LA"],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_schedules", stub(lambda: schedule))
+
+    # Act
+    result = data_loader.load_playoff_schedule(2025)
+
+    # Assert
+    assert result.select("game_type", "home_team", "away_team").rows() == [("SB", "NE", "LAR")]
+
+
+def test_load_playoff_qb_stats_skips_snap_counts_before_their_first_season(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    def _unexpected_snap_counts_call(seasons: int) -> pl.DataFrame:
+        msg = f"snap counts loader should not run for season {seasons}"
+        raise AssertionError(msg)
+
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2005_18_DEN_NE"],
+            "season_type": ["POST"],
+            "week": [18],
+            "posteam": ["DEN"],
+            "passer_player_id": ["00-0031234"],
+            "passer_player_name": ["John Doe"],
+            "qb_dropback": [1],
+            "pass": [1],
+            "complete_pass": [1],
+            "passing_yards": [10.0],
+            "pass_touchdown": [0],
+            "interception": [0],
+            "sack": [0],
+            "fumble_lost": [0],
+            "qb_epa": [0.7],
+            "cpoe": [1.5],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_snap_counts", _unexpected_snap_counts_call)
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(pl.DataFrame))
+    monkeypatch.setattr(data_loader.nfl, "load_players", pl.DataFrame)
+
+    # Act
+    result = data_loader.load_playoff_qb_stats(2005)
+
+    # Assert
+    assert result.select("qb_dropbacks", "qb_epa_per_dropback").rows() == [(1, 0.7)]
+
+
+def test_filter_postseason_without_a_season_type_column_keeps_no_rows() -> None:
+    # Arrange
+    frame = pl.DataFrame({"game_id": ["g1"], "team": ["NE"]})
+
+    # Act
+    result = data_loader._filter_postseason(frame)
+
+    # Assert
+    assert result.is_empty()
+    assert result.columns == ["game_id", "team"]

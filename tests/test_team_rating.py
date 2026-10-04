@@ -10,6 +10,7 @@ from nfl_sos_ratings.team_rating import (
     compute_team_schedule_strength,
     fit_team_ratings,
     fit_team_ratings_by_week,
+    scrimmage_rows,
 )
 
 # The first four teams have mean-zero effects, so a round-robin among them recovers them exactly.
@@ -299,3 +300,16 @@ def test_fit_team_ratings_by_week_without_a_week_column_raises_value_error() -> 
     # Act & Assert
     with pytest.raises(ValueError, match="week"):
         fit_team_ratings_by_week(game_logs.drop("week"), season_fit)
+
+
+def test_scrimmage_rows_hold_epa_per_play_weighted_by_plays() -> None:
+    # Arrange
+    game_logs = _game_logs()
+
+    # Act
+    rows = scrimmage_rows(game_logs)
+
+    # Assert
+    first = rows.row(0, named=True)
+    assert (first["team"], first["opponent_team"]) == ("AAA", "BBB")
+    assert (first["plays"], first["epa_per_play"]) == pytest.approx((60, 0.02 + 0.10 - 0.08 + 0.01))

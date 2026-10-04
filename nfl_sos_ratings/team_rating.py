@@ -39,9 +39,10 @@ SPECIAL_TEAMS_EPA_COLUMN = "st_epa"
 TEAM_RATING_COLUMNS = ("offense_rating", "defense_rating", "special_teams_rating", "team_rating")
 
 _KEY_COLUMNS = ("game_id", "team", "opponent_team", "is_home")
-_RESPONSE = "_epa_per_play"
-_WEIGHT = "_plays"
-_UNIT_COLUMNS = UnitColumns(response=_RESPONSE, weight=_WEIGHT)
+_RESPONSE = "epa_per_play"
+_WEIGHT = "plays"
+# The ridge columns for the rows `scrimmage_rows` returns (special-teams rows use the same names).
+TEAM_UNIT_COLUMNS = UnitColumns(response=_RESPONSE, weight=_WEIGHT)
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +78,20 @@ def _unit_rows(game_logs: pl.DataFrame, plays_column: str, epa_column: str) -> p
         pl.col(plays_column).cast(pl.Float64).alias(_WEIGHT),
         (pl.col(epa_column).cast(pl.Float64) / pl.col(plays_column)).alias(_RESPONSE),
     )
+
+
+def scrimmage_rows(game_logs: pl.DataFrame) -> pl.DataFrame:
+    """Return the rows the scrimmage fit uses, for analyses that refit or predict them.
+
+    One row per team-game with plays: ``game_id``, ``team`` (the offense), ``opponent_team`` (the
+    defense), ``is_home``, ``plays``, and ``epa_per_play``; fit them with ``TEAM_UNIT_COLUMNS``.
+
+    Raises:
+        ValueError: If a team-rating column is missing.
+
+    """
+    _require_columns(game_logs)
+    return _unit_rows(game_logs, SCRIMMAGE_PLAYS_COLUMN, SCRIMMAGE_EPA_COLUMN)
 
 
 def _plays_per_game(rows: pl.DataFrame) -> float:
@@ -140,8 +155,10 @@ def fit_team_ratings(
     _require_columns(game_logs)
     scrimmage_rows = _unit_rows(game_logs, SCRIMMAGE_PLAYS_COLUMN, SCRIMMAGE_EPA_COLUMN)
     special_rows = _unit_rows(game_logs, SPECIAL_TEAMS_PLAYS_COLUMN, SPECIAL_TEAMS_EPA_COLUMN)
-    scrimmage = fit_unit_ridge(scrimmage_rows, _UNIT_COLUMNS, ridge_lambda=scrimmage_lambda)
-    special_teams = fit_unit_ridge(special_rows, _UNIT_COLUMNS, ridge_lambda=special_teams_lambda)
+    scrimmage = fit_unit_ridge(scrimmage_rows, TEAM_UNIT_COLUMNS, ridge_lambda=scrimmage_lambda)
+    special_teams = fit_unit_ridge(
+        special_rows, TEAM_UNIT_COLUMNS, ridge_lambda=special_teams_lambda
+    )
     scrimmage_plays_per_game = _plays_per_game(scrimmage_rows)
     special_teams_plays_per_game = _plays_per_game(special_rows)
     return TeamRatingFit(
@@ -213,12 +230,12 @@ def _ratings_without(game_logs: pl.DataFrame, team: str, fit: TeamRatingFit) -> 
         return pl.DataFrame(schema={"team": pl.String, "team_rating": pl.Float64})
     scrimmage = fit_unit_ridge(
         _unit_rows(others, SCRIMMAGE_PLAYS_COLUMN, SCRIMMAGE_EPA_COLUMN),
-        _UNIT_COLUMNS,
+        TEAM_UNIT_COLUMNS,
         ridge_lambda=fit.scrimmage_lambda,
     )
     special_teams = fit_unit_ridge(
         _unit_rows(others, SPECIAL_TEAMS_PLAYS_COLUMN, SPECIAL_TEAMS_EPA_COLUMN),
-        _UNIT_COLUMNS,
+        TEAM_UNIT_COLUMNS,
         ridge_lambda=fit.special_teams_lambda,
     )
     return _ratings_frame(
@@ -264,8 +281,10 @@ __all__ = [
     "SPECIAL_TEAMS_EPA_COLUMN",
     "SPECIAL_TEAMS_PLAYS_COLUMN",
     "TEAM_RATING_COLUMNS",
+    "TEAM_UNIT_COLUMNS",
     "TeamRatingFit",
     "compute_team_schedule_strength",
     "fit_team_ratings",
     "fit_team_ratings_by_week",
+    "scrimmage_rows",
 ]

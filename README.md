@@ -82,6 +82,8 @@ Everything runs through one entry point; `--help` on it or on any command prints
 .venv/bin/nfl-sos-ratings pipeline              # every season START_YEAR..END_YEAR
 .venv/bin/nfl-sos-ratings schedules [--team NE --season 2025]  # all-time schedule ranks
 .venv/bin/nfl-sos-ratings validate              # rewrite docs/validation-report.md
+.venv/bin/nfl-sos-ratings check-additivity      # strong units vs weak opponents (read-only)
+.venv/bin/nfl-sos-ratings check-passer --name "Drake Maye"  # later games vs QB model (read-only)
 .venv/bin/nfl-sos-ratings catalog               # regenerate the stats catalogs in docs/
 .venv/bin/nfl-sos-ratings web                   # analyst web app and its API
 ```

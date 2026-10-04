@@ -236,10 +236,42 @@ def fit_unit_ridge(
     )
 
 
+def predict_unit(fit: UnitFit, rows: pl.DataFrame, columns: UnitColumns) -> FloatArray:
+    """Predict the response for each row from fitted effects.
+
+    Args:
+        fit: Effects from :func:`fit_unit_ridge`.
+        rows: Offense-versus-defense rows with the offense, defense, and (optional) home columns
+            named in ``columns``; a null or missing home flag is a neutral site.
+        columns: Column names, as passed to :func:`fit_unit_ridge`.
+
+    Returns:
+        ``intercept + offense - defense + home_field * home_sign`` per row, or NaN where the fit
+        has no effect for the row's offense or defense.
+
+    """
+    offense = np.asarray(
+        rows.get_column(columns.offense)
+        .cast(pl.String)
+        .replace_strict(fit.offense, default=None, return_dtype=pl.Float64)
+        .to_numpy(),
+        dtype=np.float64,
+    )
+    defense = np.asarray(
+        rows.get_column(columns.defense)
+        .cast(pl.String)
+        .replace_strict(fit.defense, default=None, return_dtype=pl.Float64)
+        .to_numpy(),
+        dtype=np.float64,
+    )
+    return fit.intercept + offense - defense + fit.home_field * _home_signs(rows, columns.home)
+
+
 __all__ = [
     "CROSS_VALIDATION_FOLDS",
     "DEFAULT_RIDGE_LAMBDAS",
     "UnitColumns",
     "UnitFit",
     "fit_unit_ridge",
+    "predict_unit",
 ]

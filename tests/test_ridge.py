@@ -6,7 +6,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from nfl_sos_ratings.ridge import UnitColumns, fit_unit_ridge
+from nfl_sos_ratings.ridge import UnitColumns, fit_unit_ridge, predict_unit
 
 _TEAMS = ("AAA", "BBB", "CCC", "DDD")
 _OFFENSE = {"AAA": 0.10, "BBB": 0.05, "CCC": -0.05, "DDD": -0.10}
@@ -168,3 +168,41 @@ def test_fit_unit_ridge_all_zero_weights_uses_the_smallest_candidate_penalty() -
 
     # Assert
     assert fit.ridge_lambda == pytest.approx(1e-3)
+
+
+def test_predict_unit_adds_intercept_offense_defense_and_home_field() -> None:
+    # Arrange
+    fit = fit_unit_ridge(_schedule_rows(rounds=2), _COLUMNS, ridge_lambda=1e-6)
+    rows = pl.DataFrame({"team": ["AAA"], "opponent_team": ["BBB"], "is_home": [True]})
+
+    # Act
+    predicted = predict_unit(fit, rows, _COLUMNS)
+
+    # Assert
+    expected = _INTERCEPT + _OFFENSE["AAA"] - _DEFENSE["BBB"] + _HOME
+    assert predicted.tolist() == pytest.approx([expected], abs=1e-6)
+
+
+def test_predict_unit_treats_a_neutral_site_as_no_home_field() -> None:
+    # Arrange
+    fit = fit_unit_ridge(_schedule_rows(rounds=2), _COLUMNS, ridge_lambda=1e-6)
+    rows = pl.DataFrame({"team": ["AAA"], "opponent_team": ["BBB"], "is_home": [None]})
+
+    # Act
+    predicted = predict_unit(fit, rows, _COLUMNS)
+
+    # Assert
+    expected = _INTERCEPT + _OFFENSE["AAA"] - _DEFENSE["BBB"]
+    assert predicted.tolist() == pytest.approx([expected], abs=1e-6)
+
+
+def test_predict_unit_unknown_unit_is_nan() -> None:
+    # Arrange
+    fit = fit_unit_ridge(_schedule_rows(), _COLUMNS, ridge_lambda=1.0)
+    rows = pl.DataFrame({"team": ["ZZZ", "AAA"], "opponent_team": ["AAA", "YYY"]})
+
+    # Act
+    predicted = predict_unit(fit, rows, _COLUMNS)
+
+    # Assert
+    assert np.isnan(predicted).all()
