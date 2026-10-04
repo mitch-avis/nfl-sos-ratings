@@ -43,6 +43,12 @@ COMMANDS: tuple[Command, ...] = (
         "nfl_sos_ratings.validation.walk_forward",
     ),
     Command(
+        "catalog",
+        "docs",
+        "Regenerate the stats catalogs in docs/ from the metric registry.",
+        "nfl_sos_ratings.metrics.catalog_docs",
+    ),
+    Command(
         "web",
         "web",
         "Serve the analyst web app (built into web/dist) and its API.",
@@ -50,7 +56,7 @@ COMMANDS: tuple[Command, ...] = (
     ),
 )
 COMMANDS_BY_NAME = {command.name: command for command in COMMANDS}
-GROUP_TITLES = {"data": "data", "validation": "validation", "web": "web"}
+GROUP_TITLES = {"data": "data", "validation": "validation", "docs": "docs", "web": "web"}
 
 
 def _command_list() -> str:
