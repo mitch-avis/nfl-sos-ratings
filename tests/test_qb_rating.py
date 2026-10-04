@@ -105,3 +105,21 @@ def test_fit_qb_ratings_ignores_game_outcomes() -> None:
 
     # Assert
     assert result.equals(baseline)
+
+
+def test_compute_qb_faced_pass_defense_defense_without_other_passers_raises_value_error() -> None:
+    # Arrange
+    qb_games = pl.DataFrame(
+        {
+            "game_id": ["g1", "g1", "g2", "g2"],
+            "qb_id": ["qb_AAA", "qb_BBB", "qb_CCC", "qb_DDD"],
+            "opponent_team": ["BBB", "AAA", "DDD", "CCC"],
+            "qb_dropbacks": [35, 35, 35, 35],
+            "qb_epa_per_dropback": [0.1, 0.0, 0.05, -0.05],
+        }
+    )
+    fit = fit_qb_ratings(qb_games, ridge_lambda=10.0)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="no head-to-head-excluded defense rating"):
+        compute_qb_faced_pass_defense(qb_games, fit)

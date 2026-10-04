@@ -43,3 +43,17 @@ def test_solve_srs_credits_a_win_over_a_strong_opponent() -> None:
     # Assert
     assert ratings["A"] - ratings["C"] == pytest.approx(2.0)
     assert sum(ratings.values()) == pytest.approx(0.0, abs=1e-5)
+
+
+def test_solve_srs_empty_input_returns_a_typed_empty_frame() -> None:
+    # Arrange
+    games = pl.DataFrame(
+        schema={"team": pl.String, "opponent_team": pl.String, "point_margin": pl.Float64}
+    )
+
+    # Act
+    result = solve_srs(games, response_col="point_margin")
+
+    # Assert
+    assert result.is_empty()
+    assert result.columns == ["team", "srs_rating"]

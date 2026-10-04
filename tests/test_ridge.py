@@ -133,3 +133,38 @@ def test_fit_unit_ridge_empty_rows_raises_value_error() -> None:
     # Act & Assert
     with pytest.raises(ValueError, match="no rows"):
         fit_unit_ridge(rows, _COLUMNS)
+
+
+def test_fit_unit_ridge_without_penalty_falls_back_to_least_squares() -> None:
+    # Arrange
+    rows = _schedule_rows()
+
+    # Act
+    fit = fit_unit_ridge(rows, _COLUMNS, ridge_lambda=0.0)
+
+    # Assert
+    assert np.isfinite(list(fit.offense.values())).all()
+
+
+def test_fit_unit_ridge_single_game_uses_the_smallest_candidate_penalty() -> None:
+    # Arrange
+    rows = _schedule_rows().filter(pl.col("game_id") == "g000")
+    grid = np.array([1e-3, 1.0, 1e3])
+
+    # Act
+    fit = fit_unit_ridge(rows, _COLUMNS, candidate_lambdas=grid)
+
+    # Assert
+    assert fit.ridge_lambda == pytest.approx(1e-3)
+
+
+def test_fit_unit_ridge_all_zero_weights_uses_the_smallest_candidate_penalty() -> None:
+    # Arrange
+    rows = _schedule_rows().with_columns(pl.lit(0, dtype=pl.Int64).alias("plays"))
+    grid = np.array([1e-3, 1.0, 1e3])
+
+    # Act
+    fit = fit_unit_ridge(rows, _COLUMNS, candidate_lambdas=grid)
+
+    # Assert
+    assert fit.ridge_lambda == pytest.approx(1e-3)
