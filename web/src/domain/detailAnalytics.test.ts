@@ -13,18 +13,27 @@ import {
   resolveEntityViewState,
 } from './viewModel';
 
-test('resolveEntityViewState defaults to Ratings, Offense, and all subcategories enabled', () => {
+test('resolveEntityViewState defaults teams to Ratings, Offense, and all subcategories enabled', () => {
+  // Act
   const teamState = resolveEntityViewState('teams');
-  const qbState = resolveEntityViewState('qbs');
 
+  // Assert
   assert.strictEqual(teamState.primaryView, 'ratings');
   assert.strictEqual(teamState.teamCategory, 'Offense');
   assert.ok(Object.values(teamState.teamSubcategories.Offense).every(Boolean));
+});
+
+test('resolveEntityViewState defaults QBs to Ratings with all subcategories enabled', () => {
+  // Act
+  const qbState = resolveEntityViewState('qbs');
+
+  // Assert
   assert.strictEqual(qbState.primaryView, 'ratings');
   assert.ok(Object.values(qbState.qbSubcategories).every(Boolean));
 });
 
 test('buildSeasonViewTable expands team per-game counts into raw totals', () => {
+  // Arrange
   const viewState = resolveEntityViewState('teams', {
     primaryView: 'raw_total_stats',
     teamCategory: 'Overall',
@@ -79,14 +88,17 @@ test('buildSeasonViewTable expands team per-game counts into raw totals', () => 
     visible_columns: ['team', 'SaCR', 'points_for', 'games_played'],
   };
 
+  // Act
   const derived = buildSeasonViewTable('teams', table, viewState);
 
+  // Assert
   assert.deepEqual(derived.selectedColumns, ['team', 'points_for', 'games_played']);
   assert.strictEqual(derived.table.rows[0].points_for, 476);
   assert.strictEqual(derived.table.rows[0].games_played, 17);
 });
 
 test('buildGameLogColumnSelection folds results into the weekly base columns', () => {
+  // Arrange
   const viewState = resolveEntityViewState('qbs', {
     primaryView: 'per_game_rates',
     qbSubcategories: {
@@ -146,8 +158,10 @@ test('buildGameLogColumnSelection folds results into the weekly base columns', (
     ],
   };
 
+  // Act
   const selection = buildGameLogColumnSelection('qbs', gameLogs, viewState);
 
+  // Assert
   assert.deepEqual(selection.columns.slice(0, 8), [
     'week',
     'opponent_team',
@@ -164,6 +178,7 @@ test('buildGameLogColumnSelection folds results into the weekly base columns', (
 });
 
 test('buildWeeklyHighlights adds a recent three-game card with season-baseline context', () => {
+  // Arrange
   const seasonRow = {
     points_per_offensive_snap: 0.3,
   };
@@ -198,7 +213,10 @@ test('buildWeeklyHighlights adds a recent three-game card with season-baseline c
     visible_columns: ['week', 'opponent_team', 'points_per_offensive_snap', 'opp_SaCR'],
   };
 
+  // Act
   const highlights = buildWeeklyHighlights('teams', seasonRow, gameLogs);
+
+  // Assert
   const rollingHighlight = highlights.find((highlight) => highlight.eyebrow === 'Recent 3-Game')!;
 
   assert.ok(rollingHighlight);
@@ -208,6 +226,7 @@ test('buildWeeklyHighlights adds a recent three-game card with season-baseline c
 });
 
 test('buildOpponentBreakdown curates a team offense ledger with season-delta context', () => {
+  // Arrange
   const seasonRow = {
     passing_epa: 4,
   };
@@ -272,7 +291,10 @@ test('buildOpponentBreakdown curates a team offense ledger with season-delta con
     ],
   };
 
+  // Act
   const breakdown = buildOpponentBreakdown('teams', seasonRow, gameLogs, 'offense');
+
+  // Assert
   const sea = breakdown.rows.find((row) => row.opponent_team === 'SEA')!;
 
   assert.deepEqual(
@@ -308,7 +330,12 @@ test('buildOpponentBreakdown curates a team offense ledger with season-delta con
   assert.match(breakdown.description, /division opponents are averaged together/i);
 });
 
-test('buildOpponentBreakdown switches the team schedule tier metric with the active category', () => {
+test.each([
+  ['offense', 'opp_SaDR'],
+  ['defense', 'opp_SaOR'],
+  ['results', 'opp_SaCR'],
+])('buildOpponentBreakdown uses the %s schedule tier metric %s', (groupId, expectedMetric) => {
+  // Arrange
   const seasonRow = {
     passing_epa: 4,
     points_allowed_per_defensive_snap: 0.28,
@@ -359,25 +386,18 @@ test('buildOpponentBreakdown switches the team schedule tier metric with the act
     ],
   };
 
-  const offense = buildOpponentBreakdown('teams', seasonRow, gameLogs, 'offense');
-  const defense = buildOpponentBreakdown('teams', seasonRow, gameLogs, 'defense');
-  const results = buildOpponentBreakdown('teams', seasonRow, gameLogs, 'results');
+  // Act
+  const breakdown = buildOpponentBreakdown('teams', seasonRow, gameLogs, groupId);
 
+  // Assert
   assert.deepEqual(
-    offense.columns.slice(3, 5).map((column) => column.id),
-    ['opp_SaDR', 'opp_schedule_bucket'],
-  );
-  assert.deepEqual(
-    defense.columns.slice(3, 5).map((column) => column.id),
-    ['opp_SaOR', 'opp_schedule_bucket'],
-  );
-  assert.deepEqual(
-    results.columns.slice(3, 5).map((column) => column.id),
-    ['opp_SaCR', 'opp_schedule_bucket'],
+    breakdown.columns.slice(3, 5).map((column) => column.id),
+    [expectedMetric, 'opp_schedule_bucket'],
   );
 });
 
 test('buildGameLogGroups keeps weekly category columns aligned with the selected surface', () => {
+  // Arrange
   const gameLogs: TablePayload = {
     column_groups: {},
     rows: [],
@@ -393,7 +413,10 @@ test('buildGameLogGroups keeps weekly category columns aligned with the selected
     ],
   };
 
+  // Act
   const groups = buildGameLogGroups('teams', gameLogs);
+
+  // Assert
   assert.deepEqual(
     groups.find((group) => group.id === 'offense')!.columns,
     ['passing_epa', 'passing_yards'],
@@ -401,6 +424,7 @@ test('buildGameLogGroups keeps weekly category columns aligned with the selected
 });
 
 test('buildOpponentBreakdown curates a QB ledger around passing performance and context', () => {
+  // Arrange
   const seasonRow = {
     qb_any_a: 6.8,
     qb_epa_per_dropback: 0.18,
@@ -451,7 +475,10 @@ test('buildOpponentBreakdown curates a QB ledger around passing performance and 
     ],
   };
 
+  // Act
   const breakdown = buildOpponentBreakdown('qbs', seasonRow, gameLogs, 'efficiency');
+
+  // Assert
   const chiefs = breakdown.rows.find((row) => row.opponent_team === 'KC')!;
 
   assert.deepEqual(
