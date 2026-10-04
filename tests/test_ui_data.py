@@ -7,6 +7,7 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings.ui_data import (
+    MissingEntityGameLogError,
     MissingSeasonContractError,
     discover_available_seasons,
     load_qb_game_log_payload,
@@ -294,3 +295,64 @@ def test_group_columns_follow_registry_category_order(tmp_path: Path) -> None:
         "passing_yards_allowed"
     )
     assert team_stats_columns.index("passing_yards_allowed") < team_stats_columns.index("def_sacks")
+
+
+def test_discover_available_seasons_ignores_files_without_a_season_prefix(tmp_path: Path) -> None:
+    # Arrange
+    pl.DataFrame({"x": [1]}).write_parquet(tmp_path / "notes.parquet")
+
+    # Act
+    seasons = discover_available_seasons(tmp_path)
+
+    # Assert
+    assert seasons == []
+
+
+def test_group_columns_put_unknown_columns_last(tmp_path: Path) -> None:
+    # Arrange
+    _write_table(tmp_path / "2024_team_per_game_stats.parquet", "team,points_for", "DET,510")
+    _write_table(
+        tmp_path / "2024_qb_per_game_stats.parquet", "qb_id,qb_name,team", "qb-1,Jared Goff,DET"
+    )
+    _write_table(
+        tmp_path / "2024_combined.parquet",
+        "team,zz_unregistered,points_for,team_rating",
+        "DET,1,510,1.2",
+    )
+    _write_table(tmp_path / "2024_ratings.parquet", "team,team_rating", "DET,1.2")
+    _write_table(tmp_path / "2024_qb_combined.parquet", "qb_id,qb_name,team", "qb-1,Jared Goff,DET")
+    _write_table(tmp_path / "2024_qb_ratings.parquet", "qb_id,team", "qb-1,DET")
+
+    # Act
+    dataset = load_season_ui_dataset(tmp_path, 2024)
+
+    # Assert
+    assert dataset["teams"]["column_groups"]["per_game_rates"][-1] == "zz_unregistered"
+
+
+def test_load_team_game_log_payload_without_the_file_raises_missing_contract(
+    tmp_path: Path,
+) -> None:
+    # Act & Assert
+    with pytest.raises(MissingSeasonContractError, match="team_game_logs"):
+        load_team_game_log_payload(tmp_path, 2024, "DET")
+
+
+def test_load_qb_game_log_payload_without_the_id_column_raises_lookup_error(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    _write_table(tmp_path / "2024_qb_game_logs.parquet", "game_id,week,team", "g1,1,DET")
+
+    # Act & Assert
+    with pytest.raises(MissingEntityGameLogError, match="qb_id"):
+        load_qb_game_log_payload(tmp_path, 2024, "qb-1")
+
+
+def test_load_team_game_log_payload_unknown_team_raises_lookup_error(tmp_path: Path) -> None:
+    # Arrange
+    _seed_game_logs(tmp_path)
+
+    # Act & Assert
+    with pytest.raises(MissingEntityGameLogError, match="NOPE"):
+        load_team_game_log_payload(tmp_path, 2024, "NOPE")

@@ -299,3 +299,56 @@ def test_web_command_starts_uvicorn_with_host_and_port(
 
     # Assert
     assert calls == [expected]
+
+
+@pytest.mark.parametrize(
+    "path", ["/api/seasons/2024/teams/NOPE/game-logs", "/api/seasons/2024/qbs/nope/game-logs"]
+)
+def test_game_logs_for_an_unknown_entity_return_not_found(tmp_path: Path, path: str) -> None:
+    # Arrange
+    _seed_game_logs(tmp_path)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get(path)
+
+    # Assert
+    assert response.status_code == 404
+
+
+def test_create_app_from_environment_reads_the_data_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange
+    _seed_season_contract(tmp_path, 2024)
+    monkeypatch.setenv(ui_api.DATA_DIR_ENV, str(tmp_path))
+    client = TestClient(ui_api.create_app_from_environment())
+
+    # Act
+    response = client.get("/api/seasons")
+
+    # Assert
+    assert response.json() == {"seasons": [2024]}
+
+
+def test_web_command_with_reload_serves_the_app_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Arrange
+    calls: list[tuple[object, dict[str, object]]] = []
+
+    def fake_run(app: object, **kwargs: object) -> None:
+        calls.append((app, kwargs))
+
+    monkeypatch.setattr(ui_api.uvicorn, "run", fake_run)
+    monkeypatch.delenv(ui_api.DATA_DIR_ENV, raising=False)
+
+    # Act
+    ui_api.main(["--reload", "--data-dir", "elsewhere"])
+
+    # Assert
+    assert calls == [
+        (
+            "nfl_sos_ratings.ui_api:create_app_from_environment",
+            {"factory": True, "host": "127.0.0.1", "port": 8080, "reload": True},
+        )
+    ]
+    assert ui_api.os.environ[ui_api.DATA_DIR_ENV] == "elsewhere"
