@@ -57,8 +57,11 @@ solve `(X' W X + penalty) b = X' W y` per resample with W = row weights times mu
   then `catalog`.
 - Tests: the engine equivalence test above; a synthetic league with known effects and noise whose
   80% and 95% rating intervals cover the true effects near the nominal rate. Shrinkage biases
-  extreme units toward average, so state the tolerance before running and report the observed
-  coverage either way. Optional: analytic ridge-posterior draws as a cross-check.
+  extreme units toward average, so the tolerance is fixed before the first run (2026-10-04): an
+  eight-team league, each pair meeting four times, 30 replications of 200 resamples; pooled over
+  teams and replications, 95% intervals cover the truth 85-100% of the time and 80% intervals
+  65-95%. Report the observed coverage either way. Optional: analytic ridge-posterior draws as a
+  cross-check.
 - Docs: `docs/methodology.md` states that the ranges cover game-to-game sampling noise of the
   shrunken estimate, not model error, and that in-progress seasons show very wide ranges.
 - API: `GET /api/seasons/{season}/{teams|qbs}/rating-ranges` (one payload per kind; the detail page
@@ -108,7 +111,8 @@ across thresholds whichever way they move.
 
 ## Tasks
 
-- [ ] Weighted ridge engine with the equivalence test.
+- [x] Weighted ridge engine with the equivalence test (1000 resamples of 2025 take about 1 s
+  each for teams and QBs).
 - [ ] Rank-range computation (teams and QBs) with calibration test and timing.
 - [ ] Registry suffix rules and entries, `catalog`; pipeline writes the range files.
 - [ ] Rank-range API and web views; methodology caveats.
