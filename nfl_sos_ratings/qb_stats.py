@@ -68,8 +68,13 @@ _QB_PER_GAME_COLUMNS: dict[str, str] = {
 }
 
 
-def _select_primary_qb_rows(qb_df: pl.DataFrame) -> pl.DataFrame:
-    """Return one primary QB row per team-week using snaps, then dropbacks, then attempts."""
+def select_primary_qb_rows(qb_df: pl.DataFrame) -> pl.DataFrame:
+    """Return one primary QB row per team-week: most snaps, then dropbacks, then attempts.
+
+    The primary QB takes the game's result and late-game credit. Remaining ties (common before snap
+    counts exist in 2012) go to the lowest ``qb_id`` (or ``qb_name``), so the pick never depends on
+    row order.
+    """
     if not {"team_abbr", "week"}.issubset(set(qb_df.columns)):
         return qb_df
 
@@ -81,9 +86,15 @@ def _select_primary_qb_rows(qb_df: pl.DataFrame) -> pl.DataFrame:
     if not sort_keys:
         return qb_df
 
+    tie_keys = [column for column in ("qb_id", "qb_name") if column in qb_df.columns][:1]
     return (
-        qb_df.sort(sort_keys, descending=[True] * len(sort_keys))
-        .group_by(["team_abbr", "week"])
+        qb_df.sort(
+            [*sort_keys, *tie_keys],
+            descending=[True] * len(sort_keys) + [False] * len(tie_keys),
+            nulls_last=True,
+            maintain_order=True,
+        )
+        .group_by(["team_abbr", "week"], maintain_order=True)
         .first()
     )
 
@@ -677,7 +688,7 @@ def compute_qb_game_stats_from_pbp(
             how="left",
         )
         .join(
-            _select_primary_qb_rows(volumes)
+            select_primary_qb_rows(volumes)
             .select(["game_id", "team_abbr", "qb_name"])
             .with_columns(pl.lit(1).alias("_is_primary_qb")),
             on=["game_id", "team_abbr", "qb_name"],
@@ -790,12 +801,22 @@ def _qb_season_agg_exprs(qb_df: pl.DataFrame) -> list[pl.Expr]:
 
 
 def _qb_primary_team_map(qb_df: pl.DataFrame, qb_keys: list[str]) -> pl.DataFrame:
-    """Return each QB's most frequent team, kept for schedule and label context."""
+    """Return each QB's team for labels and the qualifier: the team he played the most games for.
+
+    A tie (a mid-season trade with equal games on both teams) goes to the team he played for most
+    recently, then to the alphabetically first team, so the pick never depends on row order.
+    """
+    last_week = pl.col("week").max() if "week" in qb_df.columns else pl.lit(0)
     return (
         qb_df.group_by([*qb_keys, "team_abbr"])
-        .len()
-        .sort("len", descending=True)
-        .group_by(qb_keys)
+        .agg(pl.len().alias("_games"), last_week.alias("_last_week"))
+        .sort(
+            ["_games", "_last_week", "team_abbr"],
+            descending=[True, True, False],
+            nulls_last=True,
+            maintain_order=True,
+        )
+        .group_by(qb_keys, maintain_order=True)
         .first()
         .select([*qb_keys, pl.col("team_abbr").alias("team")])
     )
@@ -814,7 +835,7 @@ def _with_qb_results(
 
     decisions = pl.col("qb_wins") + pl.col("qb_losses") + pl.col("qb_ties")
     qb_results = (
-        _select_primary_qb_rows(qb_df)
+        select_primary_qb_rows(qb_df)
         .join(
             weekly_df.select(["team", "week", "points_for", "points_allowed"]),
             left_on=["team_abbr", "week"],

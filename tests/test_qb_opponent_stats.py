@@ -494,3 +494,26 @@ def test_allowed_rate_exprs_skip_numerators_that_are_absent() -> None:
 
     # Assert
     assert allowed.select(exprs).columns == ["qopp_qb_yards_per_attempt"]
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_select_primary_qb_games_breaks_a_tie_the_same_way_in_any_row_order(
+    reverse: bool,  # noqa: FBT001 - pytest parameter
+) -> None:
+    # Arrange
+    tied = pl.DataFrame(
+        {
+            "team_abbr": ["ATL", "ATL"],
+            "week": [6, 6],
+            "qb_id": ["QB_B", "QB_A"],
+            "qb_offense_snaps": [0, 0],
+            "qb_dropbacks": [20, 20],
+            "qb_attempts": [18, 18],
+        }
+    )
+
+    # Act
+    selected = qb_opponent_stats._select_primary_qb_games(tied.reverse() if reverse else tied)
+
+    # Assert
+    assert selected.get_column("qb_id").to_list() == ["QB_A"]

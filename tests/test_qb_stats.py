@@ -894,7 +894,7 @@ def test_compute_qb_season_stats_without_identity_columns_groups_by_team() -> No
 )
 def test_select_primary_qb_rows_returns_rows_it_cannot_rank(qb_df: pl.DataFrame) -> None:
     # Act
-    selected = qb_stats._select_primary_qb_rows(qb_df)
+    selected = qb_stats.select_primary_qb_rows(qb_df)
 
     # Assert
     assert selected.equals(qb_df)
@@ -1012,3 +1012,57 @@ def test_compute_qb_game_stats_from_pbp_without_cpoe_leaves_it_null() -> None:
     row = games.row(0, named=True)
     assert row["qb_completion_percentage_above_expectation"] is None
     assert row["qb_epa_per_dropback"] == pytest.approx(0.8)
+
+
+def _tied_starters() -> pl.DataFrame:
+    """Return one team-game where two passers tie on snaps, dropbacks, and attempts."""
+    return pl.DataFrame(
+        {
+            "team_abbr": ["ATL", "ATL"],
+            "week": [6, 6],
+            "qb_id": ["QB_B", "QB_A"],
+            "qb_name": ["QB B", "QB A"],
+            "qb_offense_snaps": [0, 0],
+            "qb_dropbacks": [20, 20],
+            "qb_attempts": [18, 18],
+        }
+    )
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_compute_qb_season_stats_breaks_a_primary_qb_tie_the_same_way_in_any_row_order(
+    reverse: bool,  # noqa: FBT001 - pytest parameter
+) -> None:
+    # Arrange
+    qb_df = _tied_starters().reverse() if reverse else _tied_starters()
+    weekly_df = pl.DataFrame(
+        {"team": ["ATL"], "week": [6], "points_for": [24], "points_allowed": [17]}
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
+
+    # Assert
+    assert result.filter(pl.col("qb_wins") == 1).get_column("qb_id").to_list() == ["QB_A"]
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_compute_qb_season_stats_gives_a_traded_qb_his_latest_team_on_a_games_tie(
+    reverse: bool,  # noqa: FBT001 - pytest parameter
+) -> None:
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["BUF", "BUF", "JAX", "JAX"],
+            "week": [1, 2, 5, 6],
+            "qb_id": ["QB_A"] * 4,
+            "qb_name": ["QB A"] * 4,
+            "qb_attempts": [20, 20, 20, 20],
+        }
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df.reverse() if reverse else qb_df)
+
+    # Assert
+    assert result.get_column("team").to_list() == ["JAX"]
