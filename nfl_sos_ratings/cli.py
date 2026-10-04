@@ -61,6 +61,12 @@ COMMANDS: tuple[Command, ...] = (
         "nfl_sos_ratings.validation.passer_holdout",
     ),
     Command(
+        "check-in-season-penalty",
+        "validation",
+        "Compare previous-season penalties with per-fit cross-validation (read-only).",
+        "nfl_sos_ratings.validation.in_season_penalty",
+    ),
+    Command(
         "catalog",
         "docs",
         "Regenerate the stats catalogs in docs/ from the metric registry.",

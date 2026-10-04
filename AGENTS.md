@@ -78,6 +78,7 @@ door or any command prints usage without running anything (commands are listed i
 .venv/bin/nfl-sos-ratings validate ...         # regenerates docs/validation-report.md
 .venv/bin/nfl-sos-ratings check-additivity ... # read-only additivity check over data/
 .venv/bin/nfl-sos-ratings check-passer ...     # read-only passer holdout (downloads postseason)
+.venv/bin/nfl-sos-ratings check-in-season-penalty ...  # read-only early-season penalty test
 .venv/bin/nfl-sos-ratings catalog              # regenerates the stats catalogs in docs/
 .venv/bin/nfl-sos-ratings web [--port 8080]    # analyst web app (web/dist) plus its API
 ```
