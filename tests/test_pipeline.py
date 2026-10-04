@@ -18,6 +18,7 @@ def test_pipeline_raises_on_failures_and_exits_nonzero_for_failed_seasons(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Verify failed data seasons are summarized and exit non-zero."""
+    # Arrange
     calls: list[tuple[str, int]] = []
 
     monkeypatch.setattr(pipeline, "START_YEAR", 2024)
@@ -32,9 +33,11 @@ def test_pipeline_raises_on_failures_and_exits_nonzero_for_failed_seasons(
     monkeypatch.setattr(pipeline, "run_season", fake_run_season)
     monkeypatch.setattr(pipeline, "apply_alltime_rating_companions", stub(lambda: None))
 
+    # Act & Assert
     with pytest.raises(SystemExit) as excinfo:
         pipeline.main([])
 
+    # Assert
     assert calls == [
         ("data", 2024),
         ("data", 2025),
@@ -51,6 +54,7 @@ def test_pipeline_main_handles_windows_stdout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Verify the pipeline executes the Windows UTF-8 stdout branch."""
+    # Arrange
     monkeypatch.setattr(pipeline, "START_YEAR", 2025)
     monkeypatch.setattr(pipeline, "END_YEAR", 2025)
     monkeypatch.setattr(pipeline, "run_season", stub(lambda: None))
@@ -59,13 +63,18 @@ def test_pipeline_main_handles_windows_stdout(
     monkeypatch.setattr(pipeline.sys, "stdout", SimpleNamespace(buffer=io.BytesIO()))
     monkeypatch.setattr(pipeline.io, "TextIOWrapper", stub(io.StringIO))
 
+    # Act
     pipeline.main([])
+
+    # Assert
+    assert isinstance(pipeline.sys.stdout, io.StringIO)
 
 
 def test_pipeline_applies_alltime_companions_after_successful_data_phase(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The multi-season pipeline should run the all-time companion post-pass once per full run."""
+    # Arrange
     calls: list[tuple[str, object]] = []
 
     monkeypatch.setattr(pipeline, "START_YEAR", 2024)
@@ -80,8 +89,10 @@ def test_pipeline_applies_alltime_companions_after_successful_data_phase(
     monkeypatch.setattr(pipeline, "run_season", fake_run_season)
     monkeypatch.setattr(pipeline, "apply_alltime_rating_companions", fake_companions)
 
+    # Act
     pipeline.main([])
 
+    # Assert
     assert calls == [
         ("data", 2024),
         ("data", 2025),
