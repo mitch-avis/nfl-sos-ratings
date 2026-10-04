@@ -146,7 +146,29 @@ across thresholds whichever way they move.
   built from `data/` in `/tmp` (not citable). Browser dark-mode extensions such as Dark Reader
   repaint the CSS-background marks into invisibility; a `darkreader-lock` meta tag is pending the
   maintainer's decision.
-- [ ] Ask to run `season` / `pipeline` for the range files.
+- [x] Range files built 2026-10-04 (maintainer-approved): `OPENBLAS_NUM_THREADS=1
+  nfl-sos-ratings pipeline` (15 min 26 s) then `nfl-sos-ratings season --season 2026` (14 s);
+  `pytest -m published_data` passes. 2025 results, read with this command (and the same on
+  `2025_qb_rating_ranges` for `qb_name == 'Drake Maye'`):
+
+  ```bash
+  .venv/bin/python -c "import polars as pl; print(pl.read_parquet(
+      'data/2025_rating_ranges.parquet').filter(pl.col('team') == 'NE'))"
+  ```
+
+  - NE: published 5th; median 6th; middle 50% 3rd-9th; 95% 1st-16th; P(top 5) 0.488, P(top 10)
+    0.820; P(rank 10-12) 0.130 and P(rank >= 10) 0.229 (sums of `team_rank_probabilities`).
+  - Maye: published 1st of 33 qualifying QBs; median 2nd; middle 50% 1st-4th; 95% 1st-9th;
+    P(top 5) 0.882, P(top 10) 0.984; P(rank 8-10) 0.047, P(rank >= 8) 0.063; missing share 0.
+  - These cover game-sampling noise only, not model error.
+- [ ] Make QB tie-breaks deterministic (found by the rebuild): comparing the rebuilt `data/` with
+  a pre-run copy, team outputs were identical and QB ratings differed by about 1e-16, but
+  `qb_stats._qb_primary_team_map` picks a primary team for a QB with equal games on two teams
+  (Trent Edwards 2010: BUF before, JAX after, with wins, losses, `win_pct`) from an unstable
+  sort, and `qopp_qb_fourth_quarter_comeback` moved by up to 0.067 in every season, probably
+  through the same unstable `sort().group_by().first()` in `_select_primary_qb_rows` (not yet
+  confirmed). Fix with stable sorts and explicit tie-break keys plus a shuffled-input test, then
+  ask before rebuilding `data/`.
 - [x] WP decisions answered by the maintainer.
 - [ ] WP bins in the loader layer (guarded columns), engine refits per threshold, API parameter.
 - [ ] Slider (shadcn) with URL state, debounce, exploration label.
