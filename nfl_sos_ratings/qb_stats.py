@@ -68,18 +68,6 @@ _QB_PER_GAME_COLUMNS: dict[str, str] = {
 }
 
 
-def _resolve_qb_keys(qb_df: pl.DataFrame) -> list[str]:
-    """Return the available QB identifier keys for grouping."""
-    keys: list[str] = []
-    if "qb_id" in qb_df.columns:
-        keys.append("qb_id")
-    if "qb_name" in qb_df.columns:
-        keys.append("qb_name")
-    if not keys:
-        keys.append("team_abbr")
-    return keys
-
-
 def _select_primary_qb_rows(qb_df: pl.DataFrame) -> pl.DataFrame:
     """Return one primary QB row per team-week using snaps, then dropbacks, then attempts."""
     if not {"team_abbr", "week"}.issubset(set(qb_df.columns)):
@@ -911,7 +899,7 @@ def compute_qb_season_stats(
         if min_attempts is not None
         else _compute_default_qb_attempt_qualifier(weekly_df)
     )
-    qb_keys = _resolve_qb_keys(qb_df)
+    qb_keys = ["qb_id", "qb_name"]
 
     season_stats = (
         qb_df.group_by(qb_keys)
@@ -928,8 +916,7 @@ def compute_qb_season_stats(
         for source_col, per_game_col in _QB_PER_GAME_COLUMNS.items()
         if (total_col := _QB_TOTAL_COLUMNS[source_col][0]) in season_stats.columns
     ]
-    if per_game_exprs:
-        season_stats = season_stats.with_columns(per_game_exprs)
+    season_stats = season_stats.with_columns(per_game_exprs)
 
     rate_exprs = _qb_season_rate_exprs(set(season_stats.columns))
     if rate_exprs:
@@ -954,7 +941,4 @@ def _compute_default_qb_attempt_qualifier(weekly_df: pl.DataFrame | None) -> int
         return 238
 
     team_game_counts = weekly_df.group_by("team").len()
-    if team_game_counts.is_empty():
-        return 238
-
     return int(team_game_counts.select(pl.col("len").max()).item() * 14)
