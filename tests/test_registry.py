@@ -246,3 +246,125 @@ def test_every_published_column_resolves(registry: MetricRegistry) -> None:
     # Assert
     assert files
     assert failures == {}
+
+
+@pytest.mark.parametrize(
+    ("column", "expected"),
+    [
+        ("opp_qb_offense_snaps", ("Offense", "Total")),
+        ("opp_qb_rushing_yards", ("Offense", "Rushing")),
+        ("opp_qb_fourth_quarter_comeback", ("Offense", "Scoring")),
+        ("opp_qb_td_int_differential", ("Offense", "Turnovers")),
+        ("opp_qb_passer_rating", ("Offense", "Passing")),
+        ("qopp_points_allowed", ("Scoring, Clutch & Outcomes", None)),
+        ("qopp_total_tds", ("Scoring, Clutch & Outcomes", None)),
+        ("qopp_def_interceptions", ("Turnovers & Ball Security", None)),
+        ("qopp_def_sacks", ("Pressure, Sacks & Pocket", None)),
+        ("qopp_def_fumbles_forced", ("Pressure, Sacks & Pocket", None)),
+        ("qopp_rushing_yards_allowed", ("Rushing", None)),
+        ("qopp_passing_yards_allowed", ("Passing Efficiency", None)),
+    ],
+)
+def test_cross_entity_context_columns_map_onto_the_viewing_taxonomy(
+    registry: MetricRegistry, column: str, expected: tuple[str, str | None]
+) -> None:
+    # Act
+    resolved = registry.resolve_column(column)
+
+    # Assert
+    assert resolved is not None
+    assert (resolved.category, resolved.subcategory) == expected
+
+
+@pytest.mark.parametrize(
+    ("metric", "message"),
+    [
+        (
+            MetricDef(
+                name="alpha",
+                label="Alpha",
+                full_name="Alpha",
+                description="A synthetic metric used only for validation tests.",
+                entity="team",
+                category="Test Category",
+                subcategory="Nowhere",
+                shape="count",
+                polarity="higher",
+                source="D",
+            ),
+            "unknown subcategory",
+        ),
+        (
+            MetricDef(
+                name="alpha",
+                label="Alpha",
+                full_name="Alpha",
+                description="A synthetic metric used only for validation tests.",
+                entity="team",
+                category="Test Category",
+                shape="count",
+                polarity="higher",
+                source="D",
+                duplicate_of="missing",
+            ),
+            "duplicates unknown metric",
+        ),
+        (
+            MetricDef(
+                name="alpha",
+                label="Alpha",
+                full_name="Alpha",
+                description="A synthetic metric used only for validation tests.",
+                entity="team",
+                category="Test Category",
+                shape="rate",
+                polarity="higher",
+                source="D",
+            ),
+            "declares no denominator",
+        ),
+        (
+            MetricDef(
+                name="alpha",
+                label="Alpha",
+                full_name="Alpha",
+                description="Too short",
+                entity="team",
+                category="Test Category",
+                shape="count",
+                polarity="higher",
+                source="D",
+            ),
+            "full-sentence",
+        ),
+    ],
+)
+def test_registry_rejects_an_invalid_metric(metric: MetricDef, message: str) -> None:
+    # Act & Assert
+    with pytest.raises(RegistryValidationError, match=message):
+        MetricRegistry([metric], [_category()])
+
+
+def test_column_metadata_skips_unknown_columns(registry: MetricRegistry) -> None:
+    # Act
+    metadata = registry.column_metadata(["team_rating", "not_a_real_column"])
+
+    # Assert
+    assert list(metadata) == ["team_rating"]
+
+
+def test_suffix_without_a_known_base_resolves_to_none(registry: MetricRegistry) -> None:
+    # Act
+    resolved = registry.resolve_column("opp_not_a_metric_per_game")
+
+    # Assert
+    assert resolved is None
+
+
+def test_qopp_prefix_keeps_neutral_polarity_neutral(registry: MetricRegistry) -> None:
+    # Act
+    resolved = registry.resolve_column("qopp_qb_offense_snaps")
+
+    # Assert
+    assert resolved is not None
+    assert resolved.polarity == "neutral"
