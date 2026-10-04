@@ -1,8 +1,9 @@
 """Single-season pipeline: load one season, compute team and QB ratings, write Parquet outputs.
 
 Team ratings come from ``team_rating`` (points per game, opponent-adjusted EPA) and QB ratings
-from ``qb_rating`` (adjusted EPA per dropback). Head-to-head-excluded opponent profiles are
-written beside them for the analyst UI's descriptive views.
+from ``qb_rating`` (adjusted EPA per dropback), each with a week-by-week rating history.
+Head-to-head-excluded opponent profiles are written beside them for the analyst UI's descriptive
+views.
 """
 
 import argparse
@@ -22,13 +23,20 @@ from nfl_sos_ratings.data_loader import (
 from nfl_sos_ratings.metrics import get_registry
 from nfl_sos_ratings.opponent_stats import compute_all_opponent_profiles
 from nfl_sos_ratings.qb_opponent_stats import compute_qb_opponent_profiles
-from nfl_sos_ratings.qb_rating import compute_qb_faced_pass_defense, fit_qb_ratings
+from nfl_sos_ratings.qb_rating import (
+    QbRatingFit,
+    compute_qb_faced_pass_defense,
+    fit_qb_ratings,
+    fit_qb_ratings_by_week,
+)
 from nfl_sos_ratings.qb_stats import compute_qb_season_stats
 from nfl_sos_ratings.srs import solve_srs
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
+    TeamRatingFit,
     compute_team_schedule_strength,
     fit_team_ratings,
+    fit_team_ratings_by_week,
 )
 from nfl_sos_ratings.team_stats import compute_all_teams_per_game, compute_win_totals
 
@@ -123,9 +131,12 @@ def played_schedule(schedule_df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def build_team_ratings(weekly_df: pl.DataFrame) -> pl.DataFrame:
-    """Return one row per team with the published ratings, schedule strength, and SRS."""
-    fit = fit_team_ratings(weekly_df)
+def build_team_ratings(weekly_df: pl.DataFrame, fit: TeamRatingFit | None = None) -> pl.DataFrame:
+    """Return one row per team with the published ratings, schedule strength, and SRS.
+
+    ``fit`` is the season fit of ``weekly_df`` when the caller already has it.
+    """
+    fit = fit if fit is not None else fit_team_ratings(weekly_df)
     games_played = weekly_df.group_by("team").len("games_played")
     return (
         fit.ratings.join(compute_team_schedule_strength(weekly_df, fit), on="team")
@@ -137,9 +148,12 @@ def build_team_ratings(weekly_df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def build_qb_ratings(qb_game_logs: pl.DataFrame) -> pl.DataFrame:
-    """Return one row per passer with adjusted EPA per dropback and faced pass defense."""
-    fit = fit_qb_ratings(qb_game_logs)
+def build_qb_ratings(qb_game_logs: pl.DataFrame, fit: QbRatingFit | None = None) -> pl.DataFrame:
+    """Return one row per passer with adjusted EPA per dropback and faced pass defense.
+
+    ``fit`` is the season fit of ``qb_game_logs`` when the caller already has it.
+    """
+    fit = fit if fit is not None else fit_qb_ratings(qb_game_logs)
     return fit.ratings.join(compute_qb_faced_pass_defense(qb_game_logs, fit), on="qb_id")
 
 
@@ -193,13 +207,15 @@ def run_season(season: int) -> None:
         )
 
     print("Fitting team ratings...")
-    ratings = build_team_ratings(weekly_df)
+    team_fit = fit_team_ratings(weekly_df)
+    ratings = build_team_ratings(weekly_df, team_fit)
     _write_data_file(ratings, season, "ratings")
     _write_data_file(
         team_combined.join(ratings.drop("games_played"), on="team", how="left"),
         season,
         "combined",
     )
+    _write_data_file(fit_team_ratings_by_week(weekly_df, team_fit), season, "ratings_by_week")
 
     print("Fitting QB ratings...")
     qb_combined = qb_season_stats
@@ -207,7 +223,8 @@ def run_season(season: int) -> None:
         qb_combined = qb_combined.join(
             qb_opp_profiles, on=_matching_qb_join_keys(qb_combined, qb_opp_profiles), how="left"
         )
-    qb_combined = qb_combined.join(build_qb_ratings(qb_game_logs), on="qb_id", how="left")
+    qb_fit = fit_qb_ratings(qb_game_logs)
+    qb_combined = qb_combined.join(build_qb_ratings(qb_game_logs, qb_fit), on="qb_id", how="left")
     _write_data_file(qb_combined, season, "qb_combined")
     _write_data_file(
         qb_combined.filter(pl.col("qb_is_eligible"))
@@ -216,6 +233,7 @@ def run_season(season: int) -> None:
         season,
         "qb_ratings",
     )
+    _write_data_file(fit_qb_ratings_by_week(qb_game_logs, qb_fit), season, "qb_ratings_by_week")
 
     with pl.Config(tbl_cols=-1, tbl_rows=40, float_precision=2):
         print(f"\n{season} team ratings (points per game vs an average team):")

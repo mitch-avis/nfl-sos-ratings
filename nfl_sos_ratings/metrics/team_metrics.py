@@ -142,7 +142,10 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         name="week",
         label="Week",
         full_name="Week",
-        description="The regular-season week in which the game was played.",
+        description=(
+            "The regular-season week: on a game row, the week the game was played; on a "
+            "rating-history row, the last week of games the rating includes."
+        ),
         shape="id",
         polarity="neutral",
         source="SCH",

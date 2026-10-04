@@ -10,6 +10,9 @@ penalty pulls small samples toward average, so a few backup snaps cannot produce
 passer faced, in EPA per dropback (positive means tougher defenses). Each defense is rated from a
 refit that leaves out the passer's own dropbacks, so a passer who shreds a defense cannot make
 that defense look weaker in his own schedule.
+
+The rating history (``fit_qb_ratings_by_week``) refits the rating on the games through each week
+with the season's penalty, so each week's row shows the rating as the evidence then supported it.
 """
 
 from dataclasses import dataclass
@@ -87,6 +90,53 @@ def fit_qb_ratings(qb_games: pl.DataFrame, *, ridge_lambda: float | None = None)
     )
 
 
+def fit_qb_ratings_by_week(qb_games: pl.DataFrame, fit: QbRatingFit) -> pl.DataFrame:
+    """Return each passer's adjusted EPA per dropback as of every week.
+
+    Every week refits the passer-games through that week with the season fit's penalty, for the
+    reason :func:`nfl_sos_ratings.team_rating.fit_team_ratings_by_week` gives: early weeks are too
+    small for cross-validation to choose one reliably. Faced pass defense is not refit week by
+    week.
+
+    Args:
+        qb_games: The passer-game rows passed to :func:`fit_qb_ratings`, plus ``week``.
+        fit: The season fit of ``qb_games`` whose penalty every week reuses.
+
+    Returns:
+        One row per week and passer with a dropback by then: ``week``, ``qb_id``,
+        ``qb_games_played`` and ``qb_dropbacks`` through that week, and
+        ``adj_qb_epa_per_dropback``.
+
+    Raises:
+        ValueError: If ``week`` or a QB-rating column is missing.
+
+    """
+    _require_columns(qb_games)
+    if "week" not in qb_games.columns:
+        msg = "QB game rows need a week column for the weekly rating history"
+        raise ValueError(msg)
+    rows = _rated_rows(qb_games)
+    weeks: list[int] = sorted(rows.get_column("week").unique().to_list())
+    frames: list[pl.DataFrame] = []
+    for week in weeks:
+        through_week = rows.filter(pl.col("week") <= week)
+        volume = through_week.group_by(QB_ID_COLUMN).agg(
+            pl.len().cast(pl.Int64).alias("qb_games_played"),
+            pl.col(QB_DROPBACKS_COLUMN).sum().cast(pl.Int64).alias("qb_dropbacks"),
+        )
+        ratings = fit_qb_ratings(through_week, ridge_lambda=fit.ridge_lambda).ratings
+        frames.append(
+            ratings.join(volume, on=QB_ID_COLUMN).select(
+                pl.lit(week, dtype=pl.Int64).alias("week"),
+                QB_ID_COLUMN,
+                "qb_games_played",
+                "qb_dropbacks",
+                "adj_qb_epa_per_dropback",
+            )
+        )
+    return pl.concat(frames)
+
+
 def compute_qb_faced_pass_defense(qb_games: pl.DataFrame, fit: QbRatingFit) -> pl.DataFrame:
     """Return each passer's dropback-weighted faced pass defense, head-to-head excluded.
 
@@ -132,4 +182,5 @@ __all__ = [
     "QbRatingFit",
     "compute_qb_faced_pass_defense",
     "fit_qb_ratings",
+    "fit_qb_ratings_by_week",
 ]

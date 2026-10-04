@@ -43,7 +43,7 @@ Season identity and whole-game outcomes: record, points, and margins.
 | --- | --- | --- | --- | --- | --- | --- |
 | `team` | Team | id | - | - | SCH | The team's standard NFL abbreviation, such as KC or PHI. |
 | `game_id` | Game ID | id | - | - | SCH | The unique nflverse identifier for one game, useful for deep links. |
-| `week` | Week | id | - | - | SCH | The regular-season week in which the game was played. |
+| `week` | Week | id | - | - | SCH | The regular-season week: on a game row, the week the game was played; on a rating-history row, the last week of games the rating includes. |
 | `opponent_team` | Opponent | id | - | - | SCH | The opposing team in this game or in the summarized opponent row. |
 | `is_home` | Home | flag | - | 1999 | SCH | Whether this team was the home side in the game represented by the row. |
 | `games_played` | Games | count | - | 1999 | SCH | Regular-season games played. Rate stats divide by this number. |

@@ -89,6 +89,17 @@ A quarterback's EPA also reflects his line, receivers, and play-calling. Nothing
 play-by-play separates those from the passer, so the rating describes the passing offense the
 quarterback led, adjusted for the defenses it faced.
 
+## Ratings Through the Season
+
+Each season also gets a rating history: `team_rating` with its three parts, and
+`adj_qb_epa_per_dropback`, refit on the games through each week. Every week reuses the ridge
+penalty chosen for the season (or the season so far), because one or two weeks of games are too
+few for cross-validation to choose one reliably. With the penalty fixed, the pull toward average
+depends only on how much evidence there is: early-week ratings sit close to average and spread out
+as games accumulate, and the last week's ratings are the season's. `sos` and
+`qb_faced_pass_defense` are not refit week by week. The histories are the `ratings_by_week` and
+`qb_ratings_by_week` files.
+
 ## What the Ratings Leave Out
 
 - **Outcomes.** Wins, comebacks, game-winning drives, and turnover margin are published as context

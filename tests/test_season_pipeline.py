@@ -167,6 +167,38 @@ def test_run_season_combined_file_carries_the_team_rating(season_outputs: Path) 
     assert combined.get_column("team_rating").null_count() == 0
 
 
+def test_run_season_writes_the_weekly_team_rating_history(season_outputs: Path) -> None:
+    # Act
+    history = pl.read_parquet(season_outputs / "2025_ratings_by_week.parquet")
+
+    # Assert
+    last_week = history.filter(pl.col("week") == len(_games()))
+    assert last_week.height == len(_TEAMS)
+
+
+def test_run_season_weekly_team_history_ends_at_the_season_rating(season_outputs: Path) -> None:
+    # Arrange
+    ratings = pl.read_parquet(season_outputs / "2025_ratings.parquet")
+
+    # Act
+    history = pl.read_parquet(season_outputs / "2025_ratings_by_week.parquet")
+
+    # Assert
+    last_week = history.filter(pl.col("week") == len(_games())).sort("team")
+    assert last_week.get_column("team_rating").to_list() == pytest.approx(
+        ratings.sort("team").get_column("team_rating").to_list()
+    )
+
+
+def test_run_season_writes_the_weekly_qb_rating_history(season_outputs: Path) -> None:
+    # Act
+    history = pl.read_parquet(season_outputs / "2025_qb_ratings_by_week.parquet")
+
+    # Assert
+    last_week = history.filter(pl.col("week") == len(_games()))
+    assert sorted(last_week.get_column("qb_id").to_list()) == [f"qb-{team}" for team in _TEAMS]
+
+
 def test_played_schedule_drops_games_without_final_scores() -> None:
     # Arrange
     schedule = pl.DataFrame(

@@ -19,6 +19,10 @@ judged against their own opponents, and so on through the whole schedule.
 ``sos`` is the average ``team_rating`` of the opponents a team played, one entry per game. Each
 opponent is rated from a refit that leaves out every game involving the team being evaluated, so a
 team beating up on an opponent cannot make that opponent look weaker in its own schedule strength.
+
+The rating history (``fit_team_ratings_by_week``) refits the ratings on the games through each
+week with the season's penalties, so each week's row shows the rating as the evidence then
+supported it.
 """
 
 from dataclasses import dataclass
@@ -151,6 +155,54 @@ def fit_team_ratings(
     )
 
 
+def fit_team_ratings_by_week(game_logs: pl.DataFrame, fit: TeamRatingFit) -> pl.DataFrame:
+    """Return each team's ratings as of every week, each fit on the games through that week.
+
+    Every week reuses the season fit's penalties rather than cross-validating its own: after one
+    or two weeks there are too few games for cross-validation to choose a penalty reliably. With
+    the penalty held fixed, the pull toward average depends only on how many plays a team has, so
+    early weeks sit close to average and spread out as games accumulate. The per-game scales are
+    each week's own league averages, as a fit of those games alone would use. Head-to-head-excluded
+    schedule strength is not refit week by week.
+
+    Args:
+        game_logs: The team-game rows passed to :func:`fit_team_ratings`, plus ``week``.
+        fit: The season fit of ``game_logs`` whose penalties every week reuses.
+
+    Returns:
+        One row per week and team that has played by then, with ``week``, ``team``,
+        ``games_played`` through that week, and the four rating columns. The last week's ratings
+        are the season fit's.
+
+    Raises:
+        ValueError: If ``week`` or a team-rating column is missing.
+
+    """
+    _require_columns(game_logs)
+    if "week" not in game_logs.columns:
+        msg = "team game logs need a week column for the weekly rating history"
+        raise ValueError(msg)
+    weeks: list[int] = sorted(game_logs.get_column("week").unique().to_list())
+    frames: list[pl.DataFrame] = []
+    for week in weeks:
+        through_week = game_logs.filter(pl.col("week") <= week)
+        games_played = through_week.group_by("team").len("games_played")
+        ratings = fit_team_ratings(
+            through_week,
+            scrimmage_lambda=fit.scrimmage_lambda,
+            special_teams_lambda=fit.special_teams_lambda,
+        ).ratings
+        frames.append(
+            ratings.join(games_played, on="team").select(
+                pl.lit(week, dtype=pl.Int64).alias("week"),
+                "team",
+                pl.col("games_played").cast(pl.Int64),
+                *TEAM_RATING_COLUMNS,
+            )
+        )
+    return pl.concat(frames)
+
+
 def _ratings_without(game_logs: pl.DataFrame, team: str, fit: TeamRatingFit) -> pl.DataFrame:
     """Rate every other team from a refit that drops all games involving ``team``.
 
@@ -215,4 +267,5 @@ __all__ = [
     "TeamRatingFit",
     "compute_team_schedule_strength",
     "fit_team_ratings",
+    "fit_team_ratings_by_week",
 ]

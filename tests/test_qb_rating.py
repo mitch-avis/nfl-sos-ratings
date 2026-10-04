@@ -5,7 +5,11 @@ import itertools
 import polars as pl
 import pytest
 
-from nfl_sos_ratings.qb_rating import compute_qb_faced_pass_defense, fit_qb_ratings
+from nfl_sos_ratings.qb_rating import (
+    compute_qb_faced_pass_defense,
+    fit_qb_ratings,
+    fit_qb_ratings_by_week,
+)
 
 # Each team has one passer, named after it. The effects average to zero across teams.
 _PASSER = {"AAA": 0.15, "BBB": 0.05, "CCC": -0.05, "DDD": -0.15}
@@ -23,6 +27,7 @@ def _qb_games(dropbacks: dict[str, int] | None = None) -> pl.DataFrame:
             rows.append(
                 {
                     "game_id": f"g{game_number:02d}",
+                    "week": game_number + 1,
                     "qb_id": f"qb_{team}",
                     "team": team,
                     "opponent_team": opponent,
@@ -125,3 +130,59 @@ def test_compute_qb_faced_pass_defense_skips_defenses_without_other_passers() ->
 
     # Assert
     assert faced.get_column("qb_faced_pass_defense").null_count() == faced.height
+
+
+def test_fit_qb_ratings_by_week_refits_each_week_with_the_season_penalty() -> None:
+    # Arrange
+    qb_games = _qb_games()
+    season_fit = fit_qb_ratings(qb_games, ridge_lambda=10.0)
+    through_week_seven = fit_qb_ratings(
+        qb_games.filter(pl.col("week") <= 7), ridge_lambda=10.0
+    ).ratings
+
+    # Act
+    history = fit_qb_ratings_by_week(qb_games, season_fit)
+
+    # Assert
+    week_seven = history.filter(pl.col("week") == 7).select(through_week_seven.columns)
+    assert week_seven.sort("qb_id").equals(through_week_seven.sort("qb_id"))
+
+
+def test_fit_qb_ratings_by_week_counts_games_and_dropbacks_through_each_week() -> None:
+    # Arrange
+    qb_games = _qb_games(dropbacks={"CCC": 70})
+
+    # Act
+    history = fit_qb_ratings_by_week(qb_games, fit_qb_ratings(qb_games))
+
+    # Assert
+    # qb_AAA hosts BBB, CCC, and DDD in weeks 1-3.
+    week_three = history.filter((pl.col("week") == 3) & (pl.col("qb_id") == "qb_AAA"))
+    assert week_three.select("qb_games_played", "qb_dropbacks").row(0) == (3, 35 + 70 + 35)
+
+
+def test_fit_qb_ratings_by_week_publishes_columns_in_order() -> None:
+    # Arrange
+    qb_games = _qb_games()
+
+    # Act
+    history = fit_qb_ratings_by_week(qb_games, fit_qb_ratings(qb_games))
+
+    # Assert
+    assert history.columns == [
+        "week",
+        "qb_id",
+        "qb_games_played",
+        "qb_dropbacks",
+        "adj_qb_epa_per_dropback",
+    ]
+
+
+def test_fit_qb_ratings_by_week_without_a_week_column_raises_value_error() -> None:
+    # Arrange
+    qb_games = _qb_games()
+    season_fit = fit_qb_ratings(qb_games)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="week"):
+        fit_qb_ratings_by_week(qb_games.drop("week"), season_fit)

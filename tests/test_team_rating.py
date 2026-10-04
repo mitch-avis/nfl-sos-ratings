@@ -5,7 +5,12 @@ import itertools
 import polars as pl
 import pytest
 
-from nfl_sos_ratings.team_rating import compute_team_schedule_strength, fit_team_ratings
+from nfl_sos_ratings.team_rating import (
+    TEAM_RATING_COLUMNS,
+    compute_team_schedule_strength,
+    fit_team_ratings,
+    fit_team_ratings_by_week,
+)
 
 # The first four teams have mean-zero effects, so a round-robin among them recovers them exactly.
 _OFFENSE = {"AAA": 0.10, "BBB": 0.05, "CCC": -0.05, "DDD": -0.10, "EEE": 0.03, "FFF": -0.02}
@@ -215,3 +220,82 @@ def test_compute_team_schedule_strength_with_no_other_games_is_null() -> None:
 
     # Assert
     assert sos.get_column("sos").null_count() == 2
+
+
+def test_fit_team_ratings_by_week_refits_each_week_with_the_season_penalties() -> None:
+    # Arrange
+    game_logs = _game_logs(_PARTIAL)
+    season_fit = fit_team_ratings(game_logs, scrimmage_lambda=10.0, special_teams_lambda=20.0)
+    through_week_nine = fit_team_ratings(
+        game_logs.filter(pl.col("week") <= 9), scrimmage_lambda=10.0, special_teams_lambda=20.0
+    ).ratings
+
+    # Act
+    history = fit_team_ratings_by_week(game_logs, season_fit)
+
+    # Assert
+    week_nine = history.filter(pl.col("week") == 9).select(through_week_nine.columns)
+    assert week_nine.sort("team").equals(through_week_nine.sort("team"))
+
+
+def test_fit_team_ratings_by_week_last_week_is_the_season_rating() -> None:
+    # Arrange
+    game_logs = _game_logs(_PARTIAL)
+    season_fit = fit_team_ratings(game_logs)
+
+    # Act
+    history = fit_team_ratings_by_week(game_logs, season_fit)
+
+    # Assert
+    last_week = history.filter(pl.col("week") == history.get_column("week").max())
+    assert (
+        last_week.select(season_fit.ratings.columns)
+        .sort("team")
+        .equals(season_fit.ratings.sort("team"))
+    )
+
+
+def test_fit_team_ratings_by_week_rates_only_teams_that_have_played() -> None:
+    # Arrange
+    game_logs = _game_logs(_PARTIAL)
+
+    # Act
+    history = fit_team_ratings_by_week(game_logs, fit_team_ratings(game_logs))
+
+    # Assert
+    week_one_teams = history.filter(pl.col("week") == 1).get_column("team").sort().to_list()
+    assert week_one_teams == ["AAA", "BBB"]
+
+
+def test_fit_team_ratings_by_week_counts_games_played_through_each_week() -> None:
+    # Arrange
+    game_logs = _game_logs(_PARTIAL)
+
+    # Act
+    history = fit_team_ratings_by_week(game_logs, fit_team_ratings(game_logs))
+
+    # Assert
+    # AAA plays BBB in weeks 1-2, FFF in weeks 11-12, and CCC in weeks 13-14.
+    aaa = history.filter(pl.col("team") == "AAA").sort("week")
+    assert dict(aaa.select("week", "games_played").iter_rows())[12] == 4
+
+
+def test_fit_team_ratings_by_week_publishes_columns_in_order() -> None:
+    # Arrange
+    game_logs = _game_logs(_PARTIAL)
+
+    # Act
+    history = fit_team_ratings_by_week(game_logs, fit_team_ratings(game_logs))
+
+    # Assert
+    assert history.columns == ["week", "team", "games_played", *TEAM_RATING_COLUMNS]
+
+
+def test_fit_team_ratings_by_week_without_a_week_column_raises_value_error() -> None:
+    # Arrange
+    game_logs = _game_logs()
+    season_fit = fit_team_ratings(game_logs)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="week"):
+        fit_team_ratings_by_week(game_logs.drop("week"), season_fit)

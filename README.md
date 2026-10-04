@@ -109,6 +109,8 @@ them for a spreadsheet with `pl.read_parquet(path).write_csv(...)`.
 - `qb_combined`: one row per quarterback with season stats, the faced-defense profile (`qopp_`
   columns), and the ratings.
 - `team_game_logs` and `qb_game_logs`: one row per team-game and per quarterback-game.
+- `ratings_by_week` and `qb_ratings_by_week`: the rating history, one row per team (or
+  quarterback) per week, each fit on the games through that week.
 - `team_per_game_stats`, `qb_per_game_stats`, `opponent_profiles`, `qb_opponent_profiles`: the
   intermediate tables behind `combined` and `qb_combined`.
 
