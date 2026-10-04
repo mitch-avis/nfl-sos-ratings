@@ -22,7 +22,7 @@ Shape = Literal["count", "rate", "avg", "flag", "id", "score"]
 - ``avg``: a per-event mean re-averaged over events, not over weeks.
 - ``flag``: a boolean marker (eligibility, comeback credit).
 - ``id``: identity text (team codes, player names, game ids).
-- ``score``: a model output on its own scale (z-scored ratings, SRS points).
+- ``score``: a model output on its own scale (ratings and SRS in points per game).
 """
 
 Polarity = Literal["higher", "lower", "neutral"]
@@ -31,20 +31,6 @@ Polarity = Literal["higher", "lower", "neutral"]
 Status = Literal["implemented", "planned"]
 """Whether the pipeline currently produces the metric or it is catalogued
 for the play-by-play metric expansion."""
-
-
-@dataclass(frozen=True, slots=True)
-class MetricProvenance:
-    """Structured provenance for fitted or externally maintained metrics."""
-
-    target: str | None = None
-    fit_window: tuple[int, int] | None = None
-    fitting_command: str | None = None
-    refit_policy: str | None = None
-    sample_weighting: str | None = None
-    weight_snapshot: tuple[tuple[str, float], ...] = ()
-    holdout_metrics: tuple[tuple[str, float], ...] = ()
-    excluded_weight_candidates: tuple[tuple[str, float], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,13 +49,11 @@ class MetricDef:
     subcategory: str | None = None
     denominator: str | None = None
     since: int | None = None
-    ratings_eligible: bool = False
     duplicate_of: str | None = None
     status: Status = "implemented"
     contextual: bool = False
     formula: str | None = None
     note: str | None = None
-    provenance: MetricProvenance | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,16 +64,6 @@ class CategoryDef:
     entity: Entity
     description: str
     subcategories: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class RatingPool:
-    """An explicit allowlist of columns that feed one rating computation."""
-
-    name: str
-    entity: Entity
-    description: str
-    members: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,13 +116,11 @@ class MetricFields(TypedDict):
     source: str
     denominator: NotRequired[str | None]
     since: NotRequired[int | None]
-    ratings_eligible: NotRequired[bool]
     duplicate_of: NotRequired[str | None]
     status: NotRequired[Status]
     contextual: NotRequired[bool]
     formula: NotRequired[str | None]
     note: NotRequired[str | None]
-    provenance: NotRequired[MetricProvenance | None]
 
 
 class MetricBuilder(Protocol):

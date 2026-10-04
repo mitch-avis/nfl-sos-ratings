@@ -16,8 +16,7 @@ from pathlib import Path
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from nfl_sos_ratings.alltime_companions import apply_alltime_rating_companions
-from nfl_sos_ratings.config import DATA_DIR, END_YEAR, START_YEAR
+from nfl_sos_ratings.config import END_YEAR, START_YEAR
 from nfl_sos_ratings.main import run_season
 
 
@@ -26,8 +25,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="nfl-sos-ratings pipeline",
         description=(
-            f"Build every season {START_YEAR}-{END_YEAR} into data/, then the all-time companion "
-            "columns. Exits 1 if any season fails."
+            f"Build every season {START_YEAR}-{END_YEAR} into data/. Exits 1 if any season fails."
         ),
     )
     return parser.parse_args(argv)
@@ -63,8 +61,6 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Data step failures: {failed_season_summary}")
         print("Pipeline finished with failures.")
         raise SystemExit(1)
-
-    apply_alltime_rating_companions(Path(DATA_DIR), seasons)
 
     print(f"\n{'=' * 70}")
     print(f"Pipeline complete — {len(seasons)} seasons processed.")

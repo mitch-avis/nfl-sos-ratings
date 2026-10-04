@@ -29,13 +29,13 @@ def test_discover_available_seasons_requires_complete_contract(tmp_path: Path) -
     contract_files = {
         "team_per_game_stats": "team,points_for\nDET,31\n",
         "qb_per_game_stats": "player_id,player_display_name\nqb-1,Jared Goff\n",
-        "combined": "team,points_for,opp_points_for,SaCR,SaSTR\nDET,31,20,1.2,0.3\n",
+        "combined": "team,points_for,opp_points_for,team_rating\nDET,31,20,1.2\n",
         "qb_combined": (
-            "player_id,player_display_name,qb_attempts_total,opp_qb_any_a,QSaCR\n"
-            "qb-1,Jared Goff,500,6.5,1.1\n"
+            "player_id,player_display_name,qb_attempts_total,opp_qb_any_a,adj_qb_epa_per_dropback\n"
+            "qb-1,Jared Goff,500,6.5,0.1\n"
         ),
-        "ratings": "team,SaCR,SaSTR\nDET,1.2,0.3\n",
-        "qb_ratings": "player_id,QSaCR\nqb-1,1.1\n",
+        "ratings": "team,team_rating\nDET,1.2\n",
+        "qb_ratings": "player_id,adj_qb_epa_per_dropback\nqb-1,0.1\n",
     }
 
     for suffix, content in contract_files.items():
@@ -73,22 +73,23 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
         tmp_path / "2024_combined.parquet",
         (
             "team,points_for,total_yards,points_per_offensive_snap,"
-            "opp_points_for,opp_points_allowed,SaCR,SaCR_alltime,SaOvR,SaOvR_alltime,SaOR,SaDR,SaSTR,SRS,sos"
+            "opp_points_for,opp_points_allowed,team_rating,offense_rating,defense_rating,"
+            "special_teams_rating,sos,SRS"
         ),
-        "DET,510,6800,0.42,390,315,1.2,0.9,1.0,0.8,1.1,0.9,0.3,7.4,0.8",
+        "DET,510,6800,0.42,390,315,7.1,4.0,2.6,0.5,0.8,7.4",
     )
-    _write_table(tmp_path / "2024_ratings.parquet", "team,SaCR,SaSTR\n", "DET,1.2,0.3")
+    _write_table(tmp_path / "2024_ratings.parquet", "team,team_rating\n", "DET,7.1")
     _write_table(
         tmp_path / "2024_qb_combined.parquet",
         (
             "player_id,player_display_name,team,qb_attempts_total,qb_attempts_per_game,"
-            "qb_epa_per_dropback,opp_qb_any_a,QSaCR,QSaCR_alltime,QSaOR,QSaOR_alltime,"
-            "QRaw,QSoS,faced_opp_SaCR,adj_qb_designed_rush_epa_per_carry,"
-            "adj_def_rushing_epa_per_offensive_snap_faced,QOutcome"
+            "qb_epa_per_dropback,opp_qb_any_a,adj_qb_epa_per_dropback,qb_faced_pass_defense"
         ),
-        "qb-1,Jared Goff,DET,605,35.6,0.18,6.5,1.3,1.1,1.1,0.9,1.0,0.2,0.6,0.4,0.1,0.4",
+        "qb-1,Jared Goff,DET,605,35.6,0.18,6.5,0.15,0.01",
     )
-    _write_table(tmp_path / "2024_qb_ratings.parquet", "player_id,QSaCR\n", "qb-1,1.3")
+    _write_table(
+        tmp_path / "2024_qb_ratings.parquet", "player_id,adj_qb_epa_per_dropback\n", "qb-1,0.15"
+    )
 
     # Act
     dataset = load_season_ui_dataset(tmp_path, 2024)
@@ -104,15 +105,12 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
         "opp_points_allowed",
     ]
     assert dataset["teams"]["column_groups"]["ratings"] == [
-        "SaCR",
-        "SaCR_alltime",
-        "SaOvR",
-        "SaOvR_alltime",
-        "SaOR",
-        "SaDR",
-        "SaSTR",
-        "SRS",
+        "team_rating",
+        "offense_rating",
+        "defense_rating",
+        "special_teams_rating",
         "sos",
+        "SRS",
     ]
     assert "raw_totals" not in dataset["teams"]["column_groups"]
     assert dataset["qbs"]["column_groups"]["raw_totals"] == ["qb_attempts_total"]
@@ -120,23 +118,15 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
     assert dataset["qbs"]["column_groups"]["per_dropback_rates"] == ["qb_epa_per_dropback"]
     assert dataset["qbs"]["column_groups"]["opponent_context"] == ["opp_qb_any_a"]
     assert dataset["qbs"]["column_groups"]["ratings"] == [
-        "QSaCR",
-        "QSaCR_alltime",
-        "QSaOR",
-        "QSaOR_alltime",
-        "QRaw",
-        "QSoS",
-        "faced_opp_SaCR",
-        "adj_qb_designed_rush_epa_per_carry",
-        "adj_def_rushing_epa_per_offensive_snap_faced",
-        "QOutcome",
+        "adj_qb_epa_per_dropback",
+        "qb_faced_pass_defense",
     ]
 
 
 def test_load_season_ui_dataset_errors_for_incomplete_contract(tmp_path: Path) -> None:
     """Raise a clear error when a requested season is missing contract files."""
     # Arrange
-    _write_table(tmp_path / "2024_combined.parquet", "team,SaCR", "DET,1.2")
+    _write_table(tmp_path / "2024_combined.parquet", "team,team_rating", "DET,1.2")
 
     # Act & Assert
     with pytest.raises(MissingSeasonContractError):
@@ -150,14 +140,14 @@ def test_load_season_ui_dataset_supports_current_qb_output_names(tmp_path: Path)
     _write_table(
         tmp_path / "2024_qb_per_game_stats.parquet", "qb_id,qb_name,team", "qb-1,Jared Goff,DET"
     )
-    _write_table(tmp_path / "2024_combined.parquet", "team,SaCR", "DET,1.2")
-    _write_table(tmp_path / "2024_ratings.parquet", "team,SaCR", "DET,1.2")
+    _write_table(tmp_path / "2024_combined.parquet", "team,team_rating", "DET,1.2")
+    _write_table(tmp_path / "2024_ratings.parquet", "team,team_rating", "DET,1.2")
     _write_table(
         tmp_path / "2024_qb_combined.parquet",
-        "qb_id,qb_name,team,qb_attempts_total,qb_attempts_per_game,qb_epa_per_dropback,qopp_qb_any_a,qopp_qb_epa_per_dropback,QRaw,QSoS,QSaOR,QOutcome,QSaCR",
-        "qb-1,Jared Goff,DET,605,35.6,0.18,6.5,0.05,1.0,0.2,1.1,0.4,1.3",
+        "qb_id,qb_name,team,qb_attempts_total,qb_attempts_per_game,qb_epa_per_dropback,qopp_qb_any_a,qopp_qb_epa_per_dropback,adj_qb_epa_per_dropback",
+        "qb-1,Jared Goff,DET,605,35.6,0.18,6.5,0.05,0.15",
     )
-    _write_table(tmp_path / "2024_qb_ratings.parquet", "qb_id,QSaCR", "qb-1,1.3")
+    _write_table(tmp_path / "2024_qb_ratings.parquet", "qb_id,adj_qb_epa_per_dropback", "qb-1,0.15")
 
     # Act
     dataset = load_season_ui_dataset(tmp_path, 2024)
@@ -245,24 +235,24 @@ def test_payloads_carry_registry_column_metadata(tmp_path: Path) -> None:
     )
     _write_table(
         tmp_path / "2024_combined.parquet",
-        "team,points_for,opp_points_for,SaCR",
+        "team,points_for,opp_points_for,team_rating",
         "DET,510,390,1.2",
     )
-    _write_table(tmp_path / "2024_ratings.parquet", "team,SaCR", "DET,1.2")
+    _write_table(tmp_path / "2024_ratings.parquet", "team,team_rating", "DET,1.2")
     _write_table(
         tmp_path / "2024_qb_combined.parquet",
-        "qb_id,qb_name,team,qb_sack_rate,qopp_qb_sack_rate,QSaCR",
+        "qb_id,qb_name,team,qb_sack_rate,qopp_qb_sack_rate,adj_qb_epa_per_dropback",
         "qb-1,Jared Goff,DET,0.05,0.06,1.3",
     )
-    _write_table(tmp_path / "2024_qb_ratings.parquet", "qb_id,QSaCR", "qb-1,1.3")
+    _write_table(tmp_path / "2024_qb_ratings.parquet", "qb_id,adj_qb_epa_per_dropback", "qb-1,0.15")
 
     # Act
     dataset = load_season_ui_dataset(tmp_path, 2024)
 
     # Assert
     team_metadata = dataset["teams"]["column_metadata"]
-    assert team_metadata["SaCR"]["polarity"] == "higher"
-    assert team_metadata["SaCR"]["category"] == "Schedule-Adjusted Ratings"
+    assert team_metadata["team_rating"]["polarity"] == "higher"
+    assert team_metadata["team_rating"]["category"] == "Schedule-Adjusted Ratings"
     assert team_metadata["opp_points_for"]["contextual"] is True
     assert team_metadata["opp_points_for"]["category"] == "Overall"
 
@@ -282,16 +272,16 @@ def test_group_columns_follow_registry_category_order(tmp_path: Path) -> None:
     _write_table(
         tmp_path / "2024_combined.parquet",
         # Deliberately shuffled: Defense, Overall, Offense.
-        "team,passing_yards_allowed,wins,passing_yards,def_sacks,SaCR",
+        "team,passing_yards_allowed,wins,passing_yards,def_sacks,team_rating",
         "DET,3300,12,4600,48,1.2",
     )
-    _write_table(tmp_path / "2024_ratings.parquet", "team,SaCR", "DET,1.2")
+    _write_table(tmp_path / "2024_ratings.parquet", "team,team_rating", "DET,1.2")
     _write_table(
         tmp_path / "2024_qb_combined.parquet",
-        "qb_id,qb_name,team,qb_sack_rate,qb_wins,QSaCR",
+        "qb_id,qb_name,team,qb_sack_rate,qb_wins,adj_qb_epa_per_dropback",
         "qb-1,Jared Goff,DET,0.05,12,1.3",
     )
-    _write_table(tmp_path / "2024_qb_ratings.parquet", "qb_id,QSaCR", "qb-1,1.3")
+    _write_table(tmp_path / "2024_qb_ratings.parquet", "qb_id,adj_qb_epa_per_dropback", "qb-1,0.15")
 
     # Act
     dataset = load_season_ui_dataset(tmp_path, 2024)

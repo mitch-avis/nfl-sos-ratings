@@ -8,7 +8,7 @@ storage schemas, and UI all grow from this one file.
 
 from __future__ import annotations
 
-from nfl_sos_ratings.metrics.schema import MetricDef, MetricProvenance, section
+from nfl_sos_ratings.metrics.schema import MetricDef, section
 
 _ratings = section("team", "Schedule-Adjusted Ratings")
 _reference = section("team", "External & Reference Ratings")
@@ -41,73 +41,14 @@ _st_score = section("team", "Special Teams", "ST Scoring & Blocks")
 
 RATING_METRICS: tuple[MetricDef, ...] = (
     _ratings(
-        name="SaCR",
-        label="SaCR",
-        full_name="Schedule-Adjusted Composite Rating",
+        name="team_rating",
+        label="Team Rating",
+        full_name="Team Rating",
         description=(
-            "The site's headline team rating. It is a weighted blend of standardized, "
-            "schedule-adjusted passing and rushing EPA on offense and defense plus the "
-            "schedule-adjusted special-teams rating. 0 is that season's league average, and "
-            "+1 is one standard deviation above that season's average."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
-        since=1999,
-        provenance=MetricProvenance(
-            target="next-season SaOvR",
-            fit_window=(1999, 2025),
-            fitting_command="uv run python -m nfl_sos_ratings.composite_weights",
-            refit_policy=(
-                "Refit only when a maintainer explicitly reruns the composite-weight workflow, "
-                "reviews the held-out diagnostics, and updates the published snapshot in the "
-                "same change set."
-            ),
-            weight_snapshot=(
-                ("adj_off_passing_epa_per_offensive_snap", 0.3828739475913225),
-                ("adj_off_rushing_epa_per_offensive_snap", 0.19062479977967036),
-                ("adj_def_passing_epa_per_offensive_snap", 0.27163464954613765),
-                ("adj_def_rushing_epa_per_offensive_snap", 0.0973640754908631),
-                ("st_rating", 0.0575025275920063),
-            ),
-            holdout_metrics=(
-                ("weighted_rmse", 0.745034),
-                ("equal_weight_rmse", 0.759903),
-                ("weighted_mae", 0.604237),
-                ("equal_weight_mae", 0.618799),
-            ),
-            excluded_weight_candidates=(
-                ("adj_def_takeaway_creation_rate_per_defensive_snap", -0.04081182634425329),
-            ),
-        ),
-    ),
-    _ratings(
-        name="SaCR_alltime",
-        label="SaCR All-Time",
-        full_name="All-Time SaCR Companion",
-        description=(
-            "The pooled-reference companion for SaCR, scored against the published multi-season "
-            "distribution instead of just one season. Positive means above that moving all-time "
-            "baseline, but era context and future-season additions can shift the value over time."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
-        since=1999,
-        note=(
-            "Companion-only. The pooled baseline rewards era context, and the reference moves "
-            "slightly whenever a future season is added."
-        ),
-    ),
-    _ratings(
-        name="SaOvR",
-        label="SaOvR",
-        full_name="Schedule-Adjusted Overall Rating",
-        description=(
-            "The combined team quality signal. It adds the standardized SaOR, SaDR, and SaSTR "
-            "signals, so teams strong across offense, defense, and special teams rise to the "
-            "top while wins and turnover luck stay out of the formula. 0 is that season's "
-            "average overall profile."
+            "How many points per game better than an average team this team was on a neutral "
+            "field, after adjusting for every opponent it faced. It is the sum of the offense, "
+            "defense, and special-teams ratings, all built from expected points added (EPA). "
+            "0 is an average team."
         ),
         shape="score",
         polarity="higher",
@@ -115,32 +56,12 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         since=1999,
     ),
     _ratings(
-        name="SaOvR_alltime",
-        label="SaOvR All-Time",
-        full_name="All-Time SaOvR Companion",
+        name="offense_rating",
+        label="Off Rating",
+        full_name="Offense Rating",
         description=(
-            "The pooled-reference companion for SaOvR, scored against the published multi-season "
-            "distribution instead of only the current season. Positive means above that moving "
-            "all-time baseline, but era context and newly added seasons shift the baseline."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
-        since=1999,
-        note=(
-            "Companion-only. The pooled baseline rewards era context, and the reference moves "
-            "slightly whenever a future season is added."
-        ),
-    ),
-    _ratings(
-        name="SaOR",
-        label="SaOR",
-        full_name="Schedule-Adjusted Offense Rating",
-        description=(
-            "How good the team's offense was after accounting for the defenses it actually "
-            "faced, using the simultaneous ridge solve over passing and rushing EPA per snap. "
-            "0 is that season's average offense; positive means better than that season's "
-            "average."
+            "Points per game the offense produced above an average offense, measured by "
+            "scrimmage EPA per play and adjusted for the defenses it faced."
         ),
         shape="score",
         polarity="higher",
@@ -148,14 +69,13 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         since=1999,
     ),
     _ratings(
-        name="SaDR",
-        label="SaDR",
-        full_name="Schedule-Adjusted Defense Rating",
+        name="defense_rating",
+        label="Def Rating",
+        full_name="Defense Rating",
         description=(
-            "How good the team's defense was after accounting for the offenses it actually "
-            "faced, using the defense side of the simultaneous ridge EPA solve. Higher is "
-            "better defense: positive means the defense suppresses opponent EPA more than "
-            "that season's average defense."
+            "Points per game the defense prevented compared with an average defense, measured "
+            "by scrimmage EPA per play allowed and adjusted for the offenses it faced. Higher "
+            "is better."
         ),
         shape="score",
         polarity="higher",
@@ -163,27 +83,12 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         since=1999,
     ),
     _ratings(
-        name="SaSTR",
-        label="SaSTR",
-        full_name="Schedule-Adjusted Special Teams Rating",
+        name="special_teams_rating",
+        label="ST Rating",
+        full_name="Special Teams Rating",
         description=(
-            "How good the team's special teams were after accounting for field-position and "
-            "opponent context through the special-teams rating model. Positive means more "
-            "special-teams value than that season's average team."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
-        since=1999,
-    ),
-    _ratings(
-        name="st_rating",
-        label="ST Backbone",
-        full_name="Raw Special Teams Backbone Rating",
-        description=(
-            "The unstandardized special-teams rating before it is converted into the published "
-            "SaSTR surface. It is written only for auditability in the "
-            "simultaneous team adjustments output."
+            "Points per game gained on special-teams plays (kicks, punts, returns, field goals, "
+            "and extra points) compared with an average team, adjusted for the opponents faced."
         ),
         shape="score",
         polarity="higher",
@@ -209,9 +114,10 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         label="SoS",
         full_name="Strength of Schedule",
         description=(
-            "The game-weighted mean of the opponents' SaCR values over the schedule this "
-            "team actually played. Positive means a harder-than-average slate by that "
-            "season's overall opponent team quality. Context, not a team grade."
+            "The average Team Rating of the opponents this team played, one entry per game, in "
+            "points per game. Each opponent is rated without its games against this team, so "
+            "beating an opponent badly cannot make that opponent look weaker here. Positive "
+            "means a harder-than-average schedule. Context, not a team grade."
         ),
         shape="score",
         polarity="higher",
@@ -238,7 +144,7 @@ REFERENCE_METRICS: tuple[MetricDef, ...] = (
         status="planned",
         note=(
             "Validation baseline only. The walk-forward harness uses a fixed-constant "
-            "simple Elo with preseason regression toward 1500 and no pool eligibility."
+            "simple Elo with preseason regression toward 1500."
         ),
     ),
 )
@@ -378,7 +284,6 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="SCH",
         since=1999,
-        ratings_eligible=True,
     ),
     _overall(
         name="points_allowed",
@@ -389,7 +294,6 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="SCH",
         since=1999,
-        ratings_eligible=True,
     ),
     _overall(
         name="point_margin",
@@ -404,7 +308,7 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         source="D",
         since=1999,
         formula="points_for - points_allowed",
-        note="Restates points_for and points_allowed; never pooled with both.",
+        note="Restates points_for and points_allowed.",
     ),
     _overall(
         name="turnover_margin",
@@ -432,7 +336,6 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="offensive snaps",
         since=1999,
-        ratings_eligible=True,
     ),
     _overall(
         name="points_allowed_per_defensive_snap",
@@ -447,7 +350,6 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="defensive snaps",
         since=1999,
-        ratings_eligible=True,
     ),
     _overall(
         name="point_differential",
@@ -613,8 +515,7 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
-        note="Sums passing_yards and rushing_yards; accepted overlap in the team pool.",
+        note="Sums passing_yards and rushing_yards.",
     ),
     _off_total(
         name="yards_per_offensive_snap",
@@ -826,7 +727,6 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _off_pass(
         name="passing_epa",
@@ -840,7 +740,6 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _off_pass(
         name="passing_tds",
@@ -851,7 +750,6 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _off_pass(
         name="passing_first_downs",
@@ -862,7 +760,6 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _off_pass(
         name="passing_cpoe",
@@ -878,7 +775,6 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         source="PBP +TS",
         denominator="pass attempts (model-expected completions)",
         since=2006,
-        ratings_eligible=True,
     ),
     _off_pass(
         name="sacks_suffered",
@@ -889,7 +785,6 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _off_pass(
         name="passing_interceptions",
@@ -900,7 +795,6 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _off_pass(
         name="sack_fumbles_lost",
@@ -911,7 +805,6 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _off_pass(
         name="attempts",
@@ -1288,7 +1181,6 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _off_rush(
         name="rushing_epa",
@@ -1302,7 +1194,6 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _off_rush(
         name="rushing_tds",
@@ -1313,7 +1204,6 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _off_rush(
         name="rushing_first_downs",
@@ -1324,7 +1214,6 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _off_rush(
         name="rushing_fumbles_lost",
@@ -1335,7 +1224,6 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _off_rush(
         name="carries",
@@ -2218,8 +2106,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
-        note="Sums the two allowed yardage stats; accepted overlap in the team pool.",
+        note="Sums the two allowed yardage stats.",
     ),
     _def_pass(
         name="passing_yards_allowed",
@@ -2230,7 +2117,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_pass(
         name="passing_epa_allowed",
@@ -2244,7 +2130,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_pass(
         name="passing_tds_allowed",
@@ -2255,7 +2140,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_pass(
         name="passing_first_downs_allowed",
@@ -2266,7 +2150,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_pass(
         name="passing_cpoe_allowed",
@@ -2281,7 +2164,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP +TS",
         denominator="opponent pass attempts (model-expected completions)",
         since=2006,
-        ratings_eligible=True,
     ),
     _def_rush(
         name="rushing_yards_allowed",
@@ -2292,7 +2174,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_rush(
         name="rushing_epa_allowed",
@@ -2303,7 +2184,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_rush(
         name="rushing_tds_allowed",
@@ -2314,7 +2194,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_rush(
         name="rushing_first_downs_allowed",
@@ -2325,7 +2204,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_press(
         name="def_sacks",
@@ -2336,7 +2214,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_press(
         name="def_qb_hits",
@@ -2347,7 +2224,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_press(
         name="def_tackles_for_loss",
@@ -2358,7 +2234,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_press(
         name="def_pass_defended",
@@ -2369,7 +2244,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_press(
         name="def_fumbles_forced",
@@ -2380,7 +2254,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_press(
         name="def_safeties",
@@ -2391,7 +2264,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP",
         since=1999,
-        ratings_eligible=True,
     ),
     _def_to(
         name="def_interceptions",
@@ -2402,7 +2274,6 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP +TS",
         since=1999,
-        ratings_eligible=True,
     ),
     # Planned defense expansion (mirrors and defense-only stats).
     _def_total(

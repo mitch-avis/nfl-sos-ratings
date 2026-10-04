@@ -1,4 +1,4 @@
-"""Registry engine: validation, column resolution, pools, and API payloads.
+"""Registry engine: validation, column resolution, and API payloads.
 
 The registry is the single source of truth for every published metric. The
 ETL validates its data columns against it, the API serves it, and the
@@ -14,10 +14,8 @@ from nfl_sos_ratings.metrics.schema import (
     CategoryDef,
     Entity,
     MetricDef,
-    MetricProvenance,
     Polarity,
     PrefixRule,
-    RatingPool,
     ResolvedColumn,
     SuffixRule,
 )
@@ -160,26 +158,16 @@ DEFAULT_SUFFIX_RULES: tuple[SuffixRule, ...] = (
         full_name_template="{full_name} (Season Total)",
         description_note="This is the full season total.",
     ),
-    SuffixRule(
-        suffix="_pct",
-        label_template="{label} Pct",
-        full_name_template="{full_name} Percentile",
-        description_note=(
-            "This is the percentile rank within the current season data "
-            "(100 means best of the season, 0 means worst)."
-        ),
-    ),
 )
 
 
 class MetricRegistry:
-    """Validated, queryable collection of metrics, categories, and pools."""
+    """Validated, queryable collection of metrics and categories."""
 
     def __init__(
         self,
         metrics: Sequence[MetricDef],
         categories: Sequence[CategoryDef],
-        pools: Sequence[RatingPool] = (),
         prefix_rules: Sequence[PrefixRule] = DEFAULT_PREFIX_RULES,
         suffix_rules: Sequence[SuffixRule] = DEFAULT_SUFFIX_RULES,
     ) -> None:
@@ -191,7 +179,6 @@ class MetricRegistry:
                 raise RegistryValidationError(msg)
             self.metrics[metric.name] = metric
         self._categories: tuple[CategoryDef, ...] = tuple(categories)
-        self.pools: dict[str, RatingPool] = {pool.name: pool for pool in pools}
         self._prefix_rules = tuple(prefix_rules)
         self._suffix_rules = tuple(suffix_rules)
         self._validate()
@@ -224,21 +211,6 @@ class MetricRegistry:
     def validate_columns(self, columns: Iterable[str]) -> list[str]:
         """Return the columns that do not resolve against the registry."""
         return [column for column in columns if self.resolve_column(column) is None]
-
-    def pool_columns(self, pool_name: str) -> list[str]:
-        """Return a pool's member columns in their defined order."""
-        return list(self.pools[pool_name].members)
-
-    def pool_stats(self, pool_name: str) -> list[tuple[str, bool]]:
-        """Return a pool as (column, higher_is_better) rating-input tuples."""
-        stats: list[tuple[str, bool]] = []
-        for member in self.pools[pool_name].members:
-            resolved = self.resolve_column(member)
-            if resolved is None:  # pragma: no cover - guarded by _validate
-                msg = f"Pool {pool_name} member unknown: {member}"
-                raise RegistryValidationError(msg)
-            stats.append((member, resolved.polarity == "higher"))
-        return stats
 
     def column_metadata(self, columns: Iterable[str]) -> dict[str, dict[str, object]]:
         """Return JSON-safe presentation metadata for the resolvable columns."""
@@ -291,23 +263,13 @@ class MetricRegistry:
                     "source": metric.source,
                     "denominator": metric.denominator,
                     "since": metric.since,
-                    "ratings_eligible": metric.ratings_eligible,
                     "duplicate_of": metric.duplicate_of,
                     "status": metric.status,
                     "contextual": metric.contextual,
                     "formula": metric.formula,
                     "note": metric.note,
-                    "provenance": self._provenance_payload(metric.provenance),
                 }
                 for metric in self.metrics.values()
-            },
-            "pools": {
-                pool.name: {
-                    "entity": pool.entity,
-                    "description": pool.description,
-                    "members": list(pool.members),
-                }
-                for pool in self.pools.values()
             },
         }
 
@@ -322,27 +284,6 @@ class MetricRegistry:
                 if base is not None:
                     return base, suffix_rule
         return None
-
-    @staticmethod
-    def _provenance_payload(provenance: MetricProvenance | None) -> dict[str, object] | None:
-        """Return a JSON-safe provenance payload when one exists."""
-        if provenance is None:
-            return None
-        return {
-            "target": provenance.target,
-            "fit_window": list(provenance.fit_window) if provenance.fit_window else None,
-            "fitting_command": provenance.fitting_command,
-            "refit_policy": provenance.refit_policy,
-            "sample_weighting": provenance.sample_weighting,
-            "weight_snapshot": [
-                {"name": name, "weight": weight} for name, weight in provenance.weight_snapshot
-            ],
-            "holdout_metrics": dict(provenance.holdout_metrics),
-            "excluded_weight_candidates": [
-                {"name": name, "weight": weight}
-                for name, weight in provenance.excluded_weight_candidates
-            ],
-        }
 
     def _finalize(
         self,
@@ -393,9 +334,6 @@ class MetricRegistry:
         for metric in self.metrics.values():
             self._validate_metric(metric, category_index)
 
-        for pool in self.pools.values():
-            self._validate_pool(pool)
-
     def _validate_metric(
         self,
         metric: MetricDef,
@@ -421,27 +359,6 @@ class MetricRegistry:
         ):
             msg = f"Metric {metric.name} needs a full-sentence layman description"
             raise RegistryValidationError(msg)
-
-    def _validate_pool(self, pool: RatingPool) -> None:
-        """Check pool members exist, are eligible, and never double count."""
-        canonical_bases: dict[str, str] = {}
-        for member in pool.members:
-            resolved = self.resolve_column(member)
-            if resolved is None:
-                msg = f"Rating pool {pool.name} references unknown column {member!r}"
-                raise RegistryValidationError(msg)
-            base = resolved.base
-            if not base.ratings_eligible:
-                msg = f"Rating pool {pool.name} member {member} is not ratings_eligible"
-                raise RegistryValidationError(msg)
-            canonical = base.duplicate_of or base.name
-            if canonical in canonical_bases:
-                msg = (
-                    f"Rating pool {pool.name} double counts {canonical!r} via "
-                    f"{canonical_bases[canonical]!r} and {member!r} (duplicate)"
-                )
-                raise RegistryValidationError(msg)
-            canonical_bases[canonical] = member
 
 
 def _invert(polarity: Polarity) -> Polarity:

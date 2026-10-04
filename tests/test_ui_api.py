@@ -33,28 +33,28 @@ def _seed_season_contract(data_dir: Path, season: int) -> None:
     )
     _write_table(
         data_dir / f"{season}_combined.parquet",
-        "team,points_for,points_per_offensive_snap,opp_points_for,SaCR,SaCR_alltime,SaOvR,SaOvR_alltime,SaOR,SaDR,SaSTR,SRS,sos",
-        "DET,510,0.42,390,1.2,0.9,1.0,0.8,1.1,0.9,0.3,7.4,0.5",
+        "team,points_for,points_per_offensive_snap,opp_points_for,team_rating,offense_rating,defense_rating,special_teams_rating,sos,SRS",
+        "DET,510,0.42,390,7.1,4.0,2.6,0.5,0.4,7.4",
     )
-    _write_table(data_dir / f"{season}_ratings.parquet", "team,SaCR,SaSTR", "DET,1.2,0.3")
+    _write_table(data_dir / f"{season}_ratings.parquet", "team,team_rating", "DET,7.1")
     _write_table(
         data_dir / f"{season}_qb_combined.parquet",
         (
             "player_id,player_display_name,team,qb_attempts_total,qb_attempts_per_game,"
-            "qb_epa_per_dropback,opp_qb_any_a,QSaCR,QSaCR_alltime,QSaOR,QSaOR_alltime,"
-            "QRaw,QSoS,faced_opp_SaCR,adj_qb_designed_rush_epa_per_carry,"
-            "adj_def_rushing_epa_per_offensive_snap_faced,QOutcome"
+            "qb_epa_per_dropback,opp_qb_any_a,adj_qb_epa_per_dropback,qb_faced_pass_defense"
         ),
-        "qb-1,Jared Goff,DET,605,35.6,0.18,6.5,1.3,1.1,1.1,0.9,1.0,0.2,0.6,0.4,0.1,0.4",
+        "qb-1,Jared Goff,DET,605,35.6,0.18,6.5,0.15,0.01",
     )
-    _write_table(data_dir / f"{season}_qb_ratings.parquet", "player_id,QSaCR", "qb-1,1.3")
+    _write_table(
+        data_dir / f"{season}_qb_ratings.parquet", "player_id,adj_qb_epa_per_dropback", "qb-1,0.15"
+    )
 
 
 def test_list_seasons_returns_complete_contracts_only(tmp_path: Path) -> None:
     """List only seasons with the full backend UI contract present."""
     # Arrange
     _seed_season_contract(tmp_path, 2024)
-    _write_table(tmp_path / "2025_combined.parquet", "team,SaCR", "KC,1.0")
+    _write_table(tmp_path / "2025_combined.parquet", "team,team_rating", "KC,1.0")
     client = TestClient(create_app(tmp_path))
 
     # Act
@@ -81,15 +81,12 @@ def test_get_season_returns_grouped_team_and_qb_tables(tmp_path: Path) -> None:
     assert payload["teams"]["rows"][0]["team"] == "DET"
     assert payload["qbs"]["rows"][0]["player_display_name"] == "Jared Goff"
     assert payload["teams"]["column_groups"]["ratings"] == [
-        "SaCR",
-        "SaCR_alltime",
-        "SaOvR",
-        "SaOvR_alltime",
-        "SaOR",
-        "SaDR",
-        "SaSTR",
-        "SRS",
+        "team_rating",
+        "offense_rating",
+        "defense_rating",
+        "special_teams_rating",
         "sos",
+        "SRS",
     ]
     assert payload["teams"]["column_groups"]["per_game_rates"] == ["points_for"]
     assert payload["qbs"]["column_groups"]["per_game_rates"] == ["qb_attempts_per_game"]
@@ -195,9 +192,8 @@ def test_get_metadata_returns_registry_payload(tmp_path: Path) -> None:
     assert team_categories[0] == "Schedule-Adjusted Ratings"
     assert qb_categories[0] == "Schedule-Adjusted Ratings"
     assert payload["metrics"]["qb_sack_rate"]["polarity"] == "lower"
-    assert "that season's average" in payload["metrics"]["SaCR"]["description"].lower()
-    assert "1999-2005" in payload["metrics"]["QSaCR"]["note"]
-    assert "qb_primary" in payload["pools"]
+    assert "points per game" in payload["metrics"]["team_rating"]["description"]
+    assert "pools" not in payload
 
 
 def _write_frontend_build(dist_dir: Path) -> None:

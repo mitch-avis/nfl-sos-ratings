@@ -92,3 +92,16 @@ def test_fit_qb_ratings_missing_dropbacks_raises_value_error() -> None:
     # Act & Assert
     with pytest.raises(ValueError, match="qb_dropbacks"):
         fit_qb_ratings(qb_games)
+
+
+def test_fit_qb_ratings_ignores_game_outcomes() -> None:
+    # Arrange
+    qb_games = _qb_games().with_columns(pl.lit(0).alias("qb_wins"))
+    flipped = qb_games.with_columns(pl.lit(1).alias("qb_wins"))
+    baseline = fit_qb_ratings(qb_games).ratings
+
+    # Act
+    result = fit_qb_ratings(flipped).ratings
+
+    # Assert
+    assert result.equals(baseline)

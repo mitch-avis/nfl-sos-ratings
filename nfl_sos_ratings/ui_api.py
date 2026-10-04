@@ -103,7 +103,7 @@ def create_app(data_dir: Path | None = None, *, web_dist: Path | None = None) ->
 
     @app.get("/api/metadata")
     def get_metadata() -> dict[str, object]:
-        """Return the metric registry: categories, metrics, and rating pools."""
+        """Return the metric registry: categories and metrics."""
         return get_registry().payload()
 
     @app.get("/api/seasons")

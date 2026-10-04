@@ -27,28 +27,14 @@ REQUIRED_CONTRACT_SUFFIXES = (
 TEAM_GAME_LOG_SUFFIX = "team_game_logs"
 QB_GAME_LOG_SUFFIX = "qb_game_logs"
 TEAM_RATING_COLUMNS = (
-    "SaCR",
-    "SaCR_alltime",
-    "SaOvR",
-    "SaOvR_alltime",
-    "SaOR",
-    "SaDR",
-    "SaSTR",
-    "SRS",
+    "team_rating",
+    "offense_rating",
+    "defense_rating",
+    "special_teams_rating",
     "sos",
+    "SRS",
 )
-QB_RATING_COLUMNS = (
-    "QSaCR",
-    "QSaCR_alltime",
-    "QSaOR",
-    "QSaOR_alltime",
-    "QRaw",
-    "QSoS",
-    "faced_opp_SaCR",
-    "adj_qb_designed_rush_epa_per_carry",
-    "adj_def_rushing_epa_per_offensive_snap_faced",
-    "QOutcome",
-)
+QB_RATING_COLUMNS = ("adj_qb_epa_per_dropback", "qb_faced_pass_defense")
 TEAM_EXCLUDED_PREFIXES = ("qb_", "opp_qb_", "Q", "diff_", "adj_")
 QB_EXCLUDED_PREFIXES = ("diff_", "adj_")
 QB_PER_DROPBACK_RATE_COLUMNS = (
@@ -228,6 +214,7 @@ def _build_qb_payload(frame: pl.DataFrame) -> TablePayload:
         column
         for column in frame.columns
         if not (column.startswith(("opp_", "qopp_")))
+        and column not in rating_columns
         and (column in QB_PER_DROPBACK_RATE_COLUMNS or column.endswith("_per_dropback"))
     ]
     excluded_columns = set(

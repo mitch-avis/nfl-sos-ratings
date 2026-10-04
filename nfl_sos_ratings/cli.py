@@ -33,7 +33,7 @@ COMMANDS: tuple[Command, ...] = (
     Command(
         "pipeline",
         "data",
-        "Build every configured season, then the all-time companion columns.",
+        "Build every configured season into data/.",
         "nfl_sos_ratings.pipeline",
     ),
     Command(
@@ -41,12 +41,6 @@ COMMANDS: tuple[Command, ...] = (
         "validation",
         "Run the walk-forward validation and rewrite docs/validation-report.md.",
         "nfl_sos_ratings.validation.walk_forward",
-    ),
-    Command(
-        "weights",
-        "validation",
-        "Print the composite-weight fit and held-out diagnostics.",
-        "nfl_sos_ratings.composite_weights",
     ),
     Command(
         "web",

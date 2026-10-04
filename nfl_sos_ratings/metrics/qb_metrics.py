@@ -7,7 +7,7 @@ writes today. Entries with ``status="planned"`` encode the full QB catalog in
 
 from __future__ import annotations
 
-from nfl_sos_ratings.metrics.schema import MetricDef, MetricProvenance, section
+from nfl_sos_ratings.metrics.schema import MetricDef, section
 
 _ratings = section("qb", "Schedule-Adjusted Ratings")
 _reference = section("qb", "External & Reference Ratings")
@@ -22,216 +22,33 @@ _turnovers = section("qb", "Turnovers & Ball Security")
 
 QB_RATING_METRICS: tuple[MetricDef, ...] = (
     _ratings(
-        name="QSaCR",
-        label="QSaCR",
-        full_name="QB Schedule-Adjusted Composite Rating",
+        name="adj_qb_epa_per_dropback",
+        label="Adj EPA/DB",
+        full_name="Adjusted EPA Per Dropback",
         description=(
-            "The site's headline quarterback rating. It is a weighted blend of standardized "
-            "adjusted EPA per dropback, completion percentage above expectation, sack rate, "
-            "and TD-INT margin rate, while wins and late-game results stay in QOutcome only. "
-            "0 is that season's average among qualifying quarterbacks, and positive is better "
-            "than that season's average."
+            "The quarterback's expected points added per dropback after adjusting for the pass "
+            "defenses he faced. It reads on the same scale as raw EPA per dropback, and small "
+            "samples are pulled toward the league average. Higher is better."
         ),
-        shape="score",
+        shape="rate",
         polarity="higher",
         source="D",
-        since=1999,
-        provenance=MetricProvenance(
-            target="next-season adj_qb_epa_per_dropback",
-            fit_window=(2006, 2025),
-            fitting_command="uv run python -m nfl_sos_ratings.composite_weights",
-            refit_policy=(
-                "Refit only when a maintainer explicitly reruns the composite-weight workflow, "
-                "reviews the held-out diagnostics, and updates the published snapshot in the "
-                "same change set."
-            ),
-            sample_weighting="dropback-weighted weighted least squares",
-            weight_snapshot=(
-                ("adj_qb_epa_per_dropback", 0.6687790473858877),
-                ("adj_qb_completion_percentage_above_expectation", 0.21464381898367774),
-                ("adj_qb_sack_rate", 0.06725872314827445),
-                ("adj_qb_td_int_margin_rate", 0.04931841048216012),
-            ),
-            holdout_metrics=(
-                ("weighted_rmse", 0.093348),
-                ("equal_weight_rmse", 0.093446),
-                ("weighted_mae", 0.073908),
-                ("equal_weight_mae", 0.074351),
-            ),
-        ),
-        note=(
-            "Published only for 2006+ because adjusted CPOE is one of the four frozen "
-            "components. The 1999-2005 rows stay null instead of shipping a reduced-input "
-            "version of the headline QB composite."
-        ),
-    ),
-    _ratings(
-        name="QSaCR_alltime",
-        label="QSaCR All-Time",
-        full_name="All-Time QSaCR Companion",
-        description=(
-            "The pooled-reference companion for QSaCR, scored against the published multi-season "
-            "distribution of the headline QB composite instead of just one season. Positive means "
-            "above that moving all-time baseline, but era context and newly added seasons shift it."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
-        since=2006,
-        note=(
-            "Companion-only. The pooled baseline rewards era context, and the reference moves "
-            "slightly whenever a future season is added. Published only for 2006+ because the "
-            "headline composite itself requires adjusted CPOE."
-        ),
-    ),
-    _ratings(
-        name="QSaOR",
-        label="QSaOR",
-        full_name="QB Schedule-Adjusted Offense Rating",
-        description=(
-            "Passing performance after adjusting for the defenses actually faced, using the "
-            "simultaneous ridge estimate of QB EPA per dropback. This is the published "
-            "opponent-adjusted QB quality signal. 0 is that season's average qualifying QB; "
-            "positive means better than that season's average."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
+        denominator="dropbacks",
         since=1999,
     ),
     _ratings(
-        name="QSaOR_alltime",
-        label="QSaOR All-Time",
-        full_name="All-Time QSaOR Companion",
+        name="qb_faced_pass_defense",
+        label="Faced Pass D",
+        full_name="Faced Pass Defense",
         description=(
-            "The pooled-reference companion for QSaOR, scored against the published multi-season "
-            "distribution of adjusted QB EPA per dropback instead of only the current season. "
-            "Positive means above that moving all-time baseline, but era context and added seasons "
-            "shift the reference over time."
+            "The average quality of the pass defenses this quarterback faced, weighted by his "
+            "dropbacks, in EPA per dropback prevented. Each defense is rated without its games "
+            "against this quarterback. Positive means tougher defenses. Context, not a QB grade."
         ),
-        shape="score",
+        shape="rate",
         polarity="higher",
         source="D",
-        since=1999,
-        note=(
-            "Companion-only. The pooled baseline rewards era context, and the reference moves "
-            "slightly whenever a future season is added."
-        ),
-    ),
-    _ratings(
-        name="QRaw",
-        label="QRaw",
-        full_name="QB Raw Performance Composite",
-        description=(
-            "The unadjusted composite of the core passing stat pool, before any schedule "
-            "context is applied. 0 is that season's average qualifying QB before schedule "
-            "adjustment."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
-        since=1999,
-        note=(
-            "Published only for 2006+ because raw CPOE is part of the core stat pool. The "
-            "1999-2005 rows stay null instead of using a reduced-input version."
-        ),
-    ),
-    _ratings(
-        name="QSoS",
-        label="QSoS",
-        full_name="QB Strength of Schedule",
-        description=(
-            "How tough the pass defenses this quarterback faced were, measured as the "
-            "dropback-weighted mean faced-defense coefficient from the simultaneous ridge QB "
-            "EPA-per-dropback solve. Higher means a harder pass-defense slate than that "
-            "season's average faced-defense difficulty — it describes the schedule, not the "
-            "quarterback's play."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
-        since=1999,
-        contextual=True,
-    ),
-    _ratings(
-        name="faced_opp_SaCR",
-        label="Opp SaCR",
-        full_name="Faced Opponent SaCR",
-        description=(
-            "The equal-game mean of the opponents' SaCR values over the games this "
-            "quarterback played. Positive means a harder-than-average overall opponent slate "
-            "by that season's team-quality composite, rather than the pass-defense-only lens "
-            "used by QSoS."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
-        since=1999,
-        contextual=True,
-    ),
-    _ratings(
-        name="adj_qb_designed_rush_epa_per_carry",
-        label="Adj Designed EPA/Carry",
-        full_name="Adjusted QB Designed-Rush EPA Per Carry",
-        description=(
-            "Designed-run expected points added per carry after charging those carries against "
-            "the faced rush-defense coefficients from the team solve. Higher means more rushing "
-            "value after accounting for how tough the run-defense slate was."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
-        denominator="designed carries",
-        since=1999,
-        ratings_eligible=True,
-        note=(
-            "Descriptive-only in the current published composite. This is the intended fair-trial "
-            "candidate for the next maintainer-reviewed QB refit menu."
-        ),
-    ),
-    _ratings(
-        name="adj_def_rushing_epa_per_offensive_snap_faced",
-        label="Faced Adj Rush Def",
-        full_name="Faced Rush-Defense Rating",
-        description=(
-            "The carry-weighted mean rush-defense coefficient, on adjusted rushing EPA per "
-            "offensive snap, for the defenses this quarterback actually faced on designed runs. "
-            "This is the raw rush-defense schedule-context input behind the adjusted designed-run "
-            "value surface."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
-        since=1999,
-        contextual=True,
-    ),
-    _ratings(
-        name="QOutcome",
-        label="QOutcome",
-        full_name="QB Outcome Layer",
-        description=(
-            "A secondary signal built from wins and late-game results such as "
-            "fourth-quarter comebacks and game-winning drives. Descriptive-only: kept "
-            "separate so results never contaminate the performance ratings. 0 is that "
-            "season's average outcome profile among qualifying quarterbacks."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
-        since=1999,
-    ),
-    _ratings(
-        name="adj_def_qb_epa_per_dropback_faced",
-        label="Faced Adj Def EPA/DB",
-        full_name="Faced Defense Rating on QB EPA Per Dropback",
-        description=(
-            "The dropback-weighted mean defense-side ridge coefficient, on QB EPA per "
-            "dropback, for the defenses this quarterback actually faced. This is the raw "
-            "pass-defense schedule-context input behind QSoS."
-        ),
-        shape="score",
-        polarity="higher",
-        source="D",
+        denominator="dropbacks",
         since=1999,
         contextual=True,
     ),
@@ -537,7 +354,6 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="dropbacks",
         since=1999,
-        ratings_eligible=True,
     ),
     _efficiency(
         name="qb_pass_yards_per_dropback",
@@ -549,7 +365,6 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="dropbacks",
         since=1999,
-        ratings_eligible=True,
     ),
     _efficiency(
         name="qb_td_int_margin_rate",
@@ -561,7 +376,6 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="dropbacks",
         since=1999,
-        ratings_eligible=True,
         formula="(pass_touchdowns - interceptions) / dropbacks",
     ),
     _efficiency(
@@ -578,7 +392,6 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="pass attempts + sacks",
         since=1999,
-        ratings_eligible=True,
         formula="(yards + 20*TD - 45*INT - sack_yards) / (attempts + sacks)",
         note="Overlaps the TD-INT and sack pool members; accepted, frozen overlap.",
     ),
@@ -596,7 +409,6 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
         source="PLS",
         denominator="pass attempts (model-expected completions)",
         since=2006,
-        ratings_eligible=True,
     ),
     _efficiency(
         name="qb_passer_rating",
@@ -611,7 +423,6 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="official NFL formula over attempts",
         since=1999,
-        ratings_eligible=True,
         note="Restates comp%, Y/A, TD%, and INT%; kept in the pool as a frozen exception.",
     ),
     _efficiency(
@@ -1102,7 +913,6 @@ QB_PRESSURE_METRICS: tuple[MetricDef, ...] = (
         polarity="lower",
         source="PLS",
         since=1999,
-        ratings_eligible=True,
     ),
     _pressure(
         name="qb_sack_yards_lost",
@@ -1128,7 +938,6 @@ QB_PRESSURE_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="dropbacks",
         since=1999,
-        ratings_eligible=True,
     ),
     _pressure(
         name="qb_sack_fumbles_lost",

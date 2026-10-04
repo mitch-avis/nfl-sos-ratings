@@ -1,15 +1,10 @@
 """Tests for the nfl-sos-ratings front-door command."""
 
-from typing import TYPE_CHECKING
-
 import pytest
 
-from nfl_sos_ratings import cli, composite_weights, main, pipeline, ui_api
+from nfl_sos_ratings import cli, main, pipeline, ui_api
 from nfl_sos_ratings.config import SEASON
 from nfl_sos_ratings.validation import walk_forward
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def test_help_lists_every_command(capsys: pytest.CaptureFixture[str]) -> None:
@@ -74,22 +69,15 @@ def test_season_accepts_an_explicit_season(monkeypatch: pytest.MonkeyPatch) -> N
 def test_pipeline_runs_the_multi_season_build(monkeypatch: pytest.MonkeyPatch) -> None:
     # Arrange
     seasons: list[int] = []
-    companions: list[list[int]] = []
     monkeypatch.setattr(pipeline, "START_YEAR", 2023)
     monkeypatch.setattr(pipeline, "END_YEAR", 2024)
     monkeypatch.setattr(pipeline, "run_season", seasons.append)
-
-    def fake_companions(data_dir: Path, all_seasons: list[int]) -> None:
-        companions.append(all_seasons)
-
-    monkeypatch.setattr(pipeline, "apply_alltime_rating_companions", fake_companions)
 
     # Act
     cli.main(["pipeline"])
 
     # Assert
     assert seasons == [2023, 2024]
-    assert companions == [[2023, 2024]]
 
 
 @pytest.mark.parametrize(
@@ -112,15 +100,3 @@ def test_options_pass_through_to_the_command(
 
     # Assert
     assert received == [["--data-dir", "elsewhere"]]
-
-
-def test_weights_prints_the_composite_report(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Arrange
-    calls: list[str] = []
-    monkeypatch.setattr(composite_weights, "print_weight_report", lambda: calls.append("report"))
-
-    # Act
-    cli.main(["weights"])
-
-    # Assert
-    assert calls == ["report"]

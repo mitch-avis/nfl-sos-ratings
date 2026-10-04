@@ -163,3 +163,20 @@ def test_compute_team_schedule_strength_other_teams_see_the_changed_games() -> N
 
     # Assert
     assert _rating(blowout_sos, "BBB", "sos") != pytest.approx(_rating(baseline_sos, "BBB", "sos"))
+
+
+def test_fit_team_ratings_ignores_game_outcomes() -> None:
+    # Arrange
+    game_logs = _game_logs().with_columns(
+        pl.lit(0).alias("point_margin"), pl.lit(0.0).alias("win_value")
+    )
+    flipped = game_logs.with_columns(
+        pl.lit(30).alias("point_margin"), pl.lit(1.0).alias("win_value")
+    )
+    baseline = fit_team_ratings(game_logs).ratings
+
+    # Act
+    result = fit_team_ratings(flipped).ratings
+
+    # Assert
+    assert result.equals(baseline)

@@ -35,7 +35,7 @@ import polars as pl
 
 from nfl_sos_ratings.config import DATA_DIR, END_YEAR, START_YEAR
 from nfl_sos_ratings.data_loader import load_espn_qbr
-from nfl_sos_ratings.simultaneous_adjustment import solve_srs
+from nfl_sos_ratings.srs import solve_srs
 from nfl_sos_ratings.team_rating import fit_team_ratings
 from nfl_sos_ratings.validation.report import ValidationReportInputs, write_validation_report
 
