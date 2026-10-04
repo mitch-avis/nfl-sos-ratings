@@ -25,6 +25,7 @@ def _write_table(path: Path, header: str, row: str) -> None:
 
 def test_discover_available_seasons_requires_complete_contract(tmp_path: Path) -> None:
     """Return only seasons that have the complete first-pass UI contract."""
+    # Arrange
     contract_files = {
         "team_per_game_stats": "team,points_for\nDET,31\n",
         "qb_per_game_stats": "player_id,player_display_name\nqb-1,Jared Goff\n",
@@ -45,11 +46,16 @@ def test_discover_available_seasons_requires_complete_contract(tmp_path: Path) -
     for suffix, content in incomplete_files.items():
         pl.read_csv(io.StringIO(content)).write_parquet(tmp_path / f"2025_{suffix}.parquet")
 
-    assert discover_available_seasons(tmp_path) == [2024]
+    # Act
+    seasons = discover_available_seasons(tmp_path)
+
+    # Assert
+    assert seasons == [2024]
 
 
 def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> None:
     """Build one normalized payload with grouped index columns for teams and QBs."""
+    # Arrange
     _write_table(
         tmp_path / "2024_team_per_game_stats.parquet",
         "team,points_for,points_per_offensive_snap,games_played",
@@ -84,8 +90,10 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
     )
     _write_table(tmp_path / "2024_qb_ratings.parquet", "player_id,QSaCR\n", "qb-1,1.3")
 
+    # Act
     dataset = load_season_ui_dataset(tmp_path, 2024)
 
+    # Assert
     assert dataset["season"] == 2024
     assert dataset["teams"]["rows"][0]["team"] == "DET"
     assert dataset["qbs"]["rows"][0]["player_display_name"] == "Jared Goff"
@@ -127,14 +135,17 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
 
 def test_load_season_ui_dataset_errors_for_incomplete_contract(tmp_path: Path) -> None:
     """Raise a clear error when a requested season is missing contract files."""
+    # Arrange
     _write_table(tmp_path / "2024_combined.parquet", "team,SaCR", "DET,1.2")
 
+    # Act & Assert
     with pytest.raises(MissingSeasonContractError):
         load_season_ui_dataset(tmp_path, 2024)
 
 
 def test_load_season_ui_dataset_supports_current_qb_output_names(tmp_path: Path) -> None:
     """Support the explicit QB data schema used by the current generated Parquet files."""
+    # Arrange
     _write_table(tmp_path / "2024_team_per_game_stats.parquet", "team,points_for", "DET,510")
     _write_table(
         tmp_path / "2024_qb_per_game_stats.parquet", "qb_id,qb_name,team", "qb-1,Jared Goff,DET"
@@ -148,8 +159,10 @@ def test_load_season_ui_dataset_supports_current_qb_output_names(tmp_path: Path)
     )
     _write_table(tmp_path / "2024_qb_ratings.parquet", "qb_id,QSaCR", "qb-1,1.3")
 
+    # Act
     dataset = load_season_ui_dataset(tmp_path, 2024)
 
+    # Assert
     assert dataset["qbs"]["rows"][0]["qb_name"] == "Jared Goff"
     assert dataset["qbs"]["column_groups"]["identity"] == ["qb_id", "qb_name", "team"]
     assert dataset["qbs"]["column_groups"]["opponent_context"] == [
@@ -158,10 +171,10 @@ def test_load_season_ui_dataset_supports_current_qb_output_names(tmp_path: Path)
     ]
 
 
-def test_load_team_and_qb_game_log_payloads_filter_rows_by_entity(tmp_path: Path) -> None:
-    """Load additive team and QB game-log payloads for one selected entity."""
+def _seed_game_logs(data_dir: Path) -> None:
+    """Write team and QB game logs for two teams."""
     _write_table(
-        tmp_path / "2024_team_game_logs.parquet",
+        data_dir / "2024_team_game_logs.parquet",
         (
             "game_id,week,team,opponent_team,points_for,points_allowed,point_margin,"
             "points_per_offensive_snap"
@@ -169,7 +182,7 @@ def test_load_team_and_qb_game_log_payloads_filter_rows_by_entity(tmp_path: Path
         "g1,1,DET,KC,24,17,7,0.42\ng2,2,DET,CHI,21,20,1,0.35\ng3,1,KC,DET,17,24,-7,0.31",
     )
     _write_table(
-        tmp_path / "2024_qb_game_logs.parquet",
+        data_dir / "2024_qb_game_logs.parquet",
         (
             "game_id,week,team,opponent_team,qb_id,qb_name,qb_attempts,qb_pass_yards,"
             "qb_epa_per_dropback,qb_game_winning_drive"
@@ -181,9 +194,16 @@ def test_load_team_and_qb_game_log_payloads_filter_rows_by_entity(tmp_path: Path
         ),
     )
 
-    team_payload = load_team_game_log_payload(tmp_path, 2024, "DET")
-    qb_payload = load_qb_game_log_payload(tmp_path, 2024, "qb-1")
 
+def test_load_team_game_log_payload_filters_rows_to_the_team(tmp_path: Path) -> None:
+    """Load the team game-log payload for one selected team."""
+    # Arrange
+    _seed_game_logs(tmp_path)
+
+    # Act
+    team_payload = load_team_game_log_payload(tmp_path, 2024, "DET")
+
+    # Assert
     assert [row["opponent_team"] for row in team_payload["rows"]] == ["KC", "CHI"]
     assert team_payload["column_groups"]["identity"] == ["game_id", "week", "team", "opponent_team"]
     assert team_payload["column_groups"]["results"] == [
@@ -193,6 +213,16 @@ def test_load_team_and_qb_game_log_payloads_filter_rows_by_entity(tmp_path: Path
     ]
     assert team_payload["column_groups"]["per_snap_rates"] == ["points_per_offensive_snap"]
 
+
+def test_load_qb_game_log_payload_filters_rows_to_the_qb(tmp_path: Path) -> None:
+    """Load the QB game-log payload for one selected QB."""
+    # Arrange
+    _seed_game_logs(tmp_path)
+
+    # Act
+    qb_payload = load_qb_game_log_payload(tmp_path, 2024, "qb-1")
+
+    # Assert
     assert [row["week"] for row in qb_payload["rows"]] == [1, 2]
     assert qb_payload["rows"][0]["qb_name"] == "Jared Goff"
     assert qb_payload["column_groups"]["identity"] == [
@@ -208,6 +238,7 @@ def test_load_team_and_qb_game_log_payloads_filter_rows_by_entity(tmp_path: Path
 
 def test_payloads_carry_registry_column_metadata(tmp_path: Path) -> None:
     """Every payload includes registry-resolved metadata for its columns."""
+    # Arrange
     _write_table(tmp_path / "2024_team_per_game_stats.parquet", "team,points_for", "DET,510")
     _write_table(
         tmp_path / "2024_qb_per_game_stats.parquet", "qb_id,qb_name,team", "qb-1,Jared Goff,DET"
@@ -225,8 +256,10 @@ def test_payloads_carry_registry_column_metadata(tmp_path: Path) -> None:
     )
     _write_table(tmp_path / "2024_qb_ratings.parquet", "qb_id,QSaCR", "qb-1,1.3")
 
+    # Act
     dataset = load_season_ui_dataset(tmp_path, 2024)
 
+    # Assert
     team_metadata = dataset["teams"]["column_metadata"]
     assert team_metadata["SaCR"]["polarity"] == "higher"
     assert team_metadata["SaCR"]["category"] == "Schedule-Adjusted Ratings"
@@ -241,6 +274,7 @@ def test_payloads_carry_registry_column_metadata(tmp_path: Path) -> None:
 
 def test_group_columns_follow_registry_category_order(tmp_path: Path) -> None:
     """Columns inside each group are ordered by registry category taxonomy."""
+    # Arrange
     _write_table(tmp_path / "2024_team_per_game_stats.parquet", "team,points_for", "DET,510")
     _write_table(
         tmp_path / "2024_qb_per_game_stats.parquet", "qb_id,qb_name,team", "qb-1,Jared Goff,DET"
@@ -259,8 +293,10 @@ def test_group_columns_follow_registry_category_order(tmp_path: Path) -> None:
     )
     _write_table(tmp_path / "2024_qb_ratings.parquet", "qb_id,QSaCR", "qb-1,1.3")
 
+    # Act
     dataset = load_season_ui_dataset(tmp_path, 2024)
 
+    # Assert
     team_stats_columns = dataset["teams"]["column_groups"]["per_game_rates"]
     # Overall (wins) before Offense (passing_yards) before Defense columns.
     assert team_stats_columns.index("wins") < team_stats_columns.index("passing_yards")
