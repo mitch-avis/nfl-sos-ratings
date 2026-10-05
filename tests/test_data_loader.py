@@ -1716,3 +1716,25 @@ def test_load_playoff_qb_stats_without_postseason_plays_is_typed_empty(
     # Assert
     assert result.is_empty()
     assert result.schema["qb_epa_per_dropback"] == pl.Float64
+
+
+def test_load_pbp_data_treats_an_empty_team_as_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Arrange
+    pbp = pl.DataFrame(
+        {
+            "season_type": ["REG", "REG"],
+            "week": [2, 2],
+            "posteam": ["ATL", ""],
+            "defteam": ["DAL", ""],
+            "home_team": ["ATL", "ATL"],
+            "away_team": ["DAL", "DAL"],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+
+    # Act
+    result = data_loader.load_pbp_data(1999)
+
+    # Assert
+    assert result.get_column("posteam").to_list() == ["ATL", None]
+    assert result.get_column("defteam").to_list() == ["DAL", None]

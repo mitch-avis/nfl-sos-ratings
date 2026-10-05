@@ -2,7 +2,16 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DEN_GAME_LOGS, DEN_RATING_HISTORY, REGISTRY, SEASON_2025, stubApi } from '@/test/fixtures'
+import {
+  DEN_GAME_LOGS,
+  DEN_RATING_HISTORY,
+  columnMeta,
+  QB_RANK_RANGES,
+  REGISTRY,
+  SEASON_2025,
+  stubApi,
+  TEAM_RANK_RANGES,
+} from '@/test/fixtures'
 import { renderApp } from '@/test/renderApp'
 
 const API = {
@@ -158,9 +167,27 @@ describe('season in progress', () => {
     renderApp('/qbs?season=2026')
 
     // Assert
-    expect(await screen.findByText(/rating threshold of/)).toHaveTextContent(
-      '42 pass attempts (14 per team game over the 3 games played so far)',
+    expect(await screen.findByText(/14 pass attempts per game/)).toHaveTextContent(
+      'at least 14 pass attempts per game his team has played',
     )
+  })
+
+  it('keeps the notice up until every team has finished its season', async () => {
+    // Arrange
+    const lastWeek = {
+      ...SEASON_2025,
+      teams: {
+        ...SEASON_2025.teams,
+        rows: SEASON_2025.teams.rows.map((row, index) => ({ ...row, games_played: index === 0 ? 16 : 17 })),
+      },
+    }
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025': lastWeek }))
+
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByText(/Season in progress/)).toHaveTextContent('up to 17 games')
   })
 
   it('shows no notice for a completed season', async () => {
@@ -174,26 +201,123 @@ describe('season in progress', () => {
 })
 
 describe('QB index', () => {
-  it('hides unrated QBs by default', async () => {
+  it('lists only qualifying QBs by default', async () => {
     // Act
     renderApp('/qbs?season=2025')
 
     // Assert
     expect(await screen.findByRole('link', { name: 'Bo Nix' })).toBeInTheDocument()
+    expect(screen.queryByText('Short Sample')).not.toBeInTheDocument()
     expect(screen.queryByText('Backup Arm')).not.toBeInTheDocument()
   })
 
-  it('shows unrated QBs once the switch is on', async () => {
+  it('adds the QBs below the qualifier once the switch is on', async () => {
     // Arrange
     const user = userEvent.setup()
     renderApp('/qbs?season=2025')
     await screen.findByRole('link', { name: 'Bo Nix' })
 
     // Act
-    await user.click(screen.getByRole('switch', { name: 'Show unrated or empty QB rows' }))
+    await user.click(screen.getByRole('switch', { name: 'Show QBs below the qualifier' }))
 
     // Assert
+    expect(screen.getByText('Short Sample')).toBeInTheDocument()
     expect(screen.getByText('Backup Arm')).toBeInTheDocument()
+  })
+
+  it('says a QB below the qualifier has no rank range, and why', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/qbs/rating-ranges': QB_RANK_RANGES }))
+    const user = userEvent.setup()
+    renderApp('/qbs?season=2025')
+    await screen.findByRole('columnheader', { name: /Rank range/ })
+
+    // Act
+    await user.click(screen.getByRole('switch', { name: 'Show QBs below the qualifier' }))
+
+    // Assert
+    expect(screen.getByRole('button', { name: 'Below the qualifier: 25 of 238 pass attempts' })).toHaveTextContent(
+      'Below qualifier',
+    )
+  })
+
+  it('leaves the raw player ID out of the table', async () => {
+    // Act
+    renderApp('/qbs?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('link', { name: 'Bo Nix' })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /QB ID/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('qb detail', () => {
+  it('says why a QB below the qualifier has no rank range', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/qbs/rating-ranges': QB_RANK_RANGES }))
+
+    // Act
+    renderApp('/qbs/qb-3?season=2025')
+
+    // Assert
+    expect(await screen.findByText(/Not ranked: below the qualifier/)).toHaveTextContent(
+      'Not ranked: below the qualifier (25 of 238 pass attempts), so no rank range.',
+    )
+  })
+})
+
+describe('rank column', () => {
+  it('explains that Rank follows the current sort', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    renderApp('/teams?season=2025')
+
+    // Act
+    await user.hover(await screen.findByRole('button', { name: 'About the rank' }))
+
+    // Assert
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      "Each row's position in the current sort (Team Rating).",
+    )
+  })
+})
+
+describe('index header', () => {
+  it('keeps the reading notes folded away until asked for', async () => {
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByText('Reading notes')).toBeVisible()
+    expect(screen.getByText(/SRS is the classic point-margin rating/)).not.toBeVisible()
+  })
+
+  it('leaves out the summary tiles that repeat the table header', async () => {
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('heading', { name: /Team Ratings Index · 2025/ })).toBeInTheDocument()
+    expect(screen.queryByText('Rows shown')).not.toBeInTheDocument()
+  })
+})
+
+describe('phone layout', () => {
+  afterEach(() => {
+    window.innerWidth = 1024
+  })
+
+  it('pins only the name column so the stats have room', async () => {
+    // Arrange
+    window.innerWidth = 402
+
+    // Act
+    renderApp('/qbs?season=2025')
+
+    // Assert
+    await screen.findByRole('link', { name: 'Bo Nix' })
+    const pinned = screen.getAllByRole('columnheader').filter((header) => header.classList.contains('sticky'))
+    expect(pinned.map((header) => header.textContent)).toEqual(['QB'])
   })
 })
 
@@ -259,6 +383,78 @@ describe('team detail', () => {
   })
 })
 
+const RANGES_PATH = '/api/seasons/2025/teams/rating-ranges'
+
+describe('rank ranges', () => {
+  it('charts every team on the index, each row linking to its detail page', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, [RANGES_PATH]: TEAM_RANK_RANGES }))
+
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByText('Rank ranges')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'DEN: published rank 1st, median 1st; middle 50%: 1st–2nd; 95%: 1st–3rd' }),
+    ).toHaveAttribute('href', '/teams/DEN?season=2025')
+  })
+
+  it('adds a rank range column beside the team rating', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, [RANGES_PATH]: TEAM_RANK_RANGES }))
+
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('columnheader', { name: /Rank range/ })).toBeInTheDocument()
+    expect(within(bodyRows()[2]).getByText('3rd')).toBeInTheDocument()
+  })
+
+  it('leaves the rank ranges out for a season without range files', async () => {
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('heading', { name: /Team Ratings Index · 2025/ })).toBeInTheDocument()
+    expect(screen.queryByText('Rank ranges')).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /Rank range/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Could not load the rank ranges')).not.toBeInTheDocument()
+  })
+
+  it('reports a rank-range failure other than a missing file', async () => {
+    // Arrange
+    const api = stubApi(API)
+    vi.stubGlobal('fetch', (async (input: RequestInfo | URL) =>
+      String(input).endsWith('/rating-ranges')
+        ? new Response(JSON.stringify({ detail: 'disk read failed' }), {
+            status: 500,
+            headers: { 'content-type': 'application/json' },
+          })
+        : api(input)) as typeof fetch)
+
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByText('Could not load the rank ranges')).toBeInTheDocument()
+  })
+
+  it('headlines the rank range and its chances on the detail page', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, [RANGES_PATH]: TEAM_RANK_RANGES }))
+
+    // Act
+    renderApp('/teams/KC?season=2025')
+
+    // Assert
+    expect(await screen.findByText('2nd; middle 50%: 2nd; 95%: 1st–3rd')).toBeInTheDocument()
+    expect(screen.getByText('Top 5 in 100% of resamples, top 10 in 100%')).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Chance of each rank' })).toHaveTextContent('2nd52%')
+  })
+})
+
 describe('seasons and glossary', () => {
   it('defaults to the newest season when none is given', async () => {
     // Act
@@ -287,5 +483,27 @@ describe('seasons and glossary', () => {
     // Assert
     expect(await screen.findByRole('heading', { name: 'Glossary' })).toBeInTheDocument()
     expect(screen.getByText('Primary overall team rank: Team Rating')).toBeInTheDocument()
+  })
+
+  it('explains each metric from the registry when opened directly', async () => {
+    // Arrange
+    const registry = {
+      ...REGISTRY,
+      metrics: {
+        qb_sack_rate: {
+          ...columnMeta('Sack Rate', { full_name: 'Sack Rate', shape: 'rate', category: 'Pressure, Sacks & Pocket' }),
+          description: 'Sacks taken per dropback.',
+          entity: 'qb',
+        },
+      },
+    }
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/metadata': registry }))
+
+    // Act
+    renderApp('/glossary')
+
+    // Assert
+    const term = await screen.findByText('Sack Rate')
+    expect(term.closest('div')).toHaveTextContent('Sack RateSacks taken per dropback.')
   })
 })

@@ -4,6 +4,7 @@ import polars as pl
 
 from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
 from nfl_sos_ratings.opponent_stats import is_division_opponent
+from nfl_sos_ratings.qb_stats import select_primary_qb_rows
 from nfl_sos_ratings.team_stats import compute_team_stats_excluding_opponent
 
 DEFENSIVE_CONTEXT_COLS: list[str] = [
@@ -150,23 +151,8 @@ def _compute_qb_allowed_stats_excluding_team(
 
 
 def _select_primary_qb_games(qb_df: pl.DataFrame) -> pl.DataFrame:
-    """Return one primary quarterback row per team-week when sufficient keys exist."""
-    if not {"team_abbr", "week"}.issubset(set(qb_df.columns)):
-        return qb_df
-
-    sort_keys = [
-        column
-        for column in ("qb_offense_snaps", "qb_dropbacks", "qb_attempts")
-        if column in qb_df.columns
-    ]
-    if not sort_keys:
-        return qb_df
-
-    return (
-        qb_df.sort(sort_keys, descending=[True] * len(sort_keys))
-        .group_by(["team_abbr", "week"])
-        .first()
-    )
+    """Return one primary quarterback row per team-week, as ``qb_stats`` picks it."""
+    return select_primary_qb_rows(qb_df)
 
 
 def _get_faced_opponents(qb_games: pl.DataFrame) -> list[str]:

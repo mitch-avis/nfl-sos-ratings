@@ -1,30 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
+import { useRankRanges } from '@/api/queries'
 import type { EntityKind, SeasonDataset } from '@/api/types'
 import { useEntityPageState } from '@/app/EntityViewStateProvider'
+import { ErrorState } from '@/components/common/ErrorState'
 import { PageHeader } from '@/components/common/PageHeader'
-import { StatTile } from '@/components/common/StatTile'
 import { ComparisonPanel } from '@/components/entity/ComparisonPanel'
 import { EntityTable } from '@/components/entity/EntityTable'
+import { RankRangeChart } from '@/components/entity/RankRangeChart'
 import { ViewControls } from '@/components/entity/ViewControls'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { getEntityConfig } from '@/domain/entityConfig'
-import { humanizeGroup } from '@/domain/format'
 import {
   canResetPageView,
   reconcileCompareIds,
   toggleCompareId,
   toggleSubcategoryPatch,
 } from '@/domain/pageViewState'
-import {
-  getInProgressGames,
-  getQuarterbackQualifierAttempts,
-  getRegularSeasonGameCount,
-} from '@/domain/seasonRules'
+import { isMissingRankRanges, parseRankRanges } from '@/domain/rankRanges'
+import { getInProgressGames } from '@/domain/seasonRules'
 import { buildSeasonViewTable } from '@/domain/viewModel'
 
 function sameIds(left: string[], right: string[]): boolean {
@@ -83,14 +81,25 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
     if (!sameIds(compareIds, state.compareIds)) update({ compareIds })
   }, [compareIds, state.compareIds, update])
   const setCompareIds = useCallback((ids: string[]) => update({ compareIds: ids }), [update])
+  // Stable across unrelated re-renders (another query settling, for example), so the table does not
+  // rebuild its columns and remount every checkbox.
+  const toggleCompare = useCallback(
+    (entityId: string) => update({ compareIds: toggleCompareId(compareIds, entityId) }),
+    [compareIds, update],
+  )
   useCompareQuerySync(kind, dataset, compareIds, setCompareIds)
+  const rankRangesQuery = useRankRanges(kind, dataset.season)
+  const rankRanges = useMemo(
+    () => (rankRangesQuery.data ? parseRankRanges(kind, rankRangesQuery.data) : undefined),
+    [kind, rankRangesQuery.data],
+  )
 
   const seasonView = useMemo(() => buildSeasonViewTable(kind, table, state.viewState), [kind, state.viewState, table])
   const displayTable = useMemo(() => {
     if (kind !== 'qbs' || state.showUnratedRows) return seasonView.table
     return {
       ...seasonView.table,
-      rows: seasonView.table.rows.filter((row) => row.adj_qb_epa_per_dropback != null),
+      rows: seasonView.table.rows.filter((row) => row.qb_is_eligible === true),
     }
   }, [kind, seasonView.table, state.showUnratedRows])
   const compareColumns = useMemo(() => {
@@ -101,17 +110,6 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
     return requested.length > 0 ? requested : config.compareColumns
   }, [config.compareColumns, config.identityColumns, kind, seasonView.selectedColumns])
   const { viewState } = state
-  const enabledSubcategories = Object.entries(viewState.activeSubcategories)
-    .filter(([, enabled]) => enabled)
-    .map(([label]) => label)
-  const selectedSlice =
-    viewState.primaryView === 'ratings'
-      ? 'Rating columns'
-      : [kind === 'teams' ? viewState.teamCategory : null, enabledSubcategories.join(', ')]
-          .filter(Boolean)
-          .join(': ')
-  const totalCount = seasonView.table.rows.length
-  const displayCount = displayTable.rows.length
   const season = dataset.season
   const gamesSoFar = getInProgressGames(season, dataset.teams.rows)
 
@@ -132,21 +130,21 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
         </Alert>
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)]">
-        <Card className="gap-2 px-4 py-3">
-          <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Use first</div>
-          <div className="font-semibold">{config.primaryRankingLabel}</div>
-          <p className="text-sm text-muted-foreground">{config.primaryRankingDescription}</p>
-        </Card>
-        <Card className="gap-2 px-4 py-3">
-          <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Reading notes</div>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+      <Card className="gap-2 px-4 py-3">
+        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Use first</div>
+        <div className="font-semibold">{config.primaryRankingLabel}</div>
+        <p className="max-w-prose text-sm text-muted-foreground">{config.primaryRankingDescription}</p>
+        <details className="text-sm">
+          <summary className="w-fit cursor-pointer py-1 font-medium text-muted-foreground hover:text-foreground">
+            Reading notes
+          </summary>
+          <ul className="mt-1 max-w-prose list-disc space-y-1 pl-5 text-muted-foreground">
             {config.pageNotes.map((note) => (
               <li key={note}>{note}</li>
             ))}
           </ul>
-        </Card>
-      </div>
+        </details>
+      </Card>
 
       {kind === 'qbs' ? (
         <Card className="px-4 py-3">
@@ -157,34 +155,17 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
                 checked={state.showUnratedRows}
                 onCheckedChange={(checked) => update({ showUnratedRows: checked })}
               />
-              <Label htmlFor="show-unrated">Show unrated or empty QB rows</Label>
+              <Label htmlFor="show-unrated">Show QBs below the qualifier</Label>
             </div>
             <p className="text-sm text-muted-foreground">
-              Includes quarterbacks who played at least one offensive snap but finished below the
-              rating threshold of {getQuarterbackQualifierAttempts(season, gamesSoFar)} pass attempts
-              (14 per team game{' '}
-              {gamesSoFar !== null
-                ? `over the ${gamesSoFar} games played so far`
-                : `in this ${getRegularSeasonGameCount(season)}-game season`}
-              ).
+              The table ranks quarterbacks with at least 14 pass attempts per game his team has
+              played{gamesSoFar !== null ? ' so far, so teams that have had a bye need fewer' : ''}.
+              Switch on to list the passers below that mark too; they have no rank range. Each
+              quarterback&apos;s number is the Qualifier Att column in Raw Total Stats.
             </p>
           </CardContent>
         </Card>
       ) : null}
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile
-          label="Rows shown"
-          value={displayCount}
-          footnote={
-            displayCount === totalCount
-              ? `${config.singularLabel} rows available for this season.`
-              : `${displayCount} of ${totalCount} ${config.singularLabel} rows.`
-          }
-        />
-        <StatTile label="Current view" value={humanizeGroup(viewState.primaryView)} footnote="One stat view at a time." />
-        <StatTile label="Metrics in view" value={seasonView.metricColumns.length} footnote={selectedSlice} />
-      </div>
 
       <ComparisonPanel
         compareColumns={compareColumns}
@@ -212,13 +193,34 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
         }
         onQueryChange={(query) => update({ query })}
         onSortingChange={(sorting) => update({ sorting })}
-        onToggleCompare={(entityId) => update({ compareIds: toggleCompareId(compareIds, entityId) })}
+        onToggleCompare={toggleCompare}
         query={state.query}
+        rankRanges={rankRanges}
         season={season}
         selectedColumns={seasonView.selectedColumns}
         sorting={state.sorting}
         table={displayTable}
       />
+
+      {rankRangesQuery.isError && !isMissingRankRanges(rankRangesQuery.error) ? (
+        <ErrorState error={rankRangesQuery.error} title="Could not load the rank ranges" />
+      ) : null}
+      {rankRanges && rankRanges.length > 0 ? (
+        <Card className="gap-4">
+          <CardHeader>
+            <CardTitle className="text-base">Rank ranges</CardTitle>
+            <CardDescription>
+              Where each {kind === 'teams' ? 'team' : 'qualifying QB'} ranks when the {season} games are
+              redrawn at random, with repeats, and the ratings are refit on every redraw. The spread
+              shows how much a rank depends on which games happened to be played, not whether the
+              model is right. Seasons in progress show very wide ranges.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RankRangeChart kind={kind} season={season} ranges={rankRanges} />
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   )
 }

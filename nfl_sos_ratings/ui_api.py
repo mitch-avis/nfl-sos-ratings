@@ -22,9 +22,11 @@ from nfl_sos_ratings.ui_data import (
     discover_available_seasons,
     load_qb_game_log_payload,
     load_qb_rating_history_payload,
+    load_qb_rating_ranges_payload,
     load_season_ui_dataset,
     load_team_game_log_payload,
     load_team_rating_history_payload,
+    load_team_rating_ranges_payload,
 )
 
 # The built single-page app: `cd web && npm run build` writes it here.
@@ -120,6 +122,29 @@ def _entity_router(data_dir: Path) -> APIRouter:
     return router
 
 
+def _rating_ranges_router(data_dir: Path) -> APIRouter:
+    """Return the league-wide rank-range routes, one payload per season for teams and for QBs."""
+    router = APIRouter()
+
+    @router.get("/api/seasons/{season}/teams/rating-ranges")
+    def get_team_rating_ranges(season: int) -> TablePayload:
+        """Return every team's rating and rank ranges over game-bootstrap resamples."""
+        try:
+            return load_team_rating_ranges_payload(data_dir, season)
+        except MissingSeasonContractError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @router.get("/api/seasons/{season}/qbs/rating-ranges")
+    def get_qb_rating_ranges(season: int) -> TablePayload:
+        """Return the eligible quarterbacks' rating and rank ranges over bootstrap resamples."""
+        try:
+            return load_qb_rating_ranges_payload(data_dir, season)
+        except MissingSeasonContractError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    return router
+
+
 def create_app(data_dir: Path | None = None, *, web_dist: Path | None = None) -> FastAPI:
     """Create the analyst API, plus the built web app from ``web_dist`` (default ``web/dist``)."""
     resolved_data_dir = data_dir or Path(DATA_DIR)
@@ -161,6 +186,7 @@ def create_app(data_dir: Path | None = None, *, web_dist: Path | None = None) ->
             raise HTTPException(status_code=404, detail=str(error)) from error
 
     app.include_router(_entity_router(resolved_data_dir))
+    app.include_router(_rating_ranges_router(resolved_data_dir))
     mount_frontend(app, web_dist or DEFAULT_WEB_DIST)
     return app
 

@@ -69,12 +69,18 @@ The app never recomputes methodology. The backend (`nfl_sos_ratings/ui_data.py` 
 - `GET /api/seasons/{season}/teams/{team}/rating-history` and
   `GET /api/seasons/{season}/qbs/{qb_id}/rating-history`: the rating as of each week, each fit on
   the games through that week
+- `GET /api/seasons/{season}/teams/rating-ranges` and
+  `GET /api/seasons/{season}/qbs/rating-ranges`: every team's (or qualifying quarterback's) rating
+  and rank percentiles, top-5 and top-10 chances, and the chance of each rank over game-bootstrap
+  resamples, ordered by published rank
 
 A season is listed only when all six contract files exist: `{season}_team_per_game_stats`,
 `{season}_qb_per_game_stats`, `{season}_combined`, `{season}_qb_combined`, `{season}_ratings`, and
 `{season}_qb_ratings` (all `.parquet`). Game-log views also read `{season}_team_game_logs` and
 `{season}_qb_game_logs`, and the rating-history chart reads `{season}_ratings_by_week` and
-`{season}_qb_ratings_by_week`; the chart is left out when a season has no history file.
+`{season}_qb_ratings_by_week`; the chart is left out when a season has no history file. The
+rank-range endpoints read `{season}_rating_ranges` and `{season}_qb_rating_ranges` and return 404
+when the file is missing.
 
 ## Layout
 
@@ -91,9 +97,9 @@ web/
       ui/            shadcn/ui primitives
       common/        page header, stat tile, loading, empty, and error states, tooltips
       entity/        entity table, view controls, comparison panel, game logs, opponent
-                     breakdown, weekly trend chart
+                     breakdown, weekly trend chart, rank-range chart and histogram
     domain/          pure view logic: entity config, view state, formatting, metric metadata,
-                     detail analytics, trend points
+                     detail analytics, trend points, rank ranges
     hooks/, utils/   small shared helpers
     test/            test setup, fixtures, render helper
 ```
@@ -111,6 +117,18 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
 - Search filters the visible columns; identity columns stay pinned while scrolling sideways.
   `Reset` restores the default view.
 - Tick rows to compare them. The selection lives in `?compare=` so a comparison can be shared.
+- Underlined labels, info icons, and chart points explain themselves in a hint card: hover or focus
+  with a mouse, tap on a phone or tablet (tap anywhere else to close). On touch screens a tap on a
+  column header sorts, and the info button beside it explains the column.
+- On phones only the name column stays pinned while the table scrolls sideways, and the view
+  toggles scroll on one row.
+- When a season has rank-range files, the `Ratings` view gains a `Rank range` column (the middle
+  50% of ranks across game-bootstrap resamples, with a mini interval), and a `Rank ranges` chart
+  below the table draws every team or qualifying QB: thick bar for the middle 50%, thin bar for the
+  middle 95%, a dot for the median, and a diamond for the published rank when it differs. The
+  readout above the chart describes the hovered or tapped row (on a phone, its link opens the
+  detail page). The detail page adds the rank headline, the top-5 and top-10 chances, and the
+  chance of each rank.
 - Click a team or QB to open its detail page: stat tiles, metric sections, the weekly trend chart
   (pick any numeric column of the current view; the season mean is drawn as a reference line), the
   game log, and the unique-opponent breakdown.
@@ -130,3 +148,6 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
 - **A metric looks wrong.** Inspect the `/api` payload before changing frontend code; the app must
   never silently redefine a column's meaning. Backend contract tests live in
   `tests/test_ui_data.py` and `tests/test_ui_api.py`.
+- **Charts look different with a dark-mode extension.** `index.html` carries
+  `<meta name="darkreader-lock">`, so Dark Reader leaves the app alone; it repainted the rank-range
+  marks invisible and overrode the heat-map colors. Use the header's theme toggle for dark mode.

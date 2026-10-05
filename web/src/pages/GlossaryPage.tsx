@@ -1,10 +1,16 @@
+import { useMetricRegistry } from '@/api/queries'
+import { LoadingState } from '@/components/common/LoadingState'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getEntityConfig } from '@/domain/entityConfig'
 import { GLOSSARY_SECTIONS, getMetricDescription, getMetricMetadata } from '@/domain/metricMetadata'
 
-/** Rating meanings, the headline ranking per entity, and every glossary metric. */
+/**
+ * Rating meanings, the headline ranking per entity, and every glossary metric. It loads the metric
+ * registry itself, so a direct visit gets the registry's descriptions rather than bare names.
+ */
 export function GlossaryPage() {
+  const registry = useMetricRegistry()
   const teams = getEntityConfig('teams')
   const qbs = getEntityConfig('qbs')
   return (
@@ -32,7 +38,8 @@ export function GlossaryPage() {
         ))}
       </div>
 
-      {GLOSSARY_SECTIONS.map((section) => (
+      {registry.isPending ? <LoadingState label="Loading the metric definitions…" /> : null}
+      {registry.isPending ? null : GLOSSARY_SECTIONS.map((section) => (
         <Card key={section.title} className="gap-4">
           <CardHeader>
             <CardTitle className="text-base">{section.title}</CardTitle>
@@ -45,11 +52,10 @@ export function GlossaryPage() {
                 return (
                   <div key={metric} className="rounded-md border bg-muted/30 px-3 py-2">
                     <dt className="font-medium">{metadata.fullName}</dt>
-                    <dd className="text-sm">{metadata.shortDescription}</dd>
-                    <p className="mt-1 text-sm text-muted-foreground">
+                    <dd className="text-sm text-muted-foreground">
                       {metadata.label !== metadata.fullName ? `Shown in the tables as ${metadata.label}. ` : ''}
                       {getMetricDescription(metric)}
-                    </p>
+                    </dd>
                   </div>
                 )
               })}

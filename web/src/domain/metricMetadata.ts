@@ -1,5 +1,5 @@
 import { humanizeColumn } from './format';
-import type { ColumnMetadataPayload, EntityKind, MetricRegistryPayload } from '@/api/types';
+import type { ColumnMetadataPayload, EntityKind, MetricRegistryPayload, MetricShape } from '@/api/types';
 
 export type MetricPolarity = 'higher' | 'lower' | 'neutral';
 
@@ -13,6 +13,8 @@ export interface MetricMetadata {
   heatmap?: boolean;
   category?: string;
   subcategory?: string;
+  /** The registry shape; tables use it to pick a column's decimals. */
+  shape?: MetricShape;
 }
 
 // The backend metric registry is the single source of truth for labels,
@@ -90,6 +92,7 @@ function toMetricMetadata(payload: ColumnMetadataPayload): MetricMetadata {
     detail: payload.description,
     polarity: payload.polarity,
     contextual: payload.contextual,
+    shape: payload.shape,
     heatmap: true,
     category: payload.category,
     subcategory: payload.subcategory ?? undefined,

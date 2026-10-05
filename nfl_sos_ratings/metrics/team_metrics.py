@@ -117,6 +117,79 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         since=1999,
         contextual=True,
     ),
+    _ratings(
+        name="team_rank",
+        label="Rank",
+        full_name="Team Rating Rank",
+        description=(
+            "The team's place in the league by Team Rating, 1 for the best. Teams with equal "
+            "ratings share the better rank."
+        ),
+        shape="score",
+        polarity="lower",
+        source="D",
+        since=1999,
+    ),
+    _ratings(
+        name="team_rank_missing_share",
+        label="No-Game Share",
+        full_name="Share of Resamples Without the Team",
+        description=(
+            "The share of game-bootstrap resamples of the season (its games redrawn at random, "
+            "with repeats) in which the team had no games and so no rank. It is essentially "
+            "zero for a finished season and grows early in a season, when each team has played "
+            "only a few games."
+        ),
+        shape="rate",
+        polarity="neutral",
+        source="D",
+        denominator="bootstrap resamples",
+        since=1999,
+    ),
+    _ratings(
+        name="team_rank_top5_probability",
+        label="Top-5 Chance",
+        full_name="Chance of a Top-5 Rank",
+        description=(
+            "The share of game-bootstrap resamples of the season (its games redrawn at random, "
+            "with repeats) in which the team ranked in the top five by Team Rating. It shows how "
+            "much the ranking depends on which games happened to be played."
+        ),
+        shape="rate",
+        polarity="higher",
+        source="D",
+        denominator="bootstrap resamples",
+        since=1999,
+    ),
+    _ratings(
+        name="team_rank_top10_probability",
+        label="Top-10 Chance",
+        full_name="Chance of a Top-10 Rank",
+        description=(
+            "The share of game-bootstrap resamples of the season (its games redrawn at random, "
+            "with repeats) in which the team ranked in the top ten by Team Rating. It shows how "
+            "much the ranking depends on which games happened to be played."
+        ),
+        shape="rate",
+        polarity="higher",
+        source="D",
+        denominator="bootstrap resamples",
+        since=1999,
+    ),
+    _ratings(
+        name="team_rank_probabilities",
+        label="Rank Chances",
+        full_name="Chance of Each Rank",
+        description=(
+            "A list giving, for each rank from 1 down, the share of game-bootstrap resamples of "
+            "the season in which the team finished at exactly that rank by Team Rating."
+        ),
+        shape="rate",
+        polarity="neutral",
+        source="D",
+        denominator="bootstrap resamples",
+        since=1999,
+    ),
 )
 
 OVERALL_METRICS: tuple[MetricDef, ...] = (

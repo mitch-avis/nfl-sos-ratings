@@ -8,6 +8,14 @@ from typing import TYPE_CHECKING, TypedDict
 import polars as pl
 
 from nfl_sos_ratings.metrics import get_registry
+from nfl_sos_ratings.rating_ranges import (
+    QB_RANGE_COLUMNS,
+    RANGE_QUANTILES,
+    TEAM_RANGE_COLUMNS,
+    TOP_RANKS,
+    RangeColumns,
+    quantile_suffix,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -28,6 +36,8 @@ TEAM_GAME_LOG_SUFFIX = "team_game_logs"
 QB_GAME_LOG_SUFFIX = "qb_game_logs"
 TEAM_RATING_HISTORY_SUFFIX = "ratings_by_week"
 QB_RATING_HISTORY_SUFFIX = "qb_ratings_by_week"
+TEAM_RATING_RANGES_SUFFIX = "rating_ranges"
+QB_RATING_RANGES_SUFFIX = "qb_rating_ranges"
 TEAM_RATING_COLUMNS = (
     "team_rating",
     "offense_rating",
@@ -135,6 +145,18 @@ def load_qb_rating_history_payload(data_dir: Path, season: int, qb_id: str) -> T
     return _build_rating_history_payload(
         filtered, ("week", "qb_id"), ("qb_games_played", "qb_dropbacks"), QB_RATING_COLUMNS
     )
+
+
+def load_team_rating_ranges_payload(data_dir: Path, season: int) -> TablePayload:
+    """Load every team's bootstrap rating and rank ranges for a season, by published rank."""
+    frame = _load_season_file(data_dir, season, TEAM_RATING_RANGES_SUFFIX)
+    return _build_rating_ranges_payload(frame, ("team",), TEAM_RANGE_COLUMNS)
+
+
+def load_qb_rating_ranges_payload(data_dir: Path, season: int) -> TablePayload:
+    """Load the eligible quarterbacks' bootstrap rating and rank ranges, by published rank."""
+    frame = _load_season_file(data_dir, season, QB_RATING_RANGES_SUFFIX)
+    return _build_rating_ranges_payload(frame, ("qb_id", "qb_name", "team"), QB_RANGE_COLUMNS)
 
 
 def _build_contract_paths(data_dir: Path, season: int) -> dict[str, Path]:
@@ -385,6 +407,36 @@ def _build_rating_history_payload(
     visible_columns = [column for columns in groups.values() for column in columns]
     return {
         "rows": frame.select(visible_columns).to_dicts(),
+        "visible_columns": visible_columns,
+        "column_groups": groups,
+        "column_metadata": get_registry().column_metadata(visible_columns),
+    }
+
+
+def _build_rating_ranges_payload(
+    frame: pl.DataFrame, identity: tuple[str, ...], columns: RangeColumns
+) -> TablePayload:
+    """Return a rank-range payload: identity, published rank, the ranges, then rank chances."""
+    suffixes = [quantile_suffix(level) for level in RANGE_QUANTILES]
+    rank_chances = (
+        *(f"{columns.rank}_top{top}_probability" for top in TOP_RANKS),
+        f"{columns.rank}_missing_share",
+        f"{columns.rank}_probabilities",
+    )
+    groups = {
+        "identity": _ordered_existing_columns(frame.columns, identity),
+        "published": _ordered_existing_columns(frame.columns, (columns.rank,)),
+        "rating_range": _ordered_existing_columns(
+            frame.columns, tuple(f"{columns.rating}{suffix}" for suffix in suffixes)
+        ),
+        "rank_range": _ordered_existing_columns(
+            frame.columns, tuple(f"{columns.rank}{suffix}" for suffix in suffixes)
+        ),
+        "rank_chances": _ordered_existing_columns(frame.columns, rank_chances),
+    }
+    visible_columns = [column for group in groups.values() for column in group]
+    return {
+        "rows": frame.sort(columns.rank).select(visible_columns).to_dicts(),
         "visible_columns": visible_columns,
         "column_groups": groups,
         "column_metadata": get_registry().column_metadata(visible_columns),

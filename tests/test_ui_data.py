@@ -6,15 +6,22 @@ from typing import TYPE_CHECKING
 import polars as pl
 import pytest
 
+from nfl_sos_ratings.rating_ranges import (
+    QB_RANGE_COLUMNS,
+    TEAM_RANGE_COLUMNS,
+    summarize_rank_ranges,
+)
 from nfl_sos_ratings.ui_data import (
     MissingEntityRowsError,
     MissingSeasonContractError,
     discover_available_seasons,
     load_qb_game_log_payload,
     load_qb_rating_history_payload,
+    load_qb_rating_ranges_payload,
     load_season_ui_dataset,
     load_team_game_log_payload,
     load_team_rating_history_payload,
+    load_team_rating_ranges_payload,
 )
 
 if TYPE_CHECKING:
@@ -437,3 +444,95 @@ def test_load_qb_rating_history_payload_unknown_qb_raises_lookup_error(tmp_path:
     # Act & Assert
     with pytest.raises(MissingEntityRowsError, match="rating-history rows for qb-9"):
         load_qb_rating_history_payload(tmp_path, 2024, "qb-9")
+
+
+def _seed_rating_ranges(data_dir: Path) -> None:
+    """Write team and QB rank-range files summarized from two bootstrap draws."""
+    draws = pl.DataFrame(
+        {
+            "draw": [0, 0, 1, 1],
+            "team": ["KC", "DET", "KC", "DET"],
+            "team_rating": [1.0, 2.0, 3.0, 0.5],
+        }
+    )
+    published = pl.DataFrame({"team": ["DET", "KC"], "team_rating": [2.5, 1.5]})
+    summarize_rank_ranges(draws, published, TEAM_RANGE_COLUMNS).write_parquet(
+        data_dir / "2024_rating_ranges.parquet"
+    )
+    qb_draws = pl.DataFrame(
+        {"draw": [0, 1], "qb_id": ["qb-1", "qb-1"], "adj_qb_epa_per_dropback": [0.1, 0.2]}
+    )
+    qb_published = pl.DataFrame({"qb_id": ["qb-1"], "adj_qb_epa_per_dropback": [0.15]})
+    summarize_rank_ranges(qb_draws, qb_published, QB_RANGE_COLUMNS).with_columns(
+        pl.lit("Passer One").alias("qb_name"), pl.lit("DET").alias("team")
+    ).write_parquet(data_dir / "2024_qb_rating_ranges.parquet")
+
+
+def test_load_team_rating_ranges_payload_lists_teams_by_published_rank(tmp_path: Path) -> None:
+    # Arrange
+    _seed_rating_ranges(tmp_path)
+
+    # Act
+    payload = load_team_rating_ranges_payload(tmp_path, 2024)
+
+    # Assert
+    assert [(row["team"], row["team_rank"]) for row in payload["rows"]] == [("DET", 1), ("KC", 2)]
+
+
+def test_load_team_rating_ranges_payload_groups_ranges_and_rank_chances(tmp_path: Path) -> None:
+    # Arrange
+    _seed_rating_ranges(tmp_path)
+
+    # Act
+    payload = load_team_rating_ranges_payload(tmp_path, 2024)
+
+    # Assert
+    suffixes = ["_q025", "_q100", "_q250", "_q500", "_q750", "_q900", "_q975"]
+    assert payload["column_groups"] == {
+        "identity": ["team"],
+        "published": ["team_rank"],
+        "rating_range": [f"team_rating{suffix}" for suffix in suffixes],
+        "rank_range": [f"team_rank{suffix}" for suffix in suffixes],
+        "rank_chances": [
+            "team_rank_top5_probability",
+            "team_rank_top10_probability",
+            "team_rank_missing_share",
+            "team_rank_probabilities",
+        ],
+    }
+
+
+def test_load_qb_rating_ranges_payload_carries_identity_and_rank_chances(tmp_path: Path) -> None:
+    # Arrange
+    _seed_rating_ranges(tmp_path)
+
+    # Act
+    payload = load_qb_rating_ranges_payload(tmp_path, 2024)
+
+    # Assert
+    row = payload["rows"][0]
+    assert (row["qb_name"], row["team"], row["qb_rank_probabilities"]) == (
+        "Passer One",
+        "DET",
+        [1.0],
+    )
+    assert payload["column_groups"]["identity"] == ["qb_id", "qb_name", "team"]
+
+
+def test_rating_ranges_payload_metadata_labels_the_quantile_columns(tmp_path: Path) -> None:
+    # Arrange
+    _seed_rating_ranges(tmp_path)
+
+    # Act
+    payload = load_team_rating_ranges_payload(tmp_path, 2024)
+
+    # Assert
+    assert payload["column_metadata"]["team_rank_q975"]["polarity"] == "lower"
+
+
+def test_load_qb_rating_ranges_payload_without_the_file_raises_missing_contract(
+    tmp_path: Path,
+) -> None:
+    # Act & Assert
+    with pytest.raises(MissingSeasonContractError, match="qb_rating_ranges"):
+        load_qb_rating_ranges_payload(tmp_path, 2024)

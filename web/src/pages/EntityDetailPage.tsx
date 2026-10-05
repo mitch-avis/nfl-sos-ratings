@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
 
-import { useEntityGameLogs, useRatingHistory } from '@/api/queries'
+import { useEntityGameLogs, useRankRanges, useRatingHistory } from '@/api/queries'
 import type { EntityKind, SeasonDataset } from '@/api/types'
 import { useEntityPageState } from '@/app/EntityViewStateProvider'
 import { ErrorState } from '@/components/common/ErrorState'
@@ -11,6 +11,7 @@ import { StatTile } from '@/components/common/StatTile'
 import { GameLogTable } from '@/components/entity/GameLogTable'
 import { MetricSections } from '@/components/entity/MetricSections'
 import { OpponentBreakdownTable } from '@/components/entity/OpponentBreakdownTable'
+import { RankHistogram } from '@/components/entity/RankHistogram'
 import { ViewControls } from '@/components/entity/ViewControls'
 import { WeeklyTrendChart } from '@/components/entity/WeeklyTrendChart'
 import { Badge } from '@/components/ui/badge'
@@ -26,12 +27,20 @@ import { getEntityConfig, getEntityRow, getFullTeamName } from '@/domain/entityC
 import { humanizeGroup } from '@/domain/format'
 import { getGroupDescription } from '@/domain/metricMetadata'
 import { canResetPageView, toggleSubcategoryPatch } from '@/domain/pageViewState'
+import {
+  belowQualifierText,
+  isMissingRankRanges,
+  parseRankRanges,
+  rankChanceText,
+  rankRangeHeadline,
+} from '@/domain/rankRanges'
 import { buildRatingHistoryChart, isMissingRatingHistory } from '@/domain/ratingHistory'
 import {
   buildGameLogColumnSelection,
   buildSeasonViewTable,
   deriveLegacyDetailSurfaceId,
 } from '@/domain/viewModel'
+import { buildColumnDecimals } from '@/domain/tableState'
 
 /** One team's or QB's season: current-view values, rating by week, weekly log, and opponents. */
 export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset: SeasonDataset }) {
@@ -44,6 +53,14 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
   const row = getEntityRow(seasonView.table, kind, entityId)
   const gameLogsQuery = useEntityGameLogs(kind, season, row ? entityId : '')
   const ratingHistoryQuery = useRatingHistory(kind, season, row ? entityId : '')
+  const rankRangesQuery = useRankRanges(kind, season)
+  const rankRange = useMemo(
+    () =>
+      rankRangesQuery.data
+        ? parseRankRanges(kind, rankRangesQuery.data).find((range) => range.id === entityId)
+        : undefined,
+    [entityId, kind, rankRangesQuery.data],
+  )
 
   const enrichedGameLogs = useMemo(
     () => (gameLogsQuery.data ? enrichGameLogsWithOpponentRatings(gameLogsQuery.data, dataset.teams) : null),
@@ -117,9 +134,39 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
             row={row}
             columns={metricColumns}
             isRatingsView={viewState.primaryView === 'ratings'}
+            decimals={buildColumnDecimals(seasonView.table.rows, metricColumns)}
           />
         </CardContent>
       </Card>
+
+      {rankRangesQuery.isError && !isMissingRankRanges(rankRangesQuery.error) ? (
+        <ErrorState error={rankRangesQuery.error} title="Could not load the rank ranges" />
+      ) : null}
+      {rankRangesQuery.data && !rankRange && belowQualifierText(row) ? (
+        <Card className="gap-2 px-4 py-3">
+          <div className="text-sm font-medium">Rank range</div>
+          <p className="text-sm text-muted-foreground">{belowQualifierText(row)}</p>
+        </Card>
+      ) : null}
+      {rankRange ? (
+        <Card className="gap-4">
+          <CardHeader>
+            <CardTitle className="text-base">Rank range</CardTitle>
+            <CardDescription>
+              The rank when the {season} games are redrawn at random, with repeats, and the ratings are
+              refit on every redraw. It shows how much the rank depends on which games happened to be
+              played, not whether the model is right.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <div>
+              <p className="text-lg font-semibold tabular">{rankRangeHeadline(rankRange)}</p>
+              <p className="text-sm text-muted-foreground">{rankChanceText(kind, rankRange)}</p>
+            </div>
+            <RankHistogram range={rankRange} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {ratingHistoryQuery.isError && !isMissingRatingHistory(ratingHistoryQuery.error) ? (
         <ErrorState error={ratingHistoryQuery.error} title="Could not load the rating history" />

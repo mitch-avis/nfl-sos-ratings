@@ -108,7 +108,8 @@ hand-edit `uv.lock` or any generated `requirements*.txt` export.
 - `nfl_sos_ratings/`: the package; tests mirror it under `tests/`. Loading is `data_loader` with
   `team_stats`, `team_stats_expanded`, and `qb_stats` building the per-game rows. The published
   ratings are `team_rating` and `qb_rating`, both on the shared solver in `ridge`; `srs` is the
-  score-based reference. `opponent_stats` and `qb_opponent_stats` build the descriptive
+  score-based reference, and `rating_ranges` summarizes game-bootstrap refits of both into rank
+  ranges. `opponent_stats` and `qb_opponent_stats` build the descriptive
   head-to-head-excluded opponent profiles. `main` runs one season, `pipeline` runs them all, and
   `cli` is the `nfl-sos-ratings` front door. `ui_data` and `ui_api` serve the web app's JSON API
   and its built files.
@@ -129,9 +130,12 @@ next steps change. A stale plan document is a repo bug.
 
 - `.agents/current-status.md`: repo status, validation snapshot, active backlog, next-agent
   guidance. Every session that lands work leaves it accurate enough to resume without chat history.
-- `.agents/ratings-simplification-plan.md`: the points-based rating rework, its pre-registered
-  validation rule, and the remaining tasks (2026 in-season support).
-- `.agents/frontend-ui-kickoff-plan.md`: the analyst web UI.
+- `.agents/roadmap.md`: the single active plan, every open workstream in the recommended order
+  (the WP filter, rank-range extensions, refresh automation, frontend follow-ups, and fixes).
+- `.agents/ratings-simplification-plan.md`: decision record for the points-based ratings (rating
+  specifications, pre-registered rules and their results, the retired-metric list).
+- `.agents/frontend-ui-kickoff-plan.md`: the web app's build history, design direction, and the
+  2026-10-04 UX audit.
 
 Fold completed one-off workstreams into `current-status.md` or the still-active plan instead of
 leaving stale plan files behind. When a task introduces a pattern the codebase does not have yet,
@@ -155,6 +159,9 @@ These are correctness invariants specific to this project. Linters will not catc
 - **Normalize team abbreviations before joining.** nflverse sources disagree (for example `LA`
   versus `LAR`). Route abbreviations through the existing normalization first, or joins silently
   drop rows.
+- **Group a player's plays by id, never by name.** Play-by-play tags one player several ways
+  (`T.Pike` and `T.Pike (3rd QB)`) and leaves `posteam` empty (`""`) on non-plays, which the
+  loader turns into null. Grouping by name or keeping `""` as a team duplicates rows downstream.
 - **Exclude head-to-head games when profiling an opponent.** An opponent's (or defense's) profile
   is built from their games against the rest of the league, excluding games against the team or
   QB being evaluated. This keeps the opponent side independent of the subject. `opponent_stats`

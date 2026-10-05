@@ -2,9 +2,11 @@ import type { RowValue } from '@/api/types'
 import { MetricLabel } from '@/components/common/MetricLabel'
 import { detailHeaderLabel } from '@/domain/detailSections'
 import { buildGameOverviewUrl, formatDetailCellValue } from '@/domain/detailUi'
+import { buildColumnDecimals } from '@/domain/tableState'
 
 /** One row per game: result context first, then the columns of the current view. */
 export function GameLogTable({ rows, columns }: { rows: Array<Record<string, RowValue>>; columns: string[] }) {
+  const decimals = buildColumnDecimals(rows, columns)
   return (
     <div className="max-h-[70vh] overflow-auto rounded-md border">
       <table className="w-max min-w-full text-sm tabular">
@@ -34,7 +36,7 @@ export function GameLogTable({ rows, columns }: { rows: Array<Record<string, Row
                         {value}
                       </a>
                     ) : (
-                      formatDetailCellValue(column, value)
+                      formatDetailCellValue(column, value, decimals[column] ?? null)
                     )}
                   </td>
                 )

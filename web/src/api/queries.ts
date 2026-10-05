@@ -6,6 +6,7 @@ import { apiFetch } from './client'
 import type {
   EntityKind,
   MetricRegistryPayload,
+  RankRangesPayload,
   SeasonDataset,
   SeasonsResponse,
   TablePayload,
@@ -77,6 +78,18 @@ export function useRatingHistory(kind: EntityKind, season: number, entityId: str
         `/api/seasons/${season}/${kind}/${encodeURIComponent(entityId)}/rating-history`,
         signal,
       )
+      hydrateColumnMetadata(payload.column_metadata)
+      return payload
+    },
+  })
+}
+
+/** Every team's or QB's bootstrap rank range for a season; seasons built without them answer 404. */
+export function useRankRanges(kind: EntityKind, season: number) {
+  return useQuery({
+    queryKey: ['rating-ranges', kind, season],
+    queryFn: async ({ signal }) => {
+      const payload = await apiFetch<RankRangesPayload>(`/api/seasons/${season}/${kind}/rating-ranges`, signal)
       hydrateColumnMetadata(payload.column_metadata)
       return payload
     },

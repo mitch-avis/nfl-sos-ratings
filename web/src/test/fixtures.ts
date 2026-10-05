@@ -1,6 +1,7 @@
 import type {
   ColumnMetadataPayload,
   MetricRegistryPayload,
+  RankRangesPayload,
   RowValue,
   SeasonDataset,
   TablePayload,
@@ -109,6 +110,19 @@ export const SEASON_2025: SeasonDataset = {
         team: 'DEN',
         adj_qb_epa_per_dropback: 0.12,
         qb_faced_pass_defense: 0.01,
+        qb_is_eligible: true,
+        qb_attempts_total: 560,
+        qb_attempt_qualifier: 238,
+      },
+      {
+        qb_id: 'qb-3',
+        qb_name: 'Short Sample',
+        team: 'KC',
+        adj_qb_epa_per_dropback: 0.2,
+        qb_faced_pass_defense: 0.0,
+        qb_is_eligible: false,
+        qb_attempts_total: 25,
+        qb_attempt_qualifier: 238,
       },
       {
         qb_id: 'qb-2',
@@ -116,6 +130,9 @@ export const SEASON_2025: SeasonDataset = {
         team: 'LV',
         adj_qb_epa_per_dropback: null,
         qb_faced_pass_defense: null,
+        qb_is_eligible: false,
+        qb_attempts_total: 0,
+        qb_attempt_qualifier: 238,
       },
     ],
     ['qb_id', 'qb_name', 'team'],
@@ -183,4 +200,50 @@ export const DEN_RATING_HISTORY: TablePayload = {
     team_rating: columnMeta('Team Rating'),
     offense_rating: columnMeta('Off Rating'),
   },
+}
+
+const RANGE_QUANTILES = ['q025', 'q100', 'q250', 'q500', 'q750', 'q900', 'q975']
+
+function teamRankRange(team: string, published: number, ranks: number[], probabilities: number[]) {
+  return {
+    team,
+    team_rank: published,
+    ...Object.fromEntries(RANGE_QUANTILES.map((key, index) => [`team_rank_${key}`, ranks[index]])),
+    ...Object.fromEntries(RANGE_QUANTILES.map((key, index) => [`team_rating_${key}`, 8 - published * 4 + index])),
+    team_rank_top5_probability: 1,
+    team_rank_top10_probability: 1,
+    team_rank_missing_share: 0,
+    team_rank_probabilities: probabilities,
+  }
+}
+
+export const TEAM_RANK_RANGES: RankRangesPayload = {
+  rows: [
+    teamRankRange('DEN', 1, [1, 1, 1, 1, 2, 2, 3], [0.62, 0.3, 0.08]),
+    teamRankRange('KC', 2, [1, 1, 2, 2, 2, 3, 3], [0.3, 0.52, 0.18]),
+    teamRankRange('LV', 3, [2, 2, 3, 3, 3, 3, 3], [0.08, 0.18, 0.74]),
+  ],
+  visible_columns: [],
+  column_groups: {},
+  column_metadata: {},
+}
+
+export const QB_RANK_RANGES: RankRangesPayload = {
+  rows: [
+    {
+      qb_id: 'qb-1',
+      qb_name: 'Bo Nix',
+      team: 'DEN',
+      qb_rank: 1,
+      ...Object.fromEntries(RANGE_QUANTILES.map((key) => [`qb_rank_${key}`, 1])),
+      ...Object.fromEntries(RANGE_QUANTILES.map((key) => [`adj_qb_epa_per_dropback_${key}`, 0.12])),
+      qb_rank_top5_probability: 1,
+      qb_rank_top10_probability: 1,
+      qb_rank_missing_share: 0,
+      qb_rank_probabilities: [1],
+    },
+  ],
+  visible_columns: [],
+  column_groups: {},
+  column_metadata: {},
 }

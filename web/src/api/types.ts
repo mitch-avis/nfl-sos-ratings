@@ -42,6 +42,11 @@ export interface TablePayload {
   column_metadata?: Record<string, ColumnMetadataPayload>;
 }
 
+/** `/api/seasons/{season}/{kind}/rating-ranges`: one row per team or QB, with list columns. */
+export interface RankRangesPayload extends Omit<TablePayload, 'rows'> {
+  rows: Array<Record<string, RowValue | number[]>>;
+}
+
 export interface SeasonDataset {
   season: number;
   teams: TablePayload;

@@ -108,6 +108,28 @@ average and spread out as games accumulate, and the last week's ratings are the 
 `qb_faced_pass_defense` are not refit week by week. The histories are the `ratings_by_week` and
 `qb_ratings_by_week` files.
 
+## Rank Ranges
+
+A rank depends on which games happened to be played. To show how much, each season's games are
+redrawn at random with repeats (a game bootstrap: 1000 resamples, each as many games as the season
+has) and the ratings are refit on every resample with the season fit's ridge penalties. Each
+resample is ranked: teams among all teams, quarterbacks among those who qualify for the full
+season (14 pass attempts per game their team has played). The `rating_ranges` and
+`qb_rating_ranges` files give, per team or quarterback, the rating and rank at the 2.5th, 10th,
+25th, 50th, 75th, 90th, and 97.5th percentiles of the resamples, the chance of a top-5 and a top-10
+rank, and the chance of each rank.
+
+- **What the ranges cover.** Game-to-game sampling noise in the shrunken estimate, nothing more.
+  They say nothing about whether the model is right: a bias every resample shares (for example,
+  EPA crediting the passer for his receivers) moves the whole range, not its width.
+- **Shrinkage.** The ridge pulls every rating toward average, and each resample is pulled the same
+  way, so the extreme teams' ranges sit a little toward the middle of the league.
+- **Quarterbacks who miss games.** A quarterback with no dropbacks in a resample has no rank in
+  it. The `qb_rank_missing_share` column says how often that happened, and the percentiles come
+  from the resamples he appears in.
+- **Seasons in progress.** With only a few games played, a resample can leave a team out entirely
+  (`team_rank_missing_share`), and the ranges are very wide. They narrow as the season fills in.
+
 ## What the Ratings Leave Out
 
 - **Outcomes.** Wins, comebacks, game-winning drives, and turnover margin are published as context
@@ -157,8 +179,8 @@ from week 5 on:
 - Elo is not distinguishable from `team_rating` (difference +0.021, interval -0.047 to +0.088),
   even though Elo carries ratings across seasons and the others rate each season from its own games.
 - Year-over-year stability: `team_rating` 0.434 and SRS 0.437 (Pearson). For quarterbacks,
-  adjusted EPA per dropback is 0.461, a little below passer rating's 0.473 and above ANY/A's
-  0.403. Stability is reported, not optimized; the rating measures the season that was played.
+  adjusted EPA per dropback is 0.455, a little below passer rating's 0.464 and above ANY/A's
+  0.392. Stability is reported, not optimized; the rating measures the season that was played.
 - Adjusted EPA per dropback correlates with ESPN QBR at 0.892 (Pearson) and 0.874 (Spearman) on
   average across 2006-2025.
 

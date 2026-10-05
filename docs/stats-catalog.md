@@ -5,10 +5,10 @@ Do not edit by hand. Companion catalog: [qb-stats-catalog.md](qb-stats-catalog.m
 
 Every column below is regular season only. Data files and the analyst app add a prefix or suffix to
 these base names: `opp_` (the team's head-to-head-excluded opponent profile), `qopp_` (what the
-defenses a quarterback faced allowed to other passers), `_per_game`, `_total`, and per-play
-denominators such as `_per_offensive_snap` and `_per_dropback`. Shapes: `count` totals, `rate`
-ratios with their own denominator, `avg` per-event averages, `score` model outputs on their own
-scale, `flag` booleans, and `id` identity fields.
+defenses a quarterback faced allowed to other passers), `_per_game`, `_total`, per-play denominators
+such as `_per_offensive_snap` and `_per_dropback`, and rank-range percentiles `_q025` through
+`_q975`. Shapes: `count` totals, `rate` ratios with their own denominator, `avg` per-event averages,
+`score` model outputs on their own scale, `flag` booleans, and `id` identity fields.
 
 ## Sources
 
@@ -34,6 +34,11 @@ played. Start here when ranking teams.
 | `special_teams_rating` | ST Rating | score | - | 1999 | D | Points per game gained on special-teams plays (kicks, punts, returns, field goals, and extra points) compared with an average team, adjusted for the opponents faced. |
 | `SRS` | SRS | score | - | 1999 | D | A classic point-margin rating solved across the whole league at once. Positive means the team outscored opponents by more than an average team would have against the same schedule, measured in points per game. |
 | `sos` | SoS | score | - | 1999 | D | The average Team Rating of the opponents this team played, one entry per game, in points per game. Each opponent is rated without its games against this team, so beating an opponent badly cannot make that opponent look weaker here. Positive means a harder-than-average schedule. Early in a season, opponents that have played no one else yet are left out. Context, not a team grade. |
+| `team_rank` | Rank | score | - | 1999 | D | The team's place in the league by Team Rating, 1 for the best. Teams with equal ratings share the better rank. |
+| `team_rank_missing_share` | No-Game Share | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the team had no games and so no rank. It is essentially zero for a finished season and grows early in a season, when each team has played only a few games. |
+| `team_rank_top5_probability` | Top-5 Chance | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the team ranked in the top five by Team Rating. It shows how much the ranking depends on which games happened to be played. |
+| `team_rank_top10_probability` | Top-10 Chance | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the team ranked in the top ten by Team Rating. It shows how much the ranking depends on which games happened to be played. |
+| `team_rank_probabilities` | Rank Chances | rate | bootstrap resamples | 1999 | D | A list giving, for each rank from 1 down, the share of game-bootstrap resamples of the season in which the team finished at exactly that rank by Team Rating. |
 
 ## Overall
 

@@ -894,7 +894,7 @@ def test_compute_qb_season_stats_without_identity_columns_groups_by_team() -> No
 )
 def test_select_primary_qb_rows_returns_rows_it_cannot_rank(qb_df: pl.DataFrame) -> None:
     # Act
-    selected = qb_stats._select_primary_qb_rows(qb_df)
+    selected = qb_stats.select_primary_qb_rows(qb_df)
 
     # Assert
     assert selected.equals(qb_df)
@@ -932,11 +932,22 @@ def test_canonicalize_qb_rows_fills_missing_identity_columns() -> None:
 def test_default_qb_attempt_qualifier_without_weekly_data_uses_seventeen_games(
     weekly_df: pl.DataFrame | None,
 ) -> None:
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["DEN"],
+            "week": [1],
+            "qb_id": ["QB_A"],
+            "qb_name": ["QB A"],
+            "qb_attempts": [30],
+        }
+    )
+
     # Act
-    qualifier = qb_stats._compute_default_qb_attempt_qualifier(weekly_df)
+    result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
 
     # Assert
-    assert qualifier == 238
+    assert result.get_column("qb_attempt_qualifier").to_list() == [238]
 
 
 def test_compute_qb_game_volumes_from_pbp_without_dropbacks_or_qb_snaps_is_empty() -> None:
@@ -1012,3 +1023,141 @@ def test_compute_qb_game_stats_from_pbp_without_cpoe_leaves_it_null() -> None:
     row = games.row(0, named=True)
     assert row["qb_completion_percentage_above_expectation"] is None
     assert row["qb_epa_per_dropback"] == pytest.approx(0.8)
+
+
+def _tied_starters() -> pl.DataFrame:
+    """Return one team-game where two passers tie on snaps, dropbacks, and attempts."""
+    return pl.DataFrame(
+        {
+            "team_abbr": ["ATL", "ATL"],
+            "week": [6, 6],
+            "qb_id": ["QB_B", "QB_A"],
+            "qb_name": ["QB B", "QB A"],
+            "qb_offense_snaps": [0, 0],
+            "qb_dropbacks": [20, 20],
+            "qb_attempts": [18, 18],
+        }
+    )
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_compute_qb_season_stats_breaks_a_primary_qb_tie_the_same_way_in_any_row_order(
+    reverse: bool,  # noqa: FBT001 - pytest parameter
+) -> None:
+    # Arrange
+    qb_df = _tied_starters().reverse() if reverse else _tied_starters()
+    weekly_df = pl.DataFrame(
+        {"team": ["ATL"], "week": [6], "points_for": [24], "points_allowed": [17]}
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
+
+    # Assert
+    assert result.filter(pl.col("qb_wins") == 1).get_column("qb_id").to_list() == ["QB_A"]
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_compute_qb_season_stats_gives_a_traded_qb_his_latest_team_on_a_games_tie(
+    reverse: bool,  # noqa: FBT001 - pytest parameter
+) -> None:
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["BUF", "BUF", "JAX", "JAX"],
+            "week": [1, 2, 5, 6],
+            "qb_id": ["QB_A"] * 4,
+            "qb_name": ["QB A"] * 4,
+            "qb_attempts": [20, 20, 20, 20],
+        }
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df.reverse() if reverse else qb_df)
+
+    # Assert
+    assert result.get_column("team").to_list() == ["JAX"]
+
+
+def test_compute_qb_season_stats_qualifies_against_the_qbs_own_team_games() -> None:
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["SEA", "SEA", "KC", "KC", "KC", "KC"],
+            "week": [1, 2, 1, 2, 3, 4],
+            "qb_id": ["QB_SEA", "QB_SEA", "QB_KC", "QB_KC", "QB_KC", "QB_KC"],
+            "qb_name": ["SEA QB", "SEA QB", "KC QB", "KC QB", "KC QB", "KC QB"],
+            "qb_attempts": [24, 24, 12, 12, 12, 12],
+        }
+    )
+    weekly_df = pl.DataFrame(
+        {
+            "team": ["SEA"] * 3 + ["KC"] * 4,
+            "week": [1, 2, 3, 1, 2, 3, 4],
+            "points_for": [20] * 7,
+            "points_allowed": [17] * 7,
+        }
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
+
+    # Assert
+    eligible = dict(zip(result["qb_id"], result["qb_is_eligible"], strict=True))
+    assert eligible == {"QB_SEA": True, "QB_KC": False}
+
+
+def test_late_game_flags_ignore_rows_without_a_real_team() -> None:
+    # Arrange
+    plays = pl.DataFrame(
+        {
+            "game_id": ["g1"] * 4,
+            "posteam": ["ATL", "DAL", "", "ATL"],
+            "qtr": [4, 4, 4, 4],
+            "score_differential": [-10, 10, 0, -17],
+            "score_differential_post": [-10, 17, 0, -17],
+            "posteam_score": [0, 10, 0, 7],
+            "posteam_score_post": [0, 17, 0, 7],
+        }
+    )
+
+    # Act
+    flags = qb_stats._compute_team_late_game_flags_from_pbp(plays)
+
+    # Assert
+    assert flags.sort("team_abbr").select("team_abbr", "qb_fourth_quarter_comeback").to_dicts() == [
+        {"team_abbr": "ATL", "qb_fourth_quarter_comeback": 0},
+        {"team_abbr": "DAL", "qb_fourth_quarter_comeback": 0},
+    ]
+
+
+def test_compute_qb_game_stats_from_pbp_keeps_one_row_when_a_passers_name_varies() -> None:
+    # Arrange
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2010_09_NO_CAR"] * 3,
+            "week": [9] * 3,
+            "posteam": ["CAR"] * 3,
+            "passer_player_id": ["GSIS_P"] * 3,
+            "passer_player_name": ["T.Pike", "T.Pike (3rd QB)", "T.Pike (3rd QB)"],
+            "qb_dropback": [1, 1, 1],
+            "pass": [1, 1, 1],
+            "complete_pass": [1, 0, 1],
+            "passing_yards": [12.0, 0.0, 8.0],
+            "yards_gained": [12.0, 0.0, 8.0],
+            "pass_touchdown": [0, 0, 0],
+            "interception": [0, 0, 0],
+            "sack": [0, 0, 0],
+            "fumble_lost": [0, 0, 0],
+            "qb_epa": [0.5, -0.4, 0.2],
+            "cpoe": [None, None, None],
+        }
+    )
+
+    # Act
+    result = qb_stats.compute_qb_game_stats_from_pbp(pbp)
+
+    # Assert
+    assert result.select("qb_id", "qb_attempts").to_dicts() == [
+        {"qb_id": "GSIS_P", "qb_attempts": 3}
+    ]

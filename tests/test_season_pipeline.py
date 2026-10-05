@@ -101,6 +101,12 @@ def _no_profiles() -> tuple[pl.DataFrame | None, dict[str, list[dict[str, str | 
     return None, {}
 
 
+@pytest.fixture(autouse=True)
+def _few_resamples(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the rank-range bootstrap small: these tests check outputs, not interval precision."""
+    monkeypatch.setattr(main, "BOOTSTRAP_RESAMPLES", 50)
+
+
 @pytest.fixture
 def season_outputs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Run the real pipeline on the synthetic league with only the loaders patched."""
@@ -193,6 +199,78 @@ def test_run_season_weekly_team_history_ends_at_the_season_rating(season_outputs
     assert last_week.get_column("team_rating").to_list() == pytest.approx(
         ratings.sort("team").get_column("team_rating").to_list()
     )
+
+
+def test_run_season_writes_team_rank_ranges_in_published_order(season_outputs: Path) -> None:
+    # Arrange
+    ratings = pl.read_parquet(season_outputs / "2025_ratings.parquet")
+
+    # Act
+    ranges = pl.read_parquet(season_outputs / "2025_rating_ranges.parquet")
+
+    # Assert
+    assert ranges.get_column("team").to_list() == ratings.get_column("team").to_list()
+    assert ranges.get_column("team_rank").to_list() == list(range(1, len(_TEAMS) + 1))
+
+
+def test_run_season_team_rank_ranges_bracket_the_published_rating(season_outputs: Path) -> None:
+    # Arrange
+    ratings = pl.read_parquet(season_outputs / "2025_ratings.parquet").select("team", "team_rating")
+
+    # Act
+    ranges = pl.read_parquet(season_outputs / "2025_rating_ranges.parquet")
+
+    # Assert
+    joined = ranges.join(ratings, on="team")
+    assert joined.filter(
+        (pl.col("team_rating_q025") > pl.col("team_rating"))
+        | (pl.col("team_rating_q975") < pl.col("team_rating"))
+    ).is_empty()
+
+
+def _qb_df_with_a_backup() -> pl.DataFrame:
+    """Return the starters plus one backup who threw a few passes in a single game."""
+    starters = _qb_df()
+    backup = starters.filter(pl.col("team_abbr") == "BUF").head(1)
+    return pl.concat(
+        [
+            starters,
+            backup.with_columns(
+                pl.lit("qb-BUF-2").alias("qb_id"),
+                pl.lit("BUF Backup").alias("qb_name"),
+                pl.lit(4, dtype=pl.Int64).alias("qb_dropbacks"),
+                pl.lit(4, dtype=pl.Int64).alias("qb_attempts"),
+                pl.lit(0.4).alias("qb_passing_epa"),
+                pl.lit(0.1).alias("qb_epa_per_dropback"),
+            ),
+        ]
+    )
+
+
+def test_run_season_ranks_only_eligible_passers_in_the_qb_ranges(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(main, "load_weekly_team_stats", stub(_weekly_df))
+    monkeypatch.setattr(main, "load_schedule", stub(_schedule_df))
+    monkeypatch.setattr(main, "load_qb_stats", stub(_qb_df_with_a_backup))
+
+    # Act
+    main.run_season(2025)
+
+    # Assert
+    ranges = pl.read_parquet(tmp_path / "2025_qb_rating_ranges.parquet")
+    assert sorted(ranges.get_column("qb_id").to_list()) == [f"qb-{team}" for team in _TEAMS]
+
+
+def test_run_season_qb_rank_ranges_carry_the_passer_identity(season_outputs: Path) -> None:
+    # Act
+    ranges = pl.read_parquet(season_outputs / "2025_qb_rating_ranges.parquet")
+
+    # Assert
+    first = ranges.row(0, named=True)
+    assert (first["qb_rank"], first["qb_name"], first["team"]) == (1, "BUF Passer", "BUF")
 
 
 def test_run_season_writes_the_weekly_qb_rating_history(season_outputs: Path) -> None:

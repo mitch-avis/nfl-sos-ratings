@@ -1,5 +1,9 @@
 # Frontend / UI Kickoff Plan
 
+Since 2026-10-04 this file is the frontend's build history, design direction, and UX audit record.
+Open frontend work (F1-F6, the WP slider, and the rank-range views still to come) lives in
+`.agents/roadmap.md`.
+
 > [!NOTE]
 > On 2026-10-04 the published ratings were replaced (see `ratings-simplification-plan.md`). Team
 > columns are now `team_rating`, `offense_rating`, `defense_rating`, `special_teams_rating`, `sos`,
@@ -22,7 +26,28 @@ has since been removed).
 
 - Status: in progress. The analyst shell, compare/reset behavior, and detail pages are shipped, and
   the whole frontend now lives in `web/` on nfl-predictor's stack.
-- Last updated: 2026-10-02.
+- Last updated: 2026-10-04.
+- UX audit (2026-10-04, maintainer-requested; checked in Chrome at desktop width and at 402 px,
+  the iPhone 17 Pro's CSS width, on the rebuilt `data/`). Landed on `feat/rank-ranges`:
+  - One hint card style everywhere (`components/common/Hint`, `hintStyles.ts`, restyled
+    `ui/tooltip.tsx`, `ChartTooltipCard` for Recharts): hover or focus with a mouse, tap on touch
+    screens (`(hover: none)`, Radix popover). Sortable headers (`SortableHeader`) keep a tap for
+    sorting and add an info button on touch screens.
+  - The league rank-range chart reads out the active row above the rows instead of floating a
+    tooltip over its neighbors.
+  - Phones (below 768 px): only the name column stays pinned (capped at 120 px), Compare shrinks
+    to its checkbox, the QB ID column is gone everywhere, the view toggles scroll on one row, the
+    index reading notes fold into a disclosure, and the three summary tiles are gone.
+  - P2 follow-ups, done 2026-10-04 at the maintainer's request: one fixed precision per column
+    (`format.columnDecimals`: whole numbers stay whole, points-per-game scores 2 decimals, others by
+    scale), the glossary loads the registry itself and prints each description once, QBs below the
+    qualifier read "Below qualifier" with attempts against `qb_attempt_qualifier` (table and detail
+    page), the phone table box fills the screen below the app header, and the Rank header says it
+    follows the current sort. The QBs page now lists only `qb_is_eligible` passers by default
+    ("Show QBs below the qualifier" adds the rest), and the season-in-progress notice stays until
+    every team has finished.
+  - The maintainer confirmed on an iPhone (2026-10-04) that tapping a chart point opens its
+    tooltip (Recharts `trigger="click"` on touch screens).
 - Port to `web/` (landed 2026-10-02, commits 298da87 and 68d39ac on
   `chore/strict-tooling-and-web`):
   - the frontend moved from `ui/web/` (plain CSS, hand-rolled components) to `web/`: React 19,
@@ -238,16 +263,8 @@ Phase status summary:
 - Phase 4. High-value charts: started (weekly trend chart on detail pages).
 - Phase 5. Design polish: in progress.
 
-Outstanding follow-ups explicitly queued for the next agent session:
-
-1. Keep strengthening the weekly-log detail pages now that the weekly trend chart has landed;
-  keep them table-first, and check the chart against live use before adding more chart types.
-2. Refine the new grouped opponent ledgers after live use, especially if one team or QB weekly
-  surface wants a different primary performance metric or a tighter default column mix.
-3. Add opponent-strength or rating-delta context to the weekly views carefully, without implying
-  that a repeated season-long opponent rating is a true single-game rating.
-4. Revisit the compare workflow only after the weekly/detail surfaces settle, with the next step
-  being a pinned side-by-side layout rather than more compact-strip patching.
+The follow-ups once queued here (weekly-log detail pages, opponent ledgers, opponent-strength
+context, a pinned side-by-side compare) moved to `.agents/roadmap.md` as F1-F4 on 2026-10-04.
 
 ## Hard prerequisite
 

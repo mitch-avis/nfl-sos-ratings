@@ -77,7 +77,8 @@ const ENTITY_CONFIG: Record<EntityKind, EntityConfig> = {
     defaultGroups: ['identity', 'ratings', 'per_game_rates'],
     compareColumns: ['adj_qb_epa_per_dropback', 'qb_epa_per_dropback', 'qb_faced_pass_defense'],
     detailGroups: ['ratings', 'per_dropback_rates', 'per_game_rates', 'raw_totals', 'opponent_context'],
-    identityColumns: ['qb_id', 'qb_name', 'team'],
+    // qb_id stays the row key and the link target; a raw player ID is noise in the table.
+    identityColumns: ['qb_name', 'team'],
     primaryRankingLabel: 'Primary overall QB rank: Adjusted EPA per Dropback',
     primaryRankingDescription:
       'Adjusted EPA per dropback is the quarterback\'s expected points added per dropback after '

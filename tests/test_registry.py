@@ -147,6 +147,16 @@ def test_exact_match_wins_over_affix_decomposition(registry: MetricRegistry) -> 
     assert resolved.base.name == "adj_qb_epa_per_dropback"
 
 
+def test_quantile_suffix_keeps_the_base_metric_and_its_polarity(registry: MetricRegistry) -> None:
+    # Act
+    resolved = registry.resolve_column("team_rank_q975")
+
+    # Assert
+    assert resolved is not None
+    assert (resolved.base.name, resolved.polarity) == ("team_rank", "lower")
+    assert "97.5th percentile" in resolved.full_name
+
+
 def test_per_game_suffix_keeps_the_base_metric(registry: MetricRegistry) -> None:
     # Act
     resolved = registry.resolve_column("qb_attempts_per_game")

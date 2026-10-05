@@ -13,7 +13,6 @@ import {
 } from './pageViewState'
 import {
   getInProgressGames,
-  getQuarterbackQualifierAttempts,
   getRegularSeasonGameCount,
 } from './seasonRules'
 import { buildTrendPoints } from './trend'
@@ -128,20 +127,15 @@ describe('season rules', () => {
     expect(games).toBeNull()
   })
 
-  it('qualifies quarterbacks at 14 attempts per team game', () => {
+  it('keeps a season in progress until the last team finishes', () => {
+    // Arrange
+    const rows = [{ games_played: 17 }, { games_played: 16 }]
+
     // Act
-    const attempts = getQuarterbackQualifierAttempts(2025)
+    const games = getInProgressGames(2025, rows)
 
     // Assert
-    expect(attempts).toBe(238)
-  })
-
-  it('qualifies quarterbacks on the games played so far while a season is in progress', () => {
-    // Act
-    const attempts = getQuarterbackQualifierAttempts(2026, 4)
-
-    // Assert
-    expect(attempts).toBe(56)
+    expect(games).toBe(17)
   })
 })
 

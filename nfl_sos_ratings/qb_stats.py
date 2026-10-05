@@ -7,6 +7,12 @@ type PolarsCastType = type[pl.Int64 | pl.Float64]
 # Comebacks and game-winning drives count plays from the fourth quarter on (overtime included).
 _FOURTH_QUARTER = 4
 
+# A quarterback is ranked with 14 pass attempts per game his team has played (the usual NFL
+# qualifier); a season without weekly team rows is taken as a full 17-game season.
+QUALIFIER_ATTEMPTS_PER_TEAM_GAME = 14
+FULL_SEASON_TEAM_GAMES = 17
+QUALIFIER_COLUMN = "qb_attempt_qualifier"
+
 _QB_TOTAL_COLUMNS: dict[str, tuple[str, PolarsCastType]] = {
     "qb_attempts": ("qb_attempts_total", pl.Int64),
     "qb_completions": ("qb_completions_total", pl.Int64),
@@ -68,8 +74,13 @@ _QB_PER_GAME_COLUMNS: dict[str, str] = {
 }
 
 
-def _select_primary_qb_rows(qb_df: pl.DataFrame) -> pl.DataFrame:
-    """Return one primary QB row per team-week using snaps, then dropbacks, then attempts."""
+def select_primary_qb_rows(qb_df: pl.DataFrame) -> pl.DataFrame:
+    """Return one primary QB row per team-week: most snaps, then dropbacks, then attempts.
+
+    The primary QB takes the game's result and late-game credit. Remaining ties (common before snap
+    counts exist in 2012) go to the lowest ``qb_id`` (or ``qb_name``), so the pick never depends on
+    row order.
+    """
     if not {"team_abbr", "week"}.issubset(set(qb_df.columns)):
         return qb_df
 
@@ -81,9 +92,15 @@ def _select_primary_qb_rows(qb_df: pl.DataFrame) -> pl.DataFrame:
     if not sort_keys:
         return qb_df
 
+    tie_keys = [column for column in ("qb_id", "qb_name") if column in qb_df.columns][:1]
     return (
-        qb_df.sort(sort_keys, descending=[True] * len(sort_keys))
-        .group_by(["team_abbr", "week"])
+        qb_df.sort(
+            [*sort_keys, *tie_keys],
+            descending=[True] * len(sort_keys) + [False] * len(tie_keys),
+            nulls_last=True,
+            maintain_order=True,
+        )
+        .group_by(["team_abbr", "week"], maintain_order=True)
         .first()
     )
 
@@ -117,7 +134,7 @@ def _compute_team_late_game_flags_from_pbp(pbp_df: pl.DataFrame) -> pl.DataFrame
         )
 
     offense = (
-        pbp_df.filter(pl.col("posteam").is_not_null())
+        pbp_df.filter(pl.col("posteam").is_not_null() & (pl.col("posteam") != ""))
         .with_row_index("play_order")
         .sort("play_order")
     )
@@ -275,8 +292,19 @@ def compute_qb_game_volumes_from_pbp(
                 & pl.col("passer_player_name").is_not_null()
                 & (pl.col("qb_dropback").fill_null(0) > 0)
             )
-            .group_by(["game_id", "week", "posteam", "passer_player_id", "passer_player_name"])
-            .agg(pl.col("qb_dropback").sum().cast(pl.Int64).alias("qb_dropbacks"))
+            # One group per passer even when the play-by-play tags his name two ways in a game.
+            .with_columns(
+                pl.coalesce([pl.col("passer_player_id"), pl.col("passer_player_name")]).alias(
+                    "_passer_key"
+                )
+            )
+            .group_by(["game_id", "week", "posteam", "_passer_key"])
+            .agg(
+                pl.col("passer_player_id").drop_nulls().first(),
+                pl.col("passer_player_name").drop_nulls().sort().first(),
+                pl.col("qb_dropback").sum().cast(pl.Int64).alias("qb_dropbacks"),
+            )
+            .drop("_passer_key")
             .rename(
                 {
                     "posteam": "team_abbr",
@@ -429,9 +457,18 @@ def compute_qb_game_stats_from_pbp(
             & pl.col("passer_player_name").is_not_null()
             & (pl.col("qb_dropback").fill_null(0) > 0)
         )
-        .group_by(["game_id", "week", "posteam", "passer_player_id", "passer_player_name"])
+        # One group per passer: play-by-play sometimes tags the same passer two ways in one game
+        # ("T.Pike" and "T.Pike (3rd QB)"), so the name is only the fallback key for a missing id.
+        .with_columns(
+            pl.coalesce([pl.col("passer_player_id"), pl.col("passer_player_name")]).alias(
+                "_passer_key"
+            )
+        )
+        .group_by(["game_id", "week", "posteam", "_passer_key"])
         .agg(
             [
+                pl.col("passer_player_id").drop_nulls().first(),
+                pl.col("passer_player_name").drop_nulls().sort().first(),
                 pl.col("pass").fill_null(0).sum().cast(pl.Int64).alias("qb_attempts"),
                 pl.col("complete_pass").fill_null(0).sum().cast(pl.Int64).alias("qb_completions"),
                 pl.col("passing_yards").fill_null(0.0).sum().alias("qb_pass_yards"),
@@ -457,6 +494,7 @@ def compute_qb_game_stats_from_pbp(
                 cpoe.alias("qb_completion_percentage_above_expectation"),
             ]
         )
+        .drop("_passer_key")
         .rename(
             {
                 "posteam": "team_abbr",
@@ -677,7 +715,7 @@ def compute_qb_game_stats_from_pbp(
             how="left",
         )
         .join(
-            _select_primary_qb_rows(volumes)
+            select_primary_qb_rows(volumes)
             .select(["game_id", "team_abbr", "qb_name"])
             .with_columns(pl.lit(1).alias("_is_primary_qb")),
             on=["game_id", "team_abbr", "qb_name"],
@@ -790,12 +828,22 @@ def _qb_season_agg_exprs(qb_df: pl.DataFrame) -> list[pl.Expr]:
 
 
 def _qb_primary_team_map(qb_df: pl.DataFrame, qb_keys: list[str]) -> pl.DataFrame:
-    """Return each QB's most frequent team, kept for schedule and label context."""
+    """Return each QB's team for labels and the qualifier: the team he played the most games for.
+
+    A tie (a mid-season trade with equal games on both teams) goes to the team he played for most
+    recently, then to the alphabetically first team, so the pick never depends on row order.
+    """
+    last_week = pl.col("week").max() if "week" in qb_df.columns else pl.lit(0)
     return (
         qb_df.group_by([*qb_keys, "team_abbr"])
-        .len()
-        .sort("len", descending=True)
-        .group_by(qb_keys)
+        .agg(pl.len().alias("_games"), last_week.alias("_last_week"))
+        .sort(
+            ["_games", "_last_week", "team_abbr"],
+            descending=[True, True, False],
+            nulls_last=True,
+            maintain_order=True,
+        )
+        .group_by(qb_keys, maintain_order=True)
         .first()
         .select([*qb_keys, pl.col("team_abbr").alias("team")])
     )
@@ -814,7 +862,7 @@ def _with_qb_results(
 
     decisions = pl.col("qb_wins") + pl.col("qb_losses") + pl.col("qb_ties")
     qb_results = (
-        _select_primary_qb_rows(qb_df)
+        select_primary_qb_rows(qb_df)
         .join(
             weekly_df.select(["team", "week", "points_for", "points_allowed"]),
             left_on=["team_abbr", "week"],
@@ -867,6 +915,7 @@ def compute_qb_season_stats(
                 "qb_games_played": pl.Int64,
                 "qb_attempts_total": pl.Int64,
                 "qb_win_pct": pl.Float64,
+                QUALIFIER_COLUMN: pl.Int64,
                 "qb_is_eligible": pl.Boolean,
             }
         )
@@ -876,11 +925,6 @@ def compute_qb_season_stats(
     if "qb_name" not in qb_df.columns:
         qb_df = qb_df.with_columns(pl.col("team_abbr").alias("qb_name"))
 
-    effective_min_attempts = (
-        min_attempts
-        if min_attempts is not None
-        else _compute_default_qb_attempt_qualifier(weekly_df)
-    )
     qb_keys = ["qb_id", "qb_name"]
 
     season_stats = (
@@ -903,24 +947,44 @@ def compute_qb_season_stats(
     rate_exprs = _qb_season_rate_exprs(set(season_stats.columns))
     if rate_exprs:
         season_stats = season_stats.with_columns(rate_exprs)
+    season_stats = _with_attempt_qualifier(season_stats, weekly_df, min_attempts)
 
     return season_stats.with_columns(
         (
             (pl.col("qb_games_played") >= min_games)
-            & (pl.col("qb_attempts_total") >= effective_min_attempts)
+            & (pl.col("qb_attempts_total") >= pl.col(QUALIFIER_COLUMN))
         ).alias("qb_is_eligible")
     ).sort("team")
 
 
-def _compute_default_qb_attempt_qualifier(weekly_df: pl.DataFrame | None) -> int:
-    """Return the season-appropriate QB attempt qualifier.
+def _with_attempt_qualifier(
+    season_stats: pl.DataFrame, weekly_df: pl.DataFrame | None, min_attempts: int | None
+) -> pl.DataFrame:
+    """Add ``qb_attempt_qualifier``, the pass attempts a quarterback needs to be ranked.
 
-    When weekly team data is available, follow the standard 14 attempts per team game rule using
-    the maximum regular-season team game count in that season. Fall back to the 17-game threshold
-    when weekly data is unavailable.
+    The rule is 14 attempts per game the quarterback's team (his primary team, ``team``) has played,
+    so in a season in progress each team's own game count applies, byes included. ``min_attempts``
+    replaces it with one number for every quarterback. Without weekly team rows, a full season of
+    17 games is assumed; a team missing from them gets the most games any team has played.
     """
+    if min_attempts is not None:
+        return season_stats.with_columns(
+            pl.lit(min_attempts, dtype=pl.Int64).alias(QUALIFIER_COLUMN)
+        )
     if weekly_df is None or weekly_df.is_empty() or "team" not in weekly_df.columns:
-        return 238
+        full_season = FULL_SEASON_TEAM_GAMES * QUALIFIER_ATTEMPTS_PER_TEAM_GAME
+        return season_stats.with_columns(
+            pl.lit(full_season, dtype=pl.Int64).alias(QUALIFIER_COLUMN)
+        )
 
-    team_game_counts = weekly_df.group_by("team").len()
-    return int(team_game_counts.select(pl.col("len").max()).item() * 14)
+    team_games = weekly_df.group_by("team").len("_team_games")
+    most_games = team_games.get_column("_team_games").max()
+    return (
+        season_stats.join(team_games, on="team", how="left")
+        .with_columns(
+            (pl.col("_team_games").fill_null(most_games) * QUALIFIER_ATTEMPTS_PER_TEAM_GAME)
+            .cast(pl.Int64)
+            .alias(QUALIFIER_COLUMN)
+        )
+        .drop("_team_games")
+    )

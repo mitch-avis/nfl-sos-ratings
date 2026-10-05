@@ -430,9 +430,17 @@ def _override_qb_game_stats_with_official_weekly(
 
 
 def _normalize_team_abbreviations(df: pl.DataFrame, columns: list[str]) -> pl.DataFrame:
-    """Normalize known source-specific team abbreviations in selected columns."""
+    """Normalize known source-specific team abbreviations in selected columns.
+
+    An empty abbreviation becomes null: old play-by-play leaves ``posteam`` empty, not null, on
+    non-plays such as timeouts, and code that drops null teams would otherwise treat ``""`` as a
+    team (a phantom opponent that once doubled late-game flags and QB game rows).
+    """
     exprs = [
-        pl.col(column).replace(TEAM_ABBR_ALIASES).alias(column)
+        pl.when(pl.col(column) == "")
+        .then(None)
+        .otherwise(pl.col(column).replace(TEAM_ABBR_ALIASES))
+        .alias(column)
         for column in columns
         if column in df.columns
     ]
