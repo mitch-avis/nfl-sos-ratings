@@ -35,6 +35,10 @@ from nfl_sos_ratings.qb_rating import (
 )
 from nfl_sos_ratings.ridge import build_unit_design, solve_unit_design
 from nfl_sos_ratings.team_rating import (
+    SCRIMMAGE_EPA_COLUMN,
+    SCRIMMAGE_PLAYS_COLUMN,
+    SPECIAL_TEAMS_EPA_COLUMN,
+    SPECIAL_TEAMS_PLAYS_COLUMN,
     TEAM_UNIT_COLUMNS,
     scrimmage_rows,
     special_teams_rows,
@@ -53,6 +57,13 @@ MAX_WP_THRESHOLD = 20
 # Bins run 0-50 (``wp_bins``); one more slot holds the plays without a bin.
 _LAST_BIN = 50
 _UNBINNED_SLOT = _LAST_BIN + 1
+# The team game-log columns the team fit reads, which a threshold's kept plays replace.
+_TEAM_PLAY_COLUMNS = (
+    SCRIMMAGE_PLAYS_COLUMN,
+    SCRIMMAGE_EPA_COLUMN,
+    SPECIAL_TEAMS_PLAYS_COLUMN,
+    SPECIAL_TEAMS_EPA_COLUMN,
+)
 
 
 def _check_threshold(threshold: int) -> None:
@@ -332,4 +343,102 @@ class QbWpFilter:
         )
 
 
-__all__ = ["MAX_WP_THRESHOLD", "QbWpFilter", "TeamWpFilter"]
+def _kept_bins(bins: pl.DataFrame, threshold: int) -> pl.DataFrame:
+    """Return the bins a filter at ``threshold`` keeps: at or above it, or without a bin.
+
+    Raises:
+        ValueError: If ``threshold`` is outside 0-20.
+
+    """
+    _check_threshold(threshold)
+    return bins.filter(pl.col("wp_bin").is_null() | (pl.col("wp_bin") >= threshold))
+
+
+def team_game_logs_at_threshold(
+    game_logs: pl.DataFrame, bins: pl.DataFrame, threshold: int
+) -> pl.DataFrame:
+    """Return the team game logs holding only the plays a filter at ``threshold`` keeps.
+
+    Kept scrimmage and special-teams plays and EPA from ``bins`` (``team_wp_bins``) replace the
+    four columns the team fit reads, so the published fit runs on them unchanged. Every other
+    column, the row order, and the column types stay as they were; a team-game without bins keeps
+    no plays.
+
+    Raises:
+        ValueError: If ``threshold`` is outside 0-20.
+
+    """
+    unit = pl.col("wp_unit")
+    kept = (
+        _kept_bins(bins, threshold)
+        .group_by("game_id", "team")
+        .agg(
+            pl.col("wp_bin_plays")
+            .filter(unit == SCRIMMAGE_UNIT)
+            .sum()
+            .alias(SCRIMMAGE_PLAYS_COLUMN),
+            pl.col("wp_bin_epa").filter(unit == SCRIMMAGE_UNIT).sum().alias(SCRIMMAGE_EPA_COLUMN),
+            pl.col("wp_bin_plays")
+            .filter(unit == SPECIAL_TEAMS_UNIT)
+            .sum()
+            .alias(SPECIAL_TEAMS_PLAYS_COLUMN),
+            pl.col("wp_bin_epa")
+            .filter(unit == SPECIAL_TEAMS_UNIT)
+            .sum()
+            .alias(SPECIAL_TEAMS_EPA_COLUMN),
+        )
+    )
+    return (
+        game_logs.drop(_TEAM_PLAY_COLUMNS)
+        .join(kept, on=["game_id", "team"], how="left", maintain_order="left")
+        .with_columns(
+            pl.col(column).fill_null(0).cast(game_logs.schema[column])
+            for column in _TEAM_PLAY_COLUMNS
+        )
+        .select(game_logs.columns)
+    )
+
+
+def qb_games_at_threshold(
+    qb_games: pl.DataFrame, bins: pl.DataFrame, threshold: int
+) -> pl.DataFrame:
+    """Return the passer-game rows holding only the dropbacks a filter at ``threshold`` keeps.
+
+    Kept dropbacks and their play-level EPA per dropback from ``bins`` (``qb_wp_bins``) replace
+    the two columns the QB fit reads, so the published fit runs on them unchanged; at 0% this is
+    the play-level value, not the official weekly EPA. Every other column, the row order, and the
+    column types stay as they were; a passer-game without kept dropbacks gets none and a null EPA.
+
+    Raises:
+        ValueError: If ``threshold`` is outside 0-20.
+
+    """
+    kept = (
+        _kept_bins(bins, threshold)
+        .group_by("game_id", QB_ID_COLUMN)
+        .agg(
+            pl.col("qb_wp_bin_dropbacks").sum().alias("_kept_dropbacks"),
+            pl.col("qb_wp_bin_epa").sum().alias("_kept_epa"),
+        )
+    )
+    dropbacks = pl.col("_kept_dropbacks").fill_null(0)
+    return (
+        qb_games.join(kept, on=["game_id", QB_ID_COLUMN], how="left", maintain_order="left")
+        .with_columns(
+            dropbacks.cast(qb_games.schema[QB_DROPBACKS_COLUMN]).alias(QB_DROPBACKS_COLUMN),
+            pl.when(dropbacks > 0)
+            .then(pl.col("_kept_epa") / dropbacks)
+            .cast(qb_games.schema[QB_EPA_PER_DROPBACK_COLUMN])
+            .alias(QB_EPA_PER_DROPBACK_COLUMN),
+        )
+        .select(qb_games.columns)
+    )
+
+
+__all__ = [
+    "MAX_WP_THRESHOLD",
+    "QbWpFilter",
+    "TeamWpFilter",
+    "qb_games_at_threshold",
+    "team_game_logs_at_threshold",
+]
