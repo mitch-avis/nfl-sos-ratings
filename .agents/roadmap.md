@@ -705,11 +705,15 @@ pinned on phones, fixed decimals per column.
   adds its middle-50% rank range and a mini interval (`rankRanges.opponentRankRanges`), the team's
   own on team pages and its defense's (R2 unit ranges) on QB pages, and the card's description
   says they are season-long. The unique-opponents table is unchanged.
-- [ ] F4 Comparison: a pinned side-by-side layout instead of the compact strip, with rank-range
-  mini intervals and R1's head-to-head sentence when two rows are compared.
+- [x] F4 Comparison: a pinned side-by-side layout instead of the compact strip, with rank-range
+  mini intervals and R1's head-to-head sentence when two rows are compared. Done 2026-10-05:
+  `ComparisonPanel` is now one column per pick (name, published rank, middle-50% range and mini
+  interval, remove button) and one row per metric, heat-mapped across the picks, with the metric
+  column and header pinned in a scrolling box; the head-to-head sentence (R1) sits above it for
+  two picks.
 - [ ] F5 Idea: CSV export of the current table view, built from the loaded payload (current view,
   sort, and filters), so an analyst can take the numbers elsewhere.
-- [ ] F6 Idea: rank-range mini intervals in the comparison panel even before F4.
+- [x] F6 Idea: rank-range mini intervals in the comparison panel even before F4. Landed with F4.
 - [ ] F7 Team palettes (maintainer idea, 2026-10-05): the `Palette` control offers the Broncos
   palette (orange and navy, verified correct in light and dark mode) beside the default; add the
   other 31 teams so a user can pick their team's colors. Each palette must use the team's accurate

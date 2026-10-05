@@ -90,6 +90,35 @@ describe('team index', () => {
     expect(screen.getByRole('checkbox', { name: 'Compare DEN' })).toBeChecked()
   })
 
+  it('lays out compared teams side by side with their rank ranges', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, [RANGES_PATH]: TEAM_RANK_RANGES }))
+
+    // Act
+    renderApp('/teams?season=2025&compare=DEN,KC')
+
+    // Assert
+    const table = await screen.findByRole('table', { name: 'Team comparison' })
+    const headers = within(table).getAllByRole('columnheader')
+    expect(headers.map((header) => header.textContent?.slice(0, 3))).toEqual(['Met', 'DEN', 'KC'])
+    await waitFor(() => expect(headers[1]).toHaveTextContent('1st–2nd'))
+    expect(within(table).getByRole('rowheader', { name: /Team Rating/ })).toBeInTheDocument()
+  })
+
+  it('removes a team from the side-by-side comparison', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const { router } = renderApp('/teams?season=2025&compare=DEN,KC')
+    const remove = await screen.findByRole('button', { name: 'Remove KC from comparison' })
+
+    // Act
+    await user.click(remove)
+
+    // Assert
+    await waitFor(() => expect(router.state.location.search).toContain('compare=DEN'))
+    expect(router.state.location.search).not.toContain('KC')
+  })
+
   it('starts on the Ratings view with reset disabled', async () => {
     // Act
     renderApp('/teams?season=2025')

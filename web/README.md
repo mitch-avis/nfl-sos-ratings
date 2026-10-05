@@ -134,7 +134,11 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   QB subcategory toggles.
 - Search filters the visible columns; identity columns stay pinned while scrolling sideways.
   `Reset` restores the default view.
-- Tick rows to compare them. The selection lives in `?compare=` so a comparison can be shared.
+- Tick rows to compare them. The selection lives in `?compare=` so a comparison can be shared. The
+  comparison panel sets the picks side by side: one column each, headed by the name, the published
+  rank, the middle 50% of resampled ranks with a mini interval, and a remove button; one row per
+  metric of the current view, heat-mapped across the picks, with the metric names pinned while the
+  table scrolls sideways.
 - Underlined labels, info icons, and chart points explain themselves in a hint card: hover or focus
   with a mouse, tap on a phone or tablet (tap anywhere else to close). On touch screens a tap on a
   column header sorts, and the info button beside it explains the column.
