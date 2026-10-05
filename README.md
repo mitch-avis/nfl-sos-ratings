@@ -107,8 +107,23 @@ validation run is `validate --data-dir data --start-season 1999 --end-season 202
 
 `season` and `pipeline` download from nflverse. They cache downloads on disk for a day (nflreadpy's
 filesystem cache) unless `NFLREADPY_CACHE` is set to `memory`, `filesystem`, or `off`. A full
-pipeline run with fresh downloads took about 13 minutes on 2026-10-04 (`time
-.venv/bin/nfl-sos-ratings pipeline`).
+pipeline run with fresh downloads took about 13 minutes on 2026-10-04 and 20 minutes on 2026-10-05
+(`time .venv/bin/nfl-sos-ratings pipeline`).
+
+During the season, `scripts/refresh-season.sh` rebuilds the season in progress: it copies `data/`
+to a temporary directory, runs `nfl-sos-ratings season`, runs the `published_data` tests, and
+prints `diff-data` against the copy, logging everything to `logs/refresh-YYYYMMDD.log`. `--season
+N` picks another season and `--dry-run` prints the steps without running them. A failing step exits
+non-zero and keeps the copy of `data/` for inspection. To run it every Tuesday morning, after
+nflverse has published Monday's game, create a Windows scheduled task from PowerShell or `cmd`
+(it runs whenever Windows is on, with or without a WSL shell open), replacing the distribution
+name and repo path:
+
+```text
+schtasks /Create /TN "nfl-sos-ratings weekly refresh" /SC WEEKLY /D TUE /ST 09:00 /TR "wsl.exe -d <distro> -- <repo>/scripts/refresh-season.sh"
+```
+
+`schtasks /Delete /TN "nfl-sos-ratings weekly refresh"` removes it.
 
 Every command, the `nfl-sos` and `nfl-sos-pipeline` shortcuts included, runs NumPy's BLAS on one
 thread unless `OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS`, or `MKL_NUM_THREADS` is already set. The
@@ -179,8 +194,9 @@ adds the frontend checks (npm ci, lint, typecheck, Vitest, build). CI
 request; `.venv/bin/pre-commit install` adds the commit and pre-push hooks.
 
 pytest skips tests marked `published_data`, which read the generated files in `data/`; run them
-with `.venv/bin/pytest -m published_data` after a data refresh. Agent working rules live in
-[AGENTS.md].
+with `.venv/bin/pytest -m published_data --no-cov` after a data refresh (without `--no-cov` the
+coverage floor fails the run, as these few tests cover little of the package). Agent working
+rules live in [AGENTS.md].
 
 ## Data Sources
 

@@ -54,7 +54,8 @@ scripts/gate.sh --web      # also check web/ (npm ci, lint, typecheck, vitest, b
   the key error), or not run (with the reason). Single tools while iterating: `.venv/bin/ruff`,
   `.venv/bin/ty check .`, `.venv/bin/pyright .`, `.venv/bin/pytest`.
 - pytest deselects tests marked `published_data`, which read the generated Parquet files in
-  `data/`. Run them with `.venv/bin/pytest -m published_data` after a data refresh.
+  `data/`. Run them with `.venv/bin/pytest -m published_data --no-cov` after a data refresh;
+  without `--no-cov` the coverage floor fails the run even when every test passes.
 - After any `pyproject.toml` edit, even a comment, run `uv sync`: uv rebuilds the project
   package, and until then the gate's `uv sync --check` step fails. A `git checkout`, merge, or
   rebase that rewrites `pyproject.toml` counts as an edit (uv keys on its modification time), and
@@ -83,12 +84,16 @@ door or any command prints usage without running anything (commands are listed i
 .venv/bin/nfl-sos-ratings check-wp-filter ...  # read-only garbage-time filter test (downloads QBR)
 .venv/bin/nfl-sos-ratings catalog              # regenerates the stats catalogs in docs/
 .venv/bin/nfl-sos-ratings web [--port 8080]    # analyst web app (web/dist) plus its API
+scripts/refresh-season.sh [--dry-run]          # rebuild the season in progress, test, diff
 ```
 
 The full validation run is `validate --data-dir data --start-season 1999 --end-season 2025
 --start-week 5 --report-path docs/validation-report.md`. `nfl-sos` and `nfl-sos-pipeline` remain
 as shortcuts for `season` and `pipeline`. `web` serves the built app, so run `npm run build` in
 `web/` first; the Vite dev server (`npm run dev`) runs on 5280 and proxies `/api` to 8080.
+
+`scripts/refresh-season.sh` rebuilds `data/` for the season in progress, so a real run is ask-first
+like `season`; `--dry-run` only prints the steps.
 
 The pipeline and validation commands download from nflverse and can outlive an agent's command
 timeout (often 10 minutes): run them detached (`nohup setsid <cmd> > run.log 2>&1 &`) and only

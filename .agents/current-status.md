@@ -53,9 +53,9 @@ published ratings keep every play (maintainer decision; roadmap, WP4, and
 `.agents/ratings-simplification-plan.md`). Overnight on 2026-10-05 the agent works through R1-R3,
 A1, S4, and F3-F7 with merge-on-green approval (roadmap, "Where things stand"). Still open:
 head-to-head chances and more rank-range views, weekly 2026 refresh automation, frontend follow-ups,
-a project logger, and retired stats on request. Until A1 lands, rebuild 2026 weekly with
-`nfl-sos-ratings season` (ask first), copying `data/` beforehand so `diff-data` can report what
-changed.
+a project logger, and retired stats on request. Rebuild 2026 weekly with `scripts/refresh-season.sh`
+(ask first; it copies `data/`, rebuilds, runs the `published_data` tests, and prints `diff-data`),
+or schedule it with the command in README.
 
 ## Validation snapshot
 
@@ -74,8 +74,13 @@ Garbage-time filter test (2026-10-05, `nfl-sos-ratings check-wp-filter --data-di
 10.663 at 10%, 10.733 at 20%; 5% and 10% tie, 20% is worse (+0.133, 98.33% interval +0.046 to
 +0.222). The published ratings keep every play.
 
-Gate state: `scripts/gate.sh --web` passes, and `.venv/bin/pytest -m published_data` passes on the
-rebuilt `data/` (5 tests, 2026-10-04).
+Gate state: `scripts/gate.sh --web` passes, and `.venv/bin/pytest -m published_data --no-cov` passes
+on the rebuilt `data/` (6 tests, 2026-10-05). Earlier notes said the command without `--no-cov`
+passed; its tests did, but the coverage floor makes that command exit 1.
+
+Season rollover: after the 2026 season, set `END_YEAR` to 2026 and `SEASON` to 2027 in
+`nfl_sos_ratings/config.py`, rebuild (ask first), and regenerate the validation report. The weekly
+rank ranges follow `SEASON`, so 2026's stay as last written and 2027 starts its own.
 
 ## Open items
 

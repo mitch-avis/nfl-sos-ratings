@@ -635,6 +635,11 @@ Tasks:
   `GET /api/seasons/{season}/{teams|qbs}/{id}/rank-history`; `RankHistoryCard` below "Rating by
   week". A scratch build of 2026 (`season --season 2026` in an empty working directory holding
   only `data/2025_team_game_logs.parquet`) took 35 s against 22 s without weekly ranges.
+- [x] Rebuild after R3 (approved): from `main` at `a81ef0e`, `cp -r data /tmp/data-before-r3`, then
+  `nfl-sos-ratings season --season 2026` (exit 0, 34.5 s). `nfl-sos-ratings diff-data --before
+  /tmp/data-before-r3 --after data --season 2026` reported "18 unchanged, 0 row order only, 0
+  values changed, 0 schema changed, 2 added, 0 removed" (the two weekly files);
+  `.venv/bin/pytest -m published_data --no-cov` passed (6 tests).
 - [ ] Decision for the maintainer (found 2026-10-05): with one or two games per team, a game
   bootstrap can only repeat or drop a team's games, so the first weeks' bands understate the
   uncertainty; NE 2026's 95% band was 11th-21st after week 1 but 4th-31st after week 3. The card
@@ -667,11 +672,20 @@ with S3 it also prints the diff against the previous build. Scheduling options (
 
 Tasks:
 
-- [ ] Script with shellcheck-clean Bash (shell-scripting skill) and a dry-run flag; tests where
-  practical (Bats is optional).
+- [x] Script with shellcheck-clean Bash (shell-scripting skill) and a dry-run flag; tests where
+  practical (Bats is optional). Done 2026-10-05: `scripts/refresh-season.sh [--season N]
+  [--dry-run]` (shellcheck and shfmt clean); `tests/test_refresh_season_script.py` runs a copy of
+  it in a temporary tree with stand-in commands (dry run, clean run, failing step, bad arguments).
+  The `published_data` step uses `--no-cov`: the documented `pytest -m published_data` exits 1 on
+  the coverage floor even when every test passes, so AGENTS.md, README, and the status note now
+  say `--no-cov`. Not run for real tonight (that is a rebuild; `data/` was current).
 - [ ] **Ask first** before installing any scheduled task (machine configuration outside the
-  repo); provide the exact install command or task XML for the maintainer.
-- [ ] Season rollover note in `current-status.md`: after the 2026 season, set `END_YEAR` to 2026
+  repo); provide the exact install command or task XML for the maintainer. Not installed. The
+  command for this machine (WSL distribution `Ubuntu`), from PowerShell or `cmd`: `schtasks /Create
+  /TN "nfl-sos-ratings weekly refresh" /SC WEEKLY /D TUE /ST 09:00 /TR "wsl.exe -d Ubuntu --
+  /home/mitch/workspace/nfl-sos-ratings/scripts/refresh-season.sh"`; `schtasks /Delete /TN
+  "nfl-sos-ratings weekly refresh"` removes it.
+- [x] Season rollover note in `current-status.md`: after the 2026 season, set `END_YEAR` to 2026
   and `SEASON` to 2027 in `config.py`, rebuild (ask first), and regenerate the validation report.
 
 ## F. Frontend follow-ups
