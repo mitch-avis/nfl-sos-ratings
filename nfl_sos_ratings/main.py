@@ -10,6 +10,7 @@ import argparse
 import io
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 
@@ -51,6 +52,9 @@ from nfl_sos_ratings.team_rating import (
 )
 from nfl_sos_ratings.team_stats import compute_all_teams_per_game, compute_win_totals
 
+if TYPE_CHECKING:
+    from collections.abc import Collection
+
 TEAM_RATINGS_ORDER = ("team", "games_played", *TEAM_RATING_COLUMNS, "sos", "SRS")
 QB_RATINGS_ORDER = (
     "qb_id",
@@ -64,6 +68,19 @@ QB_RATINGS_ORDER = (
     "adj_qb_epa_per_dropback",
 )
 _QB_IDENTITY_KEYS = ("qb_id", "qb_name", "team")
+
+# Every data file is written in one fixed row order, so two builds from the same inputs give
+# identical files and a rebuild's diff shows only real changes. Files read top-down keep their
+# published order (best first, ties broken by id); every other file is in key order: its first
+# identity column present, then week and game.
+PUBLISHED_ROW_ORDER: dict[str, tuple[tuple[str, bool], ...]] = {
+    "ratings": (("team_rating", True), ("team", False)),
+    "qb_ratings": (("adj_qb_epa_per_dropback", True), ("qb_id", False)),
+    "rating_ranges": (("team_rank", False), ("team", False)),
+    "qb_rating_ranges": (("qb_rank", False), ("qb_id", False)),
+}
+_ROW_IDENTITY_KEYS = ("qb_id", "team")
+_ROW_EVENT_KEYS = ("week", "game_id")
 
 
 def _matching_qb_join_keys(left: pl.DataFrame, right: pl.DataFrame) -> list[str]:
@@ -115,8 +132,35 @@ def _build_qb_game_logs(qb_df: pl.DataFrame, weekly_df: pl.DataFrame) -> pl.Data
     return qb_game_logs.select(leading + rest).sort(["team", "week", "game_id", "qb_name"])
 
 
+def data_file_row_order(suffix: str, columns: Collection[str]) -> tuple[tuple[str, bool], ...]:
+    """Return the ``(column, descending)`` sort that fixes a data file's row order.
+
+    Args:
+        suffix: The file name after the season, for example ``ratings_by_week``.
+        columns: The file's columns.
+
+    Raises:
+        ValueError: The file has no published order and no identity column to sort by.
+
+    """
+    if suffix in PUBLISHED_ROW_ORDER:
+        return PUBLISHED_ROW_ORDER[suffix]
+    identity = next((key for key in _ROW_IDENTITY_KEYS if key in columns), None)
+    if identity is None:
+        msg = (
+            f"Output {suffix} has no row order: it needs one of {', '.join(_ROW_IDENTITY_KEYS)} "
+            "or an entry in PUBLISHED_ROW_ORDER"
+        )
+        raise ValueError(msg)
+    keys = (identity, *(key for key in _ROW_EVENT_KEYS if key in columns))
+    return tuple((key, False) for key in keys)
+
+
 def _write_data_file(frame: pl.DataFrame, season: int, suffix: str) -> Path:
-    """Validate columns against the metric registry and write one Parquet data file."""
+    """Validate columns against the metric registry and write one Parquet data file.
+
+    Rows are written in the file's fixed order (``data_file_row_order``).
+    """
     unknown = get_registry().validate_columns(frame.columns)
     if unknown:
         msg = (
@@ -124,8 +168,13 @@ def _write_data_file(frame: pl.DataFrame, season: int, suffix: str) -> Path:
             + ", ".join(unknown)
         )
         raise ValueError(msg)
+    order = data_file_row_order(suffix, frame.columns)
     data_path = Path(DATA_DIR) / f"{season}_{suffix}.parquet"
-    frame.write_parquet(data_path)
+    frame.sort(
+        [column for column, _ in order],
+        descending=[descending for _, descending in order],
+        nulls_last=True,
+    ).write_parquet(data_path)
     print(f"Saved {suffix} to {data_path}")
     return data_path
 

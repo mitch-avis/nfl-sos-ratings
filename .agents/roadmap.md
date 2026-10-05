@@ -217,11 +217,25 @@ present.
 
 Tasks:
 
-- [ ] Test first: a shuffled frame written through `_write_data_file` reads back in key order; the
-  ratings file keeps rating order.
-- [ ] Acceptance: two consecutive `nfl-sos-ratings season --season 1999` runs (**Ask first** with
+- [x] Test first: a shuffled frame written through `_write_data_file` reads back in key order; the
+  ratings file keeps rating order. The rule lives in `main.data_file_row_order`: published order
+  for `ratings`, `qb_ratings`, `rating_ranges`, and `qb_rating_ranges` (`PUBLISHED_ROW_ORDER`,
+  keyed by file name rather than passed by each caller, so the rule stays in one place), otherwise
+  `qb_id` or `team`, then `week` and `game_id` where present; a file with neither identity column
+  fails the write. Before relying on it, a scratch script confirmed these keys are unique and
+  non-null in all 392 files in `data/`.
+- [x] Acceptance: two consecutive `nfl-sos-ratings season --season 1999` runs (**Ask first** with
   the other rebuilds) give frames that are `equals()`-identical for every file, with no sorting in
-  the comparison.
+  the comparison. Run 2026-10-04 in scratch working directories, so `data/` was untouched (no
+  rebuild needed asking): before the change, `qb_combined`, `qb_per_game_stats`,
+  `qb_ratings_by_week`, and `ratings_by_week` differed in row order between two runs; after it,
+  all 14 files were identical, and every file's values matched the pre-change build after sorting
+  by key.
+- [ ] After the next rebuild (**Ask first**): `.venv/bin/pytest -m published_data` includes
+  `test_every_published_file_is_stored_in_its_row_order`, which fails on the current `data/` (built
+  before this change: 168 files, every season's `qb_combined`, `qb_game_logs`,
+  `qb_opponent_profiles`, `qb_per_game_stats`, `qb_ratings_by_week`, and `ratings_by_week`) and
+  must pass once `data/` is rebuilt.
 
 ## S3. Data-diff helper
 

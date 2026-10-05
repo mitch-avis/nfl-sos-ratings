@@ -54,8 +54,10 @@ fixes (team numbers unchanged from the run after adopting previous-season penalt
 - Year-over-year Pearson: `team_rating` 0.434, SRS 0.437; adjusted EPA per dropback 0.455, passer
   rating 0.464, ANY/A 0.392 (601 QB pairs). Mean QBR correlation 0.892 / 0.874.
 
-Gate state: `scripts/gate.sh --web` passes, and `.venv/bin/pytest -m published_data` passes on the
-rebuilt `data/`.
+Gate state: `scripts/gate.sh --web` passes. `.venv/bin/pytest -m published_data` passes on the
+current `data/` except `test_every_published_file_is_stored_in_its_row_order`, which checks the
+fixed row order added on `perf/rebuild-tooling` and fails until `data/` is rebuilt with that code
+(values are unaffected; see `.agents/roadmap.md`, S2).
 
 ## Open items
 
