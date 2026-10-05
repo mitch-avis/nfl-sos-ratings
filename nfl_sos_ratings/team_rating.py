@@ -108,6 +108,19 @@ def scrimmage_rows(game_logs: pl.DataFrame) -> pl.DataFrame:
     return _unit_rows(game_logs, SCRIMMAGE_PLAYS_COLUMN, SCRIMMAGE_EPA_COLUMN)
 
 
+def special_teams_rows(game_logs: pl.DataFrame) -> pl.DataFrame:
+    """Return the rows the special-teams fit uses, shaped like :func:`scrimmage_rows`.
+
+    ``team`` is the possession team and ``opponent_team`` its coverage units.
+
+    Raises:
+        ValueError: If a team-rating column is missing.
+
+    """
+    _require_columns(game_logs)
+    return _unit_rows(game_logs, SPECIAL_TEAMS_PLAYS_COLUMN, SPECIAL_TEAMS_EPA_COLUMN)
+
+
 def _plays_per_game(rows: pl.DataFrame) -> float:
     """Return the league-average play count per team-game row."""
     return float(rows.get_column(_WEIGHT).sum()) / rows.height
@@ -141,6 +154,19 @@ def _ratings_frame(
             "special_teams_rating": special,
             "team_rating": [o + d + s for o, d, s in zip(offense, defense, special, strict=True)],
         }
+    )
+
+
+def team_ratings_from_unit_fits(
+    scrimmage: UnitFit, special_teams: UnitFit, fit: TeamRatingFit
+) -> pl.DataFrame:
+    """Return the four rating columns from refit unit effects on ``fit``'s per-game scales.
+
+    For refits of a season's games (head-to-head exclusions, filtered plays) that keep the season
+    fit's scales, so their ratings read on the published scale.
+    """
+    return _ratings_frame(
+        scrimmage, special_teams, fit.scrimmage_plays_per_game, fit.special_teams_plays_per_game
     )
 
 
@@ -403,4 +429,6 @@ __all__ = [
     "fit_team_ratings_by_week",
     "fit_team_ratings_with_previous_penalties",
     "scrimmage_rows",
+    "special_teams_rows",
+    "team_ratings_from_unit_fits",
 ]
