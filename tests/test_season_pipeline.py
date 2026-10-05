@@ -9,6 +9,7 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings import main
+from nfl_sos_ratings.row_order import data_file_row_order
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
     TeamRatingFit,
@@ -511,7 +512,7 @@ def test_every_published_file_is_stored_in_its_row_order() -> None:
     unordered: list[str] = []
     for path in files:
         frame = pl.read_parquet(path)
-        order = main.data_file_row_order(path.stem.split("_", 1)[1], frame.columns)
+        order = data_file_row_order(path.stem.split("_", 1)[1], frame.columns)
         keys = [column for column, _ in order]
         if (
             not frame.equals(

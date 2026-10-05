@@ -114,7 +114,7 @@ Each season writes Parquet files named `{season}_{name}.parquet` under `DATA_DIR
 them for a spreadsheet with `pl.read_parquet(path).write_csv(...)`. Rows come in a fixed order, so
 two builds from the same inputs give identical files: `ratings`, `qb_ratings`, and the two rank-range
 files best first, every other file by `qb_id` (or `team` when it has no `qb_id`), then week and
-game (`main.data_file_row_order`).
+game (`row_order.data_file_row_order`).
 
 - `ratings`: one row per team with `team_rating`, the three unit ratings, `sos`, and `SRS`.
 - `qb_ratings`: one row per qualifying quarterback (14 pass attempts per game his team has played,
