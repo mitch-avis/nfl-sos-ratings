@@ -9,6 +9,7 @@ import {
   isMissingRankRanges,
   ordinal,
   parseRankRanges,
+  parseUnitRankRanges,
   rankCenter,
   rankChanceText,
   rankHistogram,
@@ -240,4 +241,44 @@ test('belowQualifierText says nothing for a qualifying QB', () => {
 
   // Assert
   assert.isNull(text)
+})
+
+function withUnits(row: ReturnType<typeof teamRow>) {
+  const unit = (key: string, published: number, ranks: number[]) => ({
+    [`${key}_rank`]: published,
+    ...Object.fromEntries(QUANTILES.map((quantile, index) => [`${key}_rank_${quantile}`, ranks[index]])),
+    ...Object.fromEntries(QUANTILES.map((quantile, index) => [`${key}_rating_${quantile}`, index])),
+  })
+  return {
+    ...row,
+    ...unit('offense', 1, [1, 1, 1, 1, 2, 2, 3]),
+    ...unit('defense', 3, [2, 2, 3, 3, 3, 3, 3]),
+    ...unit('special_teams', 2, [1, 1, 2, 2, 2, 3, 3]),
+  }
+}
+
+test('parseUnitRankRanges reads each unit carried on the team row', () => {
+  // Arrange
+  const payload: RankRangesPayload = { ...TEAMS, rows: [withUnits(teamRow('KC', 2, [1, 1, 2, 2, 3, 3, 3], [0.3, 0.4, 0.3]))] }
+
+  // Act
+  const units = parseUnitRankRanges(payload, 'KC')
+
+  // Assert
+  assert.deepEqual(
+    units.map((unit) => [unit.label, unit.publishedRank, unit.rank.q250, unit.rank.q975]),
+    [
+      ['Offense', 1, 1, 3],
+      ['Defense', 3, 3, 3],
+      ['Special teams', 2, 2, 3],
+    ],
+  )
+})
+
+test('parseUnitRankRanges finds nothing in a season built without unit ranges', () => {
+  // Act
+  const units = parseUnitRankRanges(TEAMS, 'KC')
+
+  // Assert
+  assert.deepEqual(units, [])
 })
