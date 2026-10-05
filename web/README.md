@@ -148,6 +148,9 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   detail page). The detail page adds the rank headline, the top-5 and top-10 chances, the chance
   of each rank, and, for teams, a `Rank range by unit` table: offense, defense, and special teams
   with their rank ranges and mini intervals.
+- In the detail page's game-by-game table, each opponent shows its season-long rank range (the
+  middle 50% of redrawn ranks, with a mini interval): the team's own on team pages, its defense's
+  on quarterback pages.
 - For the season in progress, the detail page adds a `Rank by week` chart below `Rating by week`:
   the median rank with bands for the middle 50% and 95% of redraws, rank 1 at the top, a hover or
   tap readout, and a text summary and hidden table for screen readers. The card says that the
