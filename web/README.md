@@ -73,6 +73,11 @@ The app never recomputes methodology. The backend (`nfl_sos_ratings/ui_data.py` 
   `GET /api/seasons/{season}/qbs/rating-ranges`: every team's (or qualifying quarterback's) rating
   and rank percentiles, top-5 and top-10 chances, and the chance of each rank over game-bootstrap
   resamples, ordered by published rank
+- `GET /api/seasons/{season}/teams/wp-ratings?threshold=X` and
+  `GET /api/seasons/{season}/qbs/wp-ratings?threshold=X`: the garbage-time filter view, every team's
+  (or qualifying quarterback's) ratings refit on the plays whose win probability before the snap
+  was between X% and 100% minus X% (X from 0 to 30, default 0; outside that range is a 422), beside
+  the published rating and rank, ordered by filtered rank
 
 A season is listed only when all six contract files exist: `{season}_team_per_game_stats`,
 `{season}_qb_per_game_stats`, `{season}_combined`, `{season}_qb_combined`, `{season}_ratings`, and
@@ -80,7 +85,10 @@ A season is listed only when all six contract files exist: `{season}_team_per_ga
 `{season}_qb_game_logs`, and the rating-history chart reads `{season}_ratings_by_week` and
 `{season}_qb_ratings_by_week`; the chart is left out when a season has no history file. The
 rank-range endpoints read `{season}_rating_ranges` and `{season}_qb_rating_ranges` and return 404
-when the file is missing.
+when the file is missing. The filter endpoints read the season's game logs, `{season}_team_wp_bins`
+or `{season}_qb_wp_bins`, and its ratings file (teams also the previous season's game logs, whose
+penalties the team fit reuses), return 404 when one is missing, and cache each season's model and
+each threshold's table in process until a file changes.
 
 ## Layout
 

@@ -6,9 +6,11 @@ Do not edit by hand. Companion catalog: [stats-catalog.md](stats-catalog.md).
 Every column below is regular season only. Data files and the analyst app add a prefix or suffix to
 these base names: `opp_` (the team's head-to-head-excluded opponent profile), `qopp_` (what the
 defenses a quarterback faced allowed to other passers), `_per_game`, `_total`, per-play denominators
-such as `_per_offensive_snap` and `_per_dropback`, and rank-range percentiles `_q025` through
-`_q975`. Shapes: `count` totals, `rate` ratios with their own denominator, `avg` per-event averages,
-`score` model outputs on their own scale, `flag` booleans, and `id` identity fields.
+such as `_per_offensive_snap` and `_per_dropback`, rank-range percentiles `_q025` through `_q975`,
+and, in the analyst app's garbage-time filter view, `filtered_` (refit on the plays the filter
+keeps) and `_change` (filtered minus unfiltered). Shapes: `count` totals, `rate` ratios with their
+own denominator, `avg` per-event averages, `score` model outputs on their own scale, `flag`
+booleans, and `id` identity fields.
 
 ## Sources
 
@@ -64,6 +66,7 @@ Raw passing production: attempts, completions, yards, and scores.
 | `qb_pass_touchdowns` | Pass TDs | count | - | 1999 | PLS | Touchdown passes thrown. |
 | `qb_interceptions` | INTs | count | - | 1999 | PLS | Passes intercepted by the defense. Fewer is better. |
 | `qb_passing_epa` | Pass EPA | count | - | 1999 | PLS | Total expected points added on this quarterback's dropbacks. EPA credits down, distance, and field position — not just raw yards. |
+| `wp_kept_dropback_share` | Kept Dropbacks | rate | dropbacks | 1999 | D | The share of this quarterback's dropbacks that the chosen garbage-time filter keeps. 1.00 means no dropback was left out. |
 | `qb_wp_bin_dropbacks` | Dropbacks | count | - | 1999 | PBP | This quarterback's dropbacks in one game and win-probability bin. Summed over every bin they equal his dropbacks in that game. |
 | `qb_wp_bin_epa` | Pass EPA | count | - | 1999 | PBP | Expected points added credited to this quarterback on his dropbacks in one game and win-probability bin, summed from play-by-play. |
 

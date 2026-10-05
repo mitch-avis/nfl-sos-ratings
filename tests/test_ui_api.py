@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from nfl_sos_ratings import ui_api
 from nfl_sos_ratings.rating_ranges import TEAM_RANGE_COLUMNS, summarize_rank_ranges
 from nfl_sos_ratings.ui_api import create_app
+from tests.wp_league import write_wp_season
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -454,3 +455,63 @@ def test_web_command_with_reload_serves_the_app_factory(monkeypatch: pytest.Monk
         )
     ]
     assert ui_api.os.environ[ui_api.DATA_DIR_ENV] == "elsewhere"
+
+
+@pytest.mark.parametrize("entity", ["teams", "qbs"])
+def test_wp_ratings_route_returns_the_filtered_table(tmp_path: Path, entity: str) -> None:
+    # Arrange
+    write_wp_season(tmp_path, 2000)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get(f"/api/seasons/2000/{entity}/wp-ratings", params={"threshold": 5})
+
+    # Assert
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["threshold"], body["max_threshold"]) == (5, 30)
+    assert body["rows"]
+
+
+def test_wp_ratings_route_defaults_to_no_filter(tmp_path: Path) -> None:
+    # Arrange
+    write_wp_season(tmp_path, 2000)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get("/api/seasons/2000/teams/wp-ratings")
+
+    # Assert
+    assert response.json()["threshold"] == 0
+
+
+@pytest.mark.parametrize("threshold", [-1, 31])
+def test_wp_ratings_route_rejects_a_threshold_outside_the_slider(
+    tmp_path: Path, threshold: int
+) -> None:
+    # Arrange
+    write_wp_season(tmp_path, 2000)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get("/api/seasons/2000/teams/wp-ratings", params={"threshold": threshold})
+
+    # Assert
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(("entity", "missing"), [("teams", "team_wp_bins"), ("qbs", "qb_wp_bins")])
+def test_wp_ratings_route_without_the_bins_returns_not_found(
+    tmp_path: Path, entity: str, missing: str
+) -> None:
+    # Arrange
+    write_wp_season(tmp_path, 2000)
+    (tmp_path / f"2000_{missing}.parquet").unlink()
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get(f"/api/seasons/2000/{entity}/wp-ratings")
+
+    # Assert
+    assert response.status_code == 404
+    assert missing in response.json()["detail"]

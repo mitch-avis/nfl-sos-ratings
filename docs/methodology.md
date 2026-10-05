@@ -130,6 +130,33 @@ rank, and the chance of each rank.
 - **Seasons in progress.** With only a few games played, a resample can leave a team out entirely
   (`team_rank_missing_share`), and the ranges are very wide. They narrow as the season fills in.
 
+## Garbage-Time Filter (Exploration View)
+
+Lopsided game states change how teams play: a big lead brings prevent defenses and run-out-the-
+clock offense, a big deficit brings desperation passing against them. The analyst app can refit the
+ratings without those plays to show how much a ranking depends on them. It is an unvalidated
+exploration view; the published ratings always use every play.
+
+- **The rule.** A threshold of X% (0 to 30, in whole percentages) keeps a play when the offense's
+  win probability before the snap (nflverse `wp`, from score, clock, and field position, without
+  the pregame spread) was at least X% and at most 100% minus X%. Scrimmage and special-teams plays
+  are filtered alike. Plays without a win probability (17 rated plays in all, in 1999-2001 and
+  2007) are kept at every threshold, so 0% is the published rating.
+- **How it is computed.** Every season writes each team-game's plays and EPA, and each
+  passer-game's dropbacks and passing EPA, in 1% bins of `min(wp, 1 - wp)` (`team_wp_bins`,
+  `qb_wp_bins`). A threshold keeps the bins at or above it, and the ratings are refit on the kept
+  plays with the season fit's ridge penalties and per-game scales, as the rating history is. A
+  filtered rating is therefore the per-play estimate on the kept plays over a full game's worth of
+  plays, on the published scale. `sos` and faced pass defense repeat their head-to-head exclusion
+  at every threshold.
+- **Quarterbacks.** The filter needs play-level EPA, so filtered quarterback ratings use the
+  play-by-play EPA credited to the passer at every threshold, including 0%. The published rating
+  uses official weekly passing EPA; in 2025 the two differed by at most 0.002 EPA per dropback
+  among qualifying quarterbacks. Filtered changes are measured against the 0% play-level value.
+- **Not validated yet.** Whether any threshold predicts later games better than using every play
+  is a separate, pre-registered test that has not been run. Rank ranges are not recomputed at
+  other thresholds.
+
 ## What the Ratings Leave Out
 
 - **Outcomes.** Wins, comebacks, game-winning drives, and turnover margin are published as context

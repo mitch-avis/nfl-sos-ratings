@@ -288,6 +288,20 @@ QB_VOLUME_METRICS: tuple[MetricDef, ...] = (
         since=1999,
     ),
     _volume(
+        name="wp_kept_dropback_share",
+        label="Kept Dropbacks",
+        full_name="Share of Dropbacks the Filter Keeps",
+        description=(
+            "The share of this quarterback's dropbacks that the chosen garbage-time filter "
+            "keeps. 1.00 means no dropback was left out."
+        ),
+        shape="rate",
+        polarity="neutral",
+        source="D",
+        denominator="dropbacks",
+        since=1999,
+    ),
+    _volume(
         name="qb_wp_bin_dropbacks",
         label="Dropbacks",
         full_name="Dropbacks in Win-Probability Bin",

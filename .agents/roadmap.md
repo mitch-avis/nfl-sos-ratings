@@ -28,12 +28,11 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
 - Pull request #1 (`feat/rank-ranges`, merged as `c396d83`, branch deleted) brought the rank
   ranges (engine, outputs, API, web views), the QB data fixes, the per-team QB qualifier, the UX
   audit changes, the regenerated validation report, and docs.
-- S1-S3 merged as pull request #2 (`main` = `1d61b2d`). Branch `feat/wp-filter` (from
-  `1d61b2d`) carries the WP workstream.
-- `data/` (1999-2026, range files included) was built on 2026-10-04 with
-  `OPENBLAS_NUM_THREADS=1 nfl-sos-ratings pipeline` and `nfl-sos-ratings season --season 2026`.
-  Its values are current, but it predates the fixed row order (S2) and has no bins files (WP1);
-  the next rebuild (ask first) brings both.
+- S1-S3 merged as pull request #2 (`1d61b2d`) and WP1 as pull request #3 (`main` = `c574819`),
+  branches deleted. Branch `feat/wp-threshold-ratings` (from `c574819`) carries WP2.
+- `data/` (1999-2026: range files, fixed row order, and win-probability bins) was rebuilt on
+  2026-10-04 from `c574819` with no value changes (S2 records the `diff-data` summary), and
+  `.venv/bin/pytest -m published_data` passes on it.
 - The maintainer runs `nfl-sos-ratings web --host 0.0.0.0 --port 8081` to view the app on a phone.
   Never stop it; use port 8090 for agent checks.
 
@@ -234,11 +233,16 @@ Tasks:
   `qb_ratings_by_week`, and `ratings_by_week` differed in row order between two runs; after it,
   all 14 files were identical, and every file's values matched the pre-change build after sorting
   by key.
-- [ ] After the next rebuild (**Ask first**): `.venv/bin/pytest -m published_data` includes
+- [x] After the next rebuild (**Ask first**): `.venv/bin/pytest -m published_data` includes
   `test_every_published_file_is_stored_in_its_row_order`, which fails on the current `data/` (built
   before this change: 168 files, every season's `qb_combined`, `qb_game_logs`,
-  `qb_opponent_profiles`, `qb_per_game_stats`, `qb_ratings_by_week`, and `ratings_by_week`) and
-  must pass once `data/` is rebuilt.
+  `qb_opponent_profiles`, `qb_per_game_stats`, `qb_ratings_by_week`, and `ratings_by_week`) and must
+  pass once `data/` is rebuilt. Rebuilt 2026-10-04 (maintainer approved): `cp -r data
+  /tmp/data-before-wp1`, then `nfl-sos-ratings pipeline` (exit 0, 857 s) and `nfl-sos-ratings season
+  --season 2026` (exit 0), run detached from `main` at `c574819`. `nfl-sos-ratings diff-data
+  --before /tmp/data-before-wp1 --after data` reported "224 unchanged, 168 row order only, 0 values
+  changed, 0 schema changed, 56 added, 0 removed": the six reordered kinds above in all 28 seasons,
+  plus the two bins files per season. `.venv/bin/pytest -m published_data` then passed (5 tests).
 
 ## S3. Data-diff helper
 
@@ -331,28 +335,51 @@ threshold is a cumulative sum and the API refits on demand with the weighted eng
   when a source lacks `wp`. The per-season check is a `published_data` test (null-bin share of
   scrimmage plays at most 0.1% in every season, plus a bins file for every season with game logs),
   so it runs after the rebuild; the typed empty frame is a unit test.
-- [ ] After the rebuild (**Ask first**): `.venv/bin/pytest -m published_data` must pass, including
+- [x] After the rebuild (**Ask first**): `.venv/bin/pytest -m published_data` must pass, including
   the three bins tests. A scratch build of 1999 and 2025 in `/tmp` passed all five
   `published_data` tests on 2026-10-04, and `diff-data --before data --after /tmp/nfl-wp1/data
   --season 2025` reported "8 unchanged, 6 row order only, 0 values changed, 0 schema changed, 2
-  added, 0 removed".
+  added, 0 removed". Done with the full rebuild recorded under S2. Plays without a bin, all seasons,
+  from `.venv/bin/python -c "import polars as pl; print(pl.read_parquet('data/*_team_wp_bins.parquet',
+  include_file_paths='p').filter(pl.col('wp_bin').is_null()).group_by(pl.col('p').str.extract(r'(\d{4})_'),
+  'wp_unit').agg(pl.col('wp_bin_plays').sum()))"`: 17 scrimmage plays (1999: 1, 2000: 9, 2001: 6,
+  2007: 1), none on special teams.
 
 ### WP2. Refits per threshold and the API
 
-- [ ] A resampler-like class built from the bins: for threshold X, cumulative sums give each
+- [x] A resampler-like class built from the bins: for threshold X, cumulative sums give each
   design row's plays (weight) and EPA (response); reuse one `build_unit_design` structure and swap
   weights and responses. Penalties: the season fit's (previous-season penalties for teams, the
-  season's own for QBs), as rating histories do.
-- [ ] `sos` and `qb_faced_pass_defense` per threshold through the same head-to-head refits.
-- [ ] QB basis: the published `qb_epa_per_dropback` uses official weekly passing EPA, while the
+  season's own for QBs), as rating histories do. `nfl_sos_ratings/wp_filter.py`
+  (`TeamWpFilter`, `QbWpFilter`); `dataclasses.replace` swaps weights and responses into the
+  frozen `UnitDesign`, so `ridge.py` is unchanged. Decision made here (agent, reported to the
+  maintainer): filtered ratings keep the season fit's per-game scales, as the head-to-head refits
+  already do, so a filtered rating reads on the published scale; filtered plays per game would
+  shrink every rating as the threshold rises.
+- [x] `sos` and `qb_faced_pass_defense` per threshold through the same head-to-head refits.
+- [x] QB basis: the published `qb_epa_per_dropback` uses official weekly passing EPA, while the
   bins use play-level EPA. Recommended: the exploration view uses play-level EPA at every
   threshold, shows the published value beside it, and states the measured gap at 0% (compute it
-  and record it here with the command).
-- [ ] API: `GET /api/seasons/{season}/{teams|qbs}/wp-ratings?threshold=X` (0-30), cached per
+  and record it here with the command). Done as recommended; `_change` columns compare with the
+  0% play-level value. 2025 gap, from `curl -s
+  'http://127.0.0.1:8090/api/seasons/2025/qbs/wp-ratings?threshold=0'` (server: `nfl-sos-ratings
+  web --port 8090`) comparing `adj_qb_epa_per_dropback` with `filtered_adj_qb_epa_per_dropback`
+  over the 33 qualifying QBs: mean absolute 0.0005, largest 0.0017 EPA per dropback; 5 QBs rank
+  differently at 0%, by at most 2 places.
+- [x] API: `GET /api/seasons/{season}/{teams|qbs}/wp-ratings?threshold=X` (0-30), cached per
   season and threshold in process. Performance target: under 200 ms per uncached threshold for
-  teams; measure and record.
-- [ ] Tests: X = 0 reproduces the published team ratings to float tolerance; a synthetic league
-  where dropping a bin changes a rating by a known amount.
+  teams; measure and record. 2025, `curl -w '%{time_total}'` against the 8090 server on
+  2026-10-04: teams 0.098 s median and 0.104 s largest over thresholds 1-30 (uncached), QBs 0.104
+  s and 0.112 s; a season's first request (model build) 0.47 s for teams and 0.23 s for QBs;
+  cached repeats 3-4 ms. The cache key includes each input file's modification time and size, so a
+  rebuilt file brings a new model. Payload columns use a new `filtered_` prefix rule and `_change`
+  suffix rule plus `wp_kept_play_share` and `wp_kept_dropback_share` in the registry.
+- [x] Tests: X = 0 reproduces the published team ratings to float tolerance; a synthetic league
+  where dropping a bin changes a rating by a known amount. `tests/test_wp_filter.py` checks every
+  threshold result against an independent computation (a fresh fit on the kept plays rescaled to
+  the season scale, `compute_team_schedule_strength`, `compute_qb_faced_pass_defense`); the
+  shared league is `tests/wp_league.py`. On real 2025 data the 0% team ratings matched the
+  published file to 4e-15 and `sos` to 2e-15 (same `curl` on `teams/wp-ratings?threshold=0`).
 
 ### WP3. Slider in the web app
 

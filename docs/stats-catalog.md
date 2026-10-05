@@ -6,9 +6,11 @@ Do not edit by hand. Companion catalog: [qb-stats-catalog.md](qb-stats-catalog.m
 Every column below is regular season only. Data files and the analyst app add a prefix or suffix to
 these base names: `opp_` (the team's head-to-head-excluded opponent profile), `qopp_` (what the
 defenses a quarterback faced allowed to other passers), `_per_game`, `_total`, per-play denominators
-such as `_per_offensive_snap` and `_per_dropback`, and rank-range percentiles `_q025` through
-`_q975`. Shapes: `count` totals, `rate` ratios with their own denominator, `avg` per-event averages,
-`score` model outputs on their own scale, `flag` booleans, and `id` identity fields.
+such as `_per_offensive_snap` and `_per_dropback`, rank-range percentiles `_q025` through `_q975`,
+and, in the analyst app's garbage-time filter view, `filtered_` (refit on the plays the filter
+keeps) and `_change` (filtered minus unfiltered). Shapes: `count` totals, `rate` ratios with their
+own denominator, `avg` per-event averages, `score` model outputs on their own scale, `flag`
+booleans, and `id` identity fields.
 
 ## Sources
 
@@ -71,6 +73,7 @@ Season identity and whole-game outcomes: record, points, and margins.
 | `success_rate_margin` | Success Margin | rate | scrimmage snaps | 1999 | PBP | Offensive success rate minus defensive success rate allowed. Success means a play that improved the team's expected points. |
 | `wp_unit` | Unit | id | - | 1999 | PBP | Which plays a win-probability bin row counts: scrimmage plays (the team's offense against the opponent's defense) or special-teams plays where the team had possession. |
 | `wp_bin` | WP Bin | id | - | 1999 | PBP | How far from decided the game was before the snap, in whole percentage points: the smaller of the offense's win probability and its chance of losing, rounded down. 0 means one side was already more than 99% to win; 50 means a toss-up. Plays without a win probability have no bin and are kept by every garbage-time filter. Formula: floor(round(100 * min(wp, 1 - wp), 9)) |
+| `wp_kept_play_share` | Kept Plays | rate | scrimmage and special-teams plays | 1999 | D | The share of this team's scrimmage and special-teams plays (with the ball) that the chosen garbage-time filter keeps. 1.00 means no play was left out. |
 | `wp_bin_plays` | Plays | count | - | 1999 | PBP | Plays this team ran in one game, unit, and win-probability bin. Summed over every bin they equal the game's scrimmage plays or special-teams plays. |
 | `wp_bin_epa` | EPA | count | - | 1999 | PBP | Expected points added on this team's plays in one game, unit, and win-probability bin. Summed over every bin it equals the game's scrimmage EPA or special-teams EPA. |
 
