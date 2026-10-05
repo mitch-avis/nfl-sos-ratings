@@ -72,7 +72,8 @@ The app never recomputes methodology. The backend (`nfl_sos_ratings/ui_data.py` 
 - `GET /api/seasons/{season}/teams/rating-ranges` and
   `GET /api/seasons/{season}/qbs/rating-ranges`: every team's (or qualifying quarterback's) rating
   and rank percentiles, top-5 and top-10 chances, and the chance of each rank over game-bootstrap
-  resamples, ordered by published rank
+  resamples, ordered by published rank; team payloads add an `offense_range`, `defense_range`, and
+  `special_teams_range` column group when the file has them
 - `GET /api/seasons/{season}/teams/{team}/rating-pairs` and
   `GET /api/seasons/{season}/qbs/{qb_id}/rating-pairs`: one team's (or qualifying quarterback's)
   head-to-head chances against every other one: how often it was rated above, the percentiles of
@@ -140,8 +141,9 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   below the table draws every team or qualifying QB: thick bar for the middle 50%, thin bar for the
   middle 95%, a dot for the median, and a diamond for the published rank when it differs. The
   readout above the chart describes the hovered or tapped row (on a phone, its link opens the
-  detail page). The detail page adds the rank headline, the top-5 and top-10 chances, and the
-  chance of each rank.
+  detail page). The detail page adds the rank headline, the top-5 and top-10 chances, the chance
+  of each rank, and, for teams, a `Rank range by unit` table: offense, defense, and special teams
+  with their rank ranges and mini intervals.
 - When a season has head-to-head files, the detail page adds a `Head to head` card: a `Compare
   with` picker, starting on the team or QB ranked just above (just below for the leader), and one
   sentence such as "NE rated above BUF in 38% of resampled seasons; difference -1.2 points, 95%:

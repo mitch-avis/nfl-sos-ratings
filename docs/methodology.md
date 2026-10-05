@@ -117,7 +117,10 @@ resample is ranked: teams among all teams, quarterbacks among those who qualify 
 season (14 pass attempts per game their team has played). The `rating_ranges` and
 `qb_rating_ranges` files give, per team or quarterback, the rating and rank at the 2.5th, 10th,
 25th, 50th, 75th, 90th, and 97.5th percentiles of the resamples, the chance of a top-5 and a top-10
-rank, and the chance of each rank.
+rank, and the chance of each rank. Team rows also give each unit's published rank (`offense_rank`,
+`defense_rank`, `special_teams_rank`) with its rating and rank percentiles from the same resamples.
+Unlike the published ratings, the percentiles do not add up: the median of a sum is not the sum of
+the medians.
 
 - **Head-to-head chances.** Two overlapping rank ranges cannot say whether one team is better
   than another, because both move together in each resample. The `rating_pairs` and
