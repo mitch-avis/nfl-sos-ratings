@@ -117,6 +117,19 @@ def test_diff_frames_aligns_by_explicit_keys() -> None:
     assert diff.column_changes == (ColumnChange("value", 1, 4.0),)
 
 
+def test_diff_frames_matches_rows_whose_key_is_null() -> None:
+    # Arrange
+    before = pl.DataFrame({"team": ["NE", "NE"], "wp_bin": [None, 3], "value": [1.0, 2.0]})
+    after = pl.DataFrame({"team": ["NE", "NE"], "wp_bin": [3, None], "value": [2.0, 5.0]})
+
+    # Act
+    diff = diff_frames(before, after, keys=["team", "wp_bin"])
+
+    # Assert
+    assert diff.aligned_by == ("team", "wp_bin")
+    assert diff.column_changes == (ColumnChange("value", 1, 4.0),)
+
+
 def test_diff_frames_compares_sorted_rows_when_identity_keys_repeat() -> None:
     # Arrange
     before = pl.DataFrame({"team": ["NE", "NE"], "value": [1.0, 2.0]})
