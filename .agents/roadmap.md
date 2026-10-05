@@ -23,15 +23,23 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
 - Plan labels (H1, S2, WP3, ...) stay inside `.agents/`; never use them in code, tests, commits, or
   user-facing docs.
 
-## Where things stand (2026-10-04)
+## Where things stand (2026-10-05)
 
 - Pull request #1 (`feat/rank-ranges`, merged as `c396d83`, branch deleted) brought the rank
   ranges (engine, outputs, API, web views), the QB data fixes, the per-team QB qualifier, the UX
   audit changes, the regenerated validation report, and docs.
 - S1-S3 merged as pull request #2 (`1d61b2d`), WP1 as #3 (`c574819`), WP2 as #4 (`b70b522`), WP3
   as #5 (`02a2b47`), and its follow-ups (each QB's team in the filtered table, a 20% filter
-  maximum, a `filelock` bump) as #6 (`main` = `f6da28b`), branches deleted. Branch
-  `feat/wp-filter-test` (from `f6da28b`) carries WP4: the protocol, then `check-wp-filter`.
+  maximum, a `filelock` bump) as #6 (`f6da28b`), and WP4 (the protocol, `check-wp-filter`, its
+  results, and the decision to keep every play) as #7 (`main` = `18c8aaa`), branches deleted.
+- Overnight approvals (maintainer, 2026-10-05): the agent may push, merge each pull request to
+  `main` with a merge commit once `scripts/gate.sh --web` passes locally and CI is green, delete
+  the merged branch, and branch the next task from the updated `main`; rebuild `data/` once after
+  R1 and R2 land (copy first, quote `diff-data`, run `pytest -m published_data`), and again if R3
+  lands. R3 scope: if weekly ranges add more than about 2 minutes to `pipeline`, build them only
+  for the season in progress at the full 1000 resamples. Tonight's scope after R1-R3: A1 (script
+  only, no scheduled task), S4, F3-F6, and F7 (team palettes). M1, F1, and F2 wait for the
+  maintainer.
 - `data/` (1999-2026: range files, fixed row order, and win-probability bins) was rebuilt on
   2026-10-04 from `c574819` with no value changes (S2 records the `diff-data` summary), and
   `.venv/bin/pytest -m published_data` passes on it.
@@ -52,7 +60,7 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
 | 8 | R2 Rank ranges for the unit ratings | Nearly free: every resample already computes them |
 | 9 | R3 Rank ranges by week | Shows how 2026 uncertainty narrows; costs more compute |
 | 10 | A1 Weekly 2026 refresh automation | Best after S1-S3 make refreshes cheap and diffable |
-| 11 | F1-F6 Frontend follow-ups | Detail pages, opponent context, compare layout, export |
+| 11 | F1-F7 Frontend follow-ups | Detail pages, opponent context, compare layout, export, team palettes |
 | 12 | S4 Project logger | Touches many modules; any quiet stretch works |
 | 13 | M1 Retired stats, one at a time | On request; each needs its own verification |
 
@@ -544,13 +552,26 @@ could read them) but larger and slower to serve.
 
 Tasks:
 
-- [ ] Registry entries; `summarize_rank_pairs` with tests (a synthetic league where one team is
-  clearly better; symmetry P(A over B) + P(B over A) = 1 for teams).
-- [ ] `run_season` writes the files (**Ask first** for the rebuild); API
-  `GET /api/seasons/{season}/{teams|qbs}/{id}/rating-pairs`.
-- [ ] Detail page: "Compare with" picker with a plain sentence ("NE rated above BUF in 38% of
+- [x] Registry entries; `summarize_rank_pairs` with tests (a synthetic league where one team is
+  clearly better; symmetry P(A over B) + P(B over A) = 1 for teams). Done 2026-10-05 as designed
+  (build-time summaries, no raw draws). Columns: `team`, `other_team`,
+  `team_rated_above_probability` (a tie counts half), `team_rating_gap_q025`/`_q500`/`_q975`, and
+  `team_pair_share`, and the QB counterparts (`qb_id`, `other_qb_id`, `qb_...`). "Other" rather
+  than "opponent", because the two need not have played. The entries live in the new
+  `nfl_sos_ratings/metrics/pair_metrics.py`: `team_metrics.py` is past 2,700 lines, and AGENTS.md
+  asks for a split proposal before growing such a module (proposal for the maintainer: split it by
+  category, like the sections it already has).
+- [x] `run_season` writes the files (**Ask first** for the rebuild; approved for after R2); API
+  `GET /api/seasons/{season}/{teams|qbs}/{id}/rating-pairs`. One bootstrap per season now feeds
+  both the ranges and the pairs (`main.build_team_rank_summaries`, `build_qb_rank_summaries`);
+  `row_order` sorts pair files by unit, then compared unit. The new
+  `test_published_pair_files_cover_every_season_and_add_up` (`published_data`) must pass after the
+  rebuild.
+- [x] Detail page: "Compare with" picker with a plain sentence ("NE rated above BUF in 38% of
   resampled seasons; difference -1.2 points, 95%: -5.0 to +2.8"); the comparison panel shows the
-  same when exactly two rows are compared.
+  same when exactly two rows are compared. `HeadToHeadCard` (starts on the neighbor in the
+  published ranking) and `HeadToHeadSentence`; logic in `web/src/domain/ratingPairs.ts`. Hidden
+  for seasons built without pair files. Live check pending the rebuild.
 
 ### R2. Rank ranges for the unit ratings
 
@@ -615,7 +636,7 @@ Tasks:
 
 ## F. Frontend follow-ups
 
-Carried from the frontend plan's queue (F1-F4) plus two ideas (F5-F6). Use the frontend-design,
+Carried from the frontend plan's queue (F1-F4) plus three ideas (F5-F7). Use the frontend-design,
 frontend-react, and dataviz skills; keep the UX audit's patterns: `Hint` for every tooltip
 (hover with a mouse, tap on touch screens), `SortableHeader` for sortable columns, only the name
 pinned on phones, fixed decimals per column.
@@ -631,6 +652,20 @@ pinned on phones, fixed decimals per column.
 - [ ] F5 Idea: CSV export of the current table view, built from the loaded payload (current view,
   sort, and filters), so an analyst can take the numbers elsewhere.
 - [ ] F6 Idea: rank-range mini intervals in the comparison panel even before F4.
+- [ ] F7 Team palettes (maintainer idea, 2026-10-05): the `Palette` control offers the Broncos
+  palette (orange and navy, verified correct in light and dark mode) beside the default; add the
+  other 31 teams so a user can pick their team's colors. Each palette must use the team's accurate
+  primary and secondary colors (2-3 per team, even for teams with more), work in both modes, and
+  never wash out or make text hard to read. Assumptions the agent stated (maintainer to correct):
+  colors come from nflverse's teams data (`team_color` through `team_color4`), checked first
+  against the Broncos values; each palette sets the same tokens as Broncos does (`--primary`,
+  rings, sidebar accent, `--chart-1`, `--chart-2`, and the heat scale in
+  `web/src/domain/tableState.ts`) with light and dark variants that keep the hue and adjust
+  lightness; tests check every team in both modes for WCAG AA contrast (4.5:1 for text on the
+  accent, 3:1 for chart marks on the background) and a distinguishable heat scale, using the next
+  most distinct listed color when the main two are too close or are black, white, or silver; the
+  two-state toggle becomes a menu (default first, then teams grouped by division), remembered as
+  now.
 
 ## S4. Project logger
 

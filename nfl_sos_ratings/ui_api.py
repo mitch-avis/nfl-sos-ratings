@@ -24,11 +24,13 @@ from nfl_sos_ratings.ui_data import (
     discover_available_seasons,
     load_qb_game_log_payload,
     load_qb_rating_history_payload,
+    load_qb_rating_pairs_payload,
     load_qb_rating_ranges_payload,
     load_qb_wp_ratings_payload,
     load_season_ui_dataset,
     load_team_game_log_payload,
     load_team_rating_history_payload,
+    load_team_rating_pairs_payload,
     load_team_rating_ranges_payload,
     load_team_wp_ratings_payload,
 )
@@ -140,6 +142,29 @@ def _entity_router(data_dir: Path) -> APIRouter:
     return router
 
 
+def _rating_pairs_router(data_dir: Path) -> APIRouter:
+    """Return the head-to-head routes: one team's or eligible quarterback's pairs per season."""
+    router = APIRouter()
+
+    @router.get("/api/seasons/{season}/teams/{team}/rating-pairs")
+    def get_team_rating_pairs(season: int, team: str) -> TablePayload:
+        """Return how often one team is rated above each other team across resamples."""
+        try:
+            return load_team_rating_pairs_payload(data_dir, season, team)
+        except (MissingSeasonContractError, MissingEntityRowsError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @router.get("/api/seasons/{season}/qbs/{qb_id}/rating-pairs")
+    def get_qb_rating_pairs(season: int, qb_id: str) -> TablePayload:
+        """Return how often one quarterback is rated above each other eligible one."""
+        try:
+            return load_qb_rating_pairs_payload(data_dir, season, qb_id)
+        except (MissingSeasonContractError, MissingEntityRowsError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    return router
+
+
 def _rating_ranges_router(data_dir: Path) -> APIRouter:
     """Return the league-wide rank-range routes, one payload per season for teams and for QBs."""
     router = APIRouter()
@@ -228,6 +253,7 @@ def create_app(data_dir: Path | None = None, *, web_dist: Path | None = None) ->
 
     app.include_router(_entity_router(resolved_data_dir))
     app.include_router(_rating_ranges_router(resolved_data_dir))
+    app.include_router(_rating_pairs_router(resolved_data_dir))
     app.include_router(_wp_ratings_router(resolved_data_dir))
     mount_frontend(app, web_dist or DEFAULT_WEB_DIST)
     return app

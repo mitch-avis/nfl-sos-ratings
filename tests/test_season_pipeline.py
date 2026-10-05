@@ -297,6 +297,34 @@ def test_run_season_team_rank_ranges_bracket_the_published_rating(season_outputs
     ).is_empty()
 
 
+def test_run_season_writes_every_ordered_team_pair(season_outputs: Path) -> None:
+    # Act
+    pairs = pl.read_parquet(season_outputs / "2025_rating_pairs.parquet")
+
+    # Assert
+    expected = [
+        (team, other) for team in sorted(_TEAMS) for other in sorted(_TEAMS) if team != other
+    ]
+    assert pairs.select("team", "other_team").rows() == expected
+    assert pairs.get_column("team_pair_share").to_list() == pytest.approx([1.0] * len(expected))
+
+
+def test_run_season_team_pairs_agree_with_the_published_order(season_outputs: Path) -> None:
+    # Arrange
+    ratings = pl.read_parquet(season_outputs / "2025_ratings.parquet")
+    best, worst = ratings.get_column("team").to_list()[0], ratings.get_column("team").to_list()[-1]
+
+    # Act
+    pairs = pl.read_parquet(season_outputs / "2025_rating_pairs.parquet")
+
+    # Assert
+    row = pairs.filter((pl.col("team") == best) & (pl.col("other_team") == worst)).row(
+        0, named=True
+    )
+    assert row["team_rated_above_probability"] > 0.5
+    assert row["team_rating_gap_q500"] > 0.0
+
+
 def _qb_df_with_a_backup() -> pl.DataFrame:
     """Return the starters plus one backup who threw a few passes in a single game."""
     starters = _qb_df()
@@ -331,6 +359,26 @@ def test_run_season_ranks_only_eligible_passers_in_the_qb_ranges(
     # Assert
     ranges = pl.read_parquet(tmp_path / "2025_qb_rating_ranges.parquet")
     assert sorted(ranges.get_column("qb_id").to_list()) == [f"qb-{team}" for team in _TEAMS]
+
+
+def test_run_season_pairs_only_eligible_passers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(main, "load_weekly_team_stats", stub(_weekly_df))
+    monkeypatch.setattr(main, "load_schedule", stub(_schedule_df))
+    monkeypatch.setattr(main, "load_qb_stats", stub(_qb_df_with_a_backup))
+
+    # Act
+    main.run_season(2025)
+
+    # Assert
+    pairs = pl.read_parquet(tmp_path / "2025_qb_rating_pairs.parquet")
+    passers = {f"qb-{team}" for team in _TEAMS}
+    assert set(pairs.get_column("qb_id").to_list()) == passers
+    assert set(pairs.get_column("other_qb_id").to_list()) == passers
+    assert pairs.height == len(passers) * (len(passers) - 1)
 
 
 def test_run_season_qb_rank_ranges_carry_the_passer_identity(season_outputs: Path) -> None:

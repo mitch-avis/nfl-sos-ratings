@@ -1,6 +1,7 @@
 """Tests for rank ranges: bootstrap rating and rank quantiles per team or quarterback."""
 
 import itertools
+from pathlib import Path
 
 import numpy as np
 import polars as pl
@@ -8,10 +9,16 @@ import pytest
 
 from nfl_sos_ratings.metrics import get_registry
 from nfl_sos_ratings.rating_ranges import (
+    PAIR_QUANTILES,
+    QB_PAIR_COLUMNS,
     QB_RANGE_COLUMNS,
     RANGE_QUANTILES,
+    TEAM_PAIR_COLUMNS,
     TEAM_RANGE_COLUMNS,
+    PairColumns,
     RangeColumns,
+    quantile_suffix,
+    summarize_rank_pairs,
     summarize_rank_ranges,
 )
 from nfl_sos_ratings.team_rating import bootstrap_team_ratings, fit_team_ratings
@@ -181,3 +188,172 @@ def test_team_rating_intervals_cover_the_true_ratings_near_the_nominal_rate() ->
     # Tolerance fixed before the first run (.agents/roadmap.md, rank ranges).
     assert 0.85 <= covered[0.95] / trials <= 1.0
     assert 0.65 <= covered[0.80] / trials <= 0.95
+
+
+_PAIR_COLUMNS = PairColumns(
+    id="unit", other="other_unit", rating="rating", above="above", gap="gap", share="share"
+)
+
+
+def _pairs(draws: dict[int, dict[str, float]], eligible: set[str] | None = None) -> pl.DataFrame:
+    """Summarize the pairs in ``draws`` against ``_PUBLISHED`` with plain column names."""
+    return summarize_rank_pairs(_draws(draws), _PUBLISHED, _PAIR_COLUMNS, eligible=eligible)
+
+
+def _pair(pairs: pl.DataFrame, unit: str, other: str) -> dict[str, object]:
+    """Return one ordered pair's row."""
+    return pairs.filter((pl.col("unit") == unit) & (pl.col("other_unit") == other)).row(
+        0, named=True
+    )
+
+
+def _above(pairs: pl.DataFrame, unit: str, other: str) -> float:
+    """Return the chance that ``unit`` is rated above ``other``."""
+    return float(
+        pairs.filter((pl.col("unit") == unit) & (pl.col("other_unit") == other))
+        .select("above")
+        .item()
+    )
+
+
+def test_summarize_rank_pairs_counts_the_draws_rating_a_unit_above_another() -> None:
+    # Act
+    pairs = _pairs(_FOUR_DRAWS)
+
+    # Assert
+    assert _pair(pairs, "A", "B")["above"] == pytest.approx(0.75)
+
+
+def test_summarize_rank_pairs_chances_of_a_pair_add_up_to_one() -> None:
+    # Act
+    pairs = _pairs(_FOUR_DRAWS)
+
+    # Assert
+    for unit, other in itertools.permutations("ABC", 2):
+        assert _above(pairs, unit, other) + _above(pairs, other, unit) == pytest.approx(1.0)
+
+
+def test_summarize_rank_pairs_counts_a_tie_as_half() -> None:
+    # Arrange
+    draws = {0: {"A": 1.0, "B": 1.0, "C": 0.0}, 1: {"A": 2.0, "B": 1.0, "C": 0.0}}
+
+    # Act
+    pairs = _pairs(draws)
+
+    # Assert
+    assert _pair(pairs, "A", "B")["above"] == pytest.approx(0.75)
+
+
+def test_summarize_rank_pairs_takes_gap_quantiles_from_the_drawn_differences() -> None:
+    # Arrange
+    differences = np.array([1.0, 1.0, -2.0, 2.0])
+
+    # Act
+    pairs = _pairs(_FOUR_DRAWS)
+
+    # Assert
+    row = _pair(pairs, "A", "B")
+    assert [row[f"gap{quantile_suffix(level)}"] for level in PAIR_QUANTILES] == pytest.approx(
+        np.quantile(differences, PAIR_QUANTILES).tolist()
+    )
+
+
+def test_summarize_rank_pairs_uses_only_draws_with_both_units() -> None:
+    # Arrange
+    draws = {
+        0: {"A": 3.0, "B": 2.0, "C": 1.0},
+        1: {"A": 1.0, "B": 2.0},
+        2: {"A": 3.0, "C": 4.0},
+        3: {"A": 2.0, "B": 1.0, "C": 3.0},
+    }
+
+    # Act
+    pairs = _pairs(draws)
+
+    # Assert
+    row = _pair(pairs, "A", "C")
+    assert (row["above"], row["share"]) == (pytest.approx(1 / 3), pytest.approx(0.75))
+
+
+def test_summarize_rank_pairs_without_shared_draws_leaves_the_chance_empty() -> None:
+    # Arrange
+    draws = {0: {"A": 1.0, "B": 2.0}, 1: {"A": 1.0, "C": 2.0}}
+
+    # Act
+    pairs = _pairs(draws)
+
+    # Assert
+    row = _pair(pairs, "B", "C")
+    assert (row["above"], row["gap_q500"], row["share"]) == (None, None, 0.0)
+
+
+def test_summarize_rank_pairs_pairs_only_eligible_units_in_order() -> None:
+    # Act
+    pairs = _pairs(_FOUR_DRAWS, eligible={"A", "C"})
+
+    # Assert
+    assert pairs.select("unit", "other_unit").rows() == [("A", "C"), ("C", "A")]
+
+
+def test_summarize_rank_pairs_rates_a_clearly_better_team_above_nearly_always() -> None:
+    # Arrange
+    game_logs = _noisy_league(np.random.default_rng(1))
+    fit = fit_team_ratings(game_logs)
+    draws = bootstrap_team_ratings(game_logs, fit, resamples=200, seed=0)
+
+    # Act
+    pairs = summarize_rank_pairs(draws, fit.ratings, TEAM_PAIR_COLUMNS)
+
+    # Assert
+    row = pairs.filter((pl.col("team") == "A") & (pl.col("other_team") == "H")).row(0, named=True)
+    assert row["team_rated_above_probability"] > 0.99
+    assert row["team_rating_gap_q025"] > 0.0
+
+
+@pytest.mark.parametrize("columns", [TEAM_PAIR_COLUMNS, QB_PAIR_COLUMNS])
+def test_every_rank_pair_column_resolves_against_the_registry(columns: PairColumns) -> None:
+    # Arrange
+    draws = _draws(_FOUR_DRAWS).rename({"unit": columns.id, "rating": columns.rating})
+    published = _PUBLISHED.rename({"unit": columns.id, "rating": columns.rating})
+    pairs = summarize_rank_pairs(draws, published, columns)
+
+    # Act
+    unknown = get_registry().validate_columns(pairs.columns)
+
+    # Assert
+    assert unknown == []
+
+
+def _pair_chances_add_up(path: Path, columns: PairColumns) -> bool:
+    """Return whether every ordered pair's chance and its reverse add up to one."""
+    pairs = pl.read_parquet(path).drop_nulls(columns.above)
+    reverse = pairs.select(
+        pl.col(columns.id).alias(columns.other),
+        pl.col(columns.other).alias(columns.id),
+        pl.col(columns.above).alias("reverse"),
+    )
+    joined = pairs.join(reverse, on=[columns.id, columns.other], how="inner")
+    total = joined.get_column(columns.above) + joined.get_column("reverse")
+    return joined.height == pairs.height and bool(((total - 1.0).abs() < 1e-9).all())
+
+
+@pytest.mark.published_data
+def test_published_pair_files_cover_every_season_and_add_up() -> None:
+    # Arrange
+    seasons = sorted({path.name[:4] for path in Path("data").glob("*_ratings.parquet")})
+
+    # Act
+    problems = [
+        f"{season}_{suffix}"
+        for season in seasons
+        for suffix, columns in (
+            ("rating_pairs", TEAM_PAIR_COLUMNS),
+            ("qb_rating_pairs", QB_PAIR_COLUMNS),
+        )
+        if not (path := Path("data") / f"{season}_{suffix}.parquet").exists()
+        or not _pair_chances_add_up(path, columns)
+    ]
+
+    # Assert
+    assert seasons
+    assert problems == []

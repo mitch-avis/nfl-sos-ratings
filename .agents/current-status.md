@@ -6,12 +6,12 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Current state (2026-10-05)
 
-- `main` (pushed, `f6da28b`) holds the points-based ratings, the follow-up work, previous-season
+- `main` (pushed, `18c8aaa`) holds the points-based ratings, the follow-up work, previous-season
   ridge penalties for the team fit, the rank ranges, QB data fixes, and UX audit described below
   (pull request #1), the rebuild tooling (pull request #2), and the garbage-time filter's
   win-probability bins (#3), refits per threshold with their API (#4), and slider with its
   exploration view in the web app (#5) on 2026-10-04, and #6 (QB teams in the filtered table, a 20%
-  filter maximum) on 2026-10-05.
+  filter maximum) and #7 (the garbage-time filter test) on 2026-10-05.
 - Published team ratings: `team_rating` (points per game against an average team) with
   `offense_rating`, `defense_rating`, and `special_teams_rating` adding up to it,
   head-to-head-excluded `sos`, and `SRS` as the score-based reference. The team fit reuses the
@@ -47,12 +47,13 @@ per threshold and API (#4, `/api/seasons/{season}/{teams|qbs}/wp-ratings`), and 
 filtered view (#5; phone layout checked by the maintainer). Pull request #6 brought each QB's team
 back to the filtered table (the freeze that kept it out did not recur with the maintainer's browser
 extensions disabled; roadmap, WP3), lowered the filter's maximum from 30% to 20%, and bumped
-`filelock` in `uv.lock`. Branch `feat/wp-filter-test` holds the pre-registered test's protocol (WP4,
-in its roadmap section) and its `check-wp-filter` command; the run on 2026-10-05 found no threshold
-that predicts margins better and 20% significantly worse, so the published ratings keep every play
-(maintainer decision; roadmap, WP4, and `.agents/ratings-simplification-plan.md`). Still open after
-it: head-to-head chances and more rank-range views, weekly 2026 refresh automation, frontend
-follow-ups, a project logger, and retired stats on request. Until A1 lands, rebuild 2026 weekly with
+`filelock` in `uv.lock`. Pull request #7 (merged 2026-10-05) brought the pre-registered garbage-time
+filter test (WP4): no threshold predicts margins better and 20% is significantly worse, so the
+published ratings keep every play (maintainer decision; roadmap, WP4, and
+`.agents/ratings-simplification-plan.md`). Overnight on 2026-10-05 the agent works through R1-R3,
+A1, S4, and F3-F7 with merge-on-green approval (roadmap, "Where things stand"). Still open:
+head-to-head chances and more rank-range views, weekly 2026 refresh automation, frontend follow-ups,
+a project logger, and retired stats on request. Until A1 lands, rebuild 2026 weekly with
 `nfl-sos-ratings season` (ask first), copying `data/` beforehand so `diff-data` can report what
 changed.
 

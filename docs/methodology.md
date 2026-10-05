@@ -119,6 +119,13 @@ season (14 pass attempts per game their team has played). The `rating_ranges` an
 25th, 50th, 75th, 90th, and 97.5th percentiles of the resamples, the chance of a top-5 and a top-10
 rank, and the chance of each rank.
 
+- **Head-to-head chances.** Two overlapping rank ranges cannot say whether one team is better
+  than another, because both move together in each resample. The `rating_pairs` and
+  `qb_rating_pairs` files compare every ordered pair (qualifying quarterbacks only) across the same
+  resamples: how often the first was rated above the second (a tie counts half, so a pair's two
+  chances add up to one), and the 2.5th, 50th, and 97.5th percentiles of the first's rating minus
+  the second's. Quarterback pairs count only the resamples with both, and `qb_pair_share` says how
+  many those were. The chances carry the same caveat as the ranges.
 - **What the ranges cover.** Game-to-game sampling noise in the shrunken estimate, nothing more.
   They say nothing about whether the model is right: a bias every resample shares (for example,
   EPA crediting the passer for his receivers) moves the whole range, not its width.

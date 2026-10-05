@@ -31,3 +31,25 @@ def test_row_identity_keys_are_empty_without_an_identity_column() -> None:
 
     # Assert
     assert keys == ()
+
+
+def test_row_identity_keys_order_team_pairs_by_team_then_compared_team() -> None:
+    # Arrange
+    columns = ["team", "other_team", "team_rated_above_probability", "team_pair_share"]
+
+    # Act
+    keys = row_identity_keys(columns)
+
+    # Assert
+    assert keys == ("team", "other_team")
+
+
+def test_row_identity_keys_order_passer_pairs_by_passer_then_compared_passer() -> None:
+    # Arrange
+    columns = ["qb_id", "other_qb_id", "qb_rated_above_probability", "qb_pair_share"]
+
+    # Act
+    keys = row_identity_keys(columns)
+
+    # Assert
+    assert keys == ("qb_id", "other_qb_id")

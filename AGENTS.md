@@ -111,7 +111,7 @@ hand-edit `uv.lock` or any generated `requirements*.txt` export.
   `team_stats`, `team_stats_expanded`, and `qb_stats` building the per-game rows. The published
   ratings are `team_rating` and `qb_rating`, both on the shared solver in `ridge`; `srs` is the
   score-based reference, and `rating_ranges` summarizes game-bootstrap refits of both into rank
-  ranges. `opponent_stats` and `qb_opponent_stats` build the descriptive
+  ranges and head-to-head chances. `opponent_stats` and `qb_opponent_stats` build the descriptive
   head-to-head-excluded opponent profiles. `main` runs one season, `pipeline` runs them all, and
   `cli` is the `nfl-sos-ratings` front door. `ui_data` and `ui_api` serve the web app's JSON API
   and its built files.
