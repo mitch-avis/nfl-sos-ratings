@@ -25,11 +25,11 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
 
 ## Where things stand (2026-10-04)
 
-- `main` = `origin/main` = `d5929ed`. Branch `feat/rank-ranges` (pushed, pull request #1 open,
-  gate-green with `scripts/gate.sh --web`) holds every commit since then: the rank ranges (engine,
-  outputs, API, web views), the QB data fixes, the per-team QB qualifier, the UX audit changes, the
-  regenerated validation report, and docs.
-- `data/` is current for that branch (1999-2026, range files included), built with
+- `main` = `origin/main` = `c396d83`, the merge commit of pull request #1 (`feat/rank-ranges`,
+  now deleted): the rank ranges (engine, outputs, API, web views), the QB data fixes, the per-team
+  QB qualifier, the UX audit changes, the regenerated validation report, and docs.
+- Branch `perf/rebuild-tooling` (from `c396d83`) carries S1-S3 toward one pull request.
+- `data/` is current for `main` (1999-2026, range files included), built with
   `OPENBLAS_NUM_THREADS=1 nfl-sos-ratings pipeline` and `nfl-sos-ratings season --season 2026`.
 - The maintainer runs `nfl-sos-ratings web --host 0.0.0.0 --port 8081` to view the app on a phone.
   Never stop it; use port 8090 for agent checks.
@@ -143,8 +143,10 @@ Tasks:
   validation rerun), says `data/` is gitignored and was rebuilt locally, and lists the published
   output changes (1999-2000 and 2004-2011 QB ratings, 2026 eligibility, validation QB rows).
   Opened as <https://github.com/mitch-avis/nfl-sos-ratings/pull/1>.
-- [ ] Wait for CI; report the result. Merge only after the maintainer says so.
-- [ ] After the merge: `git switch main && git pull`, then `uv sync` (a checkout that rewrites
+- [x] Wait for CI; report the result. Merge only after the maintainer says so. CI passed (`gate`
+  and `web`, push and pull-request runs); the maintainer chose a merge commit, and the pull request
+  merged on 2026-10-04 as `c396d83` with the branch deleted.
+- [x] After the merge: `git switch main && git pull`, then `uv sync` (a checkout that rewrites
   `pyproject.toml` needs it, AGENTS.md), and branch the next workstream from `main`.
 
 ## H2. Note for nfl-predictor
@@ -163,7 +165,8 @@ edits it. Hand the maintainer this note to paste into a session there:
 
 Tasks:
 
-- [ ] Give the maintainer the note above when H1's pull request is open (it can cite the PR).
+- [x] Give the maintainer the note above when H1's pull request is open (it can cite the PR).
+  Given on 2026-10-04 with the pull request link.
 
 ## S1. Single-threaded BLAS by default
 
