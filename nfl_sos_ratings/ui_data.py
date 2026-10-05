@@ -20,6 +20,7 @@ from nfl_sos_ratings.rating_ranges import (
     TEAM_PAIR_COLUMNS,
     TEAM_RANGE_COLUMNS,
     TOP_RANKS,
+    UNIT_RANGE_COLUMNS,
     PairColumns,
     RangeColumns,
     quantile_suffix,
@@ -703,6 +704,17 @@ def _build_rating_ranges_payload(
         ),
         "rank_chances": _ordered_existing_columns(frame.columns, rank_chances),
     }
+    for unit in UNIT_RANGE_COLUMNS:
+        unit_columns = _ordered_existing_columns(
+            frame.columns,
+            (
+                unit.rank,
+                *(f"{unit.rating}{suffix}" for suffix in suffixes),
+                *(f"{unit.rank}{suffix}" for suffix in suffixes),
+            ),
+        )
+        if unit_columns:
+            groups[f"{unit.rank.removesuffix('_rank')}_range"] = unit_columns
     visible_columns = [column for group in groups.values() for column in group]
     return {
         "rows": frame.sort(columns.rank).select(visible_columns).to_dicts(),
