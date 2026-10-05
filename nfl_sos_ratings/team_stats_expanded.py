@@ -13,7 +13,12 @@ from __future__ import annotations
 
 import polars as pl
 
-from nfl_sos_ratings.pbp_expressions import rate_expr, scrimmage_snap_expr, value_expr
+from nfl_sos_ratings.pbp_expressions import (
+    rate_expr,
+    scrimmage_snap_expr,
+    special_teams_play_expr,
+    value_expr,
+)
 
 _GROUP_KEY_CANDIDATES = ("game_id", "season", "season_type", "week")
 
@@ -117,11 +122,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     """Aggregate play-level counts per team-game (offense perspective)."""
     columns = plays.columns
     scrimmage = scrimmage_snap_expr(columns)
-    is_special = (
-        value_expr(columns, "special") > 0
-        if "special" in columns
-        else value_expr(columns, "special_teams_play") > 0
-    )
+    is_special = special_teams_play_expr(columns)
     is_pass_attempt = value_expr(columns, "pass_attempt") > 0
     is_two_point = value_expr(columns, "two_point_attempt") > 0
     is_sack = value_expr(columns, "sack") > 0

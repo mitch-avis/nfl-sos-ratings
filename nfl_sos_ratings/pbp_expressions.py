@@ -22,6 +22,16 @@ def scrimmage_snap_expr(columns: list[str]) -> pl.Expr:
     return (_flag("qb_dropback") + _flag("rush") + _flag("qb_kneel") + _flag("qb_spike")) > 0
 
 
+def special_teams_play_expr(columns: list[str]) -> pl.Expr:
+    """Return an expression that flags special-teams plays in PBP data.
+
+    nflverse marks kickoffs, punts, field goals, and extra points with ``special`` (older files
+    name it ``special_teams_play``); a file with neither flags no play.
+    """
+    flag = "special" if "special" in columns else "special_teams_play"
+    return value_expr(columns, flag) > 0
+
+
 def value_expr(columns: list[str], column: str, default: float = 0) -> pl.Expr:
     """Return a null-safe column expression or a literal default when absent."""
     if column in columns:
