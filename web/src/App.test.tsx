@@ -458,6 +458,26 @@ describe('rank ranges', () => {
     expect(screen.getByRole('table', { name: 'Chance of each rank' })).toHaveTextContent('2nd52%')
   })
 
+  it("shows each opponent's season-long rank range in the weekly log", async () => {
+    // Arrange
+    const kcGames = {
+      ...DEN_GAME_LOGS,
+      rows: DEN_GAME_LOGS.rows.slice(0, 2).map((row, index) => ({ ...row, opponent_team: index === 0 ? 'DEN' : 'LV' })),
+    }
+    vi.stubGlobal(
+      'fetch',
+      stubApi({ ...API, [RANGES_PATH]: TEAM_RANK_RANGES, '/api/seasons/2025/teams/KC/game-logs': kcGames }),
+    )
+
+    // Act
+    renderApp('/teams/KC?season=2025')
+
+    // Assert
+    const table = await screen.findByRole('table', { name: 'Game by game' })
+    const den = await within(table).findByRole('cell', { name: /^DEN/ })
+    expect(den).toHaveTextContent('DEN1st–2nd')
+  })
+
   it('breaks the detail-page rank range down by unit', async () => {
     // Arrange
     vi.stubGlobal('fetch', stubApi({ ...API, [RANGES_PATH]: TEAM_RANK_RANGES }))

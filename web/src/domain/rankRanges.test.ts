@@ -7,6 +7,8 @@ import {
   belowQualifierText,
   formatChance,
   isMissingRankRanges,
+  middleRankText,
+  opponentRankRanges,
   ordinal,
   parseRankRanges,
   parseUnitRankRanges,
@@ -281,4 +283,34 @@ test('parseUnitRankRanges finds nothing in a season built without unit ranges', 
 
   // Assert
   assert.deepEqual(units, [])
+})
+
+test('opponentRankRanges gives each team its own range on team pages', () => {
+  // Act
+  const ranges = opponentRankRanges('teams', TEAMS)
+
+  // Assert
+  assert.deepEqual([ranges.get('KC')?.publishedRank, ranges.get('KC')?.rank.q250, ranges.get('KC')?.rank.q750], [2, 2, 3])
+})
+
+test("opponentRankRanges gives each team its defense's range on QB pages", () => {
+  // Arrange
+  const payload: RankRangesPayload = { ...TEAMS, rows: [withUnits(teamRow('KC', 2, [1, 1, 2, 2, 3, 3, 3], [0.3, 0.4, 0.3]))] }
+
+  // Act
+  const ranges = opponentRankRanges('qbs', payload)
+
+  // Assert
+  assert.deepEqual([ranges.get('KC')?.publishedRank, ranges.get('KC')?.rank.q250], [3, 3])
+})
+
+test('middleRankText names one rank or the middle 50% span', () => {
+  // Arrange
+  const [den] = parseRankRanges('teams', TEAMS)
+
+  // Act
+  const texts = [middleRankText(den), middleRankText({ ...den, rank: { ...den.rank, q750: 1 } })]
+
+  // Assert
+  assert.deepEqual(texts, ['1st–2nd', '1st'])
 })
