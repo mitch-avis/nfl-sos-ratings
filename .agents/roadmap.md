@@ -251,9 +251,21 @@ align rows by identity instead of sorted position. Writes to stdout with `sys.st
 
 Tasks:
 
-- [ ] Tests first on two tiny directories covering each outcome.
-- [ ] Implement; document in README (Commands) and AGENTS.md (the commands block).
-- [ ] Use it for every later rebuild and paste its summary into the relevant plan entry.
+- [x] Tests first on two tiny directories covering each outcome (`tests/test_data_diff.py`).
+- [x] Implement; document in README (Commands) and AGENTS.md (the commands block).
+  `nfl_sos_ratings/data_diff.py`; the identity keys are shared with the season writer through the
+  new `nfl_sos_ratings/row_order.py`. Beyond the design: `--tolerance` for float noise, rows
+  matched by `qb_id` or `team` plus `week` and `game_id` by default (sorted position only when
+  those do not identify every row, or `--keys` to override), and rows added or removed counted
+  when rows are matched by identity. AGENTS.md also gained the rule to quote this command's
+  summary for any rebuild.
+- [ ] Use it for every later rebuild and paste its summary into the relevant plan entry. First
+  real runs (2026-10-04, not rebuilds of `data/`): the S2 scratch builds,
+  `diff-data --before /tmp/nfl-s2-before1/data --after /tmp/nfl-s2-after1/data`, reported "8
+  unchanged, 6 row order only, 0 values changed, 0 schema changed, 0 added, 0 removed", and
+  `diff-data --before data --after /tmp/nfl-s1-timing/data --season 2025` (the S1 timing build)
+  reported "10 unchanged, 4 row order only" with no value changes. A full `data/` against itself
+  (392 files) takes about 6 s (scratch timing).
 
 ## WP. Garbage-time win-probability filter
 

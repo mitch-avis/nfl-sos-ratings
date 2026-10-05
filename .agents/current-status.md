@@ -35,12 +35,14 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Next steps
 
-All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order (the
-pull request for `feat/rank-ranges` and the nfl-predictor note are done): three small fixes
-(single-threaded BLAS by default, deterministic row order, a data-diff command), the
-garbage-time WP filter and its pre-registered test, head-to-head chances and more rank-range
-views, weekly 2026 refresh automation, frontend follow-ups, a project logger, and retired stats on
-request. Until A1 lands, rebuild 2026 weekly with `nfl-sos-ratings season` (ask first).
+All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order. The
+pull request for `feat/rank-ranges` and the nfl-predictor note are done; branch
+`perf/rebuild-tooling` holds the three small fixes (single-threaded BLAS by default, one fixed row
+order per data file, and the read-only `nfl-sos-ratings diff-data` command) for one pull request.
+Still open: the garbage-time WP filter and its pre-registered test, head-to-head chances and more
+rank-range views, weekly 2026 refresh automation, frontend follow-ups, a project logger, and
+retired stats on request. Until A1 lands, rebuild 2026 weekly with `nfl-sos-ratings season` (ask
+first), copying `data/` beforehand so `diff-data` can report what changed.
 
 ## Validation snapshot
 

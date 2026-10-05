@@ -50,6 +50,12 @@ COMMANDS: tuple[Command, ...] = (
         "nfl_sos_ratings.schedules",
     ),
     Command(
+        "diff-data",
+        "data",
+        "Compare two directories of Parquet outputs file by file (read-only).",
+        "nfl_sos_ratings.data_diff",
+    ),
+    Command(
         "validate",
         "validation",
         "Run the walk-forward validation and rewrite docs/validation-report.md.",

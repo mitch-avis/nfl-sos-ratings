@@ -75,6 +75,7 @@ door or any command prints usage without running anything (commands are listed i
 .venv/bin/nfl-sos-ratings season [--season N]  # one season (default SEASON in config.py)
 .venv/bin/nfl-sos-ratings pipeline             # every season START_YEAR..END_YEAR, rewrites data/
 .venv/bin/nfl-sos-ratings schedules ...        # ranks every team-season's sos in data/
+.venv/bin/nfl-sos-ratings diff-data ...        # read-only file-by-file diff of two data dirs
 .venv/bin/nfl-sos-ratings validate ...         # regenerates docs/validation-report.md
 .venv/bin/nfl-sos-ratings check-additivity ... # read-only additivity check over data/
 .venv/bin/nfl-sos-ratings check-passer ...     # read-only passer holdout (downloads postseason)
@@ -233,6 +234,9 @@ package and the tests. Beyond that:
 - An inventory or audit of code (columns, metrics, call sites) is produced by a script, not
   written by hand. A search or tool call that fails or returns nothing where matches must exist is
   reported as a failure; never fill the gap by inference.
+- What a `data/` rebuild changed comes from `nfl-sos-ratings diff-data`: copy `data/` before the
+  rebuild (`cp -r data /tmp/data-before`), then compare the copy with the rebuilt `data/` and
+  quote that summary, not a throwaway script.
 - When published rating definitions or validation baselines change, update the registry metadata,
   `README.md`, `docs/methodology.md`, and the active `.agents/` docs in the same change set.
 - Before a comparative methodology experiment, write the falsifiable hypothesis, the allowed

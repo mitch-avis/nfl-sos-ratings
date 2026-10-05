@@ -23,6 +23,18 @@ ROW_IDENTITY_KEYS = ("qb_id", "team")
 ROW_EVENT_KEYS = ("week", "game_id")
 
 
+def row_identity_keys(columns: Collection[str]) -> tuple[str, ...]:
+    """Return the columns that identify a data file's rows, or ``()`` when it has none.
+
+    The identity is the first of ``qb_id`` and ``team`` present, then ``week`` and ``game_id``
+    where present.
+    """
+    identity = next((key for key in ROW_IDENTITY_KEYS if key in columns), None)
+    if identity is None:
+        return ()
+    return (identity, *(key for key in ROW_EVENT_KEYS if key in columns))
+
+
 def data_file_row_order(suffix: str, columns: Collection[str]) -> tuple[tuple[str, bool], ...]:
     """Return the ``(column, descending)`` sort that fixes a data file's row order.
 
@@ -36,15 +48,20 @@ def data_file_row_order(suffix: str, columns: Collection[str]) -> tuple[tuple[st
     """
     if suffix in PUBLISHED_ROW_ORDER:
         return PUBLISHED_ROW_ORDER[suffix]
-    identity = next((key for key in ROW_IDENTITY_KEYS if key in columns), None)
-    if identity is None:
+    keys = row_identity_keys(columns)
+    if not keys:
         msg = (
             f"Output {suffix} has no row order: it needs one of {', '.join(ROW_IDENTITY_KEYS)} "
             "or an entry in PUBLISHED_ROW_ORDER"
         )
         raise ValueError(msg)
-    keys = (identity, *(key for key in ROW_EVENT_KEYS if key in columns))
     return tuple((key, False) for key in keys)
 
 
-__all__ = ["PUBLISHED_ROW_ORDER", "ROW_EVENT_KEYS", "ROW_IDENTITY_KEYS", "data_file_row_order"]
+__all__ = [
+    "PUBLISHED_ROW_ORDER",
+    "ROW_EVENT_KEYS",
+    "ROW_IDENTITY_KEYS",
+    "data_file_row_order",
+    "row_identity_keys",
+]
