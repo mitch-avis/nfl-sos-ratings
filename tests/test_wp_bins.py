@@ -1,5 +1,6 @@
 """Tests for plays and EPA split into win-probability bins."""
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -271,3 +272,98 @@ def test_every_bin_column_resolves_in_the_metric_registry() -> None:
 
     # Assert
     assert unknown == []
+
+
+# Plays without a win probability, as a share of a season's rated scrimmage plays, above which
+# the filter would be leaving too much unjudged (measured: one play in 1999, none in 2006-2026).
+_MAX_NULL_BIN_SHARE = 0.001
+
+
+def _team_bins_add_up(path: Path) -> bool:
+    """Return whether a season's team bins sum to its team game logs' rating inputs."""
+    logs = pl.read_parquet(path.with_name(path.name.replace("team_wp_bins", "team_game_logs")))
+    unit = pl.col("wp_unit")
+    summed = (
+        pl.read_parquet(path)
+        .group_by("game_id", "team")
+        .agg(
+            pl.col("wp_bin_plays").filter(unit == "scrimmage").sum().alias("bin_snaps"),
+            pl.col("wp_bin_epa").filter(unit == "scrimmage").sum().alias("bin_epa"),
+            pl.col("wp_bin_plays").filter(unit == "special_teams").sum().alias("bin_st_plays"),
+            pl.col("wp_bin_epa").filter(unit == "special_teams").sum().alias("bin_st_epa"),
+        )
+    )
+    joined = logs.join(summed, on=["game_id", "team"], how="full", coalesce=True)
+    return (
+        joined.height == logs.height
+        and joined.select(
+            (pl.col("offensive_snaps") == pl.col("bin_snaps")).all()
+            & (pl.col("st_plays") == pl.col("bin_st_plays")).all()
+            & ((pl.col("offensive_epa") - pl.col("bin_epa")).abs() < 1e-9).all()
+            & ((pl.col("st_epa") - pl.col("bin_st_epa")).abs() < 1e-9).all()
+        ).item()
+    )
+
+
+def _qb_bins_add_up(path: Path) -> bool:
+    """Return whether every QB-game's dropbacks equal the sum of its bins."""
+    logs = pl.read_parquet(path.with_name(path.name.replace("qb_wp_bins", "qb_game_logs")))
+    summed = (
+        pl.read_parquet(path).group_by("game_id", "qb_id").agg(pl.col("qb_wp_bin_dropbacks").sum())
+    )
+    joined = logs.join(summed, on=["game_id", "qb_id"], how="left")
+    return joined.select(
+        (pl.col("qb_dropbacks") == pl.col("qb_wp_bin_dropbacks").fill_null(0)).all()
+    ).item()
+
+
+def _null_bin_share(path: Path) -> float:
+    """Return the share of a season's scrimmage plays that have no win-probability bin."""
+    return float(
+        pl.read_parquet(path)
+        .filter(pl.col("wp_unit") == "scrimmage")
+        .select(
+            pl.col("wp_bin_plays").filter(pl.col("wp_bin").is_null()).sum()
+            / pl.col("wp_bin_plays").sum()
+        )
+        .item()
+    )
+
+
+@pytest.mark.published_data
+def test_published_team_wp_bins_add_up_to_the_game_logs() -> None:
+    # Arrange
+    paths = sorted(Path("data").glob("*_team_wp_bins.parquet"))
+
+    # Act
+    mismatched = [path.name for path in paths if not _team_bins_add_up(path)]
+
+    # Assert
+    assert paths
+    assert mismatched == []
+
+
+@pytest.mark.published_data
+def test_published_qb_wp_bins_add_up_to_the_qb_game_logs() -> None:
+    # Arrange
+    paths = sorted(Path("data").glob("*_qb_wp_bins.parquet"))
+
+    # Act
+    mismatched = [path.name for path in paths if not _qb_bins_add_up(path)]
+
+    # Assert
+    assert paths
+    assert mismatched == []
+
+
+@pytest.mark.published_data
+def test_published_seasons_have_a_win_probability_on_nearly_every_play() -> None:
+    # Arrange
+    paths = sorted(Path("data").glob("*_team_wp_bins.parquet"))
+
+    # Act
+    shares = {path.name: _null_bin_share(path) for path in paths}
+
+    # Assert
+    assert len(shares) == len(list(Path("data").glob("*_team_game_logs.parquet")))
+    assert {name: share for name, share in shares.items() if share > _MAX_NULL_BIN_SHARE} == {}

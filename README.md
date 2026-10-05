@@ -137,6 +137,11 @@ game (`row_order.data_file_row_order`).
 - `rating_ranges` and `qb_rating_ranges`: rank ranges, one row per team (or qualifying
   quarterback) with rating and rank percentiles (`_q025` through `_q975`), the chance of a top-5
   and top-10 rank, and the chance of each rank, over 1000 game-bootstrap resamples of the season.
+- `team_wp_bins` and `qb_wp_bins`: each team-game's scrimmage and special-teams plays and EPA,
+  and each quarterback-game's dropbacks and play-level passing EPA, split into 1% win-probability
+  bins (`wp_bin` = `floor(100 * min(wp, 1 - wp))`, null when play-by-play has no `wp`). Summed
+  over every bin they equal the totals the ratings use; they are the inputs to the planned
+  garbage-time filter, which keeps the bins at or above a chosen threshold.
 - `team_per_game_stats`, `qb_per_game_stats`, `opponent_profiles`, `qb_opponent_profiles`: the
   intermediate tables behind `combined` and `qb_combined`.
 

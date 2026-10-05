@@ -12,6 +12,7 @@ from nflreadpy.config import CacheMode, update_config
 from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
 from nfl_sos_ratings.qb_stats import compute_qb_game_stats_from_pbp
 from nfl_sos_ratings.team_stats import compute_team_game_stats_from_pbp
+from nfl_sos_ratings.wp_bins import compute_qb_wp_bins, compute_team_wp_bins
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -501,6 +502,16 @@ def load_pbp_data(season: int) -> pl.DataFrame:
     df = nfl.load_pbp(seasons=season)
     df = _filter_regular_season(df)
     return _normalize_team_abbreviations(df, ["posteam", "defteam", "home_team", "away_team"])
+
+
+def load_wp_bins(season: int) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Load one regular season's team and QB win-probability bins (see ``wp_bins``).
+
+    The play-by-play is loaded once for both. A season whose play-by-play lacks ``wp`` gives
+    typed empty frames.
+    """
+    pbp_df = load_pbp_data(season)
+    return compute_team_wp_bins(pbp_df), compute_qb_wp_bins(pbp_df)
 
 
 def load_playoff_pbp_data(season: int) -> pl.DataFrame:

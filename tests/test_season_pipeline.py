@@ -105,6 +105,77 @@ def _few_resamples(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(main, "BOOTSTRAP_RESAMPLES", 50)
 
 
+def _wp_bins() -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Return team and QB win-probability bins that add up to the synthetic game rows.
+
+    Each team-game's scrimmage plays split into a lopsided bin (5 plays) and a close one, its
+    special-teams plays and each passer's dropbacks into the close bin plus a null bin (1 play).
+    """
+    weekly = _weekly_df()
+    keys = ["game_id", "week", "team", "opponent_team"]
+    scrimmage_epa = pl.col("offensive_epa")
+    team_bins = pl.concat(
+        [
+            weekly.select(
+                *keys,
+                pl.lit("scrimmage").alias("wp_unit"),
+                pl.lit(2, dtype=pl.Int64).alias("wp_bin"),
+                pl.lit(5, dtype=pl.Int64).alias("wp_bin_plays"),
+                (scrimmage_epa * 5 / 62).alias("wp_bin_epa"),
+            ),
+            weekly.select(
+                *keys,
+                pl.lit("scrimmage").alias("wp_unit"),
+                pl.lit(40, dtype=pl.Int64).alias("wp_bin"),
+                (pl.col("offensive_snaps") - 5).cast(pl.Int64).alias("wp_bin_plays"),
+                (scrimmage_epa * 57 / 62).alias("wp_bin_epa"),
+            ),
+            weekly.select(
+                *keys,
+                pl.lit("special_teams").alias("wp_unit"),
+                pl.lit(None, dtype=pl.Int64).alias("wp_bin"),
+                pl.lit(1, dtype=pl.Int64).alias("wp_bin_plays"),
+                pl.lit(0.0).alias("wp_bin_epa"),
+            ),
+            weekly.select(
+                *keys,
+                pl.lit("special_teams").alias("wp_unit"),
+                pl.lit(40, dtype=pl.Int64).alias("wp_bin"),
+                (pl.col("st_plays") - 1).cast(pl.Int64).alias("wp_bin_plays"),
+                pl.col("st_epa").alias("wp_bin_epa"),
+            ),
+        ]
+    )
+    qb = _qb_df()
+    qb_bins = pl.concat(
+        [
+            qb.select(
+                "game_id",
+                "week",
+                "qb_id",
+                pl.lit(40, dtype=pl.Int64).alias("wp_bin"),
+                (pl.col("qb_dropbacks") - 1).cast(pl.Int64).alias("qb_wp_bin_dropbacks"),
+                pl.col("qb_passing_epa").alias("qb_wp_bin_epa"),
+            ),
+            qb.select(
+                "game_id",
+                "week",
+                "qb_id",
+                pl.lit(None, dtype=pl.Int64).alias("wp_bin"),
+                pl.lit(1, dtype=pl.Int64).alias("qb_wp_bin_dropbacks"),
+                pl.lit(0.0).alias("qb_wp_bin_epa"),
+            ),
+        ]
+    )
+    return team_bins, qb_bins
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_wp_bins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Serve bins matching the synthetic league, so no test downloads play-by-play."""
+    monkeypatch.setattr(main, "load_wp_bins", stub(_wp_bins))
+
+
 @pytest.fixture
 def season_outputs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Run the real pipeline on the synthetic league with only the loaders patched."""
@@ -489,6 +560,39 @@ def test_write_data_file_keeps_the_ratings_file_best_first(
 
     # Assert
     assert pl.read_parquet(path).get_column("team").to_list() == ["NE", "BUF", "MIA"]
+
+
+def test_run_season_writes_team_wp_bins_that_add_up_to_the_game_logs(
+    season_outputs: Path,
+) -> None:
+    # Arrange
+    logs = pl.read_parquet(season_outputs / "2025_team_game_logs.parquet")
+
+    # Act
+    bins = pl.read_parquet(season_outputs / "2025_team_wp_bins.parquet")
+
+    # Assert
+    summed = (
+        bins.filter(pl.col("wp_unit") == "scrimmage")
+        .group_by("game_id", "team")
+        .agg(pl.col("wp_bin_plays").sum().alias("offensive_snaps"))
+    )
+    assert (
+        logs.select("game_id", "team", "offensive_snaps")
+        .sort("game_id", "team")
+        .equals(summed.sort("game_id", "team"))
+    )
+
+
+def test_run_season_writes_qb_wp_bins_in_passer_week_bin_order(season_outputs: Path) -> None:
+    # Act
+    bins = pl.read_parquet(season_outputs / "2025_qb_wp_bins.parquet")
+
+    # Assert
+    assert bins.select("qb_id", "week", "wp_bin").rows()[:2] == [
+        ("qb-BUF", 1, 40),
+        ("qb-BUF", 1, None),
+    ]
 
 
 def test_write_data_file_rejects_a_frame_without_a_row_key(

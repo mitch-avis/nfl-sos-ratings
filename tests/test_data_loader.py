@@ -1738,3 +1738,40 @@ def test_load_pbp_data_treats_an_empty_team_as_missing(monkeypatch: pytest.Monke
     # Assert
     assert result.get_column("posteam").to_list() == ["ATL", None]
     assert result.get_column("defteam").to_list() == ["DAL", None]
+
+
+def test_load_wp_bins_bins_regular_season_plays_with_normalized_teams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    play = {
+        "game_id": "2025_01_LA_SF",
+        "week": 1,
+        "posteam": "LA",
+        "defteam": "SF",
+        "qb_dropback": 1,
+        "rush": 0,
+        "qb_kneel": 0,
+        "qb_spike": 0,
+        "special": 0,
+        "epa": 0.4,
+        "qb_epa": 0.4,
+        "wp": 0.62,
+        "passer_player_id": "00-1",
+        "passer_player_name": "M.Stafford",
+    }
+    pbp = pl.DataFrame(
+        [{**play, "season_type": "REG"}, {**play, "season_type": "POST", "game_id": "2025_19"}]
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+
+    # Act
+    team_bins, qb_bins = data_loader.load_wp_bins(2025)
+
+    # Assert
+    assert team_bins.select("game_id", "team", "wp_bin", "wp_bin_plays").rows() == [
+        ("2025_01_LA_SF", "LAR", 38, 1)
+    ]
+    assert qb_bins.select("game_id", "qb_id", "qb_wp_bin_dropbacks").rows() == [
+        ("2025_01_LA_SF", "00-1", 1)
+    ]
