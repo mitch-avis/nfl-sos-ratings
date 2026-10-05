@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DEN_GAME_LOGS,
   DEN_RATING_HISTORY,
+  KC_RANK_HISTORY,
   KC_RATING_PAIRS,
   columnMeta,
   QB_RANK_RANGES,
@@ -512,6 +513,30 @@ describe('head-to-head comparison', () => {
     // Assert
     expect(await screen.findByRole('heading', { name: /Kansas City/ })).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Head to head' })).not.toBeInTheDocument())
+  })
+})
+
+describe('rank by week', () => {
+  it('charts the rank range week by week for a season in progress', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/teams/KC/rank-history': KC_RANK_HISTORY }))
+
+    // Act
+    renderApp('/teams/KC?season=2025')
+
+    // Assert
+    const card = await screen.findByRole('region', { name: 'Rank by week' })
+    expect(within(card).getByText('Median rank 2nd in week 1 (95%: 1st–3rd) and 1st in week 2 (95%: 1st–3rd).')).toBeInTheDocument()
+    expect(within(card).getByRole('table', { name: 'Rank by week' })).toBeInTheDocument()
+  })
+
+  it('leaves the chart out for a season without weekly rank ranges', async () => {
+    // Act
+    renderApp('/teams/KC?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('heading', { name: /Kansas City/ })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Rank by week' })).not.toBeInTheDocument())
   })
 })
 

@@ -212,6 +212,25 @@ export const KC_RATING_PAIRS: TablePayload = {
   column_metadata: {},
 }
 
+/** KC's rank range as of each of two weeks of a season in progress. */
+export const KC_RANK_HISTORY: TablePayload = {
+  rows: [1, 2].map((week) => ({
+    week,
+    team: 'KC',
+    team_rank: week === 1 ? 2 : 1,
+    team_rank_q025: 1,
+    team_rank_q100: 1,
+    team_rank_q250: 1,
+    team_rank_q500: week === 1 ? 2 : 1,
+    team_rank_q750: week === 1 ? 3 : 2,
+    team_rank_q900: 3,
+    team_rank_q975: 3,
+  })),
+  visible_columns: [],
+  column_groups: {},
+  column_metadata: {},
+}
+
 export const DEN_RATING_HISTORY: TablePayload = {
   rows: [
     { week: 1, team: 'DEN', games_played: 1, team_rating: 1.2, offense_rating: 0.6 },

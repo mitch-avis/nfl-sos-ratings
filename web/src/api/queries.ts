@@ -85,6 +85,22 @@ export function useRatingHistory(kind: EntityKind, season: number, entityId: str
   })
 }
 
+/** One team's or QB's rank range as of each week; only seasons in progress have them (else 404). */
+export function useRankHistory(kind: EntityKind, season: number, entityId: string) {
+  return useQuery({
+    queryKey: ['rank-history', kind, season, entityId],
+    enabled: entityId !== '',
+    queryFn: async ({ signal }) => {
+      const payload = await apiFetch<TablePayload>(
+        `/api/seasons/${season}/${kind}/${encodeURIComponent(entityId)}/rank-history`,
+        signal,
+      )
+      hydrateColumnMetadata(payload.column_metadata)
+      return payload
+    },
+  })
+}
+
 /** One team's or QB's head-to-head chances for a season; seasons built without them answer 404. */
 export function useRatingPairs(kind: EntityKind, season: number, entityId: string) {
   return useQuery({
