@@ -25,12 +25,15 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
 
 ## Where things stand (2026-10-04)
 
-- `main` = `origin/main` = `c396d83`, the merge commit of pull request #1 (`feat/rank-ranges`,
-  now deleted): the rank ranges (engine, outputs, API, web views), the QB data fixes, the per-team
-  QB qualifier, the UX audit changes, the regenerated validation report, and docs.
-- Branch `perf/rebuild-tooling` (from `c396d83`) carries S1-S3 toward one pull request.
-- `data/` is current for `main` (1999-2026, range files included), built with
+- Pull request #1 (`feat/rank-ranges`, merged as `c396d83`, branch deleted) brought the rank
+  ranges (engine, outputs, API, web views), the QB data fixes, the per-team QB qualifier, the UX
+  audit changes, the regenerated validation report, and docs.
+- S1-S3 merged as pull request #2 (`main` = `1d61b2d`). Branch `feat/wp-filter` (from
+  `1d61b2d`) carries the WP workstream.
+- `data/` (1999-2026, range files included) was built on 2026-10-04 with
   `OPENBLAS_NUM_THREADS=1 nfl-sos-ratings pipeline` and `nfl-sos-ratings season --season 2026`.
+  Its values are current, but it predates the fixed row order (S2) and has no bins files (WP1);
+  the next rebuild (ask first) brings both.
 - The maintainer runs `nfl-sos-ratings web --host 0.0.0.0 --port 8081` to view the app on a phone.
   Never stop it; use port 8090 for agent checks.
 
@@ -288,10 +291,11 @@ Decisions (maintainer, 2026-10-04):
 - Rule: keep a play when `min(wp, 1 - wp) >= X`.
 - The published default stays 0% unless WP4 says otherwise and the maintainer agrees.
 
-Open choice to settle at WP1 (recommended answer first): plays with a null `wp` (about 0.6% of
-rows in the seasons checked, none of them 2025 scrimmage plays) are kept at every threshold,
-because they cannot be judged, so 0% reproduces the published ratings exactly. Alternative: drop
-them at every non-zero threshold.
+Settled at WP1 (maintainer, 2026-10-04): plays with a null `wp` are kept at every threshold,
+because they cannot be judged, so 0% reproduces the published ratings exactly. The "about 0.6% of
+rows" figure counted non-play rows; among the plays the ratings use, a scratch count
+(`load_pbp_data` with the rating filters, 1999, 2006, 2015, 2025, 2026) found one null-`wp`
+scrimmage play (1999, EPA 0.0) and no special-teams ones.
 
 Data availability (scratch check, 2026-10-04): nflverse play-by-play has `wp`, `vegas_wp`,
 `def_wp`, `home_wp`, and `vegas_home_wp` in 1999, 2006, and 2025. Verify per season in loader
@@ -304,15 +308,34 @@ threshold is a cumulative sum and the API refits on demand with the weighted eng
 
 ### WP1. Bins in the loader layer
 
-- [ ] Find where team-game scrimmage and special-teams plays and EPA are summed today
+- [x] Find where team-game scrimmage and special-teams plays and EPA are summed today
   (`team_stats_expanded.py`, around the per-team aggregation) and bin with exactly the same play
   filters, so the sum over all bins equals `offensive_snaps`, `offensive_epa`, `st_plays`, and
-  `st_epa` per team-game. That equality is the acceptance test.
-- [ ] Outputs: `{season}_team_wp_bins` (`game_id`, `team`, `opponent_team`, unit, bin, plays,
+  `st_epa` per team-game. That equality is the acceptance test. `nfl_sos_ratings/wp_bins.py`
+  reuses `scrimmage_snap_expr` and the newly shared `special_teams_play_expr` in two separate
+  passes (a fake punt counts in both totals); bin = `floor(round(100 * min(wp, 1 - wp), 9))`, the
+  rounding so an exact 0.29 lands in bin 29. Checked three ways: a synthetic test against
+  `compute_expanded_team_game_stats`, `compute_team_snap_counts_from_pbp`, and
+  `compute_qb_game_volumes_from_pbp`; a scratch run on real 1999, 2012, 2025, and 2026
+  play-by-play against the game logs in `data/` (every count exact, EPA within 1e-14, no unmatched
+  rows); and `published_data` tests for after the rebuild.
+- [x] Outputs: `{season}_team_wp_bins` (`game_id`, `team`, `opponent_team`, unit, bin, plays,
   EPA) and `{season}_qb_wp_bins` (`game_id`, `qb_id`, bin, dropbacks, passing EPA). Registry
-  entries first, then `catalog`. Group passers by id (AGENTS.md domain rule).
-- [ ] Loader tests: `wp` present and null counts on scrimmage plays per season; a typed empty frame
-  when a source lacks `wp`.
+  entries first, then `catalog`. Group passers by id (AGENTS.md domain rule). Both files also
+  carry `week`; columns `wp_unit`, `wp_bin`, `wp_bin_plays`, `wp_bin_epa`, `qb_wp_bin_dropbacks`,
+  `qb_wp_bin_epa`. QB rows without a passer id are left out (no published QB row can match them).
+  `row_order` sorts bin rows by identity, week, game, then `wp_unit` and `wp_bin` (null last), and
+  `diff-data` now matches null keys. Written by `run_season` through `data_loader.load_wp_bins`
+  (one play-by-play load for both); about 143 KB and 84 KB for 2025.
+- [x] Loader tests: `wp` present and null counts on scrimmage plays per season; a typed empty frame
+  when a source lacks `wp`. The per-season check is a `published_data` test (null-bin share of
+  scrimmage plays at most 0.1% in every season, plus a bins file for every season with game logs),
+  so it runs after the rebuild; the typed empty frame is a unit test.
+- [ ] After the rebuild (**Ask first**): `.venv/bin/pytest -m published_data` must pass, including
+  the three bins tests. A scratch build of 1999 and 2025 in `/tmp` passed all five
+  `published_data` tests on 2026-10-04, and `diff-data --before data --after /tmp/nfl-wp1/data
+  --season 2025` reported "8 unchanged, 6 row order only, 0 values changed, 0 schema changed, 2
+  added, 0 removed".
 
 ### WP2. Refits per threshold and the API
 

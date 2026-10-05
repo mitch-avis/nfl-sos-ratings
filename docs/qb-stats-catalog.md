@@ -64,6 +64,8 @@ Raw passing production: attempts, completions, yards, and scores.
 | `qb_pass_touchdowns` | Pass TDs | count | - | 1999 | PLS | Touchdown passes thrown. |
 | `qb_interceptions` | INTs | count | - | 1999 | PLS | Passes intercepted by the defense. Fewer is better. |
 | `qb_passing_epa` | Pass EPA | count | - | 1999 | PLS | Total expected points added on this quarterback's dropbacks. EPA credits down, distance, and field position — not just raw yards. |
+| `qb_wp_bin_dropbacks` | Dropbacks | count | - | 1999 | PBP | This quarterback's dropbacks in one game and win-probability bin. Summed over every bin they equal his dropbacks in that game. |
+| `qb_wp_bin_epa` | Pass EPA | count | - | 1999 | PBP | Expected points added credited to this quarterback on his dropbacks in one game and win-probability bin, summed from play-by-play. |
 
 ## Passing Efficiency
 

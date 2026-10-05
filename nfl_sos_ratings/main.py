@@ -3,7 +3,8 @@
 Team ratings come from ``team_rating`` (points per game, opponent-adjusted EPA) and QB ratings
 from ``qb_rating`` (adjusted EPA per dropback), each with a week-by-week rating history.
 Head-to-head-excluded opponent profiles are written beside them for the analyst UI's descriptive
-views.
+views, and each game's plays and EPA split into win-probability bins (``wp_bins``) for the
+garbage-time filter.
 """
 
 import argparse
@@ -19,6 +20,7 @@ from nfl_sos_ratings.data_loader import (
     load_qb_stats,
     load_schedule,
     load_weekly_team_stats,
+    load_wp_bins,
     use_disk_cache_unless_configured,
 )
 from nfl_sos_ratings.metrics import get_registry
@@ -312,6 +314,11 @@ def run_season(season: int) -> None:
     _write_data_file(
         build_qb_rating_ranges(qb_game_logs, qb_fit, qb_combined), season, "qb_rating_ranges"
     )
+
+    print("Binning plays by win probability...")
+    team_wp_bins, qb_wp_bins = load_wp_bins(season)
+    _write_data_file(team_wp_bins, season, "team_wp_bins")
+    _write_data_file(qb_wp_bins, season, "qb_wp_bins")
 
     with pl.Config(tbl_cols=-1, tbl_rows=40, float_precision=2):
         print(f"\n{season} team ratings (points per game vs an average team):")

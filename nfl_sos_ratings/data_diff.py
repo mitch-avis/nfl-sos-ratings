@@ -74,13 +74,14 @@ class FileDiff:
 
 
 def _identifies_rows(frame: pl.DataFrame, keys: Sequence[str]) -> bool:
-    """Return whether ``keys`` are columns of ``frame`` with no duplicated or null combination."""
+    """Return whether ``keys`` are columns of ``frame`` with no duplicated combination.
+
+    A null key is a value like any other (a play without a win probability has a null bin), so
+    rows match on it too.
+    """
     if not keys or not set(keys) <= set(frame.columns):
         return False
-    key_frame = frame.select(keys)
-    return (
-        not key_frame.is_duplicated().any() and key_frame.null_count().sum_horizontal().item() == 0
-    )
+    return not frame.select(keys).is_duplicated().any()
 
 
 def _alignment_keys(
@@ -190,12 +191,16 @@ def diff_frames(
     changes: tuple[ColumnChange, ...] = ()
     if aligned_by:
         on = list(aligned_by)
-        rows_removed = left.join(right.select(on), on=on, how="anti").height
-        rows_added = right.join(left.select(on), on=on, how="anti").height
+        rows_removed = left.join(right.select(on), on=on, how="anti", nulls_equal=True).height
+        rows_added = right.join(left.select(on), on=on, how="anti", nulls_equal=True).height
         values = [column for column in shared if column not in aligned_by]
         changes = _column_changes(
-            left.join(right.select(on), on=on, how="semi").sort(on).select(values),
-            right.join(left.select(on), on=on, how="semi").sort(on).select(values),
+            left.join(right.select(on), on=on, how="semi", nulls_equal=True)
+            .sort(on, nulls_last=True)
+            .select(values),
+            right.join(left.select(on), on=on, how="semi", nulls_equal=True)
+            .sort(on, nulls_last=True)
+            .select(values),
             tolerance,
         )
     elif left.height == right.height:
