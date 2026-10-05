@@ -32,6 +32,9 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
   as #5 (`02a2b47`), and its follow-ups (each QB's team in the filtered table, a 20% filter
   maximum, a `filelock` bump) as #6 (`f6da28b`), and WP4 (the protocol, `check-wp-filter`, its
   results, and the decision to keep every play) as #7 (`main` = `18c8aaa`), branches deleted.
+- Merged overnight under those approvals: #8 R1, #9 R2, #10 R3, #11 A1, #12 S4, #13 F3, #14 F4
+  and F6, #15 F5, #16 F7. Open decisions are marked in their sections (R3, A1, F7, and the
+  `team_metrics.py` split proposal under R1).
 - Overnight approvals (maintainer, 2026-10-05): the agent may push, merge each pull request to
   `main` with a merge commit once `scripts/gate.sh --web` passes locally and CI is green, delete
   the merged branch, and branch the next task from the updated `main`; rebuild `data/` once after
@@ -717,20 +720,29 @@ pinned on phones, fixed decimals per column.
   columns in order and the rows after the search in the current sort, raw values, column keys as
   the header, RFC 4180 quoting; the file is `nfl-sos-ratings-{teams|qbs}-{season}.csv`.
 - [x] F6 Idea: rank-range mini intervals in the comparison panel even before F4. Landed with F4.
-- [ ] F7 Team palettes (maintainer idea, 2026-10-05): the `Palette` control offers the Broncos
-  palette (orange and navy, verified correct in light and dark mode) beside the default; add the
-  other 31 teams so a user can pick their team's colors. Each palette must use the team's accurate
-  primary and secondary colors (2-3 per team, even for teams with more), work in both modes, and
-  never wash out or make text hard to read. Assumptions the agent stated (maintainer to correct):
-  colors come from nflverse's teams data (`team_color` through `team_color4`), checked first
-  against the Broncos values; each palette sets the same tokens as Broncos does (`--primary`,
-  rings, sidebar accent, `--chart-1`, `--chart-2`, and the heat scale in
-  `web/src/domain/tableState.ts`) with light and dark variants that keep the hue and adjust
-  lightness; tests check every team in both modes for WCAG AA contrast (4.5:1 for text on the
-  accent, 3:1 for chart marks on the background) and a distinguishable heat scale, using the next
-  most distinct listed color when the main two are too close or are black, white, or silver; the
-  two-state toggle becomes a menu (default first, then teams grouped by division), remembered as
-  now.
+- [x] F7 Team palettes (maintainer idea, 2026-10-05): every team now has a palette in the
+  `Palette` menu (default first, then teams grouped by division, with brand-color swatches),
+  remembered as before (a stored `broncos` reads as `DEN`). Built as stated: colors from
+  nflverse's teams table (`team_color` through `team_color4`; the Broncos' `#002244` and `#FB4F14`
+  match the hand-tuned palette, which confirmed the source); `nfl-sos-ratings team-palettes`
+  (`nfl_sos_ratings/team_palettes.py`) writes `web/src/domain/teamPaletteData.json`; the app sets
+  the palette's CSS variables on `<html>` per mode, and the heat scale reads from the same file.
+  Rules (in the module docstring): the accent is the more vivid main color that needs at most
+  0.15 lightness change, moved until text on it and links in it reach 4.5:1 on background, card,
+  and muted surfaces, never darker than 0.4 lightness in light mode so links stay apart from the
+  body text; chart colors reach 3:1 on the card; heat tints of the accent and second hues, with
+  text at 4.5:1 on every step and the two ends at least 8 OKLab units apart in dark mode and 4.9
+  in light mode (the hand-tuned Broncos light scale is 4.98). Python tests check every committed
+  palette in both modes. Findings for the maintainer:
+  - The hand-tuned Broncos light palette, kept exactly, falls below 4.5:1: white text on its orange
+    3.28:1 and orange links on the background 3.24:1 (3:1 is the large-text level; dark mode is
+    7.2:1). Recommended: darken the light-mode orange to the generator's fit of `#FB4F14`,
+    `oklch(0.554 0.188 36.5)` (5.0:1, the hue kept); the test exempts DEN light until decided.
+  - Teams whose second color is black, white, silver, or too close in hue (and whose extra colors
+    do not help) keep the default green-to-red heat scale: NYJ, CIN, CLE, IND, LV, DAL, PHI, DET,
+    ATL, CAR, NO, TB in both modes, and WAS in dark mode only.
+  - A team's good end uses its accent hue, so for some teams red means better (KC, NE); the
+    hand-tuned Broncos scale already worked that way (orange good, navy bad).
 
 ## S4. Project logger
 
