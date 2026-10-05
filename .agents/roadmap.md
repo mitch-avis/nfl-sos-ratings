@@ -730,11 +730,18 @@ agreed to).
 
 Tasks:
 
-- [ ] Use the observability skill; stdlib `logging` with one small formatter (color only on a
-  TTY), INFO by default, `--verbose` for DEBUG on the front door.
-- [ ] Replace progress `print`s; keep data written to stdout (for example `schedules`) on
-  `sys.stdout.write`.
-- [ ] Remove the `T201` per-file ignores; the gate must pass without new suppressions.
+- [x] Use the observability skill; stdlib `logging` with one small formatter (color only on a
+  TTY), INFO by default, `--verbose` for DEBUG on the front door. Done 2026-10-05:
+  `nfl_sos_ratings/logger.py` (`configure_logging`, one stderr handler on the `nfl_sos_ratings`
+  logger, INFO plain, other levels prefixed, ANSI color only on a terminal); `nfl-sos-ratings
+  -v/--verbose`; the modules' `__main__` guards configure it too.
+- [x] Replace progress `print`s; keep data written to stdout (for example `schedules`) on
+  `sys.stdout.write`. All 32 in `main`, `pipeline`, and `walk_forward`; "Saved ... to ..." per file
+  is DEBUG; the season's ratings table stays on stdout; a failed pipeline season logs its
+  traceback (`logger.exception`).
+- [x] Remove the `T201` per-file ignores; the gate must pass without new suppressions. Removed for
+  the three modules; the one left is the test fixture builders'. The pipeline's broad `except` no
+  longer needs its `BLE001` suppression, since it now logs the exception.
 
 ## M1. Retired stats, one at a time
 

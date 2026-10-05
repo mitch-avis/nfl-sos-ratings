@@ -220,6 +220,9 @@ package and the tests. Beyond that:
 - Prefer **pure functions that take and return Polars frames**; that keeps stages testable.
 - Every module, class, and function has a docstring that explains intent, not just the signature.
 - Keep tunable model constants named and grouped at module top (as in `ridge.py`), not inlined.
+- Log progress through `logging.getLogger(__name__)` with lazy `%s` arguments; the front door
+  configures it (`nfl_sos_ratings/logger.py`: stderr, `--verbose` for DEBUG). Write data meant for
+  the reader to stdout with `sys.stdout.write`. The package has no `print` calls.
 - Suppressions are one line, one rule, reason inline (`# noqa: S310 - fixed https URL`); no
   blanket `noqa`, `type: ignore`, or `pragma: no cover`.
 - When a module you are changing grows past about 2000 lines, propose a split before adding more.
