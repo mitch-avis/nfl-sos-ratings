@@ -83,6 +83,7 @@ Everything runs through one entry point; `--help` on it or on any command prints
 .venv/bin/nfl-sos-ratings season [--season N]   # one season into data/ (default: SEASON)
 .venv/bin/nfl-sos-ratings pipeline              # every season START_YEAR..END_YEAR
 .venv/bin/nfl-sos-ratings schedules [--team NE --season 2025]  # all-time schedule ranks
+.venv/bin/nfl-sos-ratings diff-data --before DIR --after DIR  # compare two data dirs (read-only)
 .venv/bin/nfl-sos-ratings validate              # rewrite docs/validation-report.md
 .venv/bin/nfl-sos-ratings check-additivity      # strong units vs weak opponents (read-only)
 .venv/bin/nfl-sos-ratings check-passer --name "Drake Maye"  # later games vs QB model (read-only)
@@ -90,6 +91,13 @@ Everything runs through one entry point; `--help` on it or on any command prints
 .venv/bin/nfl-sos-ratings catalog               # regenerate the stats catalogs in docs/
 .venv/bin/nfl-sos-ratings web                   # analyst web app and its API
 ```
+
+To see what a rebuild changed, copy `data/` first (`cp -r data /tmp/data-before`), rebuild, then
+run `diff-data --before /tmp/data-before --after data`. It reports each file as unchanged, row
+order only, values changed (with the changed columns, how many rows changed, and the largest
+absolute difference), schema changed, added, or removed. Rows are matched by `qb_id` or `team`, then
+week and game, unless `--keys` names other columns; `--season N` limits the comparison to one
+season and `--tolerance X` ignores numeric differences up to `X`.
 
 `START_YEAR`, `END_YEAR`, `SEASON`, and `DATA_DIR` live in `nfl_sos_ratings/config.py`. The full
 validation run is `validate --data-dir data --start-season 1999 --end-season 2025 --start-week 5
@@ -101,10 +109,20 @@ filesystem cache) unless `NFLREADPY_CACHE` is set to `memory`, `filesystem`, or 
 pipeline run with fresh downloads took about 13 minutes on 2026-10-04 (`time
 .venv/bin/nfl-sos-ratings pipeline`).
 
+Every command, the `nfl-sos` and `nfl-sos-pipeline` shortcuts included, runs NumPy's BLAS on one
+thread unless `OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS`, or `MKL_NUM_THREADS` is already set. The
+rating fits are many small solves, where BLAS threads cost far more CPU than they save: on
+2026-10-04, `time .venv/bin/nfl-sos-ratings season --season 2025` (download cache warm) took 46.5 s
+wall and 8 min 3 s of user CPU with default threading on 24 cores, and 30.0 s and 39 s with one
+thread, with identical output.
+
 ## Data Files
 
 Each season writes Parquet files named `{season}_{name}.parquet` under `DATA_DIR`. Convert any of
-them for a spreadsheet with `pl.read_parquet(path).write_csv(...)`.
+them for a spreadsheet with `pl.read_parquet(path).write_csv(...)`. Rows come in a fixed order, so
+two builds from the same inputs give identical files: `ratings`, `qb_ratings`, and the two rank-range
+files best first, every other file by `qb_id` (or `team` when it has no `qb_id`), then week and
+game (`row_order.data_file_row_order`).
 
 - `ratings`: one row per team with `team_rating`, the three unit ratings, `sos`, and `SRS`.
 - `qb_ratings`: one row per qualifying quarterback (14 pass attempts per game his team has played,

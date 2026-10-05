@@ -2,13 +2,14 @@
 
 import io
 import itertools
+from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
 
 from nfl_sos_ratings import main
+from nfl_sos_ratings.row_order import data_file_row_order
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
     TeamRatingFit,
@@ -16,9 +17,6 @@ from nfl_sos_ratings.team_rating import (
     fit_team_ratings_with_previous_penalties,
 )
 from tests.stubs import stub
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 _TEAMS = ("BUF", "MIA", "NE", "NYJ")
 _STRENGTH = {"BUF": 0.08, "MIA": -0.02, "NE": 0.04, "NYJ": -0.10}
@@ -430,6 +428,105 @@ def test_write_data_file_rejects_columns_missing_from_the_registry(
     # Act & Assert
     with pytest.raises(ValueError, match="not_a_registered_column"):
         main._write_data_file(frame, 2025, "ratings")
+
+
+def test_write_data_file_writes_team_rows_in_team_and_week_order(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
+    frame = pl.DataFrame(
+        {
+            "week": [2, 1, 2, 1],
+            "team": ["NE", "NE", "BUF", "BUF"],
+            "team_rating": [1.0, 2.0, 3.0, 4.0],
+        }
+    )
+
+    # Act
+    path = main._write_data_file(frame, 2025, "ratings_by_week")
+
+    # Assert
+    written = pl.read_parquet(path)
+    assert written.select("team", "week").rows() == [("BUF", 1), ("BUF", 2), ("NE", 1), ("NE", 2)]
+
+
+def test_write_data_file_orders_qb_rows_by_passer_id_before_team(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
+    frame = pl.DataFrame(
+        {
+            "qb_id": ["00-2", "00-1", "00-2", "00-1"],
+            "team": ["BUF", "NE", "BUF", "NE"],
+            "week": [2, 2, 1, 1],
+        }
+    )
+
+    # Act
+    path = main._write_data_file(frame, 2025, "qb_game_logs")
+
+    # Assert
+    written = pl.read_parquet(path)
+    assert written.select("qb_id", "week").rows() == [
+        ("00-1", 1),
+        ("00-1", 2),
+        ("00-2", 1),
+        ("00-2", 2),
+    ]
+
+
+def test_write_data_file_keeps_the_ratings_file_best_first(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
+    frame = pl.DataFrame({"team": ["BUF", "MIA", "NE"], "team_rating": [1.5, -2.0, 4.0]})
+
+    # Act
+    path = main._write_data_file(frame, 2025, "ratings")
+
+    # Assert
+    assert pl.read_parquet(path).get_column("team").to_list() == ["NE", "BUF", "MIA"]
+
+
+def test_write_data_file_rejects_a_frame_without_a_row_key(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
+    frame = pl.DataFrame({"week": [1, 2]})
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="row order"):
+        main._write_data_file(frame, 2025, "weeks")
+
+
+@pytest.mark.published_data
+def test_every_published_file_is_stored_in_its_row_order() -> None:
+    # Arrange
+    files = sorted(Path("data").glob("*.parquet"))
+
+    # Act
+    unordered: list[str] = []
+    for path in files:
+        frame = pl.read_parquet(path)
+        order = data_file_row_order(path.stem.split("_", 1)[1], frame.columns)
+        keys = [column for column, _ in order]
+        if (
+            not frame.equals(
+                frame.sort(
+                    keys, descending=[descending for _, descending in order], nulls_last=True
+                )
+            )
+            or frame.select(pl.struct(keys).is_duplicated().any()).item()
+        ):
+            unordered.append(path.name)
+
+    # Assert
+    assert files
+    assert unordered == []
 
 
 def test_run_season_without_opponent_profiles_still_writes_the_ratings(

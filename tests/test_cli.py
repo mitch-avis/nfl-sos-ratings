@@ -1,5 +1,8 @@
 """Tests for the nfl-sos-ratings front-door command."""
 
+import os
+import sys
+
 import pytest
 
 from nfl_sos_ratings import cli, main, pipeline, ui_api
@@ -100,3 +103,82 @@ def test_options_pass_through_to_the_command(
 
     # Assert
     assert received == [["--data-dir", "elsewhere"]]
+
+
+def _unset_blas_thread_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove the BLAS thread variables for one test, restoring them afterwards.
+
+    ``setenv`` first records each variable's original state, so the undo also removes values the
+    code under test sets on ``os.environ`` directly.
+    """
+    for name in cli.BLAS_THREAD_VARIABLES:
+        monkeypatch.setenv(name, "placeholder")
+        monkeypatch.delenv(name)
+
+
+def test_main_limits_blas_to_one_thread_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Arrange
+    _unset_blas_thread_variables(monkeypatch)
+    seasons: list[int] = []
+    monkeypatch.setattr(main, "run_season", seasons.append)
+
+    # Act
+    cli.main(["season"])
+
+    # Assert
+    assert {name: os.environ.get(name) for name in cli.BLAS_THREAD_VARIABLES} == {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1",
+    }
+
+
+def test_main_keeps_an_explicit_blas_thread_setting(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Arrange
+    _unset_blas_thread_variables(monkeypatch)
+    monkeypatch.setenv("OPENBLAS_NUM_THREADS", "8")
+    seasons: list[int] = []
+    monkeypatch.setattr(main, "run_season", seasons.append)
+
+    # Act
+    cli.main(["season"])
+
+    # Assert
+    assert os.environ["OPENBLAS_NUM_THREADS"] == "8"
+    assert os.environ["OMP_NUM_THREADS"] == "1"
+
+
+def test_season_shortcut_runs_season_with_one_blas_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    _unset_blas_thread_variables(monkeypatch)
+    seasons: list[int] = []
+    monkeypatch.setattr(main, "run_season", seasons.append)
+    monkeypatch.setattr(sys, "argv", ["nfl-sos", "--season", "2019"])
+
+    # Act
+    cli.season_shortcut()
+
+    # Assert
+    assert seasons == [2019]
+    assert os.environ["OPENBLAS_NUM_THREADS"] == "1"
+
+
+def test_pipeline_shortcut_runs_pipeline_with_one_blas_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    _unset_blas_thread_variables(monkeypatch)
+    seasons: list[int] = []
+    monkeypatch.setattr(pipeline, "START_YEAR", 2023)
+    monkeypatch.setattr(pipeline, "END_YEAR", 2023)
+    monkeypatch.setattr(pipeline, "run_season", seasons.append)
+    monkeypatch.setattr(sys, "argv", ["nfl-sos-pipeline"])
+
+    # Act
+    cli.pipeline_shortcut()
+
+    # Assert
+    assert seasons == [2023]
+    assert os.environ["OPENBLAS_NUM_THREADS"] == "1"

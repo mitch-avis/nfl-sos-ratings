@@ -25,11 +25,11 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
 
 ## Where things stand (2026-10-04)
 
-- `main` = `origin/main` = `d5929ed`. Branch `feat/rank-ranges` (pushed, pull request #1 open,
-  gate-green with `scripts/gate.sh --web`) holds every commit since then: the rank ranges (engine,
-  outputs, API, web views), the QB data fixes, the per-team QB qualifier, the UX audit changes, the
-  regenerated validation report, and docs.
-- `data/` is current for that branch (1999-2026, range files included), built with
+- `main` = `origin/main` = `c396d83`, the merge commit of pull request #1 (`feat/rank-ranges`,
+  now deleted): the rank ranges (engine, outputs, API, web views), the QB data fixes, the per-team
+  QB qualifier, the UX audit changes, the regenerated validation report, and docs.
+- Branch `perf/rebuild-tooling` (from `c396d83`) carries S1-S3 toward one pull request.
+- `data/` is current for `main` (1999-2026, range files included), built with
   `OPENBLAS_NUM_THREADS=1 nfl-sos-ratings pipeline` and `nfl-sos-ratings season --season 2026`.
 - The maintainer runs `nfl-sos-ratings web --host 0.0.0.0 --port 8081` to view the app on a phone.
   Never stop it; use port 8090 for agent checks.
@@ -143,8 +143,10 @@ Tasks:
   validation rerun), says `data/` is gitignored and was rebuilt locally, and lists the published
   output changes (1999-2000 and 2004-2011 QB ratings, 2026 eligibility, validation QB rows).
   Opened as <https://github.com/mitch-avis/nfl-sos-ratings/pull/1>.
-- [ ] Wait for CI; report the result. Merge only after the maintainer says so.
-- [ ] After the merge: `git switch main && git pull`, then `uv sync` (a checkout that rewrites
+- [x] Wait for CI; report the result. Merge only after the maintainer says so. CI passed (`gate`
+  and `web`, push and pull-request runs); the maintainer chose a merge commit, and the pull request
+  merged on 2026-10-04 as `c396d83` with the branch deleted.
+- [x] After the merge: `git switch main && git pull`, then `uv sync` (a checkout that rewrites
   `pyproject.toml` needs it, AGENTS.md), and branch the next workstream from `main`.
 
 ## H2. Note for nfl-predictor
@@ -163,7 +165,8 @@ edits it. Hand the maintainer this note to paste into a session there:
 
 Tasks:
 
-- [ ] Give the maintainer the note above when H1's pull request is open (it can cite the PR).
+- [x] Give the maintainer the note above when H1's pull request is open (it can cite the PR).
+  Given on 2026-10-04 with the pull request link.
 
 ## S1. Single-threaded BLAS by default
 
@@ -180,13 +183,23 @@ the fallback (a new dependency; say what it is for).
 
 Tasks:
 
-- [ ] Test first: `cli.main` sets the three variables when unset and leaves an existing value.
-- [ ] Implement; time `nfl-sos-ratings season --season 2025` before and after (wall and CPU
-  with `time`) and record both here with the command.
-- [ ] README (pipeline timing note) and AGENTS.md (drop the "run with `OPENBLAS_NUM_THREADS=1`"
-  advice once it is the default).
+- [x] Test first: `cli.main` sets the three variables when unset and leaves an existing value.
+- [x] Implement; time `nfl-sos-ratings season --season 2025` before and after (wall and CPU
+  with `time`) and record both here with the command. `cli.limit_blas_threads` runs first in
+  `cli.main`; the shortcuts now point at `cli.season_shortcut` and `cli.pipeline_shortcut`, which
+  go through the front door. Timings, 2026-10-04, from a scratch working directory (so `data/` was
+  untouched) holding a copy of `data/2024_team_game_logs.parquet`, download cache warm, 24 cores:
+  `time .venv/bin/nfl-sos-ratings season --season 2025` took 46.5 s wall, 8 min 3 s user, 1 min
+  26 s sys before, and 30.0 s wall, 39 s user, 45 s sys after. All 14 output files matched
+  `data/` exactly after sorting by key columns.
+- [x] README (pipeline timing note) and AGENTS.md (drop the "run with `OPENBLAS_NUM_THREADS=1`"
+  advice once it is the default). README gained the note; AGENTS.md had no such advice left.
 
 Done when: a plain `nfl-sos-ratings season` builds the range files in a few seconds.
+
+Done (2026-10-04): the range step alone took 2.7 s for 2025 under the new default (scratch
+timing of `main.build_team_rating_ranges` plus `main.build_qb_rating_ranges` on the files in
+`data/`, not citable).
 
 ## S2. Deterministic row order in written files
 
@@ -204,11 +217,25 @@ present.
 
 Tasks:
 
-- [ ] Test first: a shuffled frame written through `_write_data_file` reads back in key order; the
-  ratings file keeps rating order.
-- [ ] Acceptance: two consecutive `nfl-sos-ratings season --season 1999` runs (**Ask first** with
+- [x] Test first: a shuffled frame written through `_write_data_file` reads back in key order; the
+  ratings file keeps rating order. The rule lives in `main.data_file_row_order`: published order
+  for `ratings`, `qb_ratings`, `rating_ranges`, and `qb_rating_ranges` (`PUBLISHED_ROW_ORDER`,
+  keyed by file name rather than passed by each caller, so the rule stays in one place), otherwise
+  `qb_id` or `team`, then `week` and `game_id` where present; a file with neither identity column
+  fails the write. Before relying on it, a scratch script confirmed these keys are unique and
+  non-null in all 392 files in `data/`.
+- [x] Acceptance: two consecutive `nfl-sos-ratings season --season 1999` runs (**Ask first** with
   the other rebuilds) give frames that are `equals()`-identical for every file, with no sorting in
-  the comparison.
+  the comparison. Run 2026-10-04 in scratch working directories, so `data/` was untouched (no
+  rebuild needed asking): before the change, `qb_combined`, `qb_per_game_stats`,
+  `qb_ratings_by_week`, and `ratings_by_week` differed in row order between two runs; after it,
+  all 14 files were identical, and every file's values matched the pre-change build after sorting
+  by key.
+- [ ] After the next rebuild (**Ask first**): `.venv/bin/pytest -m published_data` includes
+  `test_every_published_file_is_stored_in_its_row_order`, which fails on the current `data/` (built
+  before this change: 168 files, every season's `qb_combined`, `qb_game_logs`,
+  `qb_opponent_profiles`, `qb_per_game_stats`, `qb_ratings_by_week`, and `ratings_by_week`) and
+  must pass once `data/` is rebuilt.
 
 ## S3. Data-diff helper
 
@@ -224,9 +251,21 @@ align rows by identity instead of sorted position. Writes to stdout with `sys.st
 
 Tasks:
 
-- [ ] Tests first on two tiny directories covering each outcome.
-- [ ] Implement; document in README (Commands) and AGENTS.md (the commands block).
-- [ ] Use it for every later rebuild and paste its summary into the relevant plan entry.
+- [x] Tests first on two tiny directories covering each outcome (`tests/test_data_diff.py`).
+- [x] Implement; document in README (Commands) and AGENTS.md (the commands block).
+  `nfl_sos_ratings/data_diff.py`; the identity keys are shared with the season writer through the
+  new `nfl_sos_ratings/row_order.py`. Beyond the design: `--tolerance` for float noise, rows
+  matched by `qb_id` or `team` plus `week` and `game_id` by default (sorted position only when
+  those do not identify every row, or `--keys` to override), and rows added or removed counted
+  when rows are matched by identity. AGENTS.md also gained the rule to quote this command's
+  summary for any rebuild.
+- [ ] Use it for every later rebuild and paste its summary into the relevant plan entry. First
+  real runs (2026-10-04, not rebuilds of `data/`): the S2 scratch builds,
+  `diff-data --before /tmp/nfl-s2-before1/data --after /tmp/nfl-s2-after1/data`, reported "8
+  unchanged, 6 row order only, 0 values changed, 0 schema changed, 0 added, 0 removed", and
+  `diff-data --before data --after /tmp/nfl-s1-timing/data --season 2025` (the S1 timing build)
+  reported "10 unchanged, 4 row order only" with no value changes. A full `data/` against itself
+  (392 files) takes about 6 s (scratch timing).
 
 ## WP. Garbage-time win-probability filter
 

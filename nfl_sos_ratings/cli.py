@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import os
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
@@ -11,6 +13,11 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 PROG = "nfl-sos-ratings"
+
+# The rating fits are many small linear solves, where BLAS worker threads cost far more CPU than
+# they save in wall time, so every command runs single-threaded BLAS unless the caller set these.
+# BLAS reads them when NumPy first loads, which happens only once a command module is imported.
+BLAS_THREAD_VARIABLES = ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +48,12 @@ COMMANDS: tuple[Command, ...] = (
         "data",
         "Rank every team-season in data/ by strength of schedule.",
         "nfl_sos_ratings.schedules",
+    ),
+    Command(
+        "diff-data",
+        "data",
+        "Compare two directories of Parquet outputs file by file (read-only).",
+        "nfl_sos_ratings.data_diff",
     ),
     Command(
         "validate",
@@ -110,12 +123,29 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def limit_blas_threads() -> None:
+    """Default every BLAS thread variable to one thread, keeping any value already set."""
+    for name in BLAS_THREAD_VARIABLES:
+        os.environ.setdefault(name, "1")
+
+
 def main(argv: list[str] | None = None) -> None:
     """Dispatch to the named command's ``main`` with the remaining arguments."""
+    limit_blas_threads()
     args = _build_parser().parse_args(argv)
     module = importlib.import_module(COMMANDS_BY_NAME[args.command].module)
     command_main = cast("Callable[[list[str]], None]", module.main)
     command_main(list(args.args))
+
+
+def season_shortcut() -> None:
+    """Run the ``nfl-sos`` shortcut as ``nfl-sos-ratings season`` with its arguments."""
+    main(["season", *sys.argv[1:]])
+
+
+def pipeline_shortcut() -> None:
+    """Run the ``nfl-sos-pipeline`` shortcut as ``nfl-sos-ratings pipeline`` with its arguments."""
+    main(["pipeline", *sys.argv[1:]])
 
 
 if __name__ == "__main__":

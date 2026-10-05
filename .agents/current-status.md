@@ -6,8 +6,9 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Current state (2026-10-04)
 
-- `main` (pushed) holds the points-based ratings, the follow-up work, and previous-season ridge
-  penalties for the team fit.
+- `main` (pushed, `c396d83`) holds the points-based ratings, the follow-up work, previous-season
+  ridge penalties for the team fit, and (merged from pull request #1 on 2026-10-04) the rank
+  ranges, QB data fixes, and UX audit described below.
 - Published team ratings: `team_rating` (points per game against an average team) with
   `offense_rating`, `defense_rating`, and `special_teams_rating` adding up to it,
   head-to-head-excluded `sos`, and `SRS` as the score-based reference. The team fit reuses the
@@ -20,13 +21,13 @@ history (the composite-rating era and its experiments) is in git, before commit 
   page. Week rows reuse the season fit's penalties.
 - Decisions, audits, pre-registered rules, and check results (additivity, passer holdout,
   in-season penalty) are in `.agents/ratings-simplification-plan.md`.
-- Branch `feat/rank-ranges` (every commit since `main`'s `d5929ed`; pushed, pull request #1 open,
-  merge waits for the maintainer) adds bootstrap rank ranges (`{season}_rating_ranges`,
-  `{season}_qb_rating_ranges`, their API and web views), the QB data fixes (duplicated QB-game
-  rows, deterministic tie-breaks) and the per-team QB qualifier (`qb_attempt_qualifier`), and the
-  UX audit changes (one hint style that also opens on tap, phone layout, fixed decimals per
-  column). Details: `.agents/roadmap.md`, "Settled background".
-- `data/` (1999-2026, range files included) was rebuilt on 2026-10-04 for that branch with
+- Pull request #1 (`feat/rank-ranges`, merged with a merge commit, branch deleted) added bootstrap
+  rank ranges (`{season}_rating_ranges`, `{season}_qb_rating_ranges`, their API and web views),
+  the QB data fixes (duplicated QB-game rows, deterministic tie-breaks) and the per-team QB
+  qualifier (`qb_attempt_qualifier`), and the UX audit changes (one hint style that also opens on
+  tap, phone layout, fixed decimals per column). Details: `.agents/roadmap.md`, "Settled
+  background".
+- `data/` (1999-2026, range files included) was rebuilt on 2026-10-04 for that work with
   `OPENBLAS_NUM_THREADS=1 nfl-sos-ratings pipeline` and `nfl-sos-ratings season --season 2026`
   (2026 through week 4).
 - `docs/validation-report.md` was regenerated on 2026-10-04 after the QB data fixes; the rule still
@@ -34,12 +35,14 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Next steps
 
-All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order: push
-and open a pull request for `feat/rank-ranges` (approved), a note for nfl-predictor, three small
-fixes (single-threaded BLAS by default, deterministic row order, a data-diff command), the
-garbage-time WP filter and its pre-registered test, head-to-head chances and more rank-range
-views, weekly 2026 refresh automation, frontend follow-ups, a project logger, and retired stats on
-request. Until A1 lands, rebuild 2026 weekly with `nfl-sos-ratings season` (ask first).
+All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order. The
+pull request for `feat/rank-ranges` and the nfl-predictor note are done; branch
+`perf/rebuild-tooling` holds the three small fixes (single-threaded BLAS by default, one fixed row
+order per data file, and the read-only `nfl-sos-ratings diff-data` command) for one pull request.
+Still open: the garbage-time WP filter and its pre-registered test, head-to-head chances and more
+rank-range views, weekly 2026 refresh automation, frontend follow-ups, a project logger, and
+retired stats on request. Until A1 lands, rebuild 2026 weekly with `nfl-sos-ratings season` (ask
+first), copying `data/` beforehand so `diff-data` can report what changed.
 
 ## Validation snapshot
 
@@ -53,8 +56,10 @@ fixes (team numbers unchanged from the run after adopting previous-season penalt
 - Year-over-year Pearson: `team_rating` 0.434, SRS 0.437; adjusted EPA per dropback 0.455, passer
   rating 0.464, ANY/A 0.392 (601 QB pairs). Mean QBR correlation 0.892 / 0.874.
 
-Gate state: `scripts/gate.sh --web` passes, and `.venv/bin/pytest -m published_data` passes on the
-rebuilt `data/`.
+Gate state: `scripts/gate.sh --web` passes. `.venv/bin/pytest -m published_data` passes on the
+current `data/` except `test_every_published_file_is_stored_in_its_row_order`, which checks the
+fixed row order added on `perf/rebuild-tooling` and fails until `data/` is rebuilt with that code
+(values are unaffected; see `.agents/roadmap.md`, S2).
 
 ## Open items
 

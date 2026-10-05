@@ -39,6 +39,7 @@ from nfl_sos_ratings.rating_ranges import (
     TEAM_RANGE_COLUMNS,
     summarize_rank_ranges,
 )
+from nfl_sos_ratings.row_order import data_file_row_order
 from nfl_sos_ratings.srs import solve_srs
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
@@ -116,7 +117,10 @@ def _build_qb_game_logs(qb_df: pl.DataFrame, weekly_df: pl.DataFrame) -> pl.Data
 
 
 def _write_data_file(frame: pl.DataFrame, season: int, suffix: str) -> Path:
-    """Validate columns against the metric registry and write one Parquet data file."""
+    """Validate columns against the metric registry and write one Parquet data file.
+
+    Rows are written in the file's fixed order (``data_file_row_order``).
+    """
     unknown = get_registry().validate_columns(frame.columns)
     if unknown:
         msg = (
@@ -124,8 +128,13 @@ def _write_data_file(frame: pl.DataFrame, season: int, suffix: str) -> Path:
             + ", ".join(unknown)
         )
         raise ValueError(msg)
+    order = data_file_row_order(suffix, frame.columns)
     data_path = Path(DATA_DIR) / f"{season}_{suffix}.parquet"
-    frame.write_parquet(data_path)
+    frame.sort(
+        [column for column, _ in order],
+        descending=[descending for _, descending in order],
+        nulls_last=True,
+    ).write_parquet(data_path)
     print(f"Saved {suffix} to {data_path}")
     return data_path
 
