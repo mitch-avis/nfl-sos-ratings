@@ -28,8 +28,9 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
 - Pull request #1 (`feat/rank-ranges`, merged as `c396d83`, branch deleted) brought the rank
   ranges (engine, outputs, API, web views), the QB data fixes, the per-team QB qualifier, the UX
   audit changes, the regenerated validation report, and docs.
-- S1-S3 merged as pull request #2 (`1d61b2d`), WP1 as #3 (`c574819`), and WP2 as #4 (`main` =
-  `b70b522`), branches deleted. Branch `feat/wp-slider` (from `b70b522`) carries WP3.
+- S1-S3 merged as pull request #2 (`1d61b2d`), WP1 as #3 (`c574819`), WP2 as #4 (`b70b522`), and
+  WP3 as #5 (`main` = `02a2b47`), branches deleted. Branch `fix/wp-qb-team` (from `02a2b47`)
+  restores each QB's team in the filtered table and carries a `filelock` lockfile bump.
 - `data/` (1999-2026: range files, fixed row order, and win-probability bins) was rebuilt on
   2026-10-04 from `c574819` with no value changes (S2 records the `diff-data` summary), and
   `.venv/bin/pytest -m published_data` passes on it.
@@ -428,6 +429,26 @@ Write this section's protocol here, in full, before any run (AGENTS.md):
   Report every interval that excludes zero, in either direction.
 - Descriptive extras (not decision inputs): QB year-over-year stability and QBR correlation at
   each candidate; NE 2025 and Maye across thresholds, whichever way they move.
+
+Decided with the maintainer (2026-10-04), to be written into the protocol above:
+
+- Each candidate is the published team fit run unchanged on the kept plays: kept plays and EPA
+  replace the game-log columns `fit_team_ratings` reads, and each threshold's penalties are
+  cross-validated on the previous season's kept plays (1999 cross-validates its own), as the
+  published fit does with every play. Reason: the kept share falls fast, so 0% penalties would
+  shrink filtered ratings harder for a reason unrelated to garbage time. Mean
+  `wp_kept_play_share` over the 32 teams in 2025: 0.846 at 5%, 0.772 at 10%, 0.623 at 20%, 0.453
+  at 30%, from `curl -s 'http://127.0.0.1:8090/api/seasons/2025/teams/wp-ratings?threshold=X'`
+  (server: `nfl-sos-ratings web --port 8090`). If a threshold is adopted, the exploration view
+  switches to the same penalties.
+- A separate read-only command, like `check-in-season-penalty`; `validate` and its report stay as
+  they are unless the maintainer adopts a change.
+- 10,000 paired-bootstrap resamples rather than the validation's 2,000: at 2,000, each tail of a
+  98.33% interval rests on about 17 draws.
+- The QB extras compare each threshold with the 0% play-level value, not the published rating,
+  which uses official weekly passing EPA.
+- Open: the slider's maximum (30% today; the maintainer suggested 25% or 20%). It does not affect
+  the test.
 
 Tasks:
 
