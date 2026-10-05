@@ -19,7 +19,7 @@ export function RankIntervalTrack({
   ticks = [],
   showPublished = size === 'row',
 }: {
-  range: RankRange
+  range: Pick<RankRange, 'rank' | 'publishedRank'>
   count: number
   size?: TrackSize
   ticks?: number[]

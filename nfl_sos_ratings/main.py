@@ -43,6 +43,7 @@ from nfl_sos_ratings.rating_ranges import (
     TEAM_RANGE_COLUMNS,
     summarize_rank_pairs,
     summarize_rank_ranges,
+    summarize_unit_rank_ranges,
 )
 from nfl_sos_ratings.row_order import data_file_row_order
 from nfl_sos_ratings.srs import solve_srs
@@ -189,15 +190,15 @@ def build_team_rank_summaries(
 
     Both come from one set of game-bootstrap resamples: each redraws the season's games with
     replacement and refits with ``fit``'s penalties; ranks are among all teams in the resample
-    (see ``rating_ranges``).
+    (see ``rating_ranges``). The ranges cover the team rating and each unit rating.
     """
     draws = bootstrap_team_ratings(
         weekly_df, fit, resamples=BOOTSTRAP_RESAMPLES, seed=BOOTSTRAP_SEED
     )
-    return (
-        summarize_rank_ranges(draws, fit.ratings, TEAM_RANGE_COLUMNS),
-        summarize_rank_pairs(draws, fit.ratings, TEAM_PAIR_COLUMNS),
+    ranges = summarize_rank_ranges(draws, fit.ratings, TEAM_RANGE_COLUMNS).join(
+        summarize_unit_rank_ranges(draws, fit.ratings), on="team", how="left", maintain_order="left"
     )
+    return ranges, summarize_rank_pairs(draws, fit.ratings, TEAM_PAIR_COLUMNS)
 
 
 def build_qb_rank_summaries(

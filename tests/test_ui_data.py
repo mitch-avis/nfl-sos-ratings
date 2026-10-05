@@ -9,6 +9,7 @@ import pytest
 from nfl_sos_ratings.rating_ranges import (
     QB_RANGE_COLUMNS,
     TEAM_RANGE_COLUMNS,
+    RangeColumns,
     summarize_rank_ranges,
 )
 from nfl_sos_ratings.ui_data import (
@@ -469,6 +470,39 @@ def _seed_rating_ranges(data_dir: Path) -> None:
     summarize_rank_ranges(qb_draws, qb_published, QB_RANGE_COLUMNS).with_columns(
         pl.lit("Passer One").alias("qb_name"), pl.lit("DET").alias("team")
     ).write_parquet(data_dir / "2024_qb_rating_ranges.parquet")
+
+
+def test_load_team_rating_ranges_payload_groups_each_units_range(tmp_path: Path) -> None:
+    # Arrange
+    draws = pl.DataFrame(
+        {"draw": [0, 0, 1, 1], "team": ["KC", "DET"] * 2, "offense_rating": [1.0, 2.0, 3.0, 0.5]}
+    )
+    published = pl.DataFrame({"team": ["DET", "KC"], "offense_rating": [2.5, 1.5]})
+    columns = RangeColumns(id="team", rating="offense_rating", rank="offense_rank")
+    team_ranges = summarize_rank_ranges(
+        draws.rename({"offense_rating": "team_rating"}),
+        published.rename({"offense_rating": "team_rating"}),
+        TEAM_RANGE_COLUMNS,
+    )
+    unit_ranges = summarize_rank_ranges(draws, published, columns).drop(
+        "offense_rank_missing_share",
+        "offense_rank_top5_probability",
+        "offense_rank_top10_probability",
+        "offense_rank_probabilities",
+    )
+    team_ranges.join(unit_ranges, on="team").write_parquet(tmp_path / "2024_rating_ranges.parquet")
+
+    # Act
+    payload = load_team_rating_ranges_payload(tmp_path, 2024)
+
+    # Assert
+    suffixes = ["_q025", "_q100", "_q250", "_q500", "_q750", "_q900", "_q975"]
+    assert payload["column_groups"]["offense_range"] == [
+        "offense_rank",
+        *(f"offense_rating{suffix}" for suffix in suffixes),
+        *(f"offense_rank{suffix}" for suffix in suffixes),
+    ]
+    assert "defense_range" not in payload["column_groups"]
 
 
 def test_load_team_rating_ranges_payload_lists_teams_by_published_rank(tmp_path: Path) -> None:

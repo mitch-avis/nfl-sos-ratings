@@ -42,6 +42,10 @@ class RangeColumns:
 
 TEAM_RANGE_COLUMNS = RangeColumns(id="team", rating="team_rating", rank="team_rank")
 QB_RANGE_COLUMNS = RangeColumns(id="qb_id", rating="adj_qb_epa_per_dropback", rank="qb_rank")
+UNIT_RANGE_COLUMNS: tuple[RangeColumns, ...] = tuple(
+    RangeColumns(id="team", rating=f"{unit}_rating", rank=f"{unit}_rank")
+    for unit in ("offense", "defense", "special_teams")
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,6 +151,27 @@ def summarize_rank_ranges(
     return pl.DataFrame(rows)
 
 
+def summarize_unit_rank_ranges(draws: pl.DataFrame, published: pl.DataFrame) -> pl.DataFrame:
+    """Summarize the offense, defense, and special-teams ratings' rank ranges, one row per team.
+
+    Per unit: the published rank and the rating and rank quantiles, as
+    :func:`summarize_rank_ranges` gives them for ``team_rating``; the rank chances stay with the
+    team rating. Percentiles of the units do not add up to the team rating's: the median of a sum
+    is not the sum of the medians.
+    """
+    suffixes = [quantile_suffix(level) for level in RANGE_QUANTILES]
+    summary = published.select("team")
+    for columns in UNIT_RANGE_COLUMNS:
+        unit = summarize_rank_ranges(draws, published, columns).select(
+            "team",
+            columns.rank,
+            *(f"{columns.rating}{suffix}" for suffix in suffixes),
+            *(f"{columns.rank}{suffix}" for suffix in suffixes),
+        )
+        summary = summary.join(unit, on="team", how="left", maintain_order="left")
+    return summary
+
+
 def _draw_matrix(
     draws: pl.DataFrame, id_column: str, rating_column: str, units: list[str]
 ) -> npt.NDArray[np.float64]:
@@ -234,9 +259,11 @@ __all__ = [
     "TEAM_PAIR_COLUMNS",
     "TEAM_RANGE_COLUMNS",
     "TOP_RANKS",
+    "UNIT_RANGE_COLUMNS",
     "PairColumns",
     "RangeColumns",
     "quantile_suffix",
     "summarize_rank_pairs",
     "summarize_rank_ranges",
+    "summarize_unit_rank_ranges",
 ]

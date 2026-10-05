@@ -14,6 +14,7 @@ import { MetricSections } from '@/components/entity/MetricSections'
 import { OpponentBreakdownTable } from '@/components/entity/OpponentBreakdownTable'
 import { RankHistogram } from '@/components/entity/RankHistogram'
 import { ViewControls } from '@/components/entity/ViewControls'
+import { UnitRankRangeTable } from '@/components/entity/UnitRankRanges'
 import { WeeklyTrendChart } from '@/components/entity/WeeklyTrendChart'
 import { WpFilterPanel } from '@/components/entity/WpFilterPanel'
 import { Badge } from '@/components/ui/badge'
@@ -33,6 +34,7 @@ import {
   belowQualifierText,
   isMissingRankRanges,
   parseRankRanges,
+  parseUnitRankRanges,
   rankChanceText,
   rankRangeHeadline,
 } from '@/domain/rankRanges'
@@ -61,6 +63,10 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
       rankRangesQuery.data
         ? parseRankRanges(kind, rankRangesQuery.data).find((range) => range.id === entityId)
         : undefined,
+    [entityId, kind, rankRangesQuery.data],
+  )
+  const unitRankRanges = useMemo(
+    () => (kind === 'teams' && rankRangesQuery.data ? parseUnitRankRanges(rankRangesQuery.data, entityId) : []),
     [entityId, kind, rankRangesQuery.data],
   )
 
@@ -166,6 +172,9 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
               <p className="text-sm text-muted-foreground">{rankChanceText(kind, rankRange)}</p>
             </div>
             <RankHistogram range={rankRange} />
+            {unitRankRanges.length > 0 ? (
+              <UnitRankRangeTable ranges={unitRankRanges} count={rankRangesQuery.data?.rows.length ?? 0} />
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

@@ -39,6 +39,32 @@ function quantiles(row: Record<string, RowValue | number[]>, base: string): Quan
   return Object.fromEntries(QUANTILE_KEYS.map((key) => [key, numberOrNull(row[`${base}_${key}`])])) as Quantiles
 }
 
+/** A team's offense, defense, or special-teams rank range, carried on its rank-range row. */
+export interface UnitRankRange {
+  unit: string
+  label: string
+  publishedRank: number
+  rank: Quantiles
+  rating: Quantiles
+}
+
+const UNITS = [
+  { key: 'offense', label: 'Offense' },
+  { key: 'defense', label: 'Defense' },
+  { key: 'special_teams', label: 'Special teams' },
+] as const
+
+/** The unit rank ranges on one team's row, in unit order; empty for seasons built without them. */
+export function parseUnitRankRanges(payload: RankRangesPayload, teamId: string): UnitRankRange[] {
+  const row = payload.rows.find((candidate) => candidate.team === teamId)
+  if (!row) return []
+  return UNITS.flatMap(({ key, label }) => {
+    const publishedRank = numberOrNull(row[`${key}_rank`])
+    if (publishedRank === null) return []
+    return [{ unit: key, label, publishedRank, rank: quantiles(row, `${key}_rank`), rating: quantiles(row, `${key}_rating`) }]
+  })
+}
+
 /** Read every row of a rank-range payload. */
 export function parseRankRanges(kind: EntityKind, payload: RankRangesPayload): RankRange[] {
   const columns = COLUMNS[kind]
@@ -79,7 +105,7 @@ function rankRangeText(low: number | null, high: number | null): string {
 }
 
 /** The detail-page headline, for example `6th; middle 50%: 4th–8th; 95%: 1st–16th`. */
-export function rankRangeHeadline(range: RankRange): string {
+export function rankRangeHeadline(range: Pick<RankRange, 'publishedRank' | 'rank'>): string {
   const published = ordinal(range.publishedRank)
   if (range.rank.q500 === null) return `${published}; not ranked in any resample`
   return [

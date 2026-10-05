@@ -245,10 +245,23 @@ function teamRankRange(team: string, published: number, ranks: number[], probabi
   }
 }
 
+function unitRankRange(unit: string, published: number, ranks: number[]) {
+  return {
+    [`${unit}_rank`]: published,
+    ...Object.fromEntries(RANGE_QUANTILES.map((key, index) => [`${unit}_rank_${key}`, ranks[index]])),
+    ...Object.fromEntries(RANGE_QUANTILES.map((key, index) => [`${unit}_rating_${key}`, index - 3])),
+  }
+}
+
 export const TEAM_RANK_RANGES: RankRangesPayload = {
   rows: [
     teamRankRange('DEN', 1, [1, 1, 1, 1, 2, 2, 3], [0.62, 0.3, 0.08]),
-    teamRankRange('KC', 2, [1, 1, 2, 2, 2, 3, 3], [0.3, 0.52, 0.18]),
+    {
+      ...teamRankRange('KC', 2, [1, 1, 2, 2, 2, 3, 3], [0.3, 0.52, 0.18]),
+      ...unitRankRange('offense', 1, [1, 1, 1, 1, 2, 2, 3]),
+      ...unitRankRange('defense', 3, [2, 2, 3, 3, 3, 3, 3]),
+      ...unitRankRange('special_teams', 2, [1, 1, 2, 2, 3, 3, 3]),
+    },
     teamRankRange('LV', 3, [2, 2, 3, 3, 3, 3, 3], [0.08, 0.18, 0.74]),
   ],
   visible_columns: [],

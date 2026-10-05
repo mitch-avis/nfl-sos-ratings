@@ -137,7 +137,8 @@ game (`row_order.data_file_row_order`).
   quarterback) per week, each fit on the games through that week.
 - `rating_ranges` and `qb_rating_ranges`: rank ranges, one row per team (or qualifying
   quarterback) with rating and rank percentiles (`_q025` through `_q975`), the chance of a top-5
-  and top-10 rank, and the chance of each rank, over 1000 game-bootstrap resamples of the season.
+  and top-10 rank, and the chance of each rank, over 1000 game-bootstrap resamples of the season;
+  team rows add each unit's rank and its rating and rank percentiles.
 - `rating_pairs` and `qb_rating_pairs`: head-to-head chances, one row per ordered pair of teams
   (or qualifying quarterbacks) with how often the first was rated above the second and the
   percentiles of their rating difference, from the same resamples.

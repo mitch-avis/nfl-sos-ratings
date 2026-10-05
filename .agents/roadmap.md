@@ -580,11 +580,18 @@ Background: `TeamRatingResampler.ratings` already returns `offense_rating`, `def
 
 Tasks:
 
-- [ ] Registry: `offense_rank`, `defense_rank`, `special_teams_rank` (the quantile suffix rules
-  already exist); summarize all four ratings in `build_team_rating_ranges`.
-- [ ] Note in `docs/methodology.md` that percentiles do not add up (the median of a sum is not the
+- [x] Registry: `offense_rank`, `defense_rank`, `special_teams_rank` (the quantile suffix rules
+  already exist); summarize all four ratings in `build_team_rating_ranges`. Done 2026-10-05:
+  `bootstrap_team_ratings` now keeps the unit ratings (same draws, so the team ranges and pairs are
+  unchanged), `rating_ranges.summarize_unit_rank_ranges` adds each unit's published rank and rating
+  and rank percentiles to the team rows (rank chances stay with `team_rating`), and the entries
+  live in the new `nfl_sos_ratings/metrics/unit_rank_metrics.py` for the same reason as the pair
+  entries.
+- [x] Note in `docs/methodology.md` that percentiles do not add up (the median of a sum is not the
   sum of the medians), unlike the published ratings.
-- [ ] Detail page: unit rows with mini intervals; the API payload gains column groups per unit.
+- [x] Detail page: unit rows with mini intervals; the API payload gains column groups per unit.
+  `UnitRankRangeTable` in the detail page's rank-range card; payload groups `offense_range`,
+  `defense_range`, `special_teams_range` (only when present). Live check pending the rebuild.
 
 ### R3. Rank ranges by week
 

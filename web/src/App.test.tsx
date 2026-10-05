@@ -456,6 +456,20 @@ describe('rank ranges', () => {
     expect(screen.getByText('Top 5 in 100% of resamples, top 10 in 100%')).toBeInTheDocument()
     expect(screen.getByRole('table', { name: 'Chance of each rank' })).toHaveTextContent('2nd52%')
   })
+
+  it('breaks the detail-page rank range down by unit', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, [RANGES_PATH]: TEAM_RANK_RANGES }))
+
+    // Act
+    renderApp('/teams/KC?season=2025')
+
+    // Assert
+    const table = await screen.findByRole('table', { name: 'Rank range by unit' })
+    const offense = within(table).getByRole('row', { name: /Offense/ })
+    expect(offense).toHaveTextContent('1st; middle 50%: 1st–2nd; 95%: 1st–3rd')
+    expect(within(table).getAllByRole('row')).toHaveLength(4)
+  })
 })
 
 describe('head-to-head comparison', () => {
