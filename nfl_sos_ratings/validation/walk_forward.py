@@ -29,7 +29,7 @@ import re
 from dataclasses import dataclass
 from itertools import combinations, pairwise
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 import numpy as np
 import polars as pl
@@ -76,6 +76,20 @@ _FEATURE_SCHEMA: dict[str, type[pl.DataType]] = {
     "away_team": pl.String,
     "rating_diff": pl.Float64,
     "home_margin": pl.Float64,
+}
+
+
+_QBR_SCHEMA: dict[str, type[pl.DataType]] = {
+    "season": pl.Int64,
+    "team": pl.String,
+    "normalized_name": pl.String,
+    "qbr_total": pl.Float64,
+}
+_QBR_CORRELATION_SCHEMA: dict[str, type[pl.DataType]] = {
+    "season": pl.Int64,
+    "joined_rows": pl.Int64,
+    "pearson": pl.Float64,
+    "spearman": pl.Float64,
 }
 
 
@@ -653,56 +667,75 @@ def compute_stability_metrics(data_dir: Path, seasons: Sequence[int]) -> pl.Data
     ).sort(["entity", "metric"])
 
 
-def compute_qbr_correlations(data_dir: Path, seasons: Sequence[int]) -> pl.DataFrame:
-    """Return per-season correlations of adjusted EPA per dropback with ESPN QBR."""
-    eligible_seasons = sorted(season for season in seasons if season >= _QBR_FIRST_SEASON)
-    schema = {
-        "season": pl.Int64,
-        "joined_rows": pl.Int64,
-        "pearson": pl.Float64,
-        "spearman": pl.Float64,
-    }
-    if not eligible_seasons:
-        return pl.DataFrame(schema=schema)
+def load_season_qbr(seasons: Sequence[int]) -> pl.DataFrame:
+    """Return ESPN QBR season totals keyed for joining with this project's QB tables.
 
+    Columns: ``season``, ``team``, ``normalized_name``, and ``qbr_total``. Seasons before ESPN QBR
+    exists (2006) are skipped without a download; with none left the frame is empty.
+    """
+    eligible_seasons = sorted(season for season in seasons if season >= _QBR_FIRST_SEASON)
+    if not eligible_seasons:
+        return pl.DataFrame(schema=_QBR_SCHEMA)
     qbr = load_espn_qbr(level="season", seasons=eligible_seasons)
     if "game_week" in qbr.columns:
         qbr = qbr.filter(pl.col("game_week") == "Season Total")
-    qbr = qbr.select(
+    return qbr.select(
         pl.col("season").cast(pl.Int64),
         pl.col("team_abb").cast(pl.String).alias("team"),
         pl.col("name_display")
         .cast(pl.String)
         .map_elements(_normalize_person_name, return_dtype=pl.String)
         .alias("normalized_name"),
-        "qbr_total",
+        pl.col("qbr_total").cast(pl.Float64),
     )
 
-    rows: list[dict[str, object]] = []
-    for season in eligible_seasons:
-        joined = (
-            _eligible_qbs(data_dir / f"{season}_qb_combined.parquet")
-            .with_columns(
-                pl.lit(season).cast(pl.Int64).alias("season"),
-                pl.col("qb_name")
-                .cast(pl.String)
-                .map_elements(_normalize_person_name, return_dtype=pl.String)
-                .alias("normalized_name"),
-            )
-            .join(qbr, on=["season", "team", "normalized_name"], how="inner")
-            .drop_nulls([QB_REFERENCE_METRIC, "qbr_total"])
+
+class QbrCorrelation(TypedDict):
+    """One season's correlation of a QB metric with ESPN QBR."""
+
+    season: int
+    joined_rows: int
+    pearson: float
+    spearman: float
+
+
+def qbr_correlation(
+    qbr: pl.DataFrame, season: int, qbs: pl.DataFrame, metric: str = QB_REFERENCE_METRIC
+) -> QbrCorrelation:
+    """Return one season's correlation of ``metric`` with ESPN QBR over the passers in ``qbs``.
+
+    ``qbs`` holds ``qb_name``, ``team``, and ``metric``; passers join ``qbr`` (from
+    :func:`load_season_qbr`) by season, team, and normalized name.
+    """
+    joined = (
+        qbs.with_columns(
+            pl.lit(season).cast(pl.Int64).alias("season"),
+            pl.col("qb_name")
+            .cast(pl.String)
+            .map_elements(_normalize_person_name, return_dtype=pl.String)
+            .alias("normalized_name"),
         )
-        x_values = joined.get_column(QB_REFERENCE_METRIC).cast(pl.Float64).to_numpy()
-        y_values = joined.get_column("qbr_total").cast(pl.Float64).to_numpy()
-        rows.append(
-            {
-                "season": season,
-                "joined_rows": joined.height,
-                "pearson": _pearson(x_values, y_values),
-                "spearman": _spearman(x_values, y_values),
-            }
-        )
-    return pl.DataFrame(rows, schema=schema)
+        .join(qbr, on=["season", "team", "normalized_name"], how="inner")
+        .drop_nulls([metric, "qbr_total"])
+    )
+    x_values = joined.get_column(metric).cast(pl.Float64).to_numpy()
+    y_values = joined.get_column("qbr_total").cast(pl.Float64).to_numpy()
+    return QbrCorrelation(
+        season=season,
+        joined_rows=joined.height,
+        pearson=_pearson(x_values, y_values),
+        spearman=_spearman(x_values, y_values),
+    )
+
+
+def compute_qbr_correlations(data_dir: Path, seasons: Sequence[int]) -> pl.DataFrame:
+    """Return per-season correlations of adjusted EPA per dropback with ESPN QBR."""
+    qbr = load_season_qbr(seasons)
+    rows = [
+        qbr_correlation(qbr, season, _eligible_qbs(data_dir / f"{season}_qb_combined.parquet"))
+        for season in sorted(season for season in seasons if season >= _QBR_FIRST_SEASON)
+    ]
+    return pl.DataFrame(rows, schema=_QBR_CORRELATION_SCHEMA)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -764,6 +797,7 @@ __all__ = [
     "TEAM_RATING_BASELINE",
     "ComparatorResult",
     "EloConfig",
+    "QbrCorrelation",
     "TeamDecision",
     "build_elo_feature_rows",
     "build_raw_epa_feature_rows",
@@ -776,8 +810,10 @@ __all__ = [
     "compute_weekly_mae_curves",
     "evaluate_feature_rows",
     "evaluate_team_decision",
+    "load_season_qbr",
     "main",
     "previous_season_fit",
+    "qbr_correlation",
     "run_walk_forward_backtest",
     "score_prediction_rows",
 ]
