@@ -73,6 +73,10 @@ The app never recomputes methodology. The backend (`nfl_sos_ratings/ui_data.py` 
   `GET /api/seasons/{season}/qbs/rating-ranges`: every team's (or qualifying quarterback's) rating
   and rank percentiles, top-5 and top-10 chances, and the chance of each rank over game-bootstrap
   resamples, ordered by published rank
+- `GET /api/seasons/{season}/teams/{team}/rating-pairs` and
+  `GET /api/seasons/{season}/qbs/{qb_id}/rating-pairs`: one team's (or qualifying quarterback's)
+  head-to-head chances against every other one: how often it was rated above, the percentiles of
+  the rating difference, and (for quarterbacks) the share of resamples with both
 - `GET /api/seasons/{season}/teams/wp-ratings?threshold=X` and
   `GET /api/seasons/{season}/qbs/wp-ratings?threshold=X`: the garbage-time filter view, every team's
   (or qualifying quarterback's) ratings refit on the plays whose win probability before the snap
@@ -84,8 +88,9 @@ A season is listed only when all six contract files exist: `{season}_team_per_ga
 `{season}_qb_ratings` (all `.parquet`). Game-log views also read `{season}_team_game_logs` and
 `{season}_qb_game_logs`, and the rating-history chart reads `{season}_ratings_by_week` and
 `{season}_qb_ratings_by_week`; the chart is left out when a season has no history file. The
-rank-range endpoints read `{season}_rating_ranges` and `{season}_qb_rating_ranges` and return 404
-when the file is missing. The filter endpoints read the season's game logs, `{season}_team_wp_bins`
+rank-range endpoints read `{season}_rating_ranges` and `{season}_qb_rating_ranges`, and the
+head-to-head endpoints `{season}_rating_pairs` and `{season}_qb_rating_pairs`; each returns 404
+when its file is missing. The filter endpoints read the season's game logs, `{season}_team_wp_bins`
 or `{season}_qb_wp_bins`, and its ratings file (teams also the previous season's game logs, whose
 penalties the team fit reuses), return 404 when one is missing, and cache each season's model and
 each threshold's table in process until a file changes.
@@ -137,6 +142,10 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   readout above the chart describes the hovered or tapped row (on a phone, its link opens the
   detail page). The detail page adds the rank headline, the top-5 and top-10 chances, and the
   chance of each rank.
+- When a season has head-to-head files, the detail page adds a `Head to head` card: a `Compare
+  with` picker, starting on the team or QB ranked just above (just below for the leader), and one
+  sentence such as "NE rated above BUF in 38% of resampled seasons; difference -1.2 points, 95%:
+  -5.0 to +2.8." The comparison panel shows the same sentence when exactly two rows are compared.
 - The `Garbage-time filter` card holds a slider from Off to 20%, kept in the address as `?wp=`. A
   threshold of X% asks `/api/seasons/{season}/{teams|qbs}/wp-ratings` for the ratings refit on the
   plays whose win probability before the snap was between X% and 100% minus X%. It then lists

@@ -552,13 +552,26 @@ could read them) but larger and slower to serve.
 
 Tasks:
 
-- [ ] Registry entries; `summarize_rank_pairs` with tests (a synthetic league where one team is
-  clearly better; symmetry P(A over B) + P(B over A) = 1 for teams).
-- [ ] `run_season` writes the files (**Ask first** for the rebuild); API
-  `GET /api/seasons/{season}/{teams|qbs}/{id}/rating-pairs`.
-- [ ] Detail page: "Compare with" picker with a plain sentence ("NE rated above BUF in 38% of
+- [x] Registry entries; `summarize_rank_pairs` with tests (a synthetic league where one team is
+  clearly better; symmetry P(A over B) + P(B over A) = 1 for teams). Done 2026-10-05 as designed
+  (build-time summaries, no raw draws). Columns: `team`, `other_team`,
+  `team_rated_above_probability` (a tie counts half), `team_rating_gap_q025`/`_q500`/`_q975`, and
+  `team_pair_share`, and the QB counterparts (`qb_id`, `other_qb_id`, `qb_...`). "Other" rather
+  than "opponent", because the two need not have played. The entries live in the new
+  `nfl_sos_ratings/metrics/pair_metrics.py`: `team_metrics.py` is past 2,700 lines, and AGENTS.md
+  asks for a split proposal before growing such a module (proposal for the maintainer: split it by
+  category, like the sections it already has).
+- [x] `run_season` writes the files (**Ask first** for the rebuild; approved for after R2); API
+  `GET /api/seasons/{season}/{teams|qbs}/{id}/rating-pairs`. One bootstrap per season now feeds
+  both the ranges and the pairs (`main.build_team_rank_summaries`, `build_qb_rank_summaries`);
+  `row_order` sorts pair files by unit, then compared unit. The new
+  `test_published_pair_files_cover_every_season_and_add_up` (`published_data`) must pass after the
+  rebuild.
+- [x] Detail page: "Compare with" picker with a plain sentence ("NE rated above BUF in 38% of
   resampled seasons; difference -1.2 points, 95%: -5.0 to +2.8"); the comparison panel shows the
-  same when exactly two rows are compared.
+  same when exactly two rows are compared. `HeadToHeadCard` (starts on the neighbor in the
+  published ranking) and `HeadToHeadSentence`; logic in `web/src/domain/ratingPairs.ts`. Hidden
+  for seasons built without pair files. Live check pending the rebuild.
 
 ### R2. Rank ranges for the unit ratings
 
