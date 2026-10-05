@@ -711,8 +711,11 @@ pinned on phones, fixed decimals per column.
   interval, remove button) and one row per metric, heat-mapped across the picks, with the metric
   column and header pinned in a scrolling box; the head-to-head sentence (R1) sits above it for
   two picks.
-- [ ] F5 Idea: CSV export of the current table view, built from the loaded payload (current view,
-  sort, and filters), so an analyst can take the numbers elsewhere.
+- [x] F5 Idea: CSV export of the current table view, built from the loaded payload (current view,
+  sort, and filters), so an analyst can take the numbers elsewhere. Done 2026-10-05: a `CSV`
+  button in the index table's header (`CsvExportButton`, `domain/csv.ts`) writes the view's
+  columns in order and the rows after the search in the current sort, raw values, column keys as
+  the header, RFC 4180 quoting; the file is `nfl-sos-ratings-{teams|qbs}-{season}.csv`.
 - [x] F6 Idea: rank-range mini intervals in the comparison panel even before F4. Landed with F4.
 - [ ] F7 Team palettes (maintainer idea, 2026-10-05): the `Palette` control offers the Broncos
   palette (orange and navy, verified correct in light and dark mode) beside the default; add the
