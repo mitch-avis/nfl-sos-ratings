@@ -297,6 +297,25 @@ def test_run_season_team_rank_ranges_bracket_the_published_rating(season_outputs
     ).is_empty()
 
 
+@pytest.mark.parametrize("unit", ["offense", "defense", "special_teams"])
+def test_run_season_writes_unit_rank_ranges(season_outputs: Path, unit: str) -> None:
+    # Arrange
+    ratings = pl.read_parquet(season_outputs / "2025_ratings.parquet")
+    expected = ratings.select(
+        "team",
+        pl.col(f"{unit}_rating").rank("min", descending=True).cast(pl.Int64).alias("expected"),
+    )
+
+    # Act
+    ranges = pl.read_parquet(season_outputs / "2025_rating_ranges.parquet")
+
+    # Assert
+    joined = ranges.join(expected, on="team")
+    assert joined.get_column(f"{unit}_rank").to_list() == joined.get_column("expected").to_list()
+    assert joined.get_column(f"{unit}_rank_q500").null_count() == 0
+    assert joined.get_column(f"{unit}_rating_q975").null_count() == 0
+
+
 def test_run_season_writes_every_ordered_team_pair(season_outputs: Path) -> None:
     # Act
     pairs = pl.read_parquet(season_outputs / "2025_rating_pairs.parquet")

@@ -13,6 +13,7 @@ from nfl_sos_ratings.metrics.qb_metrics import QB_METRICS
 from nfl_sos_ratings.metrics.registry import MetricRegistry
 from nfl_sos_ratings.metrics.schema import CategoryDef
 from nfl_sos_ratings.metrics.team_metrics import TEAM_METRICS
+from nfl_sos_ratings.metrics.unit_rank_metrics import UNIT_RANK_METRICS
 
 TEAM_CATEGORIES: tuple[CategoryDef, ...] = (
     CategoryDef(
@@ -121,7 +122,7 @@ QB_CATEGORIES: tuple[CategoryDef, ...] = (
 def build_registry() -> MetricRegistry:
     """Build and validate the full project registry."""
     return MetricRegistry(
-        metrics=TEAM_METRICS + QB_METRICS + PAIR_METRICS,
+        metrics=TEAM_METRICS + UNIT_RANK_METRICS + QB_METRICS + PAIR_METRICS,
         categories=TEAM_CATEGORIES + QB_CATEGORIES,
     )
 

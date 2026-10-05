@@ -268,12 +268,13 @@ class TeamRatingResampler:
 def bootstrap_team_ratings(
     game_logs: pl.DataFrame, fit: TeamRatingFit, *, resamples: int, seed: int
 ) -> pl.DataFrame:
-    """Return ``team_rating`` for every team in ``resamples`` game-bootstrap resamples.
+    """Return every team's ratings in ``resamples`` game-bootstrap resamples.
 
     Each resample draws the season's games with replacement and refits with ``fit``'s penalties.
 
     Returns:
-        Long rows with ``draw``, ``team``, and ``team_rating``.
+        Long rows with ``draw``, ``team``, and the four ``TEAM_RATING_COLUMNS`` (the three unit
+        ratings and ``team_rating``, their sum).
 
     """
     resampler = TeamRatingResampler(game_logs, fit)
@@ -282,7 +283,7 @@ def bootstrap_team_ratings(
     frames = [
         resampler.ratings(
             np.bincount(rng.integers(0, game_count, game_count), minlength=game_count)
-        ).select(pl.lit(draw).alias("draw"), "team", "team_rating")
+        ).select(pl.lit(draw).alias("draw"), "team", *TEAM_RATING_COLUMNS)
         for draw in range(resamples)
     ]
     return pl.concat(frames)

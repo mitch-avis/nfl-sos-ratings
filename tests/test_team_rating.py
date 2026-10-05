@@ -389,5 +389,20 @@ def test_bootstrap_team_ratings_is_reproducible_for_a_seed() -> None:
 
     # Assert
     assert second.equals(first)
-    assert second.columns == ["draw", "team", "team_rating"]
+    assert second.columns == ["draw", "team", *TEAM_RATING_COLUMNS]
     assert second.get_column("draw").n_unique() == 5
+
+
+def test_bootstrap_team_ratings_units_add_up_to_the_team_rating() -> None:
+    # Arrange
+    game_logs = _game_logs(_PARTIAL)
+    fit = fit_team_ratings(game_logs, scrimmage_lambda=10.0, special_teams_lambda=20.0)
+
+    # Act
+    draws = bootstrap_team_ratings(game_logs, fit, resamples=4, seed=1)
+
+    # Assert
+    units = draws.select(
+        pl.col("offense_rating") + pl.col("defense_rating") + pl.col("special_teams_rating")
+    ).to_series()
+    assert units.to_list() == pytest.approx(draws.get_column("team_rating").to_list())
