@@ -69,6 +69,10 @@ Season identity and whole-game outcomes: record, points, and margins.
 | `penalty_yards_differential` | Pen Yds Diff | count | - | 1999 | PBP | Opponent penalty yards minus the team's own penalty yards. |
 | `epa_margin_per_play` | EPA Margin/Play | rate | scrimmage snaps | 1999 | PBP | Offensive expected points added per play minus defensive EPA allowed per play — the single best play-level summary of team strength. |
 | `success_rate_margin` | Success Margin | rate | scrimmage snaps | 1999 | PBP | Offensive success rate minus defensive success rate allowed. Success means a play that improved the team's expected points. |
+| `wp_unit` | Unit | id | - | 1999 | PBP | Which plays a win-probability bin row counts: scrimmage plays (the team's offense against the opponent's defense) or special-teams plays where the team had possession. |
+| `wp_bin` | WP Bin | id | - | 1999 | PBP | How far from decided the game was before the snap, in whole percentage points: the smaller of the offense's win probability and its chance of losing, rounded down. 0 means one side was already more than 99% to win; 50 means a toss-up. Plays without a win probability have no bin and are kept by every garbage-time filter. Formula: floor(round(100 * min(wp, 1 - wp), 9)) |
+| `wp_bin_plays` | Plays | count | - | 1999 | PBP | Plays this team ran in one game, unit, and win-probability bin. Summed over every bin they equal the game's scrimmage plays or special-teams plays. |
+| `wp_bin_epa` | EPA | count | - | 1999 | PBP | Expected points added on this team's plays in one game, unit, and win-probability bin. Summed over every bin it equals the game's scrimmage EPA or special-teams EPA. |
 
 ## Offense
 

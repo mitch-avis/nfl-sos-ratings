@@ -287,6 +287,32 @@ QB_VOLUME_METRICS: tuple[MetricDef, ...] = (
         source="PLS",
         since=1999,
     ),
+    _volume(
+        name="qb_wp_bin_dropbacks",
+        label="Dropbacks",
+        full_name="Dropbacks in Win-Probability Bin",
+        description=(
+            "This quarterback's dropbacks in one game and win-probability bin. Summed over every "
+            "bin they equal his dropbacks in that game."
+        ),
+        shape="count",
+        polarity="neutral",
+        source="PBP",
+        since=1999,
+    ),
+    _volume(
+        name="qb_wp_bin_epa",
+        label="Pass EPA",
+        full_name="Passing EPA in Win-Probability Bin",
+        description=(
+            "Expected points added credited to this quarterback on his dropbacks in one game "
+            "and win-probability bin, summed from play-by-play."
+        ),
+        shape="count",
+        polarity="higher",
+        source="PBP",
+        since=1999,
+    ),
 )
 
 QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (

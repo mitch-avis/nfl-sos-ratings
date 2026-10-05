@@ -455,6 +455,62 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         denominator="scrimmage snaps",
         since=1999,
     ),
+    _overall(
+        name="wp_unit",
+        label="Unit",
+        full_name="Play Unit",
+        description=(
+            "Which plays a win-probability bin row counts: scrimmage plays (the team's offense "
+            "against the opponent's defense) or special-teams plays where the team had "
+            "possession."
+        ),
+        shape="id",
+        polarity="neutral",
+        source="PBP",
+        since=1999,
+    ),
+    _overall(
+        name="wp_bin",
+        label="WP Bin",
+        full_name="Win-Probability Bin",
+        description=(
+            "How far from decided the game was before the snap, in whole percentage points: "
+            "the smaller of the offense's win probability and its chance of losing, rounded "
+            "down. 0 means one side was already more than 99% to win; 50 means a toss-up. Plays "
+            "without a win probability have no bin and are kept by every garbage-time filter."
+        ),
+        shape="id",
+        polarity="neutral",
+        source="PBP",
+        since=1999,
+        formula="floor(round(100 * min(wp, 1 - wp), 9))",
+    ),
+    _overall(
+        name="wp_bin_plays",
+        label="Plays",
+        full_name="Plays in Win-Probability Bin",
+        description=(
+            "Plays this team ran in one game, unit, and win-probability bin. Summed over every "
+            "bin they equal the game's scrimmage plays or special-teams plays."
+        ),
+        shape="count",
+        polarity="neutral",
+        source="PBP",
+        since=1999,
+    ),
+    _overall(
+        name="wp_bin_epa",
+        label="EPA",
+        full_name="EPA in Win-Probability Bin",
+        description=(
+            "Expected points added on this team's plays in one game, unit, and win-probability "
+            "bin. Summed over every bin it equals the game's scrimmage EPA or special-teams EPA."
+        ),
+        shape="count",
+        polarity="higher",
+        source="PBP",
+        since=1999,
+    ),
 )
 
 OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
