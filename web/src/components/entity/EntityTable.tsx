@@ -12,6 +12,7 @@ import { Link } from 'react-router'
 
 import type { EntityConfig, EntityKind, RowValue, TablePayload } from '@/api/types'
 import { useTheme } from '@/app/ThemeProvider'
+import { CsvExportButton } from '@/components/common/CsvExportButton'
 import { Hint } from '@/components/common/Hint'
 import { InfoTooltip } from '@/components/common/InfoTooltip'
 import { MetricLabel } from '@/components/common/MetricLabel'
@@ -20,6 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { csvFileName, toCsv } from '@/domain/csv'
 import { formatFixed, formatValue } from '@/domain/format'
 import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
 import {
@@ -307,10 +309,14 @@ export function EntityTable({
     <Card className="gap-4">
       <CardHeader className="flex flex-wrap items-start justify-between gap-3">
         <CardTitle className="text-base">{config.title}</CardTitle>
-        <div className="flex flex-wrap gap-1.5 text-xs">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
           <Badge variant="secondary">{filteredRows.length} rows</Badge>
           <Badge variant="secondary">{selectedColumns.length} columns</Badge>
           <Badge variant="secondary">{compareIds.length} compared</Badge>
+          <CsvExportButton
+            fileName={csvFileName(config.kind, season)}
+            build={() => toCsv(selectedColumns, reactTable.getRowModel().rows.map((row) => row.original))}
+          />
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
