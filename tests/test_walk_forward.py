@@ -285,6 +285,39 @@ def test_compute_pairwise_mae_bootstrap_returns_deterministic_delta_intervals() 
     assert overall["distinguishable_from_zero"] is True
 
 
+def test_compute_pairwise_mae_bootstrap_widens_the_interval_at_a_higher_confidence() -> None:
+    # Arrange
+    errors = [0.5, -2.0, 3.0, -1.0, 4.5, -0.5, 2.5, -3.5]
+    predictions = pl.DataFrame(
+        {
+            "season": [2025] * 16,
+            "week": [5, 5, 6, 6, 7, 7, 8, 8] * 2,
+            "baseline": ["X"] * 8 + ["SRS"] * 8,
+            "game_id": [f"g{number}" for number in range(8)] * 2,
+            "home_team": list("ABCDEFGH") * 2,
+            "away_team": list("IJKLMNOP") * 2,
+            "error": errors + [1.0] * 8,
+        }
+    )
+    at_95 = compute_pairwise_mae_bootstrap(
+        predictions, baselines=["X", "SRS"], splits=("overall",), resamples=2000
+    ).row(0, named=True)
+
+    # Act
+    at_9833 = compute_pairwise_mae_bootstrap(
+        predictions,
+        baselines=["X", "SRS"],
+        splits=("overall",),
+        resamples=2000,
+        confidence=1 - 0.05 / 3,
+    ).row(0, named=True)
+
+    # Assert
+    assert at_9833["mae_delta"] == pytest.approx(at_95["mae_delta"])
+    assert at_9833["ci_lower"] < at_95["ci_lower"]
+    assert at_9833["ci_upper"] > at_95["ci_upper"]
+
+
 def test_evaluate_team_decision_parity_with_both_comparators_adopts() -> None:
     # Arrange
     deltas = _delta_rows(

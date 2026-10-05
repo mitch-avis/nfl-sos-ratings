@@ -51,6 +51,7 @@ TEAM_RATING_BASELINE = "TeamRating"
 GATED_COMPARATORS: tuple[str, ...] = ("RawEPA", "SRS")
 BOOTSTRAP_RESAMPLES = 2000
 BOOTSTRAP_SEED = 0
+BOOTSTRAP_CONFIDENCE = 0.95
 TEAM_STABILITY_METRICS: tuple[str, ...] = ("team_rating", "SRS")
 QB_STABILITY_METRICS: tuple[str, ...] = (
     "adj_qb_epa_per_dropback",
@@ -450,21 +451,24 @@ def compute_weekly_mae_curves(predictions: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def compute_pairwise_mae_bootstrap(
+def compute_pairwise_mae_bootstrap(  # noqa: PLR0913  # keyword-only settings with defaults
     predictions: pl.DataFrame,
     *,
     baselines: Sequence[str],
     splits: Sequence[str] = ("overall", "early", "late"),
     resamples: int = BOOTSTRAP_RESAMPLES,
     seed: int = BOOTSTRAP_SEED,
+    confidence: float = BOOTSTRAP_CONFIDENCE,
 ) -> pl.DataFrame:
     """Return paired-bootstrap MAE differences for every pair of ``baselines``.
 
     The difference is ``MAE(baseline_a) - MAE(baseline_b)`` over the games both predicted, so a
-    negative value favors ``baseline_a``. Games are resampled with replacement.
+    negative value favors ``baseline_a``. Games are resampled with replacement, and the interval
+    is the central ``confidence`` share of the resampled differences.
     """
     scored = _with_error(predictions)
     rng = np.random.default_rng(seed)
+    tail = (1.0 - confidence) / 2.0
     id_columns = ["season", "week", "game_id", "home_team", "away_team"]
     rows: list[dict[str, object]] = []
     for split in splits:
@@ -491,7 +495,7 @@ def compute_pairwise_mae_bootstrap(
             sampled = np.array(
                 [diffs[rng.integers(0, diffs.size, diffs.size)].mean() for _ in range(resamples)]
             )
-            ci_lower, ci_upper = np.quantile(sampled, [0.025, 0.975])
+            ci_lower, ci_upper = np.quantile(sampled, [tail, 1.0 - tail])
             rows.append(
                 {
                     "baseline_a": baseline_a,
@@ -753,6 +757,7 @@ def main(argv: list[str] | None = None) -> None:
 
 
 __all__ = [
+    "BOOTSTRAP_CONFIDENCE",
     "BOOTSTRAP_RESAMPLES",
     "BOOTSTRAP_SEED",
     "GATED_COMPARATORS",
