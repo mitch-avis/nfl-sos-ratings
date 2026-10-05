@@ -183,13 +183,23 @@ the fallback (a new dependency; say what it is for).
 
 Tasks:
 
-- [ ] Test first: `cli.main` sets the three variables when unset and leaves an existing value.
-- [ ] Implement; time `nfl-sos-ratings season --season 2025` before and after (wall and CPU
-  with `time`) and record both here with the command.
-- [ ] README (pipeline timing note) and AGENTS.md (drop the "run with `OPENBLAS_NUM_THREADS=1`"
-  advice once it is the default).
+- [x] Test first: `cli.main` sets the three variables when unset and leaves an existing value.
+- [x] Implement; time `nfl-sos-ratings season --season 2025` before and after (wall and CPU
+  with `time`) and record both here with the command. `cli.limit_blas_threads` runs first in
+  `cli.main`; the shortcuts now point at `cli.season_shortcut` and `cli.pipeline_shortcut`, which
+  go through the front door. Timings, 2026-10-04, from a scratch working directory (so `data/` was
+  untouched) holding a copy of `data/2024_team_game_logs.parquet`, download cache warm, 24 cores:
+  `time .venv/bin/nfl-sos-ratings season --season 2025` took 46.5 s wall, 8 min 3 s user, 1 min
+  26 s sys before, and 30.0 s wall, 39 s user, 45 s sys after. All 14 output files matched
+  `data/` exactly after sorting by key columns.
+- [x] README (pipeline timing note) and AGENTS.md (drop the "run with `OPENBLAS_NUM_THREADS=1`"
+  advice once it is the default). README gained the note; AGENTS.md had no such advice left.
 
 Done when: a plain `nfl-sos-ratings season` builds the range files in a few seconds.
+
+Done (2026-10-04): the range step alone took 2.7 s for 2025 under the new default (scratch
+timing of `main.build_team_rating_ranges` plus `main.build_qb_rating_ranges` on the files in
+`data/`, not citable).
 
 ## S2. Deterministic row order in written files
 

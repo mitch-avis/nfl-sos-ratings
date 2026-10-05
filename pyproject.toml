@@ -27,8 +27,9 @@ classifiers = [
 [project.scripts]
 nfl-sos-ratings = "nfl_sos_ratings.cli:main"
 # Shortcuts kept for existing habits: `nfl-sos-ratings season` and `nfl-sos-ratings pipeline`.
-nfl-sos = "nfl_sos_ratings.main:main"
-nfl-sos-pipeline = "nfl_sos_ratings.pipeline:main"
+# They go through the front door so they get its defaults (single-threaded BLAS).
+nfl-sos = "nfl_sos_ratings.cli:season_shortcut"
+nfl-sos-pipeline = "nfl_sos_ratings.cli:pipeline_shortcut"
 
 [project.urls]
 Homepage = "https://github.com/mitch-avis/nfl-sos-ratings"

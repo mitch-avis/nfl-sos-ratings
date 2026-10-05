@@ -101,6 +101,13 @@ filesystem cache) unless `NFLREADPY_CACHE` is set to `memory`, `filesystem`, or 
 pipeline run with fresh downloads took about 13 minutes on 2026-10-04 (`time
 .venv/bin/nfl-sos-ratings pipeline`).
 
+Every command, the `nfl-sos` and `nfl-sos-pipeline` shortcuts included, runs NumPy's BLAS on one
+thread unless `OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS`, or `MKL_NUM_THREADS` is already set. The
+rating fits are many small solves, where BLAS threads cost far more CPU than they save: on
+2026-10-04, `time .venv/bin/nfl-sos-ratings season --season 2025` (download cache warm) took 46.5 s
+wall and 8 min 3 s of user CPU with default threading on 24 cores, and 30.0 s and 39 s with one
+thread, with identical output.
+
 ## Data Files
 
 Each season writes Parquet files named `{season}_{name}.parquet` under `DATA_DIR`. Convert any of
