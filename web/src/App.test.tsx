@@ -9,8 +9,10 @@ import {
   QB_RANK_RANGES,
   REGISTRY,
   SEASON_2025,
+  QB_WP_RATINGS,
   stubApi,
   TEAM_RANK_RANGES,
+  TEAM_WP_RATINGS,
 } from '@/test/fixtures'
 import { renderApp } from '@/test/renderApp'
 
@@ -505,5 +507,86 @@ describe('seasons and glossary', () => {
     // Assert
     const term = await screen.findByText('Sack Rate')
     expect(term.closest('div')).toHaveTextContent('Sack RateSacks taken per dropback.')
+  })
+})
+
+describe('garbage-time filter', () => {
+  it('starts off, with every play counted and no filtered table', async () => {
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('slider', { name: 'Garbage-time filter' })).toHaveAttribute('aria-valuenow', '0')
+    expect(screen.getByText(/Off: every play counts/)).toBeInTheDocument()
+    expect(screen.queryByText('Unvalidated exploration view')).not.toBeInTheDocument()
+  })
+
+  it('lists teams by filtered rank beside their published rank and rating', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/teams/wp-ratings?threshold=10': TEAM_WP_RATINGS }))
+
+    // Act
+    renderApp('/teams?season=2025&wp=10')
+
+    // Assert
+    const table = await screen.findByRole('table', { name: /filtered at 10%/ })
+    const rows = within(table).getAllByRole('row').slice(1)
+    expect(rows.map((row) => within(row).getByRole('link').textContent)).toEqual(['KC', 'DEN', 'LV'])
+    expect(within(rows[0]).getByText('up 1')).toBeInTheDocument()
+    expect(within(rows[0]).getByRole('link')).toHaveAttribute('href', '/teams/KC?season=2025&wp=10')
+    expect(within(table).getByRole('button', { name: /Published/ })).toBeInTheDocument()
+    expect(within(rows[0]).getByText('2 · 5.40')).toBeInTheDocument()
+    expect(screen.getByText('Unvalidated exploration view')).toBeInTheDocument()
+    expect(screen.getByText(/Rank ranges and the rest of this page count every play/)).toBeInTheDocument()
+  })
+
+  it('puts the chosen threshold in the address after the slider settles', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const { router } = renderApp('/teams?season=2025')
+    const slider = await screen.findByRole('slider', { name: 'Garbage-time filter' })
+
+    // Act
+    slider.focus()
+    await user.keyboard('{ArrowRight}{ArrowRight}')
+
+    // Assert
+    await waitFor(() => expect(router.state.location.search).toContain('wp=2'))
+    expect(screen.getByText(/between 2% and 98%/)).toBeInTheDocument()
+  })
+
+  it("shows a QB's filtered rank and rating on his detail page", async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/qbs/wp-ratings?threshold=10': QB_WP_RATINGS }))
+
+    // Act
+    renderApp('/qbs/qb-1?season=2025&wp=10')
+
+    // Assert
+    const panel = await screen.findByRole('region', { name: 'Garbage-time filter' })
+    expect(await within(panel).findByText('0.15')).toBeInTheDocument()
+    expect(within(panel).getByText('Unvalidated exploration view')).toBeInTheDocument()
+  })
+
+  it('opens a detail page from the filtered table without losing the threshold', async () => {
+    // Arrange
+    vi.stubGlobal(
+      'fetch',
+      stubApi({
+        ...API,
+        '/api/seasons/2025/teams/wp-ratings?threshold=10': TEAM_WP_RATINGS,
+      }),
+    )
+    const user = userEvent.setup()
+    const { router } = renderApp('/teams?season=2025&wp=10')
+    const table = await screen.findByRole('table', { name: /filtered at 10%/ })
+
+    // Act
+    await user.click(within(table).getByRole('link', { name: 'DEN' }))
+
+    // Assert
+    await waitFor(() => expect(router.state.location.pathname).toBe('/teams/DEN'))
+    expect(router.state.location.search).toContain('wp=10')
+    expect(await screen.findByRole('region', { name: 'Garbage-time filter' })).toBeInTheDocument()
   })
 })

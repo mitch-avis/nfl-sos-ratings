@@ -5,6 +5,7 @@ import type {
   RowValue,
   SeasonDataset,
   TablePayload,
+  WpRatingsPayload,
 } from '@/api/types'
 
 export function columnMeta(
@@ -246,4 +247,84 @@ export const QB_RANK_RANGES: RankRangesPayload = {
   visible_columns: [],
   column_groups: {},
   column_metadata: {},
+}
+
+function wpTeamRow(
+  team: string,
+  published: [number, number],
+  filtered: [number, number],
+  kept: number,
+): Record<string, number | string> {
+  return {
+    team,
+    team_rank: published[0],
+    team_rating: published[1],
+    filtered_team_rank: filtered[0],
+    filtered_team_rating: filtered[1],
+    filtered_team_rating_change: Number((filtered[1] - published[1]).toFixed(2)),
+    filtered_team_rank_change: filtered[0] - published[0],
+    filtered_offense_rating: filtered[1] / 2,
+    filtered_defense_rating: filtered[1] / 3,
+    filtered_special_teams_rating: filtered[1] / 6,
+    filtered_sos: 0.4,
+    wp_kept_play_share: kept,
+  }
+}
+
+/** The team filter view at 10%: KC overtakes DEN once lopsided plays are left out. */
+export const TEAM_WP_RATINGS: WpRatingsPayload = {
+  threshold: 10,
+  max_threshold: 30,
+  rows: [
+    wpTeamRow('KC', [2, 5.4], [1, 6.2], 0.81),
+    wpTeamRow('DEN', [1, 7.1], [2, 5.9], 0.74),
+    wpTeamRow('LV', [3, -3.0], [3, -2.1], 0.77),
+  ],
+  visible_columns: [
+    'team',
+    'team_rank',
+    'team_rating',
+    'filtered_team_rank',
+    'filtered_team_rating',
+    'filtered_team_rating_change',
+    'filtered_team_rank_change',
+    'wp_kept_play_share',
+  ],
+  column_groups: {},
+  column_metadata: {
+    team_rank: columnMeta('Rank', { shape: 'score', polarity: 'lower' }),
+    team_rating: columnMeta('Team Rating'),
+    filtered_team_rank: columnMeta('Filtered Rank', { shape: 'score', polarity: 'lower' }),
+    filtered_team_rating: columnMeta('Filtered Team Rating'),
+    filtered_team_rating_change: columnMeta('Filtered Team Rating Change'),
+    filtered_team_rank_change: columnMeta('Filtered Rank Change', { polarity: 'lower' }),
+    wp_kept_play_share: columnMeta('Kept Plays', { shape: 'rate', polarity: 'neutral' }),
+  },
+}
+
+/** The QB filter view at 10% for the fixture's qualifying passer. */
+export const QB_WP_RATINGS: WpRatingsPayload = {
+  threshold: 10,
+  max_threshold: 30,
+  rows: [
+    {
+      qb_id: 'qb-1',
+      qb_name: 'Bo Nix',
+      team: 'DEN',
+      qb_rank: 1,
+      adj_qb_epa_per_dropback: 0.18,
+      filtered_qb_rank: 1,
+      filtered_adj_qb_epa_per_dropback: 0.15,
+      filtered_adj_qb_epa_per_dropback_change: -0.03,
+      filtered_qb_rank_change: 0,
+      wp_kept_dropback_share: 0.83,
+    },
+  ],
+  visible_columns: [],
+  column_groups: {},
+  column_metadata: {
+    adj_qb_epa_per_dropback: columnMeta('Adj EPA/DB'),
+    filtered_adj_qb_epa_per_dropback: columnMeta('Filtered Adj EPA/DB'),
+    filtered_adj_qb_epa_per_dropback_change: columnMeta('Filtered Adj EPA/DB Change'),
+  },
 }

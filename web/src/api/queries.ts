@@ -10,6 +10,7 @@ import type {
   SeasonDataset,
   SeasonsResponse,
   TablePayload,
+  WpRatingsPayload,
 } from './types'
 
 /** Seasons that have a complete Parquet contract under `data/`, newest first. */
@@ -90,6 +91,27 @@ export function useRankRanges(kind: EntityKind, season: number) {
     queryKey: ['rating-ranges', kind, season],
     queryFn: async ({ signal }) => {
       const payload = await apiFetch<RankRangesPayload>(`/api/seasons/${season}/${kind}/rating-ranges`, signal)
+      hydrateColumnMetadata(payload.column_metadata)
+      return payload
+    },
+  })
+}
+
+/**
+ * The garbage-time filter view at `threshold` percent (no request at 0). While a new threshold
+ * loads, the previous one for the same season stays on screen instead of a blank table.
+ */
+export function useWpRatings(kind: EntityKind, season: number, threshold: number) {
+  return useQuery<WpRatingsPayload>({
+    queryKey: ['wp-ratings', kind, season, threshold],
+    enabled: threshold > 0,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === kind && previousQuery.queryKey[2] === season ? previous : undefined,
+    queryFn: async ({ signal }) => {
+      const payload = await apiFetch<WpRatingsPayload>(
+        `/api/seasons/${season}/${kind}/wp-ratings?threshold=${threshold}`,
+        signal,
+      )
       hydrateColumnMetadata(payload.column_metadata)
       return payload
     },

@@ -14,6 +14,7 @@ import { OpponentBreakdownTable } from '@/components/entity/OpponentBreakdownTab
 import { RankHistogram } from '@/components/entity/RankHistogram'
 import { ViewControls } from '@/components/entity/ViewControls'
 import { WeeklyTrendChart } from '@/components/entity/WeeklyTrendChart'
+import { WpFilterPanel } from '@/components/entity/WpFilterPanel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -167,6 +168,8 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
           </CardContent>
         </Card>
       ) : null}
+
+      <WpFilterPanel kind={kind} season={season} entityId={entityId} />
 
       {ratingHistoryQuery.isError && !isMissingRatingHistory(ratingHistoryQuery.error) ? (
         <ErrorState error={ratingHistoryQuery.error} title="Could not load the rating history" />
