@@ -1,0 +1,1618 @@
+{
+  "BUF": {
+    "name": "Buffalo Bills",
+    "conference": "AFC",
+    "division": "AFC East",
+    "source": [
+      "#00338D",
+      "#C60C30"
+    ],
+    "light": {
+      "primary": "oklch(0.526 0.207 21.3)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.526 0.207 21.3)",
+      "sidebar_primary": "oklch(0.526 0.207 21.3)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.526 0.207 21.3)",
+      "chart_1": "oklch(0.526 0.207 21.3)",
+      "chart_2": "oklch(0.359 0.157 261.2)",
+      "heat": {
+        "good": [
+          255,
+          214,
+          212
+        ],
+        "bad": [
+          209,
+          226,
+          255
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.661 0.207 21.3)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.661 0.207 21.3)",
+      "sidebar_primary": "oklch(0.661 0.207 21.3)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.661 0.207 21.3)",
+      "chart_1": "oklch(0.661 0.207 21.3)",
+      "chart_2": "oklch(0.514 0.157 261.2)",
+      "heat": {
+        "good": [
+          100,
+          38,
+          40
+        ],
+        "bad": [
+          33,
+          60,
+          108
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "MIA": {
+    "name": "Miami Dolphins",
+    "conference": "AFC",
+    "division": "AFC East",
+    "source": [
+      "#008E97",
+      "#F58220"
+    ],
+    "light": {
+      "primary": "oklch(0.524 0.089 202.7)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.524 0.089 202.7)",
+      "sidebar_primary": "oklch(0.524 0.089 202.7)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.524 0.089 202.7)",
+      "chart_1": "oklch(0.524 0.089 202.7)",
+      "chart_2": "oklch(0.682 0.171 53.9)",
+      "heat": {
+        "good": [
+          179,
+          238,
+          243
+        ],
+        "bad": [
+          255,
+          216,
+          192
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.722 0.171 53.9)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.722 0.171 53.9)",
+      "sidebar_primary": "oklch(0.722 0.171 53.9)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.722 0.171 53.9)",
+      "chart_1": "oklch(0.722 0.171 53.9)",
+      "chart_2": "oklch(0.589 0.1 202.7)",
+      "heat": {
+        "good": [
+          96,
+          45,
+          0
+        ],
+        "bad": [
+          0,
+          70,
+          75
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "NE": {
+    "name": "New England Patriots",
+    "conference": "AFC",
+    "division": "AFC East",
+    "source": [
+      "#002244",
+      "#C60C30"
+    ],
+    "light": {
+      "primary": "oklch(0.526 0.207 21.3)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.526 0.207 21.3)",
+      "sidebar_primary": "oklch(0.526 0.207 21.3)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.526 0.207 21.3)",
+      "chart_1": "oklch(0.526 0.207 21.3)",
+      "chart_2": "oklch(0.251 0.075 251.9)",
+      "heat": {
+        "good": [
+          255,
+          214,
+          212
+        ],
+        "bad": [
+          204,
+          228,
+          255
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.661 0.207 21.3)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.661 0.207 21.3)",
+      "sidebar_primary": "oklch(0.661 0.207 21.3)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.661 0.207 21.3)",
+      "chart_1": "oklch(0.661 0.207 21.3)",
+      "chart_2": "oklch(0.506 0.075 251.9)",
+      "heat": {
+        "good": [
+          100,
+          38,
+          40
+        ],
+        "bad": [
+          29,
+          63,
+          99
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "NYJ": {
+    "name": "New York Jets",
+    "conference": "AFC",
+    "division": "AFC East",
+    "source": [
+      "#003F2D",
+      "#000000"
+    ],
+    "light": {
+      "primary": "oklch(0.4 0.067 166.9)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.4 0.067 166.9)",
+      "sidebar_primary": "oklch(0.4 0.067 166.9)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.4 0.067 166.9)",
+      "chart_1": "oklch(0.4 0.067 166.9)",
+      "chart_2": "oklch(0 0 0)",
+      "heat": null
+    },
+    "dark": {
+      "primary": "oklch(0.626 0.067 166.9)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.626 0.067 166.9)",
+      "sidebar_primary": "oklch(0.626 0.067 166.9)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.626 0.067 166.9)",
+      "chart_1": "oklch(0.626 0.067 166.9)",
+      "chart_2": "oklch(0.505 0 0)",
+      "heat": null
+    }
+  },
+  "BAL": {
+    "name": "Baltimore Ravens",
+    "conference": "AFC",
+    "division": "AFC North",
+    "source": [
+      "#241773",
+      "#9E7C0C"
+    ],
+    "light": {
+      "primary": "oklch(0.4 0.147 279)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.4 0.147 279)",
+      "sidebar_primary": "oklch(0.4 0.147 279)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.4 0.147 279)",
+      "chart_1": "oklch(0.4 0.147 279)",
+      "chart_2": "oklch(0.602 0.12 88.8)",
+      "heat": {
+        "good": [
+          218,
+          223,
+          255
+        ],
+        "bad": [
+          241,
+          224,
+          180
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.637 0.12 88.8)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.637 0.12 88.8)",
+      "sidebar_primary": "oklch(0.637 0.12 88.8)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.637 0.12 88.8)",
+      "chart_1": "oklch(0.637 0.12 88.8)",
+      "chart_2": "oklch(0.517 0.147 279)",
+      "heat": {
+        "good": [
+          77,
+          58,
+          0
+        ],
+        "bad": [
+          52,
+          54,
+          107
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "CIN": {
+    "name": "Cincinnati Bengals",
+    "conference": "AFC",
+    "division": "AFC North",
+    "source": [
+      "#FB4F14",
+      "#000000"
+    ],
+    "light": {
+      "primary": "oklch(0.554 0.188 36.5)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.554 0.188 36.5)",
+      "sidebar_primary": "oklch(0.554 0.188 36.5)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.554 0.188 36.5)",
+      "chart_1": "oklch(0.554 0.188 36.5)",
+      "chart_2": "oklch(0 0 0)",
+      "heat": null
+    },
+    "dark": {
+      "primary": "oklch(0.664 0.217 36.5)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.664 0.217 36.5)",
+      "sidebar_primary": "oklch(0.664 0.217 36.5)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.664 0.217 36.5)",
+      "chart_1": "oklch(0.664 0.217 36.5)",
+      "chart_2": "oklch(0.505 0 0)",
+      "heat": null
+    }
+  },
+  "CLE": {
+    "name": "Cleveland Browns",
+    "conference": "AFC",
+    "division": "AFC North",
+    "source": [
+      "#FF3C00",
+      "#311D00"
+    ],
+    "light": {
+      "primary": "oklch(0.558 0.201 33.9)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.558 0.201 33.9)",
+      "sidebar_primary": "oklch(0.558 0.201 33.9)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.558 0.201 33.9)",
+      "chart_1": "oklch(0.558 0.201 33.9)",
+      "chart_2": "oklch(0.251 0.053 73.1)",
+      "heat": null
+    },
+    "dark": {
+      "primary": "oklch(0.663 0.226 33.9)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.663 0.226 33.9)",
+      "sidebar_primary": "oklch(0.663 0.226 33.9)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.663 0.226 33.9)",
+      "chart_1": "oklch(0.663 0.226 33.9)",
+      "chart_2": "oklch(0.506 0.053 73.1)",
+      "heat": null
+    }
+  },
+  "PIT": {
+    "name": "Pittsburgh Steelers",
+    "conference": "AFC",
+    "division": "AFC North",
+    "source": [
+      "#000000",
+      "#FFB612"
+    ],
+    "light": {
+      "primary": "oklch(0.539 0.112 79)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.539 0.112 79)",
+      "sidebar_primary": "oklch(0.539 0.112 79)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.539 0.112 79)",
+      "chart_1": "oklch(0.539 0.112 79)",
+      "chart_2": "oklch(0.442 0.136 252.9)",
+      "heat": {
+        "good": [
+          247,
+          221,
+          181
+        ],
+        "bad": [
+          205,
+          228,
+          255
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.824 0.169 79)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.824 0.169 79)",
+      "sidebar_primary": "oklch(0.824 0.169 79)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.824 0.169 79)",
+      "chart_1": "oklch(0.824 0.169 79)",
+      "chart_2": "oklch(0.507 0.136 252.9)",
+      "heat": {
+        "good": [
+          82,
+          56,
+          0
+        ],
+        "bad": [
+          20,
+          62,
+          107
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "HOU": {
+    "name": "Houston Texans",
+    "conference": "AFC",
+    "division": "AFC South",
+    "source": [
+      "#03202F",
+      "#A71930"
+    ],
+    "light": {
+      "primary": "oklch(0.472 0.174 19.7)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.472 0.174 19.7)",
+      "sidebar_primary": "oklch(0.472 0.174 19.7)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.472 0.174 19.7)",
+      "chart_1": "oklch(0.472 0.174 19.7)",
+      "chart_2": "oklch(0.231 0.045 235.2)",
+      "heat": {
+        "good": [
+          255,
+          214,
+          213
+        ],
+        "bad": [
+          198,
+          231,
+          251
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.657 0.174 19.7)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.657 0.174 19.7)",
+      "sidebar_primary": "oklch(0.657 0.174 19.7)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.657 0.174 19.7)",
+      "chart_1": "oklch(0.657 0.174 19.7)",
+      "chart_2": "oklch(0.506 0.045 235.2)",
+      "heat": {
+        "good": [
+          100,
+          38,
+          41
+        ],
+        "bad": [
+          36,
+          65,
+          81
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "IND": {
+    "name": "Indianapolis Colts",
+    "conference": "AFC",
+    "division": "AFC South",
+    "source": [
+      "#002C5F",
+      "#a5acaf"
+    ],
+    "light": {
+      "primary": "oklch(0.4 0.102 255.8)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.4 0.102 255.8)",
+      "sidebar_primary": "oklch(0.4 0.102 255.8)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.4 0.102 255.8)",
+      "chart_1": "oklch(0.4 0.102 255.8)",
+      "chart_2": "oklch(0.665 0.009 225.1)",
+      "heat": null
+    },
+    "dark": {
+      "primary": "oklch(0.635 0.102 255.8)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.635 0.102 255.8)",
+      "sidebar_primary": "oklch(0.635 0.102 255.8)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.635 0.102 255.8)",
+      "chart_1": "oklch(0.635 0.102 255.8)",
+      "chart_2": "oklch(0.74 0.009 225.1)",
+      "heat": null
+    }
+  },
+  "JAX": {
+    "name": "Jacksonville Jaguars",
+    "conference": "AFC",
+    "division": "AFC South",
+    "source": [
+      "#006778",
+      "#000000"
+    ],
+    "light": {
+      "primary": "oklch(0.472 0.083 214.2)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.472 0.083 214.2)",
+      "sidebar_primary": "oklch(0.472 0.083 214.2)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.472 0.083 214.2)",
+      "chart_1": "oklch(0.472 0.083 214.2)",
+      "chart_2": "oklch(0.599 0.104 81.7)",
+      "heat": {
+        "good": [
+          180,
+          236,
+          250
+        ],
+        "bad": [
+          246,
+          222,
+          181
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.627 0.083 214.2)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.627 0.083 214.2)",
+      "sidebar_primary": "oklch(0.627 0.083 214.2)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.627 0.083 214.2)",
+      "chart_1": "oklch(0.627 0.083 214.2)",
+      "chart_2": "oklch(0.599 0.104 81.7)",
+      "heat": {
+        "good": [
+          0,
+          69,
+          81
+        ],
+        "bad": [
+          80,
+          56,
+          0
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "TEN": {
+    "name": "Tennessee Titans",
+    "conference": "AFC",
+    "division": "AFC South",
+    "source": [
+      "#4495D2",
+      "#D50A0A"
+    ],
+    "light": {
+      "primary": "oklch(0.551 0.222 28.9)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.551 0.222 28.9)",
+      "sidebar_primary": "oklch(0.551 0.222 28.9)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.551 0.222 28.9)",
+      "chart_1": "oklch(0.551 0.222 28.9)",
+      "chart_2": "oklch(0.646 0.121 244.1)",
+      "heat": {
+        "good": [
+          255,
+          214,
+          208
+        ],
+        "bad": [
+          200,
+          230,
+          255
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.661 0.222 28.9)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.661 0.222 28.9)",
+      "sidebar_primary": "oklch(0.661 0.222 28.9)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.661 0.222 28.9)",
+      "chart_1": "oklch(0.661 0.222 28.9)",
+      "chart_2": "oklch(0.646 0.121 244.1)",
+      "heat": {
+        "good": [
+          100,
+          39,
+          32
+        ],
+        "bad": [
+          0,
+          65,
+          104
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "DEN": {
+    "name": "Denver Broncos",
+    "conference": "AFC",
+    "division": "AFC West",
+    "source": [
+      "#002244",
+      "#FB4F14"
+    ],
+    "light": {
+      "primary": "oklch(0.66 0.2 40)",
+      "primary_foreground": "oklch(0.99 0.005 60)",
+      "ring": "oklch(0.66 0.2 40)",
+      "sidebar_primary": "oklch(0.66 0.2 40)",
+      "sidebar_primary_foreground": null,
+      "sidebar_ring": "oklch(0.66 0.2 40)",
+      "chart_1": "oklch(0.66 0.2 40)",
+      "chart_2": "oklch(0.35 0.09 255)",
+      "heat": {
+        "good": [
+          255,
+          231,
+          220
+        ],
+        "bad": [
+          223,
+          233,
+          244
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.72 0.18 45)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.66 0.2 40)",
+      "sidebar_primary": "oklch(0.66 0.2 40)",
+      "sidebar_primary_foreground": null,
+      "sidebar_ring": "oklch(0.66 0.2 40)",
+      "chart_1": "oklch(0.66 0.2 40)",
+      "chart_2": "oklch(0.65 0.1 245)",
+      "heat": {
+        "good": [
+          124,
+          51,
+          24
+        ],
+        "bad": [
+          15,
+          48,
+          84
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "KC": {
+    "name": "Kansas City Chiefs",
+    "conference": "AFC",
+    "division": "AFC West",
+    "source": [
+      "#E31837",
+      "#FFB612"
+    ],
+    "light": {
+      "primary": "oklch(0.565 0.226 22.2)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.565 0.226 22.2)",
+      "sidebar_primary": "oklch(0.565 0.226 22.2)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.565 0.226 22.2)",
+      "chart_1": "oklch(0.565 0.226 22.2)",
+      "chart_2": "oklch(0.674 0.14 79)",
+      "heat": {
+        "good": [
+          255,
+          214,
+          211
+        ],
+        "bad": [
+          247,
+          221,
+          181
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.665 0.222 22.2)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.665 0.222 22.2)",
+      "sidebar_primary": "oklch(0.665 0.222 22.2)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.665 0.222 22.2)",
+      "chart_1": "oklch(0.665 0.222 22.2)",
+      "chart_2": "oklch(0.824 0.169 79)",
+      "heat": {
+        "good": [
+          100,
+          38,
+          39
+        ],
+        "bad": [
+          82,
+          56,
+          0
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "LV": {
+    "name": "Las Vegas Raiders",
+    "conference": "AFC",
+    "division": "AFC West",
+    "source": [
+      "#000000",
+      "#A5ACAF"
+    ],
+    "light": {
+      "primary": "oklch(0.535 0.009 225.1)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.535 0.009 225.1)",
+      "sidebar_primary": "oklch(0.535 0.009 225.1)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.535 0.009 225.1)",
+      "chart_1": "oklch(0.535 0.009 225.1)",
+      "chart_2": "oklch(0 0 0)",
+      "heat": null
+    },
+    "dark": {
+      "primary": "oklch(0.74 0.009 225.1)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.74 0.009 225.1)",
+      "sidebar_primary": "oklch(0.74 0.009 225.1)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.74 0.009 225.1)",
+      "chart_1": "oklch(0.74 0.009 225.1)",
+      "chart_2": "oklch(0.505 0 0)",
+      "heat": null
+    }
+  },
+  "LAC": {
+    "name": "Los Angeles Chargers",
+    "conference": "AFC",
+    "division": "AFC West",
+    "source": [
+      "#007BC7",
+      "#ffc20e"
+    ],
+    "light": {
+      "primary": "oklch(0.531 0.138 246.6)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.531 0.138 246.6)",
+      "sidebar_primary": "oklch(0.531 0.138 246.6)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.531 0.138 246.6)",
+      "chart_1": "oklch(0.531 0.138 246.6)",
+      "chart_2": "oklch(0.671 0.138 85.3)",
+      "heat": {
+        "good": [
+          201,
+          229,
+          255
+        ],
+        "bad": [
+          244,
+          223,
+          180
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.846 0.172 85.3)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.846 0.172 85.3)",
+      "sidebar_primary": "oklch(0.846 0.172 85.3)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.846 0.172 85.3)",
+      "chart_1": "oklch(0.846 0.172 85.3)",
+      "chart_2": "oklch(0.566 0.147 246.6)",
+      "heat": {
+        "good": [
+          79,
+          57,
+          0
+        ],
+        "bad": [
+          5,
+          64,
+          105
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "DAL": {
+    "name": "Dallas Cowboys",
+    "conference": "NFC",
+    "division": "NFC East",
+    "source": [
+      "#002244",
+      "#B0B7BC"
+    ],
+    "light": {
+      "primary": "oklch(0.4 0.075 251.9)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.4 0.075 251.9)",
+      "sidebar_primary": "oklch(0.4 0.075 251.9)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.4 0.075 251.9)",
+      "chart_1": "oklch(0.4 0.075 251.9)",
+      "chart_2": "oklch(0.665 0.011 238.6)",
+      "heat": null
+    },
+    "dark": {
+      "primary": "oklch(0.636 0.075 251.9)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.636 0.075 251.9)",
+      "sidebar_primary": "oklch(0.636 0.075 251.9)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.636 0.075 251.9)",
+      "chart_1": "oklch(0.636 0.075 251.9)",
+      "chart_2": "oklch(0.775 0.011 238.6)",
+      "heat": null
+    }
+  },
+  "NYG": {
+    "name": "New York Giants",
+    "conference": "NFC",
+    "division": "NFC East",
+    "source": [
+      "#0B2265",
+      "#A71930"
+    ],
+    "light": {
+      "primary": "oklch(0.472 0.174 19.7)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.472 0.174 19.7)",
+      "sidebar_primary": "oklch(0.472 0.174 19.7)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.472 0.174 19.7)",
+      "chart_1": "oklch(0.472 0.174 19.7)",
+      "chart_2": "oklch(0.286 0.121 264.8)",
+      "heat": {
+        "good": [
+          255,
+          214,
+          213
+        ],
+        "bad": [
+          211,
+          226,
+          255
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.657 0.174 19.7)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.657 0.174 19.7)",
+      "sidebar_primary": "oklch(0.657 0.174 19.7)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.657 0.174 19.7)",
+      "chart_1": "oklch(0.657 0.174 19.7)",
+      "chart_2": "oklch(0.511 0.121 264.8)",
+      "heat": {
+        "good": [
+          100,
+          38,
+          41
+        ],
+        "bad": [
+          37,
+          58,
+          108
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "PHI": {
+    "name": "Philadelphia Eagles",
+    "conference": "NFC",
+    "division": "NFC East",
+    "source": [
+      "#004C54",
+      "#A5ACAF"
+    ],
+    "light": {
+      "primary": "oklch(0.4 0.065 206.9)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.4 0.065 206.9)",
+      "sidebar_primary": "oklch(0.4 0.065 206.9)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.4 0.065 206.9)",
+      "chart_1": "oklch(0.4 0.065 206.9)",
+      "chart_2": "oklch(0.665 0.009 225.1)",
+      "heat": null
+    },
+    "dark": {
+      "primary": "oklch(0.631 0.065 206.9)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.631 0.065 206.9)",
+      "sidebar_primary": "oklch(0.631 0.065 206.9)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.631 0.065 206.9)",
+      "chart_1": "oklch(0.631 0.065 206.9)",
+      "chart_2": "oklch(0.74 0.009 225.1)",
+      "heat": null
+    }
+  },
+  "WAS": {
+    "name": "Washington Commanders",
+    "conference": "NFC",
+    "division": "NFC East",
+    "source": [
+      "#5A1414",
+      "#FFB612"
+    ],
+    "light": {
+      "primary": "oklch(0.4 0.102 25.3)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.4 0.102 25.3)",
+      "sidebar_primary": "oklch(0.4 0.102 25.3)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.4 0.102 25.3)",
+      "chart_1": "oklch(0.4 0.102 25.3)",
+      "chart_2": "oklch(0.674 0.14 79)",
+      "heat": {
+        "good": [
+          255,
+          214,
+          210
+        ],
+        "bad": [
+          247,
+          221,
+          181
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.824 0.169 79)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.824 0.169 79)",
+      "sidebar_primary": "oklch(0.824 0.169 79)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.824 0.169 79)",
+      "chart_1": "oklch(0.824 0.169 79)",
+      "chart_2": "oklch(0.518 0.102 25.3)",
+      "heat": null
+    }
+  },
+  "CHI": {
+    "name": "Chicago Bears",
+    "conference": "NFC",
+    "division": "NFC North",
+    "source": [
+      "#0B162A",
+      "#E64100"
+    ],
+    "light": {
+      "primary": "oklch(0.554 0.189 36.2)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.554 0.189 36.2)",
+      "sidebar_primary": "oklch(0.554 0.189 36.2)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.554 0.189 36.2)",
+      "chart_1": "oklch(0.554 0.189 36.2)",
+      "chart_2": "oklch(0.202 0.043 261.5)",
+      "heat": {
+        "good": [
+          255,
+          215,
+          204
+        ],
+        "bad": [
+          210,
+          226,
+          255
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.659 0.209 36.2)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.659 0.209 36.2)",
+      "sidebar_primary": "oklch(0.659 0.209 36.2)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.659 0.209 36.2)",
+      "chart_1": "oklch(0.659 0.209 36.2)",
+      "chart_2": "oklch(0.507 0.043 261.5)",
+      "heat": {
+        "good": [
+          100,
+          40,
+          24
+        ],
+        "bad": [
+          48,
+          61,
+          84
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "DET": {
+    "name": "Detroit Lions",
+    "conference": "NFC",
+    "division": "NFC North",
+    "source": [
+      "#0076B6",
+      "#B0B7BC"
+    ],
+    "light": {
+      "primary": "oklch(0.534 0.13 243.3)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.534 0.13 243.3)",
+      "sidebar_primary": "oklch(0.534 0.13 243.3)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.534 0.13 243.3)",
+      "chart_1": "oklch(0.534 0.13 243.3)",
+      "chart_2": "oklch(0.665 0.011 238.6)",
+      "heat": null
+    },
+    "dark": {
+      "primary": "oklch(0.634 0.132 243.3)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.634 0.132 243.3)",
+      "sidebar_primary": "oklch(0.634 0.132 243.3)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.634 0.132 243.3)",
+      "chart_1": "oklch(0.634 0.132 243.3)",
+      "chart_2": "oklch(0.775 0.011 238.6)",
+      "heat": null
+    }
+  },
+  "GB": {
+    "name": "Green Bay Packers",
+    "conference": "NFC",
+    "division": "NFC North",
+    "source": [
+      "#203731",
+      "#FFB612"
+    ],
+    "light": {
+      "primary": "oklch(0.4 0.031 175.9)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.4 0.031 175.9)",
+      "sidebar_primary": "oklch(0.4 0.031 175.9)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.4 0.031 175.9)",
+      "chart_1": "oklch(0.4 0.031 175.9)",
+      "chart_2": "oklch(0.674 0.14 79)",
+      "heat": {
+        "good": [
+          205,
+          232,
+          224
+        ],
+        "bad": [
+          247,
+          221,
+          181
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.824 0.169 79)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.824 0.169 79)",
+      "sidebar_primary": "oklch(0.824 0.169 79)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.824 0.169 79)",
+      "chart_1": "oklch(0.824 0.169 79)",
+      "chart_2": "oklch(0.501 0.031 175.9)",
+      "heat": {
+        "good": [
+          82,
+          56,
+          0
+        ],
+        "bad": [
+          43,
+          67,
+          60
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "MIN": {
+    "name": "Minnesota Vikings",
+    "conference": "NFC",
+    "division": "NFC North",
+    "source": [
+      "#4F2683",
+      "#FFC62F"
+    ],
+    "light": {
+      "primary": "oklch(0.4 0.148 299.4)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.4 0.148 299.4)",
+      "sidebar_primary": "oklch(0.4 0.148 299.4)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.4 0.148 299.4)",
+      "chart_1": "oklch(0.4 0.148 299.4)",
+      "chart_2": "oklch(0.67 0.137 85.8)",
+      "heat": {
+        "good": [
+          230,
+          218,
+          255
+        ],
+        "bad": [
+          243,
+          223,
+          180
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.855 0.164 85.8)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.855 0.164 85.8)",
+      "sidebar_primary": "oklch(0.855 0.164 85.8)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.855 0.164 85.8)",
+      "chart_1": "oklch(0.855 0.164 85.8)",
+      "chart_2": "oklch(0.523 0.148 299.4)",
+      "heat": {
+        "good": [
+          78,
+          58,
+          0
+        ],
+        "bad": [
+          68,
+          48,
+          101
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "ATL": {
+    "name": "Atlanta Falcons",
+    "conference": "NFC",
+    "division": "NFC South",
+    "source": [
+      "#A71930",
+      "#000000"
+    ],
+    "light": {
+      "primary": "oklch(0.472 0.174 19.7)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.472 0.174 19.7)",
+      "sidebar_primary": "oklch(0.472 0.174 19.7)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.472 0.174 19.7)",
+      "chart_1": "oklch(0.472 0.174 19.7)",
+      "chart_2": "oklch(0 0 0)",
+      "heat": null
+    },
+    "dark": {
+      "primary": "oklch(0.657 0.174 19.7)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.657 0.174 19.7)",
+      "sidebar_primary": "oklch(0.657 0.174 19.7)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.657 0.174 19.7)",
+      "chart_1": "oklch(0.657 0.174 19.7)",
+      "chart_2": "oklch(0.505 0 0)",
+      "heat": null
+    }
+  },
+  "CAR": {
+    "name": "Carolina Panthers",
+    "conference": "NFC",
+    "division": "NFC South",
+    "source": [
+      "#0085CA",
+      "#000000"
+    ],
+    "light": {
+      "primary": "oklch(0.532 0.127 242.5)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.532 0.127 242.5)",
+      "sidebar_primary": "oklch(0.532 0.127 242.5)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.532 0.127 242.5)",
+      "chart_1": "oklch(0.532 0.127 242.5)",
+      "chart_2": "oklch(0 0 0)",
+      "heat": null
+    },
+    "dark": {
+      "primary": "oklch(0.632 0.142 242.5)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.632 0.142 242.5)",
+      "sidebar_primary": "oklch(0.632 0.142 242.5)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.632 0.142 242.5)",
+      "chart_1": "oklch(0.632 0.142 242.5)",
+      "chart_2": "oklch(0.505 0 0)",
+      "heat": null
+    }
+  },
+  "NO": {
+    "name": "New Orleans Saints",
+    "conference": "NFC",
+    "division": "NFC South",
+    "source": [
+      "#D3BC8D",
+      "#000000"
+    ],
+    "light": {
+      "primary": "oklch(0.533 0.068 84.8)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.533 0.068 84.8)",
+      "sidebar_primary": "oklch(0.533 0.068 84.8)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.533 0.068 84.8)",
+      "chart_1": "oklch(0.533 0.068 84.8)",
+      "chart_2": "oklch(0 0 0)",
+      "heat": null
+    },
+    "dark": {
+      "primary": "oklch(0.803 0.068 84.8)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.803 0.068 84.8)",
+      "sidebar_primary": "oklch(0.803 0.068 84.8)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.803 0.068 84.8)",
+      "chart_1": "oklch(0.803 0.068 84.8)",
+      "chart_2": "oklch(0.505 0 0)",
+      "heat": null
+    }
+  },
+  "TB": {
+    "name": "Tampa Bay Buccaneers",
+    "conference": "NFC",
+    "division": "NFC South",
+    "source": [
+      "#A71930",
+      "#322F2B"
+    ],
+    "light": {
+      "primary": "oklch(0.472 0.174 19.7)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.472 0.174 19.7)",
+      "sidebar_primary": "oklch(0.472 0.174 19.7)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.472 0.174 19.7)",
+      "chart_1": "oklch(0.472 0.174 19.7)",
+      "chart_2": "oklch(0.682 0.18 50.2)",
+      "heat": null
+    },
+    "dark": {
+      "primary": "oklch(0.657 0.174 19.7)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.657 0.174 19.7)",
+      "sidebar_primary": "oklch(0.657 0.174 19.7)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.657 0.174 19.7)",
+      "chart_1": "oklch(0.657 0.174 19.7)",
+      "chart_2": "oklch(0.722 0.19 50.2)",
+      "heat": null
+    }
+  },
+  "ARI": {
+    "name": "Arizona Cardinals",
+    "conference": "NFC",
+    "division": "NFC West",
+    "source": [
+      "#97233F",
+      "#000000"
+    ],
+    "light": {
+      "primary": "oklch(0.453 0.151 12)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.453 0.151 12)",
+      "sidebar_primary": "oklch(0.453 0.151 12)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.453 0.151 12)",
+      "chart_1": "oklch(0.453 0.151 12)",
+      "chart_2": "oklch(0.674 0.14 79)",
+      "heat": {
+        "good": [
+          255,
+          213,
+          217
+        ],
+        "bad": [
+          247,
+          221,
+          181
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.653 0.151 12)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.653 0.151 12)",
+      "sidebar_primary": "oklch(0.653 0.151 12)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.653 0.151 12)",
+      "chart_1": "oklch(0.653 0.151 12)",
+      "chart_2": "oklch(0.824 0.169 79)",
+      "heat": {
+        "good": [
+          99,
+          37,
+          48
+        ],
+        "bad": [
+          82,
+          56,
+          0
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "LAR": {
+    "name": "Los Angeles Rams",
+    "conference": "NFC",
+    "division": "NFC West",
+    "source": [
+      "#003594",
+      "#FFD100"
+    ],
+    "light": {
+      "primary": "oklch(0.4 0.164 261.4)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.4 0.164 261.4)",
+      "sidebar_primary": "oklch(0.4 0.164 261.4)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.4 0.164 261.4)",
+      "chart_1": "oklch(0.4 0.164 261.4)",
+      "chart_2": "oklch(0.665 0.136 92.7)",
+      "heat": {
+        "good": [
+          210,
+          226,
+          255
+        ],
+        "bad": [
+          239,
+          225,
+          181
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.875 0.179 92.7)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.875 0.179 92.7)",
+      "sidebar_primary": "oklch(0.875 0.179 92.7)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.875 0.179 92.7)",
+      "chart_1": "oklch(0.875 0.179 92.7)",
+      "chart_2": "oklch(0.51 0.164 261.4)",
+      "heat": {
+        "good": [
+          75,
+          59,
+          0
+        ],
+        "bad": [
+          33,
+          59,
+          108
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "SF": {
+    "name": "San Francisco 49ers",
+    "conference": "NFC",
+    "division": "NFC West",
+    "source": [
+      "#AA0000",
+      "#B3995D"
+    ],
+    "light": {
+      "primary": "oklch(0.463 0.19 29.2)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.463 0.19 29.2)",
+      "sidebar_primary": "oklch(0.463 0.19 29.2)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.463 0.19 29.2)",
+      "chart_1": "oklch(0.463 0.19 29.2)",
+      "chart_2": "oklch(0.668 0.085 86.8)",
+      "heat": {
+        "good": [
+          255,
+          214,
+          208
+        ],
+        "bad": [
+          243,
+          223,
+          180
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.693 0.085 86.8)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.693 0.085 86.8)",
+      "sidebar_primary": "oklch(0.693 0.085 86.8)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.693 0.085 86.8)",
+      "chart_1": "oklch(0.693 0.085 86.8)",
+      "chart_2": "oklch(0.528 0.19 29.2)",
+      "heat": {
+        "good": [
+          78,
+          58,
+          0
+        ],
+        "bad": [
+          100,
+          39,
+          32
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  },
+  "SEA": {
+    "name": "Seattle Seahawks",
+    "conference": "NFC",
+    "division": "NFC West",
+    "source": [
+      "#002244",
+      "#69be28"
+    ],
+    "light": {
+      "primary": "oklch(0.4 0.075 251.9)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.4 0.075 251.9)",
+      "sidebar_primary": "oklch(0.4 0.075 251.9)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.4 0.075 251.9)",
+      "chart_1": "oklch(0.4 0.075 251.9)",
+      "chart_2": "oklch(0.65 0.191 135.3)",
+      "heat": {
+        "good": [
+          204,
+          228,
+          255
+        ],
+        "bad": [
+          208,
+          235,
+          195
+        ],
+        "mid": [
+          244,
+          247,
+          250
+        ]
+      }
+    },
+    "dark": {
+      "primary": "oklch(0.72 0.195 135.3)",
+      "primary_foreground": "oklch(0.17 0.015 260)",
+      "ring": "oklch(0.72 0.195 135.3)",
+      "sidebar_primary": "oklch(0.72 0.195 135.3)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.72 0.195 135.3)",
+      "chart_1": "oklch(0.72 0.195 135.3)",
+      "chart_2": "oklch(0.506 0.075 251.9)",
+      "heat": {
+        "good": [
+          38,
+          71,
+          16
+        ],
+        "bad": [
+          29,
+          63,
+          99
+        ],
+        "mid": [
+          22,
+          27,
+          34
+        ]
+      }
+    }
+  }
+}
