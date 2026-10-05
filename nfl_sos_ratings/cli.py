@@ -80,6 +80,12 @@ COMMANDS: tuple[Command, ...] = (
         "nfl_sos_ratings.validation.in_season_penalty",
     ),
     Command(
+        "check-wp-filter",
+        "validation",
+        "Test whether a garbage-time filter improves margin predictions (read-only).",
+        "nfl_sos_ratings.validation.wp_filter_check",
+    ),
+    Command(
         "catalog",
         "docs",
         "Regenerate the stats catalogs in docs/ from the metric registry.",

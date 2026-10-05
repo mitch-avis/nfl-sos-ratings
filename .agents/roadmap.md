@@ -486,10 +486,18 @@ approved the design choices below on 2026-10-04 and the slider change on 2026-10
 Tasks:
 
 - [x] Finish the protocol above and commit it before running (2026-10-05).
-- [ ] Build `check-wp-filter` test-first (kept-play game logs and QB rows at a threshold, the
+- [x] Build `check-wp-filter` test-first (kept-play game logs and QB rows at a threshold, the
   98.33% bootstrap, the report). Check the plumbing on real data without computing any non-zero
   threshold: the 0% kept columns equal the game logs in every season, and the 0% candidate's
-  walk-forward rows equal `validate`'s `team_rating` rows for one season.
+  walk-forward rows equal `validate`'s `team_rating` rows for one season. Done 2026-10-05:
+  `wp_filter.team_game_logs_at_threshold` and `qb_games_at_threshold` build the kept rows,
+  `walk_forward.compute_pairwise_mae_bootstrap` gained a `confidence` keyword (default 0.95, so
+  `validate` is unchanged), and `nfl_sos_ratings/validation/wp_filter_check.py` is the command.
+  Plumbing, from `check_zero_kept_columns` and `check_zero_threshold_rows` called on `data/` in a
+  scratch script: the 0% kept columns matched the game logs in all 28 seasons (1999-2026, largest
+  gap 7.1e-15), and the 2025 0% rows matched the published rows over 272 games (largest gap
+  7.1e-15). Scratch timing (not citable): about 1.3 s per season and threshold for the
+  walk-forward rows, so the full run should take a few minutes.
 - [ ] **Ask first**, then run the full check; write the results here, with the command, and in the
   validation report if the maintainer adopts a change.
 
