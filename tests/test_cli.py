@@ -45,6 +45,29 @@ def test_every_command_prints_its_own_help_without_running(
     assert "usage:" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize(("argv", "expected"), [(["season"], [False]), (["-v", "season"], [True])])
+def test_front_door_configures_logging_before_the_command(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str], expected: list[bool]
+) -> None:
+    # Arrange
+    configured: list[bool] = []
+    seasons: list[int] = []
+
+    def record(*, verbose: bool = False, stream: object = None) -> None:
+        """Remember the verbosity the front door asked for."""
+        del stream
+        configured.append(verbose)
+
+    monkeypatch.setattr(cli, "configure_logging", record)
+    monkeypatch.setattr(main, "run_season", seasons.append)
+
+    # Act
+    cli.main(argv)
+
+    # Assert
+    assert configured == expected
+
+
 def test_season_runs_the_configured_season_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     # Arrange
     seasons: list[int] = []
