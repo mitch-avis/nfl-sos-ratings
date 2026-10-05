@@ -4,6 +4,16 @@ import { NavLink, Outlet, useLocation } from 'react-router'
 
 import { Button } from '@/components/ui/button'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -29,6 +39,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getPageJumpSlots, type ScrollPositionState } from '@/domain/detailUi'
+import { paletteGroups, paletteName } from '@/domain/teamPalettes'
 import { cn } from '@/utils/cn'
 
 import { NAV_ITEMS } from './nav'
@@ -60,25 +71,44 @@ function ThemeToggle() {
   )
 }
 
-function PaletteToggle() {
+/** The palette menu: the default palette, then every team's, grouped by division. */
+function PalettePicker() {
   const { palette, setPalette } = useTheme()
-  const next = palette === 'classic' ? 'broncos' : 'classic'
+  const name = paletteName(palette)
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={`Palette: ${palette}. Switch to ${next}`}
-          onClick={() => setPalette(next)}
-        >
-          <Palette className={cn('size-4', palette === 'broncos' && 'text-primary')} />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        Palette: {palette === 'classic' ? 'classic (green to red)' : 'Broncos (orange to navy)'}
-      </TooltipContent>
-    </Tooltip>
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label={`Palette: ${name}`}>
+              <Palette className={cn('size-4', palette !== 'classic' && 'text-primary')} />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Palette: {name}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end" className="max-h-[70vh] w-64 overflow-y-auto">
+        <DropdownMenuRadioGroup value={palette} onValueChange={setPalette}>
+          <DropdownMenuRadioItem value="classic">Default</DropdownMenuRadioItem>
+          {paletteGroups().map((group) => (
+            <DropdownMenuGroup key={group.division}>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">{group.division}</DropdownMenuLabel>
+              {group.teams.map((team) => (
+                <DropdownMenuRadioItem key={team.id} value={team.id}>
+                  <span aria-hidden className="flex gap-0.5">
+                    {team.colors.map((color) => (
+                      <span key={color} className="size-2.5 rounded-full ring-1 ring-border" style={{ background: color }} />
+                    ))}
+                  </span>
+                  {team.name}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuGroup>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -214,7 +244,7 @@ export function AppShell() {
           <Separator orientation="vertical" className="mr-1 h-5" />
           <SeasonSelect />
           <div className="ml-auto flex items-center gap-1">
-            <PaletteToggle />
+            <PalettePicker />
             <ThemeToggle />
           </div>
         </header>

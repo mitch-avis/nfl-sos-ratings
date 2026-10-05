@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 
 import { columnDecimals, formatValue } from './format';
 import { getMetricMetadata } from './metricMetadata';
+import { heatPaletteFor, type HeatScale } from './teamPalettes';
 import type { PaletteMode, RowValue, ThemeMode } from '@/api/types';
 
 export interface ColumnStats {
@@ -98,16 +99,16 @@ export function buildColumnWidths(
   return widths;
 }
 
-const HEAT_PALETTES = {
-  classic: {
-    light: { good: [225, 247, 237], bad: [252, 226, 222], mid: [255, 250, 240] },
-    dark: { good: [8, 88, 64], bad: [103, 31, 38], mid: [22, 27, 34] },
-  },
-  broncos: {
-    light: { good: [255, 231, 220], bad: [223, 233, 244], mid: [244, 247, 250] },
-    dark: { good: [124, 51, 24], bad: [15, 48, 84], mid: [22, 27, 34] },
-  },
-} as const;
+// The default heat scale, green to red; team palettes bring their own (teamPalettes.ts) and fall
+// back to this one when a team has no two distinct hues.
+const DEFAULT_HEAT: Record<ThemeMode, HeatScale> = {
+  light: { good: [225, 247, 237], bad: [252, 226, 222], mid: [255, 250, 240] },
+  dark: { good: [8, 88, 64], bad: [103, 31, 38], mid: [22, 27, 34] },
+};
+
+function heatScale(palette: PaletteMode, theme: ThemeMode): HeatScale {
+  return heatPaletteFor(palette, theme) ?? DEFAULT_HEAT[theme];
+}
 
 function interpolateColor(start: readonly number[], end: readonly number[], ratio: number): number[] {
   return start.map((value, index) => Math.round(value + (end[index] - value) * ratio));
@@ -127,7 +128,7 @@ export function getHeatCellStyle(
   if (column === 'opp_schedule_bucket') {
     // Tougher opponents read as the "better" end of the gradient, Softer as the
     // "worse" end, and Middle stays uncolored.
-    const paletteSet = HEAT_PALETTES[palette][theme];
+    const paletteSet = heatScale(palette, theme);
     if (value === 'Tougher') {
       return { backgroundColor: colorToCss([...paletteSet.good]) };
     }
@@ -158,7 +159,7 @@ export function getHeatCellStyle(
     normalized = 1 - normalized;
   }
 
-  const paletteSet = HEAT_PALETTES[palette][theme];
+  const paletteSet = heatScale(palette, theme);
   const color =
     normalized >= 0.5
       ? interpolateColor(paletteSet.mid, paletteSet.good, (normalized - 0.5) / 0.5)
