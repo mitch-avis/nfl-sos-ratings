@@ -137,6 +137,13 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   readout above the chart describes the hovered or tapped row (on a phone, its link opens the
   detail page). The detail page adds the rank headline, the top-5 and top-10 chances, and the
   chance of each rank.
+- The `Garbage-time filter` card holds a slider from Off to 30%, kept in the address as `?wp=`. A
+  threshold of X% asks `/api/seasons/{season}/{teams|qbs}/wp-ratings` for the ratings refit on the
+  plays whose win probability before the snap was between X% and 100% minus X%. It then lists
+  every team or qualifying QB by filtered rank, beside the change, the published rank and rating,
+  and the share of plays kept, under an "Unvalidated exploration view" label. Detail pages show
+  the same for one row. The slider waits 250 ms after it stops moving before asking. Rank ranges
+  and everything else on the page still count every play.
 - Click a team or QB to open its detail page: stat tiles, metric sections, the weekly trend chart
   (pick any numeric column of the current view; the season mean is drawn as a reference line), the
   game log, and the unique-opponent breakdown.

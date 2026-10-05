@@ -28,8 +28,8 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
 - Pull request #1 (`feat/rank-ranges`, merged as `c396d83`, branch deleted) brought the rank
   ranges (engine, outputs, API, web views), the QB data fixes, the per-team QB qualifier, the UX
   audit changes, the regenerated validation report, and docs.
-- S1-S3 merged as pull request #2 (`1d61b2d`) and WP1 as pull request #3 (`main` = `c574819`),
-  branches deleted. Branch `feat/wp-threshold-ratings` (from `c574819`) carries WP2.
+- S1-S3 merged as pull request #2 (`1d61b2d`), WP1 as #3 (`c574819`), and WP2 as #4 (`main` =
+  `b70b522`), branches deleted. Branch `feat/wp-slider` (from `b70b522`) carries WP3.
 - `data/` (1999-2026: range files, fixed row order, and win-probability bins) was rebuilt on
   2026-10-04 from `c574819` with no value changes (S2 records the `diff-data` summary), and
   `.venv/bin/pytest -m published_data` passes on it.
@@ -383,15 +383,36 @@ threshold is a cumulative sum and the API refits on demand with the weighted eng
 
 ### WP3. Slider in the web app
 
-- [ ] shadcn Slider (`npx shadcn@latest add slider`; the CLI misreads this repo's `utils` alias
+- [x] shadcn Slider (`npx shadcn@latest add slider`; the CLI misreads this repo's `utils` alias
   and installs an npm package named `cn`, so `npm uninstall cn` and point the import at
   `@/utils/cn` afterwards). 0-30 in 1% steps, value shown beside it, debounced about 250 ms,
-  threshold in the URL (`?wp=`), keyboard and touch friendly.
-- [ ] Non-zero thresholds show an "Unvalidated exploration view" label and the published values
+  threshold in the URL (`?wp=`), keyboard and touch friendly. Done as described; the slider uses
+  the `radix-ui` package already installed, so `package.json` and the lockfile are unchanged. One
+  minimal edit to the generated `slider.tsx`: `aria-label` is forwarded to the thumb (Radix puts
+  `role="slider"` there). The root gets `py-3` for a larger touch area.
+- [x] Non-zero thresholds show an "Unvalidated exploration view" label and the published values
   next to the filtered ones (with the change), on the team and QB index and detail pages.
-- [ ] Rank ranges stay at 0% (out of scope at other thresholds; say so in the UI).
-- [ ] Use the dataviz, frontend-design, and frontend-react skills; phone layout and `Hint` /
-  `SortableHeader` patterns as established by the UX audit.
+  `web/src/components/entity/WpFilterPanel.tsx` (one card per page; a sortable table on index
+  pages, stat tiles on detail pages), logic in `web/src/domain/wpFilter.ts` with tests, URL state
+  in `web/src/app/useWpThreshold.ts`. Links from the filtered table carry `?wp=`.
+- [x] Rank ranges stay at 0% (out of scope at other thresholds; say so in the UI).
+- [x] Use the dataviz, frontend-design, and frontend-react skills; phone layout and `Hint` /
+  `SortableHeader` patterns as established by the UX audit. The dataviz skill was not used: the
+  view has no chart. `react-doctor` (run once with `npx`, not added to the repo) flagged only the
+  existing complexity of `EntityDetailPage`.
+- [ ] Open (maintainer to check): the phone layout was not seen. The browser window used for
+  checks would not go below about 840 px, so the table's horizontal scroll on a phone is
+  unverified.
+- [ ] Open bug, cause unknown: in the agent's Chrome (2026-10-04), the QB index at
+  `/qbs?season=2025&wp=10` froze the page renderer within a few seconds whenever the filtered
+  table showed each QB's team abbreviation, whether inline after the name or in its own column.
+  It did not freeze without the team text, on the team index, on a QB detail page, or in jsdom
+  with the real 2025 payload (no loop of router navigations or requests either). Bisecting by
+  build narrowed it to that text alone, which points at the browser (for example an extension
+  that scans for player names and teams) rather than the app. The shipped table leaves the QB team
+  out; the main QB table and the detail page still show it. To settle it: open that URL in a
+  browser without extensions (or on a phone), with a build that restores the team span (`row.team`
+  in `WpFilterPanel.tsx`).
 
 ### WP4. Pre-registered walk-forward test
 

@@ -10,6 +10,7 @@ import { ComparisonPanel } from '@/components/entity/ComparisonPanel'
 import { EntityTable } from '@/components/entity/EntityTable'
 import { RankRangeChart } from '@/components/entity/RankRangeChart'
 import { ViewControls } from '@/components/entity/ViewControls'
+import { WpFilterPanel } from '@/components/entity/WpFilterPanel'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -166,6 +167,8 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
           </CardContent>
         </Card>
       ) : null}
+
+      <WpFilterPanel kind={kind} season={season} />
 
       <ComparisonPanel
         compareColumns={compareColumns}
