@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import type { PaletteMode, ThemeMode } from '@/api/types'
+import { normalizePalette, PALETTE_CSS_VARIABLES, paletteCssVariables } from '@/domain/teamPalettes'
 
 export type Theme = ThemeMode | 'system'
 
@@ -26,6 +27,14 @@ function readStored<T extends string>(key: string, allowed: readonly T[], fallba
   return fallback
 }
 
+function readStoredPalette(): PaletteMode {
+  try {
+    return normalizePalette(window.localStorage.getItem(PALETTE_KEY))
+  } catch {
+    return 'classic'
+  }
+}
+
 function store(key: string, value: string): void {
   try {
     window.localStorage.setItem(key, value)
@@ -40,15 +49,15 @@ function systemPrefersDark(): boolean {
 
 /**
  * Applies the `dark` class and `data-palette` attribute to `<html>` and remembers both choices.
- * The Broncos palette swaps the accent and the heat-map colors for an orange-and-navy scale.
+ * A team palette (`teamPalettes.ts`) sets its accent and chart colors as CSS variables on `<html>`
+ * for the current mode; the default palette clears them so the stylesheet's values apply. The old
+ * stored `broncos` choice reads as the Denver palette.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() =>
     readStored(THEME_KEY, ['light', 'dark', 'system'] as const, 'system'),
   )
-  const [palette, setPaletteState] = useState<PaletteMode>(() =>
-    readStored(PALETTE_KEY, ['classic', 'broncos'] as const, 'classic'),
-  )
+  const [palette, setPaletteState] = useState<PaletteMode>(readStoredPalette)
   const [systemDark, setSystemDark] = useState(systemPrefersDark)
 
   useEffect(() => {
@@ -67,8 +76,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [resolved])
 
   useEffect(() => {
-    document.documentElement.dataset.palette = palette
-  }, [palette])
+    const root = document.documentElement
+    root.dataset.palette = palette
+    for (const variable of PALETTE_CSS_VARIABLES) root.style.removeProperty(variable)
+    for (const [variable, value] of Object.entries(paletteCssVariables(palette, resolved))) {
+      root.style.setProperty(variable, value)
+    }
+  }, [palette, resolved])
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next)

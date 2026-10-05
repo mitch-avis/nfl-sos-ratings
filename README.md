@@ -90,6 +90,7 @@ Everything runs through one entry point; `--help` on it or on any command prints
 .venv/bin/nfl-sos-ratings check-in-season-penalty  # early-season penalty test (read-only)
 .venv/bin/nfl-sos-ratings check-wp-filter      # garbage-time filter test (read-only)
 .venv/bin/nfl-sos-ratings catalog               # regenerate the stats catalogs in docs/
+.venv/bin/nfl-sos-ratings team-palettes         # regenerate the web app's team palettes
 .venv/bin/nfl-sos-ratings web                   # analyst web app and its API
 ```
 

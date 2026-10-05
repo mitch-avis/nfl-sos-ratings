@@ -88,6 +88,12 @@ COMMANDS: tuple[Command, ...] = (
         "nfl_sos_ratings.validation.wp_filter_check",
     ),
     Command(
+        "team-palettes",
+        "docs",
+        "Rebuild the web app's team color palettes from nflverse team colors.",
+        "nfl_sos_ratings.team_palettes",
+    ),
+    Command(
         "catalog",
         "docs",
         "Regenerate the stats catalogs in docs/ from the metric registry.",

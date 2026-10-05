@@ -609,6 +609,40 @@ describe('rank by week', () => {
   })
 })
 
+describe('team palettes', () => {
+  afterEach(() => {
+    window.localStorage.removeItem('nfl-sos-palette')
+    document.documentElement.removeAttribute('style')
+  })
+
+  it('switches to a team palette from the palette menu', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    renderApp('/teams?season=2025')
+    await user.click(await screen.findByRole('button', { name: 'Palette: Default' }))
+
+    // Act
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Kansas City Chiefs' }))
+
+    // Assert
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('KC'))
+    expect(document.documentElement.style.getPropertyValue('--primary')).toMatch(/^oklch\(/)
+    expect(window.localStorage.getItem('nfl-sos-palette')).toBe('KC')
+  })
+
+  it('reads the old stored Broncos choice as the Denver palette', async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'broncos')
+
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('button', { name: 'Palette: Denver Broncos' })).toBeInTheDocument()
+    expect(document.documentElement.style.getPropertyValue('--primary')).toBe('oklch(0.66 0.2 40)')
+  })
+})
+
 describe('seasons and glossary', () => {
   it('defaults to the newest season when none is given', async () => {
     // Act

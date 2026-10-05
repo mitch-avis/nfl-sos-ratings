@@ -1,6 +1,7 @@
 export type RowValue = string | number | boolean | null;
 export type ThemeMode = 'light' | 'dark';
-export type PaletteMode = 'classic' | 'broncos';
+/** `classic` (the default palette) or a team abbreviation with a palette in teamPaletteData.json. */
+export type PaletteMode = 'classic' | (string & {});
 export type MetricShape = 'count' | 'rate' | 'avg' | 'flag' | 'id' | 'score';
 export type PrimaryView =
   | 'ratings'

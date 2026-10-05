@@ -50,12 +50,17 @@ extensions disabled; roadmap, WP3), lowered the filter's maximum from 30% to 20%
 `filelock` in `uv.lock`. Pull request #7 (merged 2026-10-05) brought the pre-registered garbage-time
 filter test (WP4): no threshold predicts margins better and 20% is significantly worse, so the
 published ratings keep every play (maintainer decision; roadmap, WP4, and
-`.agents/ratings-simplification-plan.md`). Overnight on 2026-10-05 the agent works through R1-R3,
-A1, S4, and F3-F7 with merge-on-green approval (roadmap, "Where things stand"). Still open:
-head-to-head chances and more rank-range views, weekly 2026 refresh automation, frontend follow-ups,
-a project logger, and retired stats on request. Rebuild 2026 weekly with `scripts/refresh-season.sh`
-(ask first; it copies `data/`, rebuilds, runs the `published_data` tests, and prints `diff-data`),
-or schedule it with the command in README.
+`.agents/ratings-simplification-plan.md`). Overnight on 2026-10-05, with the maintainer's
+merge-on-green approval, pull requests #8-#16 landed head-to-head chances (R1), unit rank ranges
+(R2), weekly rank ranges for the season in progress (R3), the weekly refresh script (A1, no
+scheduled task installed), the project logger (S4), opponent rank context (F3), the side-by-side
+comparison (F4, F6), CSV export (F5), and team palettes (F7); `data/` was rebuilt after R1+R2 and
+2026 again after R3. Decisions waiting for the maintainer are listed in the roadmap: the weekly
+chart's early weeks (R3), the Broncos light-mode contrast (F7), installing the scheduled refresh
+(A1), and splitting `team_metrics.py`. Still open: F1, F2, and M1 (they need the maintainer's
+input). Rebuild 2026 weekly with `scripts/refresh-season.sh` (ask first; it copies `data/`,
+rebuilds, runs the `published_data` tests, and prints `diff-data`), or schedule it with the command
+in README.
 
 ## Validation snapshot
 

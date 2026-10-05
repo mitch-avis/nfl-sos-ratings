@@ -83,6 +83,7 @@ door or any command prints usage without running anything (commands are listed i
 .venv/bin/nfl-sos-ratings check-in-season-penalty ...  # read-only early-season penalty test
 .venv/bin/nfl-sos-ratings check-wp-filter ...  # read-only garbage-time filter test (downloads QBR)
 .venv/bin/nfl-sos-ratings catalog              # regenerates the stats catalogs in docs/
+.venv/bin/nfl-sos-ratings team-palettes        # regenerates web/src/domain/teamPaletteData.json
 .venv/bin/nfl-sos-ratings web [--port 8080]    # analyst web app (web/dist) plus its API
 scripts/refresh-season.sh [--dry-run]          # rebuild the season in progress, test, diff
 ```

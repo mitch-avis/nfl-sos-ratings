@@ -147,21 +147,3 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
-
-/* Broncos palette: orange and navy instead of the default blue, and an orange-to-blue heat scale
-   (set in domain/tableState.ts) that stays readable for red-green color blindness. */
-:root[data-palette="broncos"] {
-  --primary: oklch(0.66 0.2 40);
-  --primary-foreground: oklch(0.99 0.005 60);
-  --ring: oklch(0.66 0.2 40);
-  --sidebar-primary: oklch(0.66 0.2 40);
-  --sidebar-ring: oklch(0.66 0.2 40);
-  --chart-1: oklch(0.66 0.2 40);
-  --chart-2: oklch(0.35 0.09 255);
-}
-
-:root.dark[data-palette="broncos"] {
-  --primary: oklch(0.72 0.18 45);
-  --primary-foreground: oklch(0.17 0.015 260);
-  --chart-2: oklch(0.65 0.1 245);
-}
