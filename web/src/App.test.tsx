@@ -119,6 +119,26 @@ describe('team index', () => {
     expect(router.state.location.search).not.toContain('KC')
   })
 
+  it('exports the table as shown to CSV', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:table')
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    renderApp('/teams?season=2025')
+    const exportButton = await screen.findByRole('button', { name: 'Export the table as CSV' })
+
+    // Act
+    await user.click(exportButton)
+
+    // Assert
+    expect(click).toHaveBeenCalledOnce()
+    const blob = createObjectURL.mock.calls[0]?.[0]
+    const [header, first] = (await blob?.text())?.split('\r\n') ?? []
+    expect(header?.startsWith('team,')).toBe(true)
+    expect(first?.startsWith('DEN,')).toBe(true)
+  })
+
   it('starts on the Ratings view with reset disabled', async () => {
     // Act
     renderApp('/teams?season=2025')
