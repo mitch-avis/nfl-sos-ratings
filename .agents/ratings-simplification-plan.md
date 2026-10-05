@@ -244,6 +244,30 @@ From `nfl-sos-ratings check-in-season-penalty --data-dir data --start-season 200
   now labels its baselines `CrossValidatedPenalty` (was `TeamRating`) and `PriorSeasonPenalty`
   (was `TeamRatingPriorPenalty`); the numbers above are unchanged by the relabel.
 
+## Garbage-time filter test (written 2026-10-05, before any run)
+
+The full protocol (hypothesis, estimator, information set, integrity check, inference, decision
+rule, extras) is in `.agents/roadmap.md`, WP4, committed as `ad99420` before the command existed.
+In short: the published team fit on the plays kept at 5%, 10%, and 20% (penalties cross-validated
+per threshold) against 0%, walk-forward MAE over prediction weeks 5 and later of 1999-2025, paired
+game bootstrap with 10,000 resamples and 98.33% intervals; a threshold qualifies only if its
+overall interval lies entirely below zero, and with none qualifying the recommendation is no
+filter.
+
+### Results of the garbage-time filter test (2026-10-05)
+
+From `nfl-sos-ratings check-wp-filter --data-dir data --start-season 1999 --end-season 2025
+--start-week 5` at `3a17c5a` (5,297 games; the full output is recorded in the roadmap, WP4):
+
+- Integrity check passed; 0% reproduced the published rating (MAE 10.601, as in `validate`).
+- 5%: MAE 10.623, +0.023 (-0.033 to +0.076), a tie. 10%: 10.663, +0.062 (-0.008 to +0.136), a
+  tie. 20%: 10.733, +0.133 (+0.046 to +0.222), worse.
+- Reading as written: no threshold qualified, so the recommendation is no filter. Intervals
+  excluding zero: 20% overall and 20% from week 8 on, both worse.
+- Decided by the maintainer (2026-10-05): the published ratings keep every play (0%). The slider
+  stays as an exploration view (0-20%), and `docs/methodology.md` and the app's exploration note
+  state the result.
+
 ## Retired metric backlog
 
 The registry's `planned` entries (stats catalogued but never computed) were removed on 2026-10-04

@@ -519,8 +519,11 @@ Tasks:
     0.869, 0.815 (20 seasons); NE 2025 `team_rating` 5.92 (5th), 5.31 (3rd), 4.87 (4th), 3.95
     (5th); Drake Maye 2025 adjusted EPA per dropback 0.210 (1st), 0.219 (3rd), 0.222 (1st), 0.204
     (3rd).
-- [ ] Maintainer decision on the published default (the rule recommends 0%, no filter); then
+- [x] Maintainer decision on the published default (the rule recommends 0%, no filter); then
   record the outcome in `.agents/ratings-simplification-plan.md` with the other test results.
+  Decided 2026-10-05: the published ratings keep every play. Recorded in the decision record;
+  `docs/methodology.md` ("Garbage-Time Filter") and the app's exploration note state the result.
+  The validation report is unchanged, as no change was adopted.
 
 ## R. Rank-range extensions
 

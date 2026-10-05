@@ -49,11 +49,12 @@ back to the filtered table (the freeze that kept it out did not recur with the m
 extensions disabled; roadmap, WP3), lowered the filter's maximum from 30% to 20%, and bumped
 `filelock` in `uv.lock`. Branch `feat/wp-filter-test` holds the pre-registered test's protocol (WP4,
 in its roadmap section) and its `check-wp-filter` command; the run on 2026-10-05 found no threshold
-that predicts margins better and 20% significantly worse, so the rule recommends no filter (decision
-with the maintainer; roadmap, WP4). Still open after it: head-to-head chances and more rank-range
-views, weekly 2026 refresh automation, frontend follow-ups, a project logger, and retired stats on
-request. Until A1 lands, rebuild 2026 weekly with `nfl-sos-ratings season` (ask first), copying
-`data/` beforehand so `diff-data` can report what changed.
+that predicts margins better and 20% significantly worse, so the published ratings keep every play
+(maintainer decision; roadmap, WP4, and `.agents/ratings-simplification-plan.md`). Still open after
+it: head-to-head chances and more rank-range views, weekly 2026 refresh automation, frontend
+follow-ups, a project logger, and retired stats on request. Until A1 lands, rebuild 2026 weekly with
+`nfl-sos-ratings season` (ask first), copying `data/` beforehand so `diff-data` can report what
+changed.
 
 ## Validation snapshot
 
@@ -66,6 +67,11 @@ fixes (team numbers unchanged from the run after adopting previous-season penalt
 - `team_rating` versus SRS: -0.057 (95% CI -0.125 to +0.008), a tie. Decision: adopt.
 - Year-over-year Pearson: `team_rating` 0.434, SRS 0.437; adjusted EPA per dropback 0.455, passer
   rating 0.464, ANY/A 0.392 (601 QB pairs). Mean QBR correlation 0.892 / 0.874.
+
+Garbage-time filter test (2026-10-05, `nfl-sos-ratings check-wp-filter --data-dir data
+--start-season 1999 --end-season 2025 --start-week 5`): MAE 10.601 with every play, 10.623 at 5%,
+10.663 at 10%, 10.733 at 20%; 5% and 10% tie, 20% is worse (+0.133, 98.33% interval +0.046 to
++0.222). The published ratings keep every play.
 
 Gate state: `scripts/gate.sh --web` passes, and `.venv/bin/pytest -m published_data` passes on the
 rebuilt `data/` (5 tests, 2026-10-04).
