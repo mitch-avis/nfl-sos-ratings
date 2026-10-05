@@ -25,6 +25,7 @@ and the per-season correlation of adjusted EPA per dropback with ESPN QBR.
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 from dataclasses import dataclass
 from itertools import combinations, pairwise
@@ -36,6 +37,7 @@ import polars as pl
 
 from nfl_sos_ratings.config import DATA_DIR, END_YEAR, START_YEAR
 from nfl_sos_ratings.data_loader import PBP_START_SEASON, load_espn_qbr
+from nfl_sos_ratings.logger import configure_logging
 from nfl_sos_ratings.srs import solve_srs
 from nfl_sos_ratings.team_rating import (
     TeamRatingFit,
@@ -46,6 +48,8 @@ from nfl_sos_ratings.validation.report import ValidationReportInputs, write_vali
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+
+logger = logging.getLogger(__name__)
 
 TEAM_RATING_BASELINE = "TeamRating"
 GATED_COMPARATORS: tuple[str, ...] = ("RawEPA", "SRS")
@@ -786,7 +790,7 @@ def main(argv: list[str] | None = None) -> None:
             qbr_correlations=compute_qbr_correlations(data_dir, seasons),
         ),
     )
-    print(f"Wrote validation report to {report_path}")
+    logger.info("Wrote validation report to %s", report_path)
 
 
 __all__ = [
@@ -820,4 +824,5 @@ __all__ = [
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()
