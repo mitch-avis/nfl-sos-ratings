@@ -13,6 +13,7 @@ import { HeadToHeadCard } from '@/components/entity/HeadToHeadCard'
 import { MetricSections } from '@/components/entity/MetricSections'
 import { OpponentBreakdownTable } from '@/components/entity/OpponentBreakdownTable'
 import { RankHistogram } from '@/components/entity/RankHistogram'
+import { RankHistoryCard } from '@/components/entity/RankHistoryCard'
 import { ViewControls } from '@/components/entity/ViewControls'
 import { UnitRankRangeTable } from '@/components/entity/UnitRankRanges'
 import { WeeklyTrendChart } from '@/components/entity/WeeklyTrendChart'
@@ -204,6 +205,8 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
           </CardContent>
         </Card>
       ) : null}
+
+      <RankHistoryCard kind={kind} season={season} entityId={entityId} count={rankRangesQuery.data?.rows.length} />
 
       <Card className="gap-4">
         <CardHeader className="flex flex-wrap items-start justify-between gap-2">

@@ -39,8 +39,12 @@ from nfl_sos_ratings.rating_ranges import (
     BOOTSTRAP_SEED,
     QB_PAIR_COLUMNS,
     QB_RANGE_COLUMNS,
+    RANGE_QUANTILES,
     TEAM_PAIR_COLUMNS,
     TEAM_RANGE_COLUMNS,
+    TOP_RANKS,
+    RangeColumns,
+    quantile_suffix,
     summarize_rank_pairs,
     summarize_rank_ranges,
     summarize_unit_rank_ranges,
@@ -225,6 +229,84 @@ def build_qb_rank_summaries(
     return ranges, summarize_rank_pairs(draws, fit.ratings, QB_PAIR_COLUMNS, eligible=eligible_ids)
 
 
+def _weekly_rank_columns(columns: RangeColumns) -> list[str]:
+    """Return a weekly rank-range file's columns after ``week``: rank percentiles and chances.
+
+    Rating percentiles are left out, as each week's ratings use that week's own scale.
+    """
+    return [
+        columns.id,
+        columns.rank,
+        *(f"{columns.rank}{quantile_suffix(level)}" for level in RANGE_QUANTILES),
+        *(f"{columns.rank}_top{top}_probability" for top in TOP_RANKS),
+        f"{columns.rank}_missing_share",
+    ]
+
+
+def _weekly_rank_schema(columns: RangeColumns) -> dict[str, type[pl.DataType]]:
+    """Return the column types of a weekly rank-range file with no rows."""
+    schema: dict[str, type[pl.DataType]] = {"week": pl.Int64, columns.id: pl.String}
+    for column in _weekly_rank_columns(columns)[1:]:
+        schema[column] = pl.Float64 if column.endswith(("_probability", "_share")) else pl.Int64
+    return schema
+
+
+def build_team_rank_ranges_by_week(weekly_df: pl.DataFrame, fit: TeamRatingFit) -> pl.DataFrame:
+    """Return every team's rank range as of each week, from the games through that week.
+
+    Each week refits its games with ``fit``'s penalties, as the rating history does, and
+    bootstraps them like the season's rank ranges; the last week matches the season's ranges.
+    """
+    frames: list[pl.DataFrame] = []
+    for week in sorted(weekly_df.get_column("week").unique().to_list()):
+        through_week = weekly_df.filter(pl.col("week") <= week)
+        week_fit = fit_team_ratings(
+            through_week,
+            scrimmage_lambda=fit.scrimmage_lambda,
+            special_teams_lambda=fit.special_teams_lambda,
+        )
+        draws = bootstrap_team_ratings(
+            through_week, week_fit, resamples=BOOTSTRAP_RESAMPLES, seed=BOOTSTRAP_SEED
+        )
+        frames.append(
+            summarize_rank_ranges(draws, week_fit.ratings, TEAM_RANGE_COLUMNS)
+            .select(_weekly_rank_columns(TEAM_RANGE_COLUMNS))
+            .with_columns(pl.lit(week, dtype=pl.Int64).alias("week"))
+        )
+    return pl.concat(frames).select("week", pl.exclude("week"))
+
+
+def build_qb_rank_ranges_by_week(
+    qb_game_logs: pl.DataFrame, fit: QbRatingFit, qb_combined: pl.DataFrame
+) -> pl.DataFrame:
+    """Return the eligible passers' rank ranges as of each week, from the games through it.
+
+    Each week refits its games with ``fit``'s penalty and bootstraps them; ranks are among the
+    full-season eligible passers who have played by then, as in the season's rank ranges.
+    """
+    eligible = qb_combined.filter(pl.col("qb_is_eligible")).get_column("qb_id").to_list()
+    frames: list[pl.DataFrame] = []
+    for week in sorted(qb_game_logs.get_column("week").unique().to_list()):
+        through_week = qb_game_logs.filter(pl.col("week") <= week)
+        week_fit = fit_qb_ratings(through_week, ridge_lambda=fit.ridge_lambda)
+        draws = bootstrap_qb_ratings(
+            through_week, week_fit, resamples=BOOTSTRAP_RESAMPLES, seed=BOOTSTRAP_SEED
+        )
+        summary = summarize_rank_ranges(
+            draws, week_fit.ratings, QB_RANGE_COLUMNS, eligible=eligible
+        )
+        if summary.is_empty():
+            continue
+        frames.append(
+            summary.select(_weekly_rank_columns(QB_RANGE_COLUMNS)).with_columns(
+                pl.lit(week, dtype=pl.Int64).alias("week")
+            )
+        )
+    if not frames:
+        return pl.DataFrame(schema=_weekly_rank_schema(QB_RANGE_COLUMNS))
+    return pl.concat(frames).select("week", pl.exclude("week"))
+
+
 def _previous_season_fit(season: int) -> TeamRatingFit | None:
     """Return the previous season's full-season team fit, whose penalties this season reuses.
 
@@ -274,6 +356,11 @@ def _write_team_rating_outputs(
     team_ranges, team_pairs = build_team_rank_summaries(weekly_df, team_fit)
     _write_data_file(team_ranges, season, "rating_ranges")
     _write_data_file(team_pairs, season, "rating_pairs")
+    if season == SEASON:
+        print("Resampling each week's games for the season-in-progress team rank ranges...")
+        _write_data_file(
+            build_team_rank_ranges_by_week(weekly_df, team_fit), season, "rating_ranges_by_week"
+        )
     return ratings
 
 
@@ -305,6 +392,13 @@ def _write_qb_rating_outputs(
     qb_ranges, qb_pairs = build_qb_rank_summaries(qb_game_logs, qb_fit, qb_combined)
     _write_data_file(qb_ranges, season, "qb_rating_ranges")
     _write_data_file(qb_pairs, season, "qb_rating_pairs")
+    if season == SEASON:
+        print("Resampling each week's games for the season-in-progress QB rank ranges...")
+        _write_data_file(
+            build_qb_rank_ranges_by_week(qb_game_logs, qb_fit, qb_combined),
+            season,
+            "qb_rating_ranges_by_week",
+        )
 
 
 def run_season(season: int) -> None:

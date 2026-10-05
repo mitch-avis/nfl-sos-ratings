@@ -593,6 +593,23 @@ Tasks:
   `UnitRankRangeTable` in the detail page's rank-range card; payload groups `offense_range`,
   `defense_range`, `special_teams_range` (only when present). Live check pending the rebuild.
 
+### Rebuild after R1 and R2 (2026-10-05)
+
+Approved for the overnight run. From `main` at `7c62765`: `cp -r data /tmp/data-before-r1r2`, then
+`nfl-sos-ratings pipeline` (exit 0, 20 min 17 s wall) and `nfl-sos-ratings season --season 2026`
+(exit 0, 22 s). `nfl-sos-ratings diff-data --before /tmp/data-before-r1r2 --after data` reported
+"405 unchanged, 0 row order only, 15 values changed, 28 schema changed, 56 added, 0 removed": the
+56 added are the two pair files per season; the 28 schema changes are every season's
+`rating_ranges` gaining the unit columns, with no existing values changed in 1999-2025; the 15
+value changes are all 2026, which gained the week-4 games played since the last build (team game
+logs 98 to 126 rows). `.venv/bin/pytest -m published_data` passed (6 tests, including the new pair
+check). Live check on the 8090 server: NE's detail page shows offense 2nd, defense 13th, special
+teams 17th by unit, and "NE rated above JAX in 40% of resampled seasons; difference -1.0 points,
+95%: -8.3 to +5.9."; the comparison panel for NE and BUF gives 72%. The pipeline ran slower than
+the last rebuild (857 s); a scratch timing of 2025 put the new steps at about 0.7 s per season
+(unit ranges 0.32 s, team pairs 0.18 s, QB pairs 0.16 s), so they do not explain it; download time
+or machine load is the likely cause, not measured.
+
 ### R3. Rank ranges by week
 
 Background: a season in progress shows very wide ranges that narrow as games accumulate; a weekly
@@ -605,10 +622,26 @@ options are all seasons with fewer resamples (for example 200) or only seasons i
 
 Tasks:
 
-- [ ] Measure the cost for one season and record it; choose the scope with the maintainer if it
-  adds more than a couple of minutes to `pipeline`.
-- [ ] Detail page: median rank by week with 50% and 95% bands (rank 1 at the top), beside "Rating
-  by week".
+- [x] Measure the cost for one season and record it; choose the scope with the maintainer if it
+  adds more than a couple of minutes to `pipeline`. Scratch timing (2026-10-05, single-threaded
+  BLAS, 1000 resamples, week fits with the season fit's penalties) on 2025: 18 weeks took 37.4 s
+  for teams and 24.9 s for QBs, 62.3 s per full season, about 28 minutes over 27 seasons. Over
+  the limit, so the maintainer's pre-approved scope applies: weekly ranges only for the season in
+  progress (`config.SEASON`, 2026) at the full 1000 resamples, at most about a minute per rebuild
+  by the season's end.
+- [x] Detail page: median rank by week with 50% and 95% bands (rank 1 at the top), beside "Rating
+  by week". Done 2026-10-05: `main.build_team_rank_ranges_by_week` and
+  `build_qb_rank_ranges_by_week`, written only when the season is `config.SEASON`; API
+  `GET /api/seasons/{season}/{teams|qbs}/{id}/rank-history`; `RankHistoryCard` below "Rating by
+  week". A scratch build of 2026 (`season --season 2026` in an empty working directory holding
+  only `data/2025_team_game_logs.parquet`) took 35 s against 22 s without weekly ranges.
+- [ ] Decision for the maintainer (found 2026-10-05): with one or two games per team, a game
+  bootstrap can only repeat or drop a team's games, so the first weeks' bands understate the
+  uncertainty; NE 2026's 95% band was 11th-21st after week 1 but 4th-31st after week 3. The card
+  and `docs/methodology.md` now say so. Recommended: start the chart at the first week in which
+  every team has played three games (a small frontend filter; the files keep every week), since
+  a caveat alone still draws a misleadingly tight band. Alternative: keep every week with the
+  caveat, as shipped.
 
 ## A1. Weekly refresh automation for 2026
 

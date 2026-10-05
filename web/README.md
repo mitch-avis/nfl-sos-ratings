@@ -74,6 +74,9 @@ The app never recomputes methodology. The backend (`nfl_sos_ratings/ui_data.py` 
   and rank percentiles, top-5 and top-10 chances, and the chance of each rank over game-bootstrap
   resamples, ordered by published rank; team payloads add an `offense_range`, `defense_range`, and
   `special_teams_range` column group when the file has them
+- `GET /api/seasons/{season}/teams/{team}/rank-history` and
+  `GET /api/seasons/{season}/qbs/{qb_id}/rank-history`: the rank percentiles and top-5 and top-10
+  chances as of each week, for the season in progress only
 - `GET /api/seasons/{season}/teams/{team}/rating-pairs` and
   `GET /api/seasons/{season}/qbs/{qb_id}/rating-pairs`: one team's (or qualifying quarterback's)
   head-to-head chances against every other one: how often it was rated above, the percentiles of
@@ -90,8 +93,9 @@ A season is listed only when all six contract files exist: `{season}_team_per_ga
 `{season}_qb_game_logs`, and the rating-history chart reads `{season}_ratings_by_week` and
 `{season}_qb_ratings_by_week`; the chart is left out when a season has no history file. The
 rank-range endpoints read `{season}_rating_ranges` and `{season}_qb_rating_ranges`, and the
-head-to-head endpoints `{season}_rating_pairs` and `{season}_qb_rating_pairs`; each returns 404
-when its file is missing. The filter endpoints read the season's game logs, `{season}_team_wp_bins`
+head-to-head endpoints `{season}_rating_pairs` and `{season}_qb_rating_pairs`, and the
+rank-history endpoints `{season}_rating_ranges_by_week` and `{season}_qb_rating_ranges_by_week`;
+each returns 404 when its file is missing. The filter endpoints read the season's game logs, `{season}_team_wp_bins`
 or `{season}_qb_wp_bins`, and its ratings file (teams also the previous season's game logs, whose
 penalties the team fit reuses), return 404 when one is missing, and cache each season's model and
 each threshold's table in process until a file changes.
@@ -144,6 +148,10 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   detail page). The detail page adds the rank headline, the top-5 and top-10 chances, the chance
   of each rank, and, for teams, a `Rank range by unit` table: offense, defense, and special teams
   with their rank ranges and mini intervals.
+- For the season in progress, the detail page adds a `Rank by week` chart below `Rating by week`:
+  the median rank with bands for the middle 50% and 95% of redraws, rank 1 at the top, a hover or
+  tap readout, and a text summary and hidden table for screen readers. The card says that the
+  first weeks' bands understate the uncertainty.
 - When a season has head-to-head files, the detail page adds a `Head to head` card: a `Compare
   with` picker, starting on the team or QB ranked just above (just below for the leader), and one
   sentence such as "NE rated above BUF in 38% of resampled seasons; difference -1.2 points, 95%:

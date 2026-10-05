@@ -187,6 +187,105 @@ def season_outputs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     return tmp_path
 
 
+@pytest.fixture
+def current_season_outputs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Run the real pipeline on the synthetic league as the season in progress."""
+    monkeypatch.setattr(main, "SEASON", 2025)
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(main, "load_weekly_team_stats", stub(_weekly_df))
+    monkeypatch.setattr(main, "load_schedule", stub(_schedule_df))
+    monkeypatch.setattr(main, "load_qb_stats", stub(_qb_df))
+    main.run_season(2025)
+    return tmp_path
+
+
+def test_run_season_writes_weekly_team_rank_ranges_for_the_current_season(
+    current_season_outputs: Path,
+) -> None:
+    # Arrange
+    season_ranks = pl.read_parquet(current_season_outputs / "2025_rating_ranges.parquet")
+
+    # Act
+    weekly = pl.read_parquet(current_season_outputs / "2025_rating_ranges_by_week.parquet")
+
+    # Assert
+    weeks = weekly.get_column("week").unique().sort().to_list()
+    assert weeks == list(range(1, len(_games()) + 1))
+    last = weekly.filter(pl.col("week") == weeks[-1]).join(
+        season_ranks.select("team", pl.col("team_rank").alias("season_rank")), on="team"
+    )
+    assert last.height == len(_TEAMS)
+    assert last.get_column("team_rank").to_list() == last.get_column("season_rank").to_list()
+    assert weekly.get_column("team_rank_q500").null_count() == 0
+
+
+def test_run_season_writes_weekly_qb_rank_ranges_for_the_current_season(
+    current_season_outputs: Path,
+) -> None:
+    # Arrange
+    season_ranks = pl.read_parquet(current_season_outputs / "2025_qb_rating_ranges.parquet")
+
+    # Act
+    weekly = pl.read_parquet(current_season_outputs / "2025_qb_rating_ranges_by_week.parquet")
+
+    # Assert
+    last = weekly.filter(pl.col("week") == weekly.get_column("week").max()).join(
+        season_ranks.select("qb_id", pl.col("qb_rank").alias("season_rank")), on="qb_id"
+    )
+    assert last.height == season_ranks.height
+    assert last.get_column("qb_rank").to_list() == last.get_column("season_rank").to_list()
+
+
+def _weekly_qb_inputs(outputs: Path, eligible_team: str | None) -> tuple[pl.DataFrame, ...]:
+    """Return the season's QB game logs and QB table, with one team's passer eligible (or none)."""
+    qb_game_logs = pl.read_parquet(outputs / "2025_qb_game_logs.parquet")
+    qb_combined = pl.read_parquet(outputs / "2025_qb_combined.parquet").with_columns(
+        (pl.col("team") == pl.lit(eligible_team)).fill_null(value=False).alias("qb_is_eligible")
+    )
+    return qb_game_logs, qb_combined
+
+
+def test_weekly_qb_rank_ranges_start_when_an_eligible_passer_has_played(
+    season_outputs: Path,
+) -> None:
+    # Arrange
+    qb_game_logs, qb_combined = _weekly_qb_inputs(season_outputs, "NE")
+
+    # Act
+    weekly = main.build_qb_rank_ranges_by_week(
+        qb_game_logs, main.fit_qb_ratings(qb_game_logs), qb_combined
+    )
+
+    # Assert
+    first_ne_week = min(week for week, _, home, away in _games() if "NE" in (home, away))
+    assert weekly.get_column("week").min() == first_ne_week
+
+
+def test_weekly_qb_rank_ranges_without_eligible_passers_are_empty(season_outputs: Path) -> None:
+    # Arrange
+    qb_game_logs, qb_combined = _weekly_qb_inputs(season_outputs, None)
+
+    # Act
+    weekly = main.build_qb_rank_ranges_by_week(
+        qb_game_logs, main.fit_qb_ratings(qb_game_logs), qb_combined
+    )
+
+    # Assert
+    assert weekly.is_empty()
+    assert weekly.columns[:3] == ["week", "qb_id", "qb_rank"]
+
+
+def test_run_season_skips_weekly_rank_ranges_for_a_past_season(season_outputs: Path) -> None:
+    # Act
+    written = [
+        (season_outputs / f"2025_{suffix}.parquet").exists()
+        for suffix in ("rating_ranges_by_week", "qb_rating_ranges_by_week")
+    ]
+
+    # Assert
+    assert written == [False, False]
+
+
 def test_build_team_ratings_publishes_columns_in_order() -> None:
     # Arrange
     weekly_df = _weekly_df()

@@ -139,6 +139,12 @@ the medians.
   from the resamples he appears in.
 - **Seasons in progress.** With only a few games played, a resample can leave a team out entirely
   (`team_rank_missing_share`), and the ranges are very wide. They narrow as the season fills in.
+  The season in progress also gets weekly rank ranges (`rating_ranges_by_week` and
+  `qb_rating_ranges_by_week`): each week's games through that week, refit with the season fit's
+  penalties and resampled the same way; past seasons skip them, as they would add about half an
+  hour to a full rebuild. In the first weeks, with one or two games per team, a resample can only
+  repeat or drop a team's games, never change their results, so those weeks' ranges understate the
+  uncertainty.
 
 ## Garbage-Time Filter (Exploration View)
 

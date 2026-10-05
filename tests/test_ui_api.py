@@ -597,3 +597,81 @@ def test_rating_pairs_for_an_unknown_entity_or_season_return_not_found(
 
     # Assert
     assert response.status_code == 404
+
+
+def _weekly_rank_rows(id_column: str, entity: str, rank_column: str) -> pl.DataFrame:
+    """Return two weeks of one entity's rank percentiles and chances."""
+    suffixes = ["_q025", "_q100", "_q250", "_q500", "_q750", "_q900", "_q975"]
+    return pl.DataFrame(
+        [
+            {
+                "week": week,
+                id_column: entity,
+                rank_column: rank,
+                **{
+                    f"{rank_column}{suffix}": rank + offset
+                    for offset, suffix in enumerate(suffixes)
+                },
+                f"{rank_column}_top5_probability": 0.5,
+                f"{rank_column}_top10_probability": 0.9,
+                f"{rank_column}_missing_share": 0.0,
+            }
+            for week, rank in ((2, 9), (1, 12))
+        ]
+    )
+
+
+def _seed_rank_history(data_dir: Path) -> None:
+    """Write a season contract plus team and QB weekly rank-range files."""
+    _seed_season_contract(data_dir, 2024)
+    _weekly_rank_rows("team", "DET", "team_rank").write_parquet(
+        data_dir / "2024_rating_ranges_by_week.parquet"
+    )
+    _weekly_rank_rows("qb_id", "qb-1", "qb_rank").write_parquet(
+        data_dir / "2024_qb_rating_ranges_by_week.parquet"
+    )
+
+
+@pytest.mark.parametrize(
+    ("path", "rank_column"),
+    [
+        ("/api/seasons/2024/teams/DET/rank-history", "team_rank"),
+        ("/api/seasons/2024/qbs/qb-1/rank-history", "qb_rank"),
+    ],
+)
+def test_get_rank_history_returns_the_weeks_in_order(
+    tmp_path: Path, path: str, rank_column: str
+) -> None:
+    # Arrange
+    _seed_rank_history(tmp_path)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get(path)
+
+    # Assert
+    assert response.status_code == 200
+    rows = response.json()["rows"]
+    assert [(row["week"], row[rank_column]) for row in rows] == [(1, 12), (2, 9)]
+    assert f"{rank_column}_q975" in response.json()["visible_columns"]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/seasons/2024/teams/NOPE/rank-history",
+        "/api/seasons/2023/qbs/qb-1/rank-history",
+    ],
+)
+def test_rank_history_for_an_unknown_entity_or_season_returns_not_found(
+    tmp_path: Path, path: str
+) -> None:
+    # Arrange
+    _seed_rank_history(tmp_path)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get(path)
+
+    # Assert
+    assert response.status_code == 404

@@ -51,6 +51,8 @@ TEAM_RATING_RANGES_SUFFIX = "rating_ranges"
 QB_RATING_RANGES_SUFFIX = "qb_rating_ranges"
 TEAM_RATING_PAIRS_SUFFIX = "rating_pairs"
 QB_RATING_PAIRS_SUFFIX = "qb_rating_pairs"
+TEAM_RANK_HISTORY_SUFFIX = "rating_ranges_by_week"
+QB_RANK_HISTORY_SUFFIX = "qb_rating_ranges_by_week"
 TEAM_RATINGS_SUFFIX = "ratings"
 QB_RATINGS_SUFFIX = "qb_ratings"
 TEAM_WP_BINS_SUFFIX = "team_wp_bins"
@@ -187,6 +189,20 @@ def load_qb_rating_ranges_payload(data_dir: Path, season: int) -> TablePayload:
     """Load the eligible quarterbacks' bootstrap rating and rank ranges, by published rank."""
     frame = _load_season_file(data_dir, season, QB_RATING_RANGES_SUFFIX)
     return _build_rating_ranges_payload(frame, ("qb_id", "qb_name", "team"), QB_RANGE_COLUMNS)
+
+
+def load_team_rank_history_payload(data_dir: Path, season: int, team: str) -> TablePayload:
+    """Load one team's rank range as of each week (seasons in progress only), by week."""
+    frame = _load_season_file(data_dir, season, TEAM_RANK_HISTORY_SUFFIX)
+    rows = _filter_entity_rows(frame, "team", team, season, "team rank-history")
+    return _build_rank_history_payload(rows, TEAM_RANGE_COLUMNS)
+
+
+def load_qb_rank_history_payload(data_dir: Path, season: int, qb_id: str) -> TablePayload:
+    """Load one eligible quarterback's rank range as of each week, by week."""
+    frame = _load_season_file(data_dir, season, QB_RANK_HISTORY_SUFFIX)
+    rows = _filter_entity_rows(frame, "qb_id", qb_id, season, "QB rank-history")
+    return _build_rank_history_payload(rows, QB_RANGE_COLUMNS)
 
 
 def load_team_rating_pairs_payload(data_dir: Path, season: int, team: str) -> TablePayload:
@@ -718,6 +734,34 @@ def _build_rating_ranges_payload(
     visible_columns = [column for group in groups.values() for column in group]
     return {
         "rows": frame.sort(columns.rank).select(visible_columns).to_dicts(),
+        "visible_columns": visible_columns,
+        "column_groups": groups,
+        "column_metadata": get_registry().column_metadata(visible_columns),
+    }
+
+
+def _build_rank_history_payload(frame: pl.DataFrame, columns: RangeColumns) -> TablePayload:
+    """Return a weekly rank-range payload: week and identity, the rank range, then the chances."""
+    groups = {
+        "identity": _ordered_existing_columns(frame.columns, ("week", columns.id)),
+        "rank_range": _ordered_existing_columns(
+            frame.columns,
+            (
+                columns.rank,
+                *(f"{columns.rank}{quantile_suffix(level)}" for level in RANGE_QUANTILES),
+            ),
+        ),
+        "rank_chances": _ordered_existing_columns(
+            frame.columns,
+            (
+                *(f"{columns.rank}_top{top}_probability" for top in TOP_RANKS),
+                f"{columns.rank}_missing_share",
+            ),
+        ),
+    }
+    visible_columns = [column for group in groups.values() for column in group]
+    return {
+        "rows": frame.select(visible_columns).to_dicts(),
         "visible_columns": visible_columns,
         "column_groups": groups,
         "column_metadata": get_registry().column_metadata(visible_columns),
