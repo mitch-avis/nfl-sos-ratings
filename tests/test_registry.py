@@ -38,6 +38,12 @@ _OUTPUT_COLUMN_SAMPLES = (
     "wp_bin_epa",
     "qb_wp_bin_dropbacks",
     "qb_wp_bin_epa",
+    "wp_kept_play_share",
+    "wp_kept_dropback_share",
+    "filtered_team_rank",
+    "filtered_sos",
+    "filtered_adj_qb_epa_per_dropback",
+    "filtered_qb_rank_change",
     "qb_designed_epa_per_carry",
     "qb_attempts_total",
     "qb_completions_per_game",
@@ -161,6 +167,20 @@ def test_quantile_suffix_keeps_the_base_metric_and_its_polarity(registry: Metric
     assert resolved is not None
     assert (resolved.base.name, resolved.polarity) == ("team_rank", "lower")
     assert "97.5th percentile" in resolved.full_name
+
+
+def test_filtered_change_column_names_both_the_filter_and_the_change(
+    registry: MetricRegistry,
+) -> None:
+    # Act
+    resolved = registry.resolve_column("filtered_team_rating_change")
+
+    # Assert
+    assert resolved is not None
+    assert resolved.base.name == "team_rating"
+    assert "Garbage-Time Filtered" in resolved.full_name
+    assert "Change" in resolved.full_name
+    assert "exploration view" in resolved.description
 
 
 def test_per_game_suffix_keeps_the_base_metric(registry: MetricRegistry) -> None:

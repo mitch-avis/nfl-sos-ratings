@@ -486,6 +486,20 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         formula="floor(round(100 * min(wp, 1 - wp), 9))",
     ),
     _overall(
+        name="wp_kept_play_share",
+        label="Kept Plays",
+        full_name="Share of Plays the Filter Keeps",
+        description=(
+            "The share of this team's scrimmage and special-teams plays (with the ball) that the "
+            "chosen garbage-time filter keeps. 1.00 means no play was left out."
+        ),
+        shape="rate",
+        polarity="neutral",
+        source="D",
+        denominator="scrimmage and special-teams plays",
+        since=1999,
+    ),
+    _overall(
         name="wp_bin_plays",
         label="Plays",
         full_name="Plays in Win-Probability Bin",

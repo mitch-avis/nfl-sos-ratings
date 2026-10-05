@@ -192,7 +192,8 @@ These are correctness invariants specific to this project. Linters will not catc
   against `nfl_sos_ratings/metrics/` (base metric name, or a registered prefix/suffix of one);
   `main.py` fails the write otherwise. New metrics get a registry entry first (label, layman
   description, shape, denominator, polarity, source, `duplicate_of`). The registry describes only
-  columns the pipeline writes; ideas for future stats go in an `.agents/` plan, not the registry.
+  columns the pipeline writes or the API and web app derive from them (such as the `filtered_` and
+  `season_delta_` columns); ideas for future stats go in an `.agents/` plan, not the registry.
 - **The docs catalogs are generated.** `nfl-sos-ratings catalog` renders `docs/stats-catalog.md`
   and `docs/qb-stats-catalog.md` from the registry, and a test fails when the committed copies
   drift; rerun the command after any registry change.

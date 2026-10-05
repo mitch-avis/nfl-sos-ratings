@@ -51,6 +51,17 @@ def _quantile_suffix_rule(level: float) -> SuffixRule:
 # Longest prefixes first so qopp_ wins over opp_.
 DEFAULT_PREFIX_RULES: tuple[PrefixRule, ...] = (
     PrefixRule(
+        prefix="filtered_",
+        label_template="Filtered {label}",
+        full_name_template="{full_name}, Garbage-Time Filtered",
+        description_note=(
+            "Refit on only the plays the chosen garbage-time filter keeps: plays where the "
+            "offense's win probability before the snap was between the threshold and 100% minus "
+            "it, plus plays without a win probability, with the season's ridge penalties and "
+            "per-game scale. This is an unvalidated exploration view, not a published rating."
+        ),
+    ),
+    PrefixRule(
         prefix="qopp_",
         label_template="Opp {label}",
         full_name_template="Faced Defenses: {full_name}",
@@ -129,6 +140,14 @@ DEFAULT_SUFFIX_RULES: tuple[SuffixRule, ...] = (
         label_template="{label}/Drive",
         full_name_template="{full_name} Per Drive",
         description_note="Shown per offensive possession.",
+    ),
+    SuffixRule(
+        suffix="_change",
+        label_template="{label} Change",
+        full_name_template="Change in {full_name}",
+        description_note=(
+            "The filtered value minus the same calculation with no plays filtered out (0%)."
+        ),
     ),
     SuffixRule(
         suffix="_total",
