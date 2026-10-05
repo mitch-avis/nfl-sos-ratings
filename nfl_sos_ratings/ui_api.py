@@ -23,12 +23,14 @@ from nfl_sos_ratings.ui_data import (
     WpRatingsPayload,
     discover_available_seasons,
     load_qb_game_log_payload,
+    load_qb_rank_history_payload,
     load_qb_rating_history_payload,
     load_qb_rating_pairs_payload,
     load_qb_rating_ranges_payload,
     load_qb_wp_ratings_payload,
     load_season_ui_dataset,
     load_team_game_log_payload,
+    load_team_rank_history_payload,
     load_team_rating_history_payload,
     load_team_rating_pairs_payload,
     load_team_rating_ranges_payload,
@@ -143,7 +145,7 @@ def _entity_router(data_dir: Path) -> APIRouter:
 
 
 def _rating_pairs_router(data_dir: Path) -> APIRouter:
-    """Return the head-to-head routes: one team's or eligible quarterback's pairs per season."""
+    """Return the per-entity uncertainty routes: head-to-head pairs and weekly rank ranges."""
     router = APIRouter()
 
     @router.get("/api/seasons/{season}/teams/{team}/rating-pairs")
@@ -151,6 +153,22 @@ def _rating_pairs_router(data_dir: Path) -> APIRouter:
         """Return how often one team is rated above each other team across resamples."""
         try:
             return load_team_rating_pairs_payload(data_dir, season, team)
+        except (MissingSeasonContractError, MissingEntityRowsError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @router.get("/api/seasons/{season}/teams/{team}/rank-history")
+    def get_team_rank_history(season: int, team: str) -> TablePayload:
+        """Return one team's rank range as of each week of a season in progress."""
+        try:
+            return load_team_rank_history_payload(data_dir, season, team)
+        except (MissingSeasonContractError, MissingEntityRowsError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @router.get("/api/seasons/{season}/qbs/{qb_id}/rank-history")
+    def get_qb_rank_history(season: int, qb_id: str) -> TablePayload:
+        """Return one eligible quarterback's rank range as of each week of a season in progress."""
+        try:
+            return load_qb_rank_history_payload(data_dir, season, qb_id)
         except (MissingSeasonContractError, MissingEntityRowsError) as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
