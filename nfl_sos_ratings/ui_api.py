@@ -5,9 +5,10 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+from typing import Annotated
 
 import uvicorn
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -19,15 +20,19 @@ from nfl_sos_ratings.ui_data import (
     MissingSeasonContractError,
     SeasonDataset,
     TablePayload,
+    WpRatingsPayload,
     discover_available_seasons,
     load_qb_game_log_payload,
     load_qb_rating_history_payload,
     load_qb_rating_ranges_payload,
+    load_qb_wp_ratings_payload,
     load_season_ui_dataset,
     load_team_game_log_payload,
     load_team_rating_history_payload,
     load_team_rating_ranges_payload,
+    load_team_wp_ratings_payload,
 )
+from nfl_sos_ratings.wp_filter import MAX_WP_THRESHOLD
 
 # The built single-page app: `cd web && npm run build` writes it here.
 DEFAULT_WEB_DIST = Path(__file__).resolve().parents[1] / "web" / "dist"
@@ -35,6 +40,19 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8080
 # `--data-dir` reaches the app factory through this variable when `--reload` is on.
 DATA_DIR_ENV = "NFL_SOS_DATA_DIR"
+
+# The garbage-time filter's query parameter: a whole percentage, 0 (no filter) to 30.
+type WpThreshold = Annotated[
+    int,
+    Query(
+        ge=0,
+        le=MAX_WP_THRESHOLD,
+        description=(
+            "Keep plays whose win probability before the snap was at least this many percent "
+            "and at most 100 minus it (0 keeps every play)."
+        ),
+    ),
+]
 
 _MISSING_BUILD_HTML = """<!doctype html><title>nfl-sos-ratings</title>
 <h1>Frontend not built</h1>
@@ -145,6 +163,29 @@ def _rating_ranges_router(data_dir: Path) -> APIRouter:
     return router
 
 
+def _wp_ratings_router(data_dir: Path) -> APIRouter:
+    """Return the garbage-time filter routes: one season's ratings at a chosen threshold."""
+    router = APIRouter()
+
+    @router.get("/api/seasons/{season}/teams/wp-ratings")
+    def get_team_wp_ratings(season: int, threshold: WpThreshold = 0) -> WpRatingsPayload:
+        """Return every team's ratings refit on the plays the filter keeps."""
+        try:
+            return load_team_wp_ratings_payload(data_dir, season, threshold)
+        except MissingSeasonContractError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @router.get("/api/seasons/{season}/qbs/wp-ratings")
+    def get_qb_wp_ratings(season: int, threshold: WpThreshold = 0) -> WpRatingsPayload:
+        """Return the qualifying quarterbacks' ratings refit on the dropbacks the filter keeps."""
+        try:
+            return load_qb_wp_ratings_payload(data_dir, season, threshold)
+        except MissingSeasonContractError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    return router
+
+
 def create_app(data_dir: Path | None = None, *, web_dist: Path | None = None) -> FastAPI:
     """Create the analyst API, plus the built web app from ``web_dist`` (default ``web/dist``)."""
     resolved_data_dir = data_dir or Path(DATA_DIR)
@@ -187,6 +228,7 @@ def create_app(data_dir: Path | None = None, *, web_dist: Path | None = None) ->
 
     app.include_router(_entity_router(resolved_data_dir))
     app.include_router(_rating_ranges_router(resolved_data_dir))
+    app.include_router(_wp_ratings_router(resolved_data_dir))
     mount_frontend(app, web_dist or DEFAULT_WEB_DIST)
     return app
 

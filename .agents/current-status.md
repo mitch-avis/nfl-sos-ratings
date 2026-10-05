@@ -6,9 +6,10 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Current state (2026-10-04)
 
-- `main` (pushed, `1d61b2d`) holds the points-based ratings, the follow-up work, previous-season
+- `main` (pushed, `c574819`) holds the points-based ratings, the follow-up work, previous-season
   ridge penalties for the team fit, the rank ranges, QB data fixes, and UX audit described below
-  (pull request #1), and the rebuild tooling (pull request #2), both merged on 2026-10-04.
+  (pull request #1), the rebuild tooling (pull request #2), and the garbage-time filter's
+  win-probability bins (pull request #3), all merged on 2026-10-04.
 - Published team ratings: `team_rating` (points per game against an average team) with
   `offense_rating`, `defense_rating`, and `special_teams_rating` adding up to it,
   head-to-head-excluded `sos`, and `SRS` as the score-based reference. The team fit reuses the
@@ -27,24 +28,25 @@ history (the composite-rating era and its experiments) is in git, before commit 
   qualifier (`qb_attempt_qualifier`), and the UX audit changes (one hint style that also opens on
   tap, phone layout, fixed decimals per column). Details: `.agents/roadmap.md`, "Settled
   background".
-- `data/` (1999-2026, range files included) was rebuilt on 2026-10-04 for that work with
-  `OPENBLAS_NUM_THREADS=1 nfl-sos-ratings pipeline` and `nfl-sos-ratings season --season 2026`
-  (2026 through week 4).
+- `data/` (1999-2026: range files, fixed row order, win-probability bins; 2026 through week 4) was
+  last rebuilt on 2026-10-04 from `c574819` with `nfl-sos-ratings pipeline` and `nfl-sos-ratings
+  season --season 2026`; `diff-data` against the previous build showed no value changes
+  (`.agents/roadmap.md`, S2).
 - `docs/validation-report.md` was regenerated on 2026-10-04 after the QB data fixes; the rule still
   reads adopt.
 
 ## Next steps
 
 All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order. Done
-and merged: the `feat/rank-ranges` pull request (#1), the nfl-predictor note, and the three small
-fixes in pull request #2 (single-threaded BLAS by default, one fixed row order per data file, and
-the read-only `nfl-sos-ratings diff-data` command). Branch `feat/wp-filter` holds the
-garbage-time filter's bins (`{season}_team_wp_bins`, `{season}_qb_wp_bins`); `data/` needs a
-rebuild (ask first) before they exist there. Still open: the rest of the WP filter (refits per
-threshold, the slider, the pre-registered test), head-to-head chances and more rank-range views,
-weekly 2026 refresh automation, frontend follow-ups, a project logger, and retired stats on
-request. Until A1 lands, rebuild 2026 weekly with `nfl-sos-ratings season` (ask
-first), copying `data/` beforehand so `diff-data` can report what changed.
+and merged: the `feat/rank-ranges` pull request (#1), the nfl-predictor note, the three small fixes
+in pull request #2 (single-threaded BLAS by default, one fixed row order per data file, and the
+read-only `nfl-sos-ratings diff-data` command), and the garbage-time filter's bins (#3). Branch
+`feat/wp-threshold-ratings` holds the filter's refits per threshold and their API
+(`/api/seasons/{season}/{teams|qbs}/wp-ratings`). Still open: the slider in the web app, the
+pre-registered test, head-to-head chances and more rank-range views, weekly 2026 refresh
+automation, frontend follow-ups, a project logger, and retired stats on request. Until A1 lands,
+rebuild 2026 weekly with `nfl-sos-ratings season` (ask first), copying `data/` beforehand so
+`diff-data` can report what changed.
 
 ## Validation snapshot
 
@@ -58,11 +60,8 @@ fixes (team numbers unchanged from the run after adopting previous-season penalt
 - Year-over-year Pearson: `team_rating` 0.434, SRS 0.437; adjusted EPA per dropback 0.455, passer
   rating 0.464, ANY/A 0.392 (601 QB pairs). Mean QBR correlation 0.892 / 0.874.
 
-Gate state: `scripts/gate.sh --web` passes. `.venv/bin/pytest -m published_data` passes on the
-current `data/` except `test_every_published_file_is_stored_in_its_row_order` (the fixed row
-order from pull request #2) and, on `feat/wp-filter`, the three win-probability bins tests; all
-four need `data/` rebuilt with the current code (values are unaffected; see `.agents/roadmap.md`,
-S2 and WP1).
+Gate state: `scripts/gate.sh --web` passes, and `.venv/bin/pytest -m published_data` passes on the
+rebuilt `data/` (5 tests, 2026-10-04).
 
 ## Open items
 

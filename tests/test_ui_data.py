@@ -18,11 +18,14 @@ from nfl_sos_ratings.ui_data import (
     load_qb_game_log_payload,
     load_qb_rating_history_payload,
     load_qb_rating_ranges_payload,
+    load_qb_wp_ratings_payload,
     load_season_ui_dataset,
     load_team_game_log_payload,
     load_team_rating_history_payload,
     load_team_rating_ranges_payload,
+    load_team_wp_ratings_payload,
 )
+from tests.wp_league import LOPSIDED_BIN, write_wp_season
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -536,3 +539,145 @@ def test_load_qb_rating_ranges_payload_without_the_file_raises_missing_contract(
     # Act & Assert
     with pytest.raises(MissingSeasonContractError, match="qb_rating_ranges"):
         load_qb_rating_ranges_payload(tmp_path, 2024)
+
+
+_WP_SEASON = 2000
+
+
+def _number(value: object) -> float:
+    """Return a payload cell as a float; payload rows are typed as plain objects."""
+    assert isinstance(value, int | float)
+    return float(value)
+
+
+def test_team_wp_ratings_at_zero_reproduce_the_published_ratings(tmp_path: Path) -> None:
+    # Arrange
+    write_wp_season(tmp_path, _WP_SEASON)
+
+    # Act
+    payload = load_team_wp_ratings_payload(tmp_path, _WP_SEASON, 0)
+
+    # Assert
+    rows = payload["rows"]
+    assert (payload["threshold"], payload["max_threshold"]) == (0, 30)
+    assert [row["filtered_team_rating"] for row in rows] == pytest.approx(
+        [row["team_rating"] for row in rows]
+    )
+    assert [row["filtered_team_rank"] for row in rows] == [row["team_rank"] for row in rows]
+    assert {row["filtered_team_rating_change"] for row in rows} == {0.0}
+
+
+def test_team_wp_ratings_list_teams_by_filtered_rank(tmp_path: Path) -> None:
+    # Arrange
+    write_wp_season(tmp_path, _WP_SEASON)
+
+    # Act
+    payload = load_team_wp_ratings_payload(tmp_path, _WP_SEASON, LOPSIDED_BIN + 1)
+
+    # Assert
+    rows = payload["rows"]
+    ranks = [_number(row["filtered_team_rank"]) for row in rows]
+    assert ranks == sorted(ranks)
+    ddd = next(row for row in rows if row["team"] == "DDD")
+    assert isinstance(ddd["filtered_team_rating_change"], float)
+    assert ddd["filtered_team_rating_change"] < 0.0
+
+
+def test_team_wp_ratings_group_published_and_filtered_columns(tmp_path: Path) -> None:
+    # Arrange
+    write_wp_season(tmp_path, _WP_SEASON)
+
+    # Act
+    payload = load_team_wp_ratings_payload(tmp_path, _WP_SEASON, 5)
+
+    # Assert
+    assert payload["column_groups"] == {
+        "identity": ["team"],
+        "published": ["team_rank", "team_rating"],
+        "filtered": [
+            "filtered_team_rank",
+            "filtered_team_rating",
+            "filtered_team_rating_change",
+            "filtered_team_rank_change",
+        ],
+        "filtered_units": [
+            "filtered_offense_rating",
+            "filtered_defense_rating",
+            "filtered_special_teams_rating",
+            "filtered_sos",
+        ],
+        "kept": ["wp_kept_play_share"],
+    }
+    assert set(payload["column_metadata"]) == set(payload["visible_columns"])
+
+
+def test_qb_wp_ratings_rank_the_published_passers(tmp_path: Path) -> None:
+    # Arrange
+    write_wp_season(tmp_path, _WP_SEASON)
+
+    # Act
+    payload = load_qb_wp_ratings_payload(tmp_path, _WP_SEASON, 2)
+
+    # Assert
+    rows = payload["rows"]
+    assert sorted(str(row["qb_id"]) for row in rows) == ["qb-AAA", "qb-BBB", "qb-CCC", "qb-DDD"]
+    assert [row["filtered_qb_rank"] for row in rows] == [1, 2, 3, 4]
+    assert payload["column_groups"]["identity"] == ["qb_id", "qb_name", "team"]
+    assert set(payload["column_metadata"]) == set(payload["visible_columns"])
+
+
+def test_qb_wp_ratings_measure_change_from_the_unfiltered_play_level_rating(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    write_wp_season(tmp_path, _WP_SEASON)
+
+    # Act
+    payload = load_qb_wp_ratings_payload(tmp_path, _WP_SEASON, 0)
+
+    # Assert
+    rows = payload["rows"]
+    assert [row["filtered_adj_qb_epa_per_dropback_change"] for row in rows] == pytest.approx(
+        [0.0] * len(rows)
+    )
+    assert [
+        _number(row["adj_qb_epa_per_dropback"]) - _number(row["filtered_adj_qb_epa_per_dropback"])
+        for row in rows
+    ] == pytest.approx([0.01] * len(rows))
+
+
+def test_wp_ratings_need_the_season_bins(tmp_path: Path) -> None:
+    # Arrange
+    write_wp_season(tmp_path, _WP_SEASON)
+    (tmp_path / f"{_WP_SEASON}_team_wp_bins.parquet").unlink()
+
+    # Act & Assert
+    with pytest.raises(MissingSeasonContractError, match="team_wp_bins"):
+        load_team_wp_ratings_payload(tmp_path, _WP_SEASON, 0)
+
+
+def test_team_wp_ratings_need_the_previous_seasons_game_logs(tmp_path: Path) -> None:
+    # Arrange
+    write_wp_season(tmp_path, _WP_SEASON)
+    (tmp_path / f"{_WP_SEASON - 1}_team_game_logs.parquet").unlink()
+
+    # Act & Assert
+    with pytest.raises(MissingSeasonContractError, match=f"{_WP_SEASON - 1}_team_game_logs"):
+        load_team_wp_ratings_payload(tmp_path, _WP_SEASON, 0)
+
+
+def test_team_wp_ratings_follow_a_rebuilt_bins_file(tmp_path: Path) -> None:
+    # Arrange
+    write_wp_season(tmp_path, _WP_SEASON)
+    before = load_team_wp_ratings_payload(tmp_path, _WP_SEASON, 3)["rows"]
+    bins_path = tmp_path / f"{_WP_SEASON}_team_wp_bins.parquet"
+    pl.read_parquet(bins_path).with_columns(
+        pl.lit(45, dtype=pl.Int64).alias("wp_bin")
+    ).write_parquet(bins_path)
+
+    # Act
+    after = load_team_wp_ratings_payload(tmp_path, _WP_SEASON, 3)["rows"]
+
+    # Assert
+    assert {row["wp_kept_play_share"] for row in after} == {1.0}
+    assert {row["wp_kept_play_share"] for row in before} != {1.0}

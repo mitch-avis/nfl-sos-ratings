@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import functools
 import re
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypedDict
 
 import polars as pl
 
+from nfl_sos_ratings.data_loader import PBP_START_SEASON
 from nfl_sos_ratings.metrics import get_registry
+from nfl_sos_ratings.qb_rating import fit_qb_ratings
 from nfl_sos_ratings.rating_ranges import (
     QB_RANGE_COLUMNS,
     RANGE_QUANTILES,
@@ -16,6 +20,8 @@ from nfl_sos_ratings.rating_ranges import (
     RangeColumns,
     quantile_suffix,
 )
+from nfl_sos_ratings.team_rating import fit_team_ratings, fit_team_ratings_with_previous_penalties
+from nfl_sos_ratings.wp_filter import MAX_WP_THRESHOLD, QbWpFilter, TeamWpFilter
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -38,6 +44,16 @@ TEAM_RATING_HISTORY_SUFFIX = "ratings_by_week"
 QB_RATING_HISTORY_SUFFIX = "qb_ratings_by_week"
 TEAM_RATING_RANGES_SUFFIX = "rating_ranges"
 QB_RATING_RANGES_SUFFIX = "qb_rating_ranges"
+TEAM_RATINGS_SUFFIX = "ratings"
+QB_RATINGS_SUFFIX = "qb_ratings"
+TEAM_WP_BINS_SUFFIX = "team_wp_bins"
+QB_WP_BINS_SUFFIX = "qb_wp_bins"
+# Seasons whose filter models stay built, and filtered tables (one per season and threshold) kept.
+_WP_MODEL_CACHE_SIZE = 8
+_WP_TABLE_CACHE_SIZE = 256
+_FILTERED_PREFIX = "filtered_"
+# The kept-share columns describe the filter itself, so they keep their names.
+_KEPT_SHARE_PREFIX = "wp_kept_"
 TEAM_RATING_COLUMNS = (
     "team_rating",
     "offense_rating",
@@ -72,6 +88,13 @@ class TablePayload(TypedDict):
     visible_columns: list[str]
     column_groups: dict[str, list[str]]
     column_metadata: dict[str, dict[str, object]]
+
+
+class WpRatingsPayload(TablePayload):
+    """A garbage-time filter table: the threshold it used and the largest one allowed."""
+
+    threshold: int
+    max_threshold: int
 
 
 class SeasonDataset(TypedDict):
@@ -157,6 +180,232 @@ def load_qb_rating_ranges_payload(data_dir: Path, season: int) -> TablePayload:
     """Load the eligible quarterbacks' bootstrap rating and rank ranges, by published rank."""
     frame = _load_season_file(data_dir, season, QB_RATING_RANGES_SUFFIX)
     return _build_rating_ranges_payload(frame, ("qb_id", "qb_name", "team"), QB_RANGE_COLUMNS)
+
+
+@dataclass(frozen=True, slots=True)
+class _WpInputs:
+    """The files a season's filter model reads, stamped so a rebuilt file means a new model.
+
+    ``previous`` is the previous season's team game logs, whose cross-validated penalties the team
+    fit reuses as the season command does; the first play-by-play season has none.
+    """
+
+    game_logs: Path
+    bins: Path
+    published: Path
+    previous: Path | None
+    stamp: tuple[tuple[str, int, int], ...]
+
+
+def _wp_inputs(
+    data_dir: Path, season: int, suffixes: tuple[str, str, str], *, reuse_previous: bool
+) -> _WpInputs:
+    """Return a season's filter inputs (game logs, bins, published ratings), checking each exists.
+
+    Raises:
+        MissingSeasonContractError: If a file, including the previous season's game logs when
+            ``reuse_previous`` applies, is missing.
+
+    """
+    paths = [data_dir / f"{season}_{suffix}.parquet" for suffix in suffixes]
+    previous = (
+        data_dir / f"{season - 1}_{TEAM_GAME_LOG_SUFFIX}.parquet"
+        if reuse_previous and season > PBP_START_SEASON
+        else None
+    )
+    needed = [*paths, *([] if previous is None else [previous])]
+    missing = [path.name for path in needed if not path.exists()]
+    if missing:
+        msg = f"Season {season} is missing garbage-time filter files: {', '.join(missing)}"
+        raise MissingSeasonContractError(msg)
+    stamp = tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in needed)
+    return _WpInputs(paths[0], paths[1], paths[2], previous, stamp)
+
+
+@functools.lru_cache(maxsize=_WP_MODEL_CACHE_SIZE)
+def _team_wp_model(inputs: _WpInputs) -> TeamWpFilter:
+    """Build a season's team filter model with the penalties the season command used."""
+    game_logs = pl.read_parquet(inputs.game_logs)
+    previous = (
+        None if inputs.previous is None else fit_team_ratings(pl.read_parquet(inputs.previous))
+    )
+    fit = fit_team_ratings_with_previous_penalties(game_logs, previous)
+    return TeamWpFilter(game_logs, pl.read_parquet(inputs.bins), fit)
+
+
+@functools.lru_cache(maxsize=_WP_MODEL_CACHE_SIZE)
+def _qb_wp_model(inputs: _WpInputs) -> QbWpFilter:
+    """Build a season's QB filter model with the penalty the season command cross-validated."""
+    qb_games = pl.read_parquet(inputs.game_logs)
+    return QbWpFilter(qb_games, pl.read_parquet(inputs.bins), fit_qb_ratings(qb_games))
+
+
+def _with_rank(frame: pl.DataFrame, rating: str, rank: str) -> pl.DataFrame:
+    """Add ``rank``: 1 for the highest ``rating``, ties sharing the better rank."""
+    return frame.with_columns(
+        pl.col(rating).rank(method="min", descending=True).cast(pl.Int64).alias(rank)
+    )
+
+
+def _filtered_table(
+    published: pl.DataFrame,
+    filtered: pl.DataFrame,
+    unfiltered: pl.DataFrame,
+    names: tuple[str, str, str],
+) -> pl.DataFrame:
+    """Join published, filtered, and unfiltered ratings, ranked among the published rows.
+
+    ``names`` is the id, rating, and rank column. Filtered columns get the ``filtered_`` prefix
+    (the kept share keeps its name); ``_change`` columns are filtered minus unfiltered.
+    """
+    key, rating, rank = names
+    ids = published.select(key)
+    filtered = _with_rank(ids.join(filtered, on=key, how="inner"), rating, rank)
+    unfiltered = _with_rank(ids.join(unfiltered, on=key, how="inner"), rating, rank)
+    renamed = filtered.rename(
+        {
+            column: f"{_FILTERED_PREFIX}{column}"
+            for column in filtered.columns
+            if column != key and not column.startswith(_KEPT_SHARE_PREFIX)
+        }
+    )
+    return (
+        _with_rank(published, rating, rank)
+        .join(renamed, on=key, how="left")
+        .join(
+            unfiltered.select(key, pl.col(rating).alias("_rating"), pl.col(rank).alias("_rank")),
+            on=key,
+            how="left",
+        )
+        .with_columns(
+            (pl.col(f"{_FILTERED_PREFIX}{rating}") - pl.col("_rating")).alias(
+                f"{_FILTERED_PREFIX}{rating}_change"
+            ),
+            (pl.col(f"{_FILTERED_PREFIX}{rank}") - pl.col("_rank")).alias(
+                f"{_FILTERED_PREFIX}{rank}_change"
+            ),
+        )
+        .drop("_rating", "_rank")
+        .sort(f"{_FILTERED_PREFIX}{rank}", nulls_last=True)
+    )
+
+
+@functools.lru_cache(maxsize=_WP_TABLE_CACHE_SIZE)
+def _team_wp_table(inputs: _WpInputs, threshold: int) -> pl.DataFrame:
+    """Return the team filter table for one season file set and threshold."""
+    model = _team_wp_model(inputs)
+    published = pl.read_parquet(inputs.published).select("team", "team_rating")
+    return _filtered_table(
+        published, model.ratings(threshold), model.ratings(0), ("team", "team_rating", "team_rank")
+    )
+
+
+@functools.lru_cache(maxsize=_WP_TABLE_CACHE_SIZE)
+def _qb_wp_table(inputs: _WpInputs, threshold: int) -> pl.DataFrame:
+    """Return the QB filter table for one season file set and threshold."""
+    model = _qb_wp_model(inputs)
+    published = pl.read_parquet(inputs.published)
+    identity = [column for column in ("qb_id", "qb_name", "team") if column in published.columns]
+    return _filtered_table(
+        published.select(*identity, "adj_qb_epa_per_dropback"),
+        model.ratings(threshold),
+        model.ratings(0),
+        ("qb_id", "adj_qb_epa_per_dropback", "qb_rank"),
+    )
+
+
+def _wp_payload(
+    frame: pl.DataFrame, groups: dict[str, tuple[str, ...]], threshold: int
+) -> WpRatingsPayload:
+    """Return a filter payload with the columns of ``groups`` that ``frame`` has."""
+    column_groups = {
+        name: _ordered_existing_columns(frame.columns, columns) for name, columns in groups.items()
+    }
+    visible_columns = [column for columns in column_groups.values() for column in columns]
+    return {
+        "rows": frame.select(visible_columns).to_dicts(),
+        "visible_columns": visible_columns,
+        "column_groups": column_groups,
+        "column_metadata": get_registry().column_metadata(visible_columns),
+        "threshold": threshold,
+        "max_threshold": MAX_WP_THRESHOLD,
+    }
+
+
+def load_team_wp_ratings_payload(data_dir: Path, season: int, threshold: int) -> WpRatingsPayload:
+    """Return every team's ratings with garbage-time plays filtered at ``threshold`` percent.
+
+    Teams are listed by filtered rank beside their published rating and rank; ``_change``
+    columns are filtered minus unfiltered, which for teams equals the published values. Models and
+    tables are cached in process and rebuilt when a season file changes.
+
+    Raises:
+        MissingSeasonContractError: If the season's game logs, bins, or ratings file, or the
+            previous season's game logs, are missing.
+        ValueError: If ``threshold`` is outside 0-30.
+
+    """
+    inputs = _wp_inputs(
+        data_dir,
+        season,
+        (TEAM_GAME_LOG_SUFFIX, TEAM_WP_BINS_SUFFIX, TEAM_RATINGS_SUFFIX),
+        reuse_previous=True,
+    )
+    groups = {
+        "identity": ("team",),
+        "published": ("team_rank", "team_rating"),
+        "filtered": (
+            "filtered_team_rank",
+            "filtered_team_rating",
+            "filtered_team_rating_change",
+            "filtered_team_rank_change",
+        ),
+        "filtered_units": (
+            "filtered_offense_rating",
+            "filtered_defense_rating",
+            "filtered_special_teams_rating",
+            "filtered_sos",
+        ),
+        "kept": ("wp_kept_play_share",),
+    }
+    return _wp_payload(_team_wp_table(inputs, threshold), groups, threshold)
+
+
+def load_qb_wp_ratings_payload(data_dir: Path, season: int, threshold: int) -> WpRatingsPayload:
+    """Return the published quarterbacks' ratings with garbage-time dropbacks filtered out.
+
+    Ranks are among the published (qualifying) quarterbacks. Filtered ratings use play-level EPA
+    at every threshold, so ``_change`` columns compare with the same calculation at 0%; the
+    published rating, on official EPA, sits beside them.
+
+    Raises:
+        MissingSeasonContractError: If the season's QB game logs, bins, or ratings file is missing.
+        ValueError: If ``threshold`` is outside 0-30.
+
+    """
+    inputs = _wp_inputs(
+        data_dir,
+        season,
+        (QB_GAME_LOG_SUFFIX, QB_WP_BINS_SUFFIX, QB_RATINGS_SUFFIX),
+        reuse_previous=False,
+    )
+    groups = {
+        "identity": ("qb_id", "qb_name", "team"),
+        "published": ("qb_rank", "adj_qb_epa_per_dropback"),
+        "filtered": (
+            "filtered_qb_rank",
+            "filtered_adj_qb_epa_per_dropback",
+            "filtered_adj_qb_epa_per_dropback_change",
+            "filtered_qb_rank_change",
+        ),
+        "filtered_context": (
+            "filtered_qb_epa_per_dropback",
+            "filtered_qb_faced_pass_defense",
+            "filtered_qb_dropbacks",
+        ),
+        "kept": ("wp_kept_dropback_share",),
+    }
+    return _wp_payload(_qb_wp_table(inputs, threshold), groups, threshold)
 
 
 def _build_contract_paths(data_dir: Path, season: int) -> dict[str, Path]:
