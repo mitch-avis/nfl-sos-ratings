@@ -139,6 +139,9 @@ game (`row_order.data_file_row_order`).
   quarterback) with rating and rank percentiles (`_q025` through `_q975`), the chance of a top-5
   and top-10 rank, and the chance of each rank, over 1000 game-bootstrap resamples of the season;
   team rows add each unit's rank and its rating and rank percentiles.
+- `rating_ranges_by_week` and `qb_rating_ranges_by_week` (the season in progress only,
+  `SEASON` in `config.py`): each week's rank percentiles and top-5 and top-10 chances, from the
+  games through that week.
 - `rating_pairs` and `qb_rating_pairs`: head-to-head chances, one row per ordered pair of teams
   (or qualifying quarterbacks) with how often the first was rated above the second and the
   percentiles of their rating difference, from the same resamples.

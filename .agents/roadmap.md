@@ -629,8 +629,19 @@ Tasks:
   the limit, so the maintainer's pre-approved scope applies: weekly ranges only for the season in
   progress (`config.SEASON`, 2026) at the full 1000 resamples, at most about a minute per rebuild
   by the season's end.
-- [ ] Detail page: median rank by week with 50% and 95% bands (rank 1 at the top), beside "Rating
-  by week".
+- [x] Detail page: median rank by week with 50% and 95% bands (rank 1 at the top), beside "Rating
+  by week". Done 2026-10-05: `main.build_team_rank_ranges_by_week` and
+  `build_qb_rank_ranges_by_week`, written only when the season is `config.SEASON`; API
+  `GET /api/seasons/{season}/{teams|qbs}/{id}/rank-history`; `RankHistoryCard` below "Rating by
+  week". A scratch build of 2026 (`season --season 2026` in an empty working directory holding
+  only `data/2025_team_game_logs.parquet`) took 35 s against 22 s without weekly ranges.
+- [ ] Decision for the maintainer (found 2026-10-05): with one or two games per team, a game
+  bootstrap can only repeat or drop a team's games, so the first weeks' bands understate the
+  uncertainty; NE 2026's 95% band was 11th-21st after week 1 but 4th-31st after week 3. The card
+  and `docs/methodology.md` now say so. Recommended: start the chart at the first week in which
+  every team has played three games (a small frontend filter; the files keep every week), since
+  a caveat alone still draws a misleadingly tight band. Alternative: keep every week with the
+  caveat, as shipped.
 
 ## A1. Weekly refresh automation for 2026
 
