@@ -28,10 +28,10 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
 - Pull request #1 (`feat/rank-ranges`, merged as `c396d83`, branch deleted) brought the rank
   ranges (engine, outputs, API, web views), the QB data fixes, the per-team QB qualifier, the UX
   audit changes, the regenerated validation report, and docs.
-- S1-S3 merged as pull request #2 (`1d61b2d`), WP1 as #3 (`c574819`), WP2 as #4 (`b70b522`), and
-  WP3 as #5 (`main` = `02a2b47`), branches deleted. Branch `fix/wp-qb-team` (from `02a2b47`)
-  restores each QB's team in the filtered table, lowers the filter's maximum to 20%, and carries
-  a `filelock` lockfile bump.
+- S1-S3 merged as pull request #2 (`1d61b2d`), WP1 as #3 (`c574819`), WP2 as #4 (`b70b522`), WP3
+  as #5 (`02a2b47`), and its follow-ups (each QB's team in the filtered table, a 20% filter
+  maximum, a `filelock` bump) as #6 (`main` = `f6da28b`), branches deleted. Branch
+  `feat/wp-filter-test` (from `f6da28b`) carries WP4: the protocol, then `check-wp-filter`.
 - `data/` (1999-2026: range files, fixed row order, and win-probability bins) was rebuilt on
   2026-10-04 from `c574819` with no value changes (S2 records the `diff-data` summary), and
   `.venv/bin/pytest -m published_data` passes on it.
@@ -418,47 +418,112 @@ threshold is a cumulative sum and the API refits on demand with the weighted eng
 
 ### WP4. Pre-registered walk-forward test
 
-Write this section's protocol here, in full, before any run (AGENTS.md):
+Pre-registered on 2026-10-05, committed before any run of the check (AGENTS.md). The maintainer
+approved the design choices below on 2026-10-04 and the slider change on 2026-10-05.
 
-- Hypothesis: dropping garbage-time plays from the rating inputs improves out-of-sample prediction
-  of game margins.
-- Candidates fixed in advance: 5%, 10%, and 20%, each against 0%.
-- Metric and window: walk-forward MAE of predicted margins, weeks >= 5, 1999-2025, as the current
-  rule (`nfl_sos_ratings/validation/walk_forward.py`).
-- Inference: paired bootstrap of per-game error differences against 0%, Bonferroni-adjusted for
-  three comparisons (98.33% intervals).
-- Decision rule: a threshold is a candidate for the default only if its interval excludes zero in
-  its favor; among such thresholds, the lowest MAE. Inconclusive means a tie, and the simpler
-  option (0%, no filter) is the recommendation; the decision goes to the maintainer either way.
-  Report every interval that excludes zero, in either direction.
-- Descriptive extras (not decision inputs): QB year-over-year stability and QBR correlation at
-  each candidate; NE 2025 and Maye across thresholds, whichever way they move.
-
-Decided with the maintainer (2026-10-04), to be written into the protocol above:
-
-- Each candidate is the published team fit run unchanged on the kept plays: kept plays and EPA
-  replace the game-log columns `fit_team_ratings` reads, and each threshold's penalties are
-  cross-validated on the previous season's kept plays (1999 cross-validates its own), as the
-  published fit does with every play. Reason: the kept share falls fast, so 0% penalties would
-  shrink filtered ratings harder for a reason unrelated to garbage time. Mean
-  `wp_kept_play_share` over the 32 teams in 2025: 0.846 at 5%, 0.772 at 10%, 0.623 at 20%, 0.453
-  at 30%, from `curl -s 'http://127.0.0.1:8090/api/seasons/2025/teams/wp-ratings?threshold=X'`
-  (server: `nfl-sos-ratings web --port 8090`). If a threshold is adopted, the exploration view
-  switches to the same penalties.
-- A separate read-only command, like `check-in-season-penalty`; `validate` and its report stay as
-  they are unless the maintainer adopts a change.
-- 10,000 paired-bootstrap resamples rather than the validation's 2,000: at 2,000, each tail of a
-  98.33% interval rests on about 17 draws.
-- The QB extras compare each threshold with the 0% play-level value, not the published rating,
-  which uses official weekly passing EPA.
-- The slider's and API's maximum is now 20% (see the decisions above). It does not affect the
-  test.
+- **Hypothesis (falsifiable):** rating teams on the plays a garbage-time filter keeps predicts
+  game margins out of sample better than rating them on every play. It is refuted for a threshold
+  if that threshold's paired interval does not lie entirely below zero.
+- **Candidates, fixed in advance:** thresholds of 5%, 10%, and 20%, each against 0%. A threshold
+  of X keeps a play when `min(wp, 1 - wp) >= X` (the `team_wp_bins` at or above X), plus the plays
+  without a win probability, as the exploration view does.
+- **Estimator:** each candidate is the published team fit run unchanged on the kept plays. Kept
+  plays and kept EPA from `{season}_team_wp_bins` replace `offensive_snaps`, `offensive_epa`,
+  `st_plays`, and `st_epa` in the team game logs, and the rows go through
+  `fit_team_ratings_with_previous_penalties` with the previous season's full-season fit on that
+  season's kept plays (its penalties cross-validated at the same threshold; 1999 cross-validates
+  its own, as the published fit does). Ratings use the kept plays' own per-game scale; each
+  candidate gets its own margin model, so a scale difference cannot help or hurt it. Reason for
+  re-tuning the penalties: the kept share falls fast (mean `wp_kept_play_share` over the 32 teams
+  in 2025: 0.846 at 5%, 0.772 at 10%, 0.623 at 20%, 0.453 at 30%, from `curl -s
+  'http://127.0.0.1:8090/api/seasons/2025/teams/wp-ratings?threshold=X'` against `nfl-sos-ratings
+  web --port 8090`, measured before the maximum dropped to 20%), so the 0% penalties would shrink
+  filtered ratings harder for a reason unrelated to garbage time.
+- **Allowed information set:** to predict the games of week w in season s, a candidate sees only
+  season s's team-game rows and bins from weeks before w, and season s - 1's full-season rows and
+  bins (for the penalties); its margin model sees only its own earlier predictions. This is the
+  walk-forward harness in `nfl_sos_ratings/validation/walk_forward.py`
+  (`build_snapshot_feature_rows`, `evaluate_feature_rows`). Known leak, judged negligible:
+  nflverse's `wp` model was fit on many seasons, later ones included, but it only decides which
+  plays enter a rating, never the prediction.
+- **Metric and window:** mean absolute error of the predicted home margin, prediction weeks 5 and
+  later, seasons 1999-2025, over the games every candidate predicts (every home game in the
+  window). Margin model: `home_margin = k * rating_gap + home_edge`, fit by least squares on the
+  candidate's earlier predictions, as in `validate`.
+- **Integrity check, before reading any result:** at 0% the kept columns must equal the game-log
+  columns on every row (to 1e-9), and the 0% candidate's overall MAE must reproduce `validate`'s
+  `team_rating` MAE (10.601, `.agents/current-status.md`) to three decimals. If either fails, stop
+  and investigate; read nothing else.
+- **Inference:** for each candidate X, a paired bootstrap of the per-game difference
+  |error at X| - |error at 0%|: 10,000 resamples of the games with replacement, seed 0 (the same
+  draws for all three comparisons), percentile intervals at 98.33% (quantiles 1/120 and 119/120),
+  which is 95% Bonferroni-adjusted for three comparisons. Games are resampled independently, as
+  `validate` does, though games in one week share a rating snapshot.
+- **Decision rule:** a threshold qualifies for the default only if its overall interval lies
+  entirely below zero; among qualifying thresholds, the one with the lowest overall MAE is the
+  recommendation. If none qualifies, the result is a tie and the recommendation is 0% (no filter,
+  the simpler option). Every interval that excludes zero is reported, in either direction. The
+  decision goes to the maintainer either way. A win applies to the team ratings only: QB ratings
+  stay at 0% unless a separate test supports a change, and adopting a threshold for teams is a
+  published-rating change (**Ask first**; registry, `README.md`, `docs/methodology.md`, the
+  validation report, and the exploration view's penalties change with it).
+- **Descriptive extras (never decision inputs):** each candidate's MAE and RMSE overall and in the
+  early (weeks 5-7) and late (week 8 on) splits, with 98.33% intervals; mean kept play share; team
+  year-over-year Pearson of full-season `team_rating` (consecutive seasons, by team); QB
+  year-over-year Pearson of full-season adjusted EPA per dropback over passers qualifying
+  (published `qb_is_eligible`) in both seasons; mean per-season Pearson with ESPN QBR (2006-2025,
+  joined as `validate` joins it); NE's 2025 `team_rating` and rank and Drake Maye's 2025 adjusted
+  EPA per dropback and rank among qualifying passers, whichever way they move. The QB fit is also
+  the published one run unchanged on kept dropbacks and their play-level EPA (`qb_wp_bins`), its
+  penalty cross-validated per season at each threshold, so its 0% baseline is the play-level
+  value, not the published rating (official weekly passing EPA).
+- **Command:** a new read-only `nfl-sos-ratings check-wp-filter --data-dir data --start-season
+  1999 --end-season 2025 --start-week 5`, modeled on `check-in-season-penalty`; it reads `data/`,
+  downloads ESPN QBR for the extra, and writes only to stdout. `validate` and its report stay as
+  they are unless the maintainer adopts a change. The slider's and API's 20% maximum does not
+  affect the test.
 
 Tasks:
 
-- [ ] Finish the protocol above (anything left open) and commit it before running.
-- [ ] **Ask first**, then run; write the results here and in the validation report if the
-  maintainer adopts a change.
+- [x] Finish the protocol above and commit it before running (2026-10-05).
+- [x] Build `check-wp-filter` test-first (kept-play game logs and QB rows at a threshold, the
+  98.33% bootstrap, the report). Check the plumbing on real data without computing any non-zero
+  threshold: the 0% kept columns equal the game logs in every season, and the 0% candidate's
+  walk-forward rows equal `validate`'s `team_rating` rows for one season. Done 2026-10-05:
+  `wp_filter.team_game_logs_at_threshold` and `qb_games_at_threshold` build the kept rows,
+  `walk_forward.compute_pairwise_mae_bootstrap` gained a `confidence` keyword (default 0.95, so
+  `validate` is unchanged), and `nfl_sos_ratings/validation/wp_filter_check.py` is the command.
+  Plumbing, from `check_zero_kept_columns` and `check_zero_threshold_rows` called on `data/` in a
+  scratch script: the 0% kept columns matched the game logs in all 28 seasons (1999-2026, largest
+  gap 7.1e-15), and the 2025 0% rows matched the published rows over 272 games (largest gap
+  7.1e-15). Scratch timing (not citable): about 1.3 s per season and threshold for the
+  walk-forward rows, so the full run should take a few minutes.
+- [x] **Ask first**, then run the full check; write the results here, with the command, and in the
+  validation report if the maintainer adopts a change. Run on 2026-10-05 (maintainer approved) at
+  `3a17c5a`: `nfl-sos-ratings check-wp-filter --data-dir data --start-season 1999 --end-season
+  2025 --start-week 5`, 5 min 44 s wall. Every number below is from that run's output.
+  - Integrity check passed: at 0% the kept plays equal the game logs in every season, and the 0%
+    rows match the published team rating's (largest gap 3.3e-13); the 0% overall MAE is 10.601,
+    as in `validate`.
+  - MAE over 5,297 games: 0% 10.601, 5% 10.623, 10% 10.663, 20% 10.733 (RMSE 13.593, 13.633,
+    13.690, 13.794).
+  - Paired MAE difference from 0%, 98.33% intervals: 5% +0.023 (-0.033 to +0.076), 10% +0.062
+    (-0.008 to +0.136), 20% +0.133 (+0.046 to +0.222).
+  - Decision rule as written: no threshold qualified, so the recommendation is 0% (no filter). The
+    hypothesis is refuted at all three thresholds.
+  - Intervals excluding zero, either direction: 20% overall (worse), and in the descriptive splits
+    20% late, weeks 8 on (+0.134, +0.034 to +0.237, worse). None in the early split (weeks 5-7).
+  - Descriptive extras at 0%, 5%, 10%, 20%: kept play share 1.000, 0.836, 0.757, 0.601; team
+    year-over-year Pearson 0.434, 0.430, 0.401, 0.361 (829 pairs); QB year-over-year Pearson
+    0.455, 0.419, 0.397, 0.330 (601 pairs); mean per-season Pearson with ESPN QBR 0.892, 0.880,
+    0.869, 0.815 (20 seasons); NE 2025 `team_rating` 5.92 (5th), 5.31 (3rd), 4.87 (4th), 3.95
+    (5th); Drake Maye 2025 adjusted EPA per dropback 0.210 (1st), 0.219 (3rd), 0.222 (1st), 0.204
+    (3rd).
+- [x] Maintainer decision on the published default (the rule recommends 0%, no filter); then
+  record the outcome in `.agents/ratings-simplification-plan.md` with the other test results.
+  Decided 2026-10-05: the published ratings keep every play. Recorded in the decision record;
+  `docs/methodology.md` ("Garbage-Time Filter") and the app's exploration note state the result.
+  The validation report is unchanged, as no change was adopted.
 
 ## R. Rank-range extensions
 

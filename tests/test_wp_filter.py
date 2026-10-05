@@ -14,7 +14,13 @@ from nfl_sos_ratings.team_rating import (
     compute_team_schedule_strength,
     fit_team_ratings,
 )
-from nfl_sos_ratings.wp_filter import MAX_WP_THRESHOLD, QbWpFilter, TeamWpFilter
+from nfl_sos_ratings.wp_filter import (
+    MAX_WP_THRESHOLD,
+    QbWpFilter,
+    TeamWpFilter,
+    qb_games_at_threshold,
+    team_game_logs_at_threshold,
+)
 from tests.wp_league import (
     CLOSE_PLAYS,
     LAMBDA,
@@ -257,3 +263,118 @@ def test_qb_filter_reports_kept_dropbacks_and_their_play_level_epa() -> None:
     assert filtered.get_column("wp_kept_dropback_share").to_list() == pytest.approx(
         [30 / 38] * len(PASSER)
     )
+
+
+_TEAM_PLAY_COLUMNS = ("offensive_snaps", "offensive_epa", "st_plays", "st_epa")
+
+
+def _with_margin(logs: pl.DataFrame) -> pl.DataFrame:
+    """Add a column the filter must carry through untouched."""
+    return logs.with_columns(pl.col("week").cast(pl.Float64).alias("point_margin"))
+
+
+def test_team_game_logs_at_threshold_hold_the_kept_plays_and_epa() -> None:
+    # Arrange
+    bins = team_bins()
+    logs = _with_margin(team_game_logs(bins))
+
+    # Act
+    kept = team_game_logs_at_threshold(logs, bins.drop("is_home"), 10)
+
+    # Assert
+    expected = team_game_logs(bins, 10)
+    for column in _TEAM_PLAY_COLUMNS:
+        assert kept.sort("game_id", "team").get_column(column).to_list() == pytest.approx(
+            expected.get_column(column).to_list()
+        )
+
+
+def test_team_game_logs_at_threshold_keep_the_other_columns() -> None:
+    # Arrange
+    bins = team_bins()
+    logs = _with_margin(team_game_logs(bins))
+
+    # Act
+    kept = team_game_logs_at_threshold(logs, bins.drop("is_home"), 10)
+
+    # Assert
+    assert kept.columns == logs.columns
+    assert kept.schema == logs.schema
+    assert kept.drop(_TEAM_PLAY_COLUMNS).equals(logs.drop(_TEAM_PLAY_COLUMNS))
+
+
+def test_team_game_logs_at_zero_equal_the_game_logs() -> None:
+    # Arrange
+    bins = team_bins()
+    logs = _with_margin(team_game_logs(bins))
+
+    # Act
+    kept = team_game_logs_at_threshold(logs, bins.drop("is_home"), 0)
+
+    # Assert
+    for column in _TEAM_PLAY_COLUMNS:
+        assert kept.get_column(column).to_list() == pytest.approx(logs.get_column(column).to_list())
+
+
+def test_team_game_logs_at_threshold_give_a_game_without_bins_no_plays() -> None:
+    # Arrange
+    bins = team_bins()
+    logs = _with_margin(team_game_logs(bins))
+    without_first_game = bins.drop("is_home").filter(pl.col("game_id") != "g00")
+
+    # Act
+    kept = team_game_logs_at_threshold(logs, without_first_game, 0)
+
+    # Assert
+    first_game = kept.filter(pl.col("game_id") == "g00")
+    for column in _TEAM_PLAY_COLUMNS:
+        assert first_game.get_column(column).to_list() == [0, 0]
+
+
+def test_qb_games_at_threshold_hold_kept_dropbacks_and_their_play_level_epa() -> None:
+    # Arrange
+    bins = qb_bins()
+    official = _official(qb_games(bins))
+
+    # Act
+    kept = qb_games_at_threshold(official, bins.drop("opponent_team"), 10)
+
+    # Assert
+    expected = qb_games(bins, 10)
+    ordered = kept.sort("game_id", "qb_id")
+    assert (
+        ordered.get_column("qb_dropbacks").to_list()
+        == expected.get_column("qb_dropbacks").to_list()
+    )
+    assert ordered.get_column("qb_epa_per_dropback").to_list() == pytest.approx(
+        expected.get_column("qb_epa_per_dropback").to_list()
+    )
+    assert kept.drop("qb_dropbacks", "qb_epa_per_dropback").equals(
+        official.drop("qb_dropbacks", "qb_epa_per_dropback")
+    )
+
+
+def test_qb_games_at_threshold_give_a_game_without_bins_no_dropbacks() -> None:
+    # Arrange
+    bins = qb_bins()
+    official = _official(qb_games(bins))
+    without_first_game = bins.drop("opponent_team").filter(pl.col("game_id") != "q00")
+
+    # Act
+    kept = qb_games_at_threshold(official, without_first_game, 0)
+
+    # Assert
+    first_game = kept.filter(pl.col("game_id") == "q00")
+    assert first_game.get_column("qb_dropbacks").to_list() == [0, 0]
+    assert first_game.get_column("qb_epa_per_dropback").null_count() == 2
+
+
+@pytest.mark.parametrize("threshold", [-1, MAX_WP_THRESHOLD + 1])
+def test_threshold_game_rows_reject_a_threshold_outside_the_slider(threshold: int) -> None:
+    # Arrange
+    bins = team_bins()
+    logs = team_game_logs(bins)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="threshold"):
+        team_game_logs_at_threshold(logs, bins.drop("is_home"), threshold)

@@ -538,6 +538,7 @@ describe('garbage-time filter', () => {
     expect(within(rows[0]).getByText('2 · 5.40')).toBeInTheDocument()
     expect(screen.getByText('Unvalidated exploration view')).toBeInTheDocument()
     expect(screen.getByText(/Rank ranges and the rest of this page count every play/)).toBeInTheDocument()
+    expect(screen.getByText(/no threshold predicted team game margins better than every play/)).toBeInTheDocument()
   })
 
   it("lists each filtered quarterback's team in its own column", async () => {

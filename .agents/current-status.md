@@ -4,13 +4,14 @@ The handoff document for the repo's current state: what is done, what is open, a
 agent should do first. Update it in the same change set whenever any of that changes. Earlier
 history (the composite-rating era and its experiments) is in git, before commit `21c5290`.
 
-## Current state (2026-10-04)
+## Current state (2026-10-05)
 
-- `main` (pushed, `02a2b47`) holds the points-based ratings, the follow-up work, previous-season
+- `main` (pushed, `f6da28b`) holds the points-based ratings, the follow-up work, previous-season
   ridge penalties for the team fit, the rank ranges, QB data fixes, and UX audit described below
   (pull request #1), the rebuild tooling (pull request #2), and the garbage-time filter's
   win-probability bins (#3), refits per threshold with their API (#4), and slider with its
-  exploration view in the web app (#5), all merged on 2026-10-04.
+  exploration view in the web app (#5) on 2026-10-04, and #6 (QB teams in the filtered table, a 20%
+  filter maximum) on 2026-10-05.
 - Published team ratings: `team_rating` (points per game against an average team) with
   `offense_rating`, `defense_rating`, and `special_teams_rating` adding up to it,
   head-to-head-excluded `sos`, and `SRS` as the score-based reference. The team fit reuses the
@@ -43,11 +44,14 @@ merged: the `feat/rank-ranges` pull request (#1), the nfl-predictor note, the th
 pull request #2 (single-threaded BLAS by default, one fixed row order per data file, and the
 read-only `nfl-sos-ratings diff-data` command), the garbage-time filter's bins (#3), and its refits
 per threshold and API (#4, `/api/seasons/{season}/{teams|qbs}/wp-ratings`), and the slider with its
-filtered view (#5; phone layout checked by the maintainer). Branch `fix/wp-qb-team` shows each QB's
-team in the filtered table again (the freeze that kept it out did not recur with the maintainer's
-browser extensions disabled; roadmap, WP3), lowers the filter's maximum from 30% to 20%, and bumps
-`filelock` in `uv.lock`. Still open: the pre-registered test (WP4, decisions recorded in its roadmap
-section), head-to-head chances and more rank-range views, weekly 2026 refresh automation, frontend
+filtered view (#5; phone layout checked by the maintainer). Pull request #6 brought each QB's team
+back to the filtered table (the freeze that kept it out did not recur with the maintainer's browser
+extensions disabled; roadmap, WP3), lowered the filter's maximum from 30% to 20%, and bumped
+`filelock` in `uv.lock`. Branch `feat/wp-filter-test` holds the pre-registered test's protocol (WP4,
+in its roadmap section) and its `check-wp-filter` command; the run on 2026-10-05 found no threshold
+that predicts margins better and 20% significantly worse, so the published ratings keep every play
+(maintainer decision; roadmap, WP4, and `.agents/ratings-simplification-plan.md`). Still open after
+it: head-to-head chances and more rank-range views, weekly 2026 refresh automation, frontend
 follow-ups, a project logger, and retired stats on request. Until A1 lands, rebuild 2026 weekly with
 `nfl-sos-ratings season` (ask first), copying `data/` beforehand so `diff-data` can report what
 changed.
@@ -63,6 +67,11 @@ fixes (team numbers unchanged from the run after adopting previous-season penalt
 - `team_rating` versus SRS: -0.057 (95% CI -0.125 to +0.008), a tie. Decision: adopt.
 - Year-over-year Pearson: `team_rating` 0.434, SRS 0.437; adjusted EPA per dropback 0.455, passer
   rating 0.464, ANY/A 0.392 (601 QB pairs). Mean QBR correlation 0.892 / 0.874.
+
+Garbage-time filter test (2026-10-05, `nfl-sos-ratings check-wp-filter --data-dir data
+--start-season 1999 --end-season 2025 --start-week 5`): MAE 10.601 with every play, 10.623 at 5%,
+10.663 at 10%, 10.733 at 20%; 5% and 10% tie, 20% is worse (+0.133, 98.33% interval +0.046 to
++0.222). The published ratings keep every play.
 
 Gate state: `scripts/gate.sh --web` passes, and `.venv/bin/pytest -m published_data` passes on the
 rebuilt `data/` (5 tests, 2026-10-04).

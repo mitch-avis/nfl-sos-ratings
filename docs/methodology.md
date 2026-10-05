@@ -134,8 +134,9 @@ rank, and the chance of each rank.
 
 Lopsided game states change how teams play: a big lead brings prevent defenses and run-out-the-
 clock offense, a big deficit brings desperation passing against them. The analyst app can refit the
-ratings without those plays to show how much a ranking depends on them. It is an unvalidated
-exploration view; the published ratings always use every play.
+ratings without those plays to show how much a ranking depends on them. It is an exploration view:
+a walk-forward test (below) found no threshold that predicts better, so the published ratings
+always use every play.
 
 - **The rule.** A threshold of X% (0 to 20, in whole percentages) keeps a play when the offense's
   win probability before the snap (nflverse `wp`, from score, clock, and field position, without
@@ -153,8 +154,17 @@ exploration view; the published ratings always use every play.
   play-by-play EPA credited to the passer at every threshold, including 0%. The published rating
   uses official weekly passing EPA; in 2025 the two differed by at most 0.002 EPA per dropback
   among qualifying quarterbacks. Filtered changes are measured against the 0% play-level value.
-- **Not validated yet.** Whether any threshold predicts later games better than using every play
-  is a separate, pre-registered test that has not been run. Rank ranges are not recomputed at
+- **Tested: filtering does not improve predictions.** A walk-forward test, its decision rule
+  written before it ran, rated teams with the published fit on the plays kept at 5%, 10%, and
+  20%, each threshold with its own cross-validated penalties, and predicted the margin of every
+  game from week 5 on in 1999-2025 (5,297 games) from the games before it. Mean absolute error was
+  10.601 points with every play, 10.623 at 5%, 10.663 at 10%, and 10.733 at 20%. In a paired game
+  bootstrap with 98.33% intervals (95% after a Bonferroni adjustment for three comparisons), 5%
+  and 10% tied with every play and 20% was worse (+0.133 points, +0.046 to +0.222). Year-over-year
+  stability and the quarterback correlation with ESPN QBR also fell as the threshold rose. The
+  command is `nfl-sos-ratings check-wp-filter --data-dir data --start-season 1999 --end-season
+  2025 --start-week 5`. The exploration view keeps the season fit's penalties instead, so its
+  filtered values differ slightly from the tested fits, and rank ranges are not recomputed at
   other thresholds.
 
 ## What the Ratings Leave Out
