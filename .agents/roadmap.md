@@ -25,10 +25,10 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
 
 ## Where things stand (2026-10-04)
 
-- `main` = `origin/main` = `d5929ed`. Branch `feat/rank-ranges` (local only, gate-green with
-  `scripts/gate.sh --web`) holds every commit since then: the rank ranges (engine, outputs, API,
-  web views), the QB data fixes, the per-team QB qualifier, the UX audit changes, the regenerated
-  validation report, and docs.
+- `main` = `origin/main` = `d5929ed`. Branch `feat/rank-ranges` (pushed, pull request #1 open,
+  gate-green with `scripts/gate.sh --web`) holds every commit since then: the rank ranges (engine,
+  outputs, API, web views), the QB data fixes, the per-team QB qualifier, the UX audit changes, the
+  regenerated validation report, and docs.
 - `data/` is current for that branch (1999-2026, range files included), built with
   `OPENBLAS_NUM_THREADS=1 nfl-sos-ratings pipeline` and `nfl-sos-ratings season --season 2026`.
 - The maintainer runs `nfl-sos-ratings web --host 0.0.0.0 --port 8081` to view the app on a phone.
@@ -131,14 +131,18 @@ rebase-merge, which keep the logical commits; a squash would lose them).
 
 Tasks:
 
-- [ ] Check each commit on its own (some were staged from partial files and only the final tree
+- [x] Check each commit on its own (some were staged from partial files and only the final tree
   ran the full gate): in a throwaway worktree, run `scripts/gate.sh --quick` and `npm run
   typecheck` per commit, for example with `git rebase --exec` on a scratch copy of the branch. Fix
-  failures with new commits; do not rewrite pushed history.
-- [ ] `git push -u origin feat/rank-ranges`, then open the pull request with `gh pr create`. The
+  failures with new commits; do not rewrite pushed history. Done 2026-10-04 with more than the
+  minimum: a detached worktree checked out each of the 30 commits in turn and ran the full
+  `scripts/gate.sh` (pytest included) plus `npm run lint`, `npm run typecheck`, and
+  `npx vitest run` in `web/`; all 30 passed, so no fix commits were needed.
+- [x] `git push -u origin feat/rank-ranges`, then open the pull request with `gh pr create`. The
   body groups the commits (rank ranges, QB data fixes and the qualifier, UX audit, docs and the
   validation rerun), says `data/` is gitignored and was rebuilt locally, and lists the published
   output changes (1999-2000 and 2004-2011 QB ratings, 2026 eligibility, validation QB rows).
+  Opened as <https://github.com/mitch-avis/nfl-sos-ratings/pull/1>.
 - [ ] Wait for CI; report the result. Merge only after the maintainer says so.
 - [ ] After the merge: `git switch main && git pull`, then `uv sync` (a checkout that rewrites
   `pyproject.toml` needs it, AGENTS.md), and branch the next workstream from `main`.

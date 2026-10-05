@@ -20,11 +20,12 @@ history (the composite-rating era and its experiments) is in git, before commit 
   page. Week rows reuse the season fit's penalties.
 - Decisions, audits, pre-registered rules, and check results (additivity, passer holdout,
   in-season penalty) are in `.agents/ratings-simplification-plan.md`.
-- Branch `feat/rank-ranges` (every commit since `main`'s `d5929ed`, not pushed) adds bootstrap rank
-  ranges (`{season}_rating_ranges`, `{season}_qb_rating_ranges`, their API and web views), the QB
-  data fixes (duplicated QB-game rows, deterministic tie-breaks) and the per-team QB qualifier
-  (`qb_attempt_qualifier`), and the UX audit changes (one hint style that also opens on tap, phone
-  layout, fixed decimals per column). Details: `.agents/roadmap.md`, "Settled background".
+- Branch `feat/rank-ranges` (every commit since `main`'s `d5929ed`; pushed, pull request #1 open,
+  merge waits for the maintainer) adds bootstrap rank ranges (`{season}_rating_ranges`,
+  `{season}_qb_rating_ranges`, their API and web views), the QB data fixes (duplicated QB-game
+  rows, deterministic tie-breaks) and the per-team QB qualifier (`qb_attempt_qualifier`), and the
+  UX audit changes (one hint style that also opens on tap, phone layout, fixed decimals per
+  column). Details: `.agents/roadmap.md`, "Settled background".
 - `data/` (1999-2026, range files included) was rebuilt on 2026-10-04 for that branch with
   `OPENBLAS_NUM_THREADS=1 nfl-sos-ratings pipeline` and `nfl-sos-ratings season --season 2026`
   (2026 through week 4).
