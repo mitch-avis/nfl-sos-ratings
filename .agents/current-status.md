@@ -48,11 +48,12 @@ filtered view (#5; phone layout checked by the maintainer). Pull request #6 brou
 back to the filtered table (the freeze that kept it out did not recur with the maintainer's browser
 extensions disabled; roadmap, WP3), lowered the filter's maximum from 30% to 20%, and bumped
 `filelock` in `uv.lock`. Branch `feat/wp-filter-test` holds the pre-registered test's protocol (WP4,
-in its roadmap section) and its `check-wp-filter` command (built and plumbing-checked); running it
-is ask-first. Still open after it: head-to-head chances and more rank-range views, weekly 2026
-refresh automation, frontend follow-ups, a project logger, and retired stats on request. Until A1
-lands, rebuild 2026 weekly with `nfl-sos-ratings season` (ask first), copying `data/` beforehand so
-`diff-data` can report what changed.
+in its roadmap section) and its `check-wp-filter` command; the run on 2026-10-05 found no threshold
+that predicts margins better and 20% significantly worse, so the rule recommends no filter (decision
+with the maintainer; roadmap, WP4). Still open after it: head-to-head chances and more rank-range
+views, weekly 2026 refresh automation, frontend follow-ups, a project logger, and retired stats on
+request. Until A1 lands, rebuild 2026 weekly with `nfl-sos-ratings season` (ask first), copying
+`data/` beforehand so `diff-data` can report what changed.
 
 ## Validation snapshot
 

@@ -498,8 +498,29 @@ Tasks:
   gap 7.1e-15), and the 2025 0% rows matched the published rows over 272 games (largest gap
   7.1e-15). Scratch timing (not citable): about 1.3 s per season and threshold for the
   walk-forward rows, so the full run should take a few minutes.
-- [ ] **Ask first**, then run the full check; write the results here, with the command, and in the
-  validation report if the maintainer adopts a change.
+- [x] **Ask first**, then run the full check; write the results here, with the command, and in the
+  validation report if the maintainer adopts a change. Run on 2026-10-05 (maintainer approved) at
+  `3a17c5a`: `nfl-sos-ratings check-wp-filter --data-dir data --start-season 1999 --end-season
+  2025 --start-week 5`, 5 min 44 s wall. Every number below is from that run's output.
+  - Integrity check passed: at 0% the kept plays equal the game logs in every season, and the 0%
+    rows match the published team rating's (largest gap 3.3e-13); the 0% overall MAE is 10.601,
+    as in `validate`.
+  - MAE over 5,297 games: 0% 10.601, 5% 10.623, 10% 10.663, 20% 10.733 (RMSE 13.593, 13.633,
+    13.690, 13.794).
+  - Paired MAE difference from 0%, 98.33% intervals: 5% +0.023 (-0.033 to +0.076), 10% +0.062
+    (-0.008 to +0.136), 20% +0.133 (+0.046 to +0.222).
+  - Decision rule as written: no threshold qualified, so the recommendation is 0% (no filter). The
+    hypothesis is refuted at all three thresholds.
+  - Intervals excluding zero, either direction: 20% overall (worse), and in the descriptive splits
+    20% late, weeks 8 on (+0.134, +0.034 to +0.237, worse). None in the early split (weeks 5-7).
+  - Descriptive extras at 0%, 5%, 10%, 20%: kept play share 1.000, 0.836, 0.757, 0.601; team
+    year-over-year Pearson 0.434, 0.430, 0.401, 0.361 (829 pairs); QB year-over-year Pearson
+    0.455, 0.419, 0.397, 0.330 (601 pairs); mean per-season Pearson with ESPN QBR 0.892, 0.880,
+    0.869, 0.815 (20 seasons); NE 2025 `team_rating` 5.92 (5th), 5.31 (3rd), 4.87 (4th), 3.95
+    (5th); Drake Maye 2025 adjusted EPA per dropback 0.210 (1st), 0.219 (3rd), 0.222 (1st), 0.204
+    (3rd).
+- [ ] Maintainer decision on the published default (the rule recommends 0%, no filter); then
+  record the outcome in `.agents/ratings-simplification-plan.md` with the other test results.
 
 ## R. Rank-range extensions
 
