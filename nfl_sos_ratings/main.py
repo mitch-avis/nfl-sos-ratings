@@ -37,8 +37,11 @@ from nfl_sos_ratings.qb_stats import compute_qb_season_stats
 from nfl_sos_ratings.rating_ranges import (
     BOOTSTRAP_RESAMPLES,
     BOOTSTRAP_SEED,
+    QB_PAIR_COLUMNS,
     QB_RANGE_COLUMNS,
+    TEAM_PAIR_COLUMNS,
     TEAM_RANGE_COLUMNS,
+    summarize_rank_pairs,
     summarize_rank_ranges,
 )
 from nfl_sos_ratings.row_order import data_file_row_order
@@ -179,39 +182,46 @@ def build_qb_ratings(qb_game_logs: pl.DataFrame, fit: QbRatingFit | None = None)
     return fit.ratings.join(compute_qb_faced_pass_defense(qb_game_logs, fit), on="qb_id")
 
 
-def build_team_rating_ranges(weekly_df: pl.DataFrame, fit: TeamRatingFit) -> pl.DataFrame:
-    """Return every team's rating and rank ranges over game-bootstrap resamples of the season.
+def build_team_rank_summaries(
+    weekly_df: pl.DataFrame, fit: TeamRatingFit
+) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Return every team's rank ranges and every ordered pair's head-to-head chances.
 
-    Each resample redraws the season's games with replacement and refits with ``fit``'s
-    penalties; ranks are among all teams in the resample (see ``rating_ranges``).
+    Both come from one set of game-bootstrap resamples: each redraws the season's games with
+    replacement and refits with ``fit``'s penalties; ranks are among all teams in the resample
+    (see ``rating_ranges``).
     """
     draws = bootstrap_team_ratings(
         weekly_df, fit, resamples=BOOTSTRAP_RESAMPLES, seed=BOOTSTRAP_SEED
     )
-    return summarize_rank_ranges(draws, fit.ratings, TEAM_RANGE_COLUMNS)
+    return (
+        summarize_rank_ranges(draws, fit.ratings, TEAM_RANGE_COLUMNS),
+        summarize_rank_pairs(draws, fit.ratings, TEAM_PAIR_COLUMNS),
+    )
 
 
-def build_qb_rating_ranges(
+def build_qb_rank_summaries(
     qb_game_logs: pl.DataFrame, fit: QbRatingFit, qb_combined: pl.DataFrame
-) -> pl.DataFrame:
-    """Return the eligible passers' rating and rank ranges over game-bootstrap resamples.
+) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Return the eligible passers' rank ranges and their head-to-head chances.
 
-    Ranks in each resample are among the passers ``qb_combined`` flags ``qb_is_eligible`` for the
-    full season, and each row carries the passer's name and primary team for display.
+    Both come from one set of game-bootstrap resamples. Ranks and pairs are among the passers
+    ``qb_combined`` flags ``qb_is_eligible`` for the full season, and each range row carries the
+    passer's name and primary team for display.
     """
     eligible = qb_combined.filter(pl.col("qb_is_eligible"))
+    eligible_ids = eligible.get_column("qb_id").to_list()
     draws = bootstrap_qb_ratings(
         qb_game_logs, fit, resamples=BOOTSTRAP_RESAMPLES, seed=BOOTSTRAP_SEED
     )
-    ranges = summarize_rank_ranges(
-        draws, fit.ratings, QB_RANGE_COLUMNS, eligible=eligible.get_column("qb_id").to_list()
-    )
+    ranges = summarize_rank_ranges(draws, fit.ratings, QB_RANGE_COLUMNS, eligible=eligible_ids)
     identity = eligible.select(
         [key for key in _QB_IDENTITY_KEYS if key in eligible.columns]
     ).unique("qb_id", keep="first")
-    return ranges.join(identity, on="qb_id", how="left", maintain_order="left").select(
+    ranges = ranges.join(identity, on="qb_id", how="left", maintain_order="left").select(
         *identity.columns, pl.exclude(identity.columns)
     )
+    return ranges, summarize_rank_pairs(draws, fit.ratings, QB_PAIR_COLUMNS, eligible=eligible_ids)
 
 
 def _previous_season_fit(season: int) -> TeamRatingFit | None:
@@ -243,6 +253,57 @@ def _load_season_frames(season: int) -> tuple[pl.DataFrame, pl.DataFrame, pl.Dat
     qb_df = load_qb_stats(season)
     print(f"  {qb_df.height} QB-game rows loaded.\n")
     return weekly_df, schedule_df, qb_df
+
+
+def _write_team_rating_outputs(
+    season: int, weekly_df: pl.DataFrame, team_combined: pl.DataFrame
+) -> pl.DataFrame:
+    """Fit the season's team ratings, write every team rating output, and return the ratings."""
+    print("Fitting team ratings...")
+    team_fit = fit_team_ratings_with_previous_penalties(weekly_df, _previous_season_fit(season))
+    ratings = build_team_ratings(weekly_df, team_fit)
+    _write_data_file(ratings, season, "ratings")
+    _write_data_file(
+        team_combined.join(ratings.drop("games_played"), on="team", how="left"),
+        season,
+        "combined",
+    )
+    _write_data_file(fit_team_ratings_by_week(weekly_df, team_fit), season, "ratings_by_week")
+    print(f"Resampling games {BOOTSTRAP_RESAMPLES} times for team rank ranges and pairs...")
+    team_ranges, team_pairs = build_team_rank_summaries(weekly_df, team_fit)
+    _write_data_file(team_ranges, season, "rating_ranges")
+    _write_data_file(team_pairs, season, "rating_pairs")
+    return ratings
+
+
+def _write_qb_rating_outputs(
+    season: int,
+    qb_game_logs: pl.DataFrame,
+    qb_season_stats: pl.DataFrame,
+    qb_opp_profiles: pl.DataFrame | None,
+) -> None:
+    """Fit the season's QB ratings and write every QB rating output."""
+    print("Fitting QB ratings...")
+    qb_combined = qb_season_stats
+    if qb_opp_profiles is not None:
+        qb_combined = qb_combined.join(
+            qb_opp_profiles, on=_matching_qb_join_keys(qb_combined, qb_opp_profiles), how="left"
+        )
+    qb_fit = fit_qb_ratings(qb_game_logs)
+    qb_combined = qb_combined.join(build_qb_ratings(qb_game_logs, qb_fit), on="qb_id", how="left")
+    _write_data_file(qb_combined, season, "qb_combined")
+    _write_data_file(
+        qb_combined.filter(pl.col("qb_is_eligible"))
+        .select([column for column in QB_RATINGS_ORDER if column in qb_combined.columns])
+        .sort("adj_qb_epa_per_dropback", descending=True),
+        season,
+        "qb_ratings",
+    )
+    _write_data_file(fit_qb_ratings_by_week(qb_game_logs, qb_fit), season, "qb_ratings_by_week")
+    print(f"Resampling games {BOOTSTRAP_RESAMPLES} times for QB rank ranges and pairs...")
+    qb_ranges, qb_pairs = build_qb_rank_summaries(qb_game_logs, qb_fit, qb_combined)
+    _write_data_file(qb_ranges, season, "qb_rating_ranges")
+    _write_data_file(qb_pairs, season, "qb_rating_pairs")
 
 
 def run_season(season: int) -> None:
@@ -280,40 +341,8 @@ def run_season(season: int) -> None:
             how="left",
         )
 
-    print("Fitting team ratings...")
-    team_fit = fit_team_ratings_with_previous_penalties(weekly_df, _previous_season_fit(season))
-    ratings = build_team_ratings(weekly_df, team_fit)
-    _write_data_file(ratings, season, "ratings")
-    _write_data_file(
-        team_combined.join(ratings.drop("games_played"), on="team", how="left"),
-        season,
-        "combined",
-    )
-    _write_data_file(fit_team_ratings_by_week(weekly_df, team_fit), season, "ratings_by_week")
-    print(f"Resampling games {BOOTSTRAP_RESAMPLES} times for team rank ranges...")
-    _write_data_file(build_team_rating_ranges(weekly_df, team_fit), season, "rating_ranges")
-
-    print("Fitting QB ratings...")
-    qb_combined = qb_season_stats
-    if qb_opp_profiles is not None:
-        qb_combined = qb_combined.join(
-            qb_opp_profiles, on=_matching_qb_join_keys(qb_combined, qb_opp_profiles), how="left"
-        )
-    qb_fit = fit_qb_ratings(qb_game_logs)
-    qb_combined = qb_combined.join(build_qb_ratings(qb_game_logs, qb_fit), on="qb_id", how="left")
-    _write_data_file(qb_combined, season, "qb_combined")
-    _write_data_file(
-        qb_combined.filter(pl.col("qb_is_eligible"))
-        .select([column for column in QB_RATINGS_ORDER if column in qb_combined.columns])
-        .sort("adj_qb_epa_per_dropback", descending=True),
-        season,
-        "qb_ratings",
-    )
-    _write_data_file(fit_qb_ratings_by_week(qb_game_logs, qb_fit), season, "qb_ratings_by_week")
-    print(f"Resampling games {BOOTSTRAP_RESAMPLES} times for QB rank ranges...")
-    _write_data_file(
-        build_qb_rating_ranges(qb_game_logs, qb_fit, qb_combined), season, "qb_rating_ranges"
-    )
+    ratings = _write_team_rating_outputs(season, weekly_df, team_combined)
+    _write_qb_rating_outputs(season, qb_game_logs, qb_season_stats, qb_opp_profiles)
 
     print("Binning plays by win probability...")
     team_wp_bins, qb_wp_bins = load_wp_bins(season)
