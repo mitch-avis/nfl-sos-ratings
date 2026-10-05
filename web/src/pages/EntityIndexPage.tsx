@@ -176,6 +176,7 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
         config={config}
         season={season}
         table={displayTable}
+        rankRanges={rankRanges}
         onRemove={(entityId) => update({ compareIds: toggleCompareId(compareIds, entityId) })}
       />
 

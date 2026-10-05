@@ -1,16 +1,17 @@
 import { ExternalLink, X } from 'lucide-react'
+import { useId } from 'react'
 import { Link } from 'react-router'
 
 import type { EntityConfig, RowValue, TablePayload } from '@/api/types'
 import { useTheme } from '@/app/ThemeProvider'
 import { MetricLabel } from '@/components/common/MetricLabel'
 import { HeadToHeadSentence } from '@/components/entity/HeadToHeadCard'
-import { Badge } from '@/components/ui/badge'
+import { RankIntervalTrack } from '@/components/entity/RankInterval'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { getEntityLabel } from '@/domain/entityConfig'
 import { formatFixed } from '@/domain/format'
+import { middleRankText, ordinal, type RankRange } from '@/domain/rankRanges'
 import { buildColumnDecimals, buildColumnStats, getHeatCellStyle } from '@/domain/tableState'
 
 interface ComparisonPanelProps {
@@ -19,19 +20,28 @@ interface ComparisonPanelProps {
   config: EntityConfig
   season: number
   table: TablePayload
+  /** The season's rank ranges, when it has them; each compared column shows its own. */
+  rankRanges?: RankRange[]
   onRemove: (entityId: string) => void
 }
 
-/** Side-by-side rows for up to four selected teams or QBs, heat-mapped against each other. */
+/**
+ * Up to four selected teams or QBs side by side: one column each, headed by the name, the published
+ * rank and middle-50% rank range with a mini interval, and a remove button; one row per metric,
+ * heat-mapped across the compared columns. The metric names stay pinned while the table scrolls
+ * sideways, and two compared rows add the head-to-head sentence.
+ */
 export function ComparisonPanel({
   compareColumns,
   compareIds,
   config,
   season,
   table,
+  rankRanges,
   onRemove,
 }: ComparisonPanelProps) {
   const { resolved: theme, palette } = useTheme()
+  const titleId = useId()
   const compareRows = compareIds
     .map((entityId) => table.rows.find((row) => String(row[config.identityKey] ?? '') === entityId))
     .filter((row): row is Record<string, RowValue> => row !== undefined)
@@ -39,88 +49,98 @@ export function ComparisonPanel({
   const compareStats = buildColumnStats(compareRows, compareColumns)
   // The same decimals as the season table below, from every row of the season.
   const compareDecimals = buildColumnDecimals(table.rows, compareColumns)
-  // With exactly two rows, the first is compared head to head with the second.
-  const [first, second] = compareRows
-  const headToHead =
-    compareRows.length === 2 && first && second
-      ? {
-          subject: String(first[config.identityKey] ?? ''),
-          other: String(second[config.identityKey] ?? ''),
-          labels: { subject: getEntityLabel(config.kind, first), other: getEntityLabel(config.kind, second) },
-        }
-      : null
+  const rangesById = new Map((rankRanges ?? []).map((range) => [range.id, range]))
+  const rangeCount = rankRanges?.length ?? 0
+  const entities = compareRows.map((row) => ({
+    id: String(row[config.identityKey] ?? ''),
+    label: getEntityLabel(config.kind, row),
+    row,
+  }))
+  const [first, second] = entities
+  const title = `${config.singularLabel} comparison`
 
   return (
     <Card className="gap-4">
       <CardHeader>
-        <CardTitle className="text-base">{config.singularLabel} comparison</CardTitle>
+        <CardTitle id={titleId} className="text-base">
+          {title}
+        </CardTitle>
         <CardDescription>
-          {compareRows.length} selected. The page URL keeps the selection, so the comparison can be
-          shared or bookmarked.
+          {compareRows.length} selected, side by side. The page URL keeps the selection, so the
+          comparison can be shared or bookmarked.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <div className="flex flex-wrap gap-2">
-          {compareRows.map((row) => {
-            const entityId = String(row[config.identityKey] ?? '')
-            const label = getEntityLabel(config.kind, row)
-            return (
-              <Badge key={entityId} variant="outline" className="gap-1 py-1 pr-1 pl-2 text-sm">
-                <Link
-                  to={`/${config.kind}/${encodeURIComponent(entityId)}?season=${season}`}
-                  className="inline-flex items-center gap-1 hover:underline"
-                >
-                  {label}
-                  <ExternalLink className="size-3" />
-                </Link>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={`Remove ${label} from comparison`}
-                  onClick={() => onRemove(entityId)}
-                >
-                  <X />
-                </Button>
-              </Badge>
-            )
-          })}
-        </div>
-        {headToHead ? (
+        {entities.length === 2 && first && second ? (
           <HeadToHeadSentence
             kind={config.kind}
             season={season}
-            entityId={headToHead.subject}
-            otherId={headToHead.other}
-            labels={headToHead.labels}
+            entityId={first.id}
+            otherId={second.id}
+            labels={{ subject: first.label, other: second.label }}
           />
         ) : null}
-        <Table className="tabular">
-          <TableHeader>
-            <TableRow>
-              <TableHead>{config.singularLabel}</TableHead>
+        <div className="max-h-[70vh] overflow-auto rounded-md border">
+          <table aria-labelledby={titleId} className="w-full min-w-max text-sm tabular">
+            <thead className="sticky top-0 z-20 bg-muted">
+              <tr>
+                <th scope="col" className="sticky left-0 z-30 bg-muted px-3 py-2 text-left font-medium text-muted-foreground">
+                  Metric
+                </th>
+                {entities.map((entity) => {
+                  const range = rangesById.get(entity.id)
+                  return (
+                    <th key={entity.id} scope="col" className="min-w-40 px-3 py-2 text-left align-top font-medium">
+                      <div className="flex items-center justify-between gap-2">
+                        <Link
+                          to={`/${config.kind}/${encodeURIComponent(entity.id)}?season=${season}`}
+                          className="inline-flex items-center gap-1 text-primary hover:underline"
+                        >
+                          {entity.label}
+                          <ExternalLink className="size-3" />
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`Remove ${entity.label} from comparison`}
+                          onClick={() => onRemove(entity.id)}
+                        >
+                          <X />
+                        </Button>
+                      </div>
+                      {range ? (
+                        <div className="mt-1 flex flex-col gap-1 text-xs font-normal text-muted-foreground">
+                          <span>
+                            {ordinal(range.publishedRank)} · middle 50%: {middleRankText(range)}
+                          </span>
+                          <RankIntervalTrack range={range} count={rangeCount} size="mini" showPublished />
+                        </div>
+                      ) : null}
+                    </th>
+                  )
+                })}
+              </tr>
+            </thead>
+            <tbody>
               {compareColumns.map((column) => (
-                <TableHead key={column}>
-                  <MetricLabel column={column} />
-                </TableHead>
+                <tr key={column} className="border-t">
+                  <th scope="row" className="sticky left-0 z-10 bg-card px-3 py-1.5 text-left font-medium whitespace-nowrap">
+                    <MetricLabel column={column} />
+                  </th>
+                  {entities.map((entity) => (
+                    <td
+                      key={entity.id}
+                      className="px-3 py-1.5"
+                      style={getHeatCellStyle(column, entity.row[column] ?? null, compareStats, theme, palette)}
+                    >
+                      {formatFixed(entity.row[column] ?? null, compareDecimals[column] ?? null)}
+                    </td>
+                  ))}
+                </tr>
               ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {compareRows.map((row) => (
-              <TableRow key={String(row[config.identityKey] ?? '')}>
-                <TableCell className="font-medium">{getEntityLabel(config.kind, row)}</TableCell>
-                {compareColumns.map((column) => (
-                  <TableCell
-                    key={column}
-                    style={getHeatCellStyle(column, row[column] ?? null, compareStats, theme, palette)}
-                  >
-                    {formatFixed(row[column] ?? null, compareDecimals[column] ?? null)}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </tbody>
+          </table>
+        </div>
       </CardContent>
     </Card>
   )
