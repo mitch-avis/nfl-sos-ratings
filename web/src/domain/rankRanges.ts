@@ -104,6 +104,29 @@ function rankRangeText(low: number | null, high: number | null): string {
   return low === high ? ordinal(low) : `${ordinal(low)}–${ordinal(high)}`
 }
 
+/** The middle 50% of resampled ranks, such as `3rd–9th`, or one rank when both ends agree. */
+export function middleRankText(range: Pick<RankRange, 'rank'>): string {
+  return rankRangeText(range.rank.q250, range.rank.q750)
+}
+
+/**
+ * Each team's season-long rank range as an opponent, by team: the team's own on team pages, its
+ * defense's on QB pages (none when the season has no unit ranges).
+ */
+export function opponentRankRanges(
+  kind: EntityKind,
+  payload: RankRangesPayload,
+): Map<string, Pick<RankRange, 'publishedRank' | 'rank'>> {
+  if (kind === 'teams') return new Map(parseRankRanges('teams', payload).map((range) => [range.id, range]))
+  return new Map(
+    payload.rows.flatMap((row) => {
+      const team = String(row.team ?? '')
+      const defense = parseUnitRankRanges(payload, team).find((unit) => unit.unit === 'defense')
+      return defense ? [[team, defense] as const] : []
+    }),
+  )
+}
+
 /** The detail-page headline, for example `6th; middle 50%: 4th–8th; 95%: 1st–16th`. */
 export function rankRangeHeadline(range: Pick<RankRange, 'publishedRank' | 'rank'>): string {
   const published = ordinal(range.publishedRank)

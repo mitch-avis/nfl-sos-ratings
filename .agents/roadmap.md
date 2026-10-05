@@ -699,8 +699,12 @@ pinned on phones, fixed decimals per column.
   them table-first and check the chart against live use before adding chart types.
 - [ ] F2 Grouped opponent ledgers: refine after live use, especially if one team or QB surface
   wants a different primary metric or a tighter default column mix.
-- [ ] F3 Opponent-strength context in the weekly views: show each opponent's season-long rating and
-  rank range, labeled as season-long, never as a single-game rating.
+- [x] F3 Opponent-strength context in the weekly views: show each opponent's season-long rating and
+  rank range, labeled as season-long, never as a single-game rating. Done 2026-10-05: the
+  game-by-game table already carried each opponent's season-long ratings; each opponent cell now
+  adds its middle-50% rank range and a mini interval (`rankRanges.opponentRankRanges`), the team's
+  own on team pages and its defense's (R2 unit ranges) on QB pages, and the card's description
+  says they are season-long. The unique-opponents table is unchanged.
 - [ ] F4 Comparison: a pinned side-by-side layout instead of the compact strip, with rank-range
   mini intervals and R1's head-to-head sentence when two rows are compared.
 - [ ] F5 Idea: CSV export of the current table view, built from the loaded payload (current view,

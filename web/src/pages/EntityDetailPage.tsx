@@ -35,6 +35,7 @@ import {
   belowQualifierText,
   isMissingRankRanges,
   parseRankRanges,
+  opponentRankRanges,
   parseUnitRankRanges,
   rankChanceText,
   rankRangeHeadline,
@@ -65,6 +66,14 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
         ? parseRankRanges(kind, rankRangesQuery.data).find((range) => range.id === entityId)
         : undefined,
     [entityId, kind, rankRangesQuery.data],
+  )
+  const teamRankRangesQuery = useRankRanges('teams', season)
+  const opponentRanges = useMemo(
+    () =>
+      teamRankRangesQuery.data
+        ? { ranges: opponentRankRanges(kind, teamRankRangesQuery.data), count: teamRankRangesQuery.data.rows.length }
+        : undefined,
+    [kind, teamRankRangesQuery.data],
   )
   const unitRankRanges = useMemo(
     () => (kind === 'teams' && rankRangesQuery.data ? parseUnitRankRanges(rankRangesQuery.data, entityId) : []),
@@ -215,7 +224,8 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
             <CardDescription>
               Every {season} game, with result context first and the current view&apos;s columns after
               it. Opponent rating columns describe that opponent&apos;s full season, not a
-              single-game grade.
+              single-game grade, and so does the rank range beside each opponent: the middle 50% of
+              its {kind === 'qbs' ? 'defense rank' : 'rank'} when the season is redrawn at random.
             </CardDescription>
           </div>
           {gameLogsQuery.data && gameLogSelection ? (
@@ -247,7 +257,7 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
                 </div>
               ) : null}
               <WeeklyTrendChart rows={enrichedGameLogs.rows} columns={gameLogSelection.metricColumns} />
-              <GameLogTable rows={enrichedGameLogs.rows} columns={gameLogSelection.columns} />
+              <GameLogTable rows={enrichedGameLogs.rows} columns={gameLogSelection.columns} opponents={opponentRanges} />
             </>
           ) : null}
         </CardContent>
