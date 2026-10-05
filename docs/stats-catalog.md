@@ -41,6 +41,10 @@ played. Start here when ranking teams.
 | `team_rank_top5_probability` | Top-5 Chance | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the team ranked in the top five by Team Rating. It shows how much the ranking depends on which games happened to be played. |
 | `team_rank_top10_probability` | Top-10 Chance | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the team ranked in the top ten by Team Rating. It shows how much the ranking depends on which games happened to be played. |
 | `team_rank_probabilities` | Rank Chances | rate | bootstrap resamples | 1999 | D | A list giving, for each rank from 1 down, the share of game-bootstrap resamples of the season in which the team finished at exactly that rank by Team Rating. |
+| `other_team` | Compared Team | id | - | - | D | The other team in a head-to-head comparison, by its standard NFL abbreviation. The two teams need not have played each other. |
+| `team_rated_above_probability` | Rated-Above Chance | rate | bootstrap resamples with both teams | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which this team's Team Rating came out above the compared team's. Both teams move together in each resample, so this answers 'is A better than B?' more directly than two overlapping rank ranges. A tie counts as half. |
+| `team_rating_gap` | Rating Gap | score | - | 1999 | D | How many points per game this team's Team Rating exceeds the compared team's in a game-bootstrap resample of the season; published as percentiles across resamples. |
+| `team_pair_share` | Both-Teams Share | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season in which both teams had games, so the comparison could be made. It is essentially one for a finished season. |
 
 ## Overall
 

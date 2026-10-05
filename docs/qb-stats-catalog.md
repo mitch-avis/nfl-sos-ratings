@@ -37,6 +37,10 @@ Start here when ranking QBs.
 | `qb_rank_top5_probability` | Top-5 Chance | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the quarterback ranked in the top five eligible quarterbacks by Adjusted EPA Per Dropback. It shows how much the ranking depends on which games happened to be played. |
 | `qb_rank_top10_probability` | Top-10 Chance | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the quarterback ranked in the top ten eligible quarterbacks by Adjusted EPA Per Dropback. It shows how much the ranking depends on which games happened to be played. |
 | `qb_rank_probabilities` | Rank Chances | rate | bootstrap resamples | 1999 | D | A list giving, for each rank from 1 down, the share of game-bootstrap resamples of the season in which the quarterback finished at exactly that rank among eligible quarterbacks. |
+| `other_qb_id` | Compared QB ID | id | - | - | D | The canonical GSIS player identifier of the other quarterback in a head-to-head comparison. The two need not have faced each other. |
+| `qb_rated_above_probability` | Rated-Above Chance | rate | bootstrap resamples with both quarterbacks | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats), among those including both quarterbacks, in which this quarterback's Adjusted EPA Per Dropback came out above the compared quarterback's. A tie counts as half. |
+| `qb_rating_gap` | Rating Gap | score | - | 1999 | D | How much this quarterback's Adjusted EPA Per Dropback exceeds the compared quarterback's in a game-bootstrap resample of the season; published as percentiles across the resamples including both. |
+| `qb_pair_share` | Both-QBs Share | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season that include games by both quarterbacks, so the comparison could be made. A backup who played little is missing from many resamples. |
 
 ## Identity & Availability
 

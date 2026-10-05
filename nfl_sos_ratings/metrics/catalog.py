@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from nfl_sos_ratings.metrics.pair_metrics import PAIR_METRICS
 from nfl_sos_ratings.metrics.qb_metrics import QB_METRICS
 from nfl_sos_ratings.metrics.registry import MetricRegistry
 from nfl_sos_ratings.metrics.schema import CategoryDef
@@ -120,7 +121,7 @@ QB_CATEGORIES: tuple[CategoryDef, ...] = (
 def build_registry() -> MetricRegistry:
     """Build and validate the full project registry."""
     return MetricRegistry(
-        metrics=TEAM_METRICS + QB_METRICS,
+        metrics=TEAM_METRICS + QB_METRICS + PAIR_METRICS,
         categories=TEAM_CATEGORIES + QB_CATEGORIES,
     )
 
