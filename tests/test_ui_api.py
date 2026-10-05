@@ -8,7 +8,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from nfl_sos_ratings import ui_api
-from nfl_sos_ratings.rating_ranges import TEAM_RANGE_COLUMNS, summarize_rank_ranges
+from nfl_sos_ratings.rating_ranges import (
+    QB_PAIR_COLUMNS,
+    TEAM_PAIR_COLUMNS,
+    TEAM_RANGE_COLUMNS,
+    summarize_rank_pairs,
+    summarize_rank_ranges,
+)
 from nfl_sos_ratings.ui_api import create_app
 from tests.wp_league import write_wp_season
 
@@ -515,3 +521,79 @@ def test_wp_ratings_route_without_the_bins_returns_not_found(
     # Assert
     assert response.status_code == 404
     assert missing in response.json()["detail"]
+
+
+def _seed_rating_pairs(data_dir: Path) -> None:
+    """Write a season contract plus team and QB head-to-head pair files from two draws."""
+    _seed_season_contract(data_dir, 2024)
+    team_draws = pl.DataFrame(
+        {"draw": [0, 0, 0, 1, 1, 1], "team": ["DET", "KC", "LV"] * 2}
+        | {"team_rating": [3.0, 1.0, 2.0, 2.0, 1.0, 3.0]}
+    )
+    summarize_rank_pairs(team_draws, team_draws, TEAM_PAIR_COLUMNS).write_parquet(
+        data_dir / "2024_rating_pairs.parquet"
+    )
+    qb_draws = pl.DataFrame(
+        {"draw": [0, 0, 1, 1], "qb_id": ["qb-1", "qb-2"] * 2}
+        | {"adj_qb_epa_per_dropback": [0.2, 0.1, 0.1, 0.3]}
+    )
+    summarize_rank_pairs(qb_draws, qb_draws, QB_PAIR_COLUMNS).write_parquet(
+        data_dir / "2024_qb_rating_pairs.parquet"
+    )
+
+
+def test_get_team_rating_pairs_returns_the_teams_comparisons(tmp_path: Path) -> None:
+    # Arrange
+    _seed_rating_pairs(tmp_path)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get("/api/seasons/2024/teams/DET/rating-pairs")
+
+    # Assert
+    assert response.status_code == 200
+    rows = response.json()["rows"]
+    assert [(row["other_team"], row["team_rated_above_probability"]) for row in rows] == [
+        ("KC", 1.0),
+        ("LV", 0.5),
+    ]
+    assert rows[0]["team_rating_gap_q500"] == pytest.approx(1.5)
+
+
+def test_get_qb_rating_pairs_returns_the_qbs_comparisons(tmp_path: Path) -> None:
+    # Arrange
+    _seed_rating_pairs(tmp_path)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get("/api/seasons/2024/qbs/qb-1/rating-pairs")
+
+    # Assert
+    assert response.status_code == 200
+    rows = response.json()["rows"]
+    assert [(row["other_qb_id"], row["qb_rated_above_probability"]) for row in rows] == [
+        ("qb-2", 0.5)
+    ]
+    assert response.json()["column_metadata"]["qb_pair_share"]["label"] == "Both-QBs Share"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/seasons/2024/teams/NOPE/rating-pairs",
+        "/api/seasons/2024/qbs/nope/rating-pairs",
+        "/api/seasons/2023/teams/DET/rating-pairs",
+    ],
+)
+def test_rating_pairs_for_an_unknown_entity_or_season_return_not_found(
+    tmp_path: Path, path: str
+) -> None:
+    # Arrange
+    _seed_rating_pairs(tmp_path)
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get(path)
+
+    # Assert
+    assert response.status_code == 404

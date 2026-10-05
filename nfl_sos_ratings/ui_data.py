@@ -13,10 +13,14 @@ from nfl_sos_ratings.data_loader import PBP_START_SEASON
 from nfl_sos_ratings.metrics import get_registry
 from nfl_sos_ratings.qb_rating import fit_qb_ratings
 from nfl_sos_ratings.rating_ranges import (
+    PAIR_QUANTILES,
+    QB_PAIR_COLUMNS,
     QB_RANGE_COLUMNS,
     RANGE_QUANTILES,
+    TEAM_PAIR_COLUMNS,
     TEAM_RANGE_COLUMNS,
     TOP_RANKS,
+    PairColumns,
     RangeColumns,
     quantile_suffix,
 )
@@ -44,6 +48,8 @@ TEAM_RATING_HISTORY_SUFFIX = "ratings_by_week"
 QB_RATING_HISTORY_SUFFIX = "qb_ratings_by_week"
 TEAM_RATING_RANGES_SUFFIX = "rating_ranges"
 QB_RATING_RANGES_SUFFIX = "qb_rating_ranges"
+TEAM_RATING_PAIRS_SUFFIX = "rating_pairs"
+QB_RATING_PAIRS_SUFFIX = "qb_rating_pairs"
 TEAM_RATINGS_SUFFIX = "ratings"
 QB_RATINGS_SUFFIX = "qb_ratings"
 TEAM_WP_BINS_SUFFIX = "team_wp_bins"
@@ -180,6 +186,20 @@ def load_qb_rating_ranges_payload(data_dir: Path, season: int) -> TablePayload:
     """Load the eligible quarterbacks' bootstrap rating and rank ranges, by published rank."""
     frame = _load_season_file(data_dir, season, QB_RATING_RANGES_SUFFIX)
     return _build_rating_ranges_payload(frame, ("qb_id", "qb_name", "team"), QB_RANGE_COLUMNS)
+
+
+def load_team_rating_pairs_payload(data_dir: Path, season: int, team: str) -> TablePayload:
+    """Load one team's head-to-head chances against every other team for a season."""
+    frame = _load_season_file(data_dir, season, TEAM_RATING_PAIRS_SUFFIX)
+    rows = _filter_entity_rows(frame, "team", team, season, "team rating-pairs")
+    return _build_rating_pairs_payload(rows, TEAM_PAIR_COLUMNS)
+
+
+def load_qb_rating_pairs_payload(data_dir: Path, season: int, qb_id: str) -> TablePayload:
+    """Load one eligible quarterback's head-to-head chances against the other eligible ones."""
+    frame = _load_season_file(data_dir, season, QB_RATING_PAIRS_SUFFIX)
+    rows = _filter_entity_rows(frame, "qb_id", qb_id, season, "QB rating-pairs")
+    return _build_rating_pairs_payload(rows, QB_PAIR_COLUMNS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -686,6 +706,25 @@ def _build_rating_ranges_payload(
     visible_columns = [column for group in groups.values() for column in group]
     return {
         "rows": frame.sort(columns.rank).select(visible_columns).to_dicts(),
+        "visible_columns": visible_columns,
+        "column_groups": groups,
+        "column_metadata": get_registry().column_metadata(visible_columns),
+    }
+
+
+def _build_rating_pairs_payload(frame: pl.DataFrame, columns: PairColumns) -> TablePayload:
+    """Return a head-to-head payload: the pair, the chance, then the rating-gap percentiles."""
+    groups = {
+        "identity": _ordered_existing_columns(frame.columns, (columns.id, columns.other)),
+        "chance": _ordered_existing_columns(frame.columns, (columns.above, columns.share)),
+        "rating_gap": _ordered_existing_columns(
+            frame.columns,
+            tuple(f"{columns.gap}{quantile_suffix(level)}" for level in PAIR_QUANTILES),
+        ),
+    }
+    visible_columns = [column for group in groups.values() for column in group]
+    return {
+        "rows": frame.sort(columns.other).select(visible_columns).to_dicts(),
         "visible_columns": visible_columns,
         "column_groups": groups,
         "column_metadata": get_registry().column_metadata(visible_columns),
