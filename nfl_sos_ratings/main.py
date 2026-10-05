@@ -9,6 +9,7 @@ garbage-time filter.
 
 import argparse
 import io
+import logging
 import sys
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from nfl_sos_ratings.data_loader import (
     load_wp_bins,
     use_disk_cache_unless_configured,
 )
+from nfl_sos_ratings.logger import configure_logging
 from nfl_sos_ratings.metrics import get_registry
 from nfl_sos_ratings.opponent_stats import compute_all_opponent_profiles
 from nfl_sos_ratings.qb_opponent_stats import compute_qb_opponent_profiles
@@ -61,6 +63,8 @@ from nfl_sos_ratings.team_rating import (
     fit_team_ratings_with_previous_penalties,
 )
 from nfl_sos_ratings.team_stats import compute_all_teams_per_game, compute_win_totals
+
+logger = logging.getLogger(__name__)
 
 TEAM_RATINGS_ORDER = ("team", "games_played", *TEAM_RATING_COLUMNS, "sos", "SRS")
 QB_RATINGS_ORDER = (
@@ -145,7 +149,7 @@ def _write_data_file(frame: pl.DataFrame, season: int, suffix: str) -> Path:
         descending=[descending for _, descending in order],
         nulls_last=True,
     ).write_parquet(data_path)
-    print(f"Saved {suffix} to {data_path}")
+    logger.debug("Saved %s to %s", suffix, data_path)
     return data_path
 
 
@@ -319,22 +323,22 @@ def _previous_season_fit(season: int) -> TeamRatingFit | None:
     if path.exists():
         previous_logs = pl.read_parquet(path)
     else:
-        print(f"Loading {season - 1} team stats for the ridge penalties...")
+        logger.info("Loading %s team stats for the ridge penalties...", season - 1)
         previous_logs = _build_team_game_logs(load_weekly_team_stats(season - 1))
     return fit_team_ratings(previous_logs)
 
 
 def _load_season_frames(season: int) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
     """Load one season's team game rows, schedule, and QB game rows."""
-    print("Loading weekly team stats...")
+    logger.info("Loading weekly team stats...")
     weekly_df = load_weekly_team_stats(season)
-    print(f"  {weekly_df.height} team-game rows loaded.")
-    print("Loading schedule...")
+    logger.info("  %d team-game rows loaded.", weekly_df.height)
+    logger.info("Loading schedule...")
     schedule_df = played_schedule(load_schedule(season))
-    print(f"  {schedule_df.height} played games loaded.")
-    print("Loading QB game stats...")
+    logger.info("  %d played games loaded.", schedule_df.height)
+    logger.info("Loading QB game stats...")
     qb_df = load_qb_stats(season)
-    print(f"  {qb_df.height} QB-game rows loaded.\n")
+    logger.info("  %d QB-game rows loaded.", qb_df.height)
     return weekly_df, schedule_df, qb_df
 
 
@@ -342,7 +346,7 @@ def _write_team_rating_outputs(
     season: int, weekly_df: pl.DataFrame, team_combined: pl.DataFrame
 ) -> pl.DataFrame:
     """Fit the season's team ratings, write every team rating output, and return the ratings."""
-    print("Fitting team ratings...")
+    logger.info("Fitting team ratings...")
     team_fit = fit_team_ratings_with_previous_penalties(weekly_df, _previous_season_fit(season))
     ratings = build_team_ratings(weekly_df, team_fit)
     _write_data_file(ratings, season, "ratings")
@@ -352,12 +356,12 @@ def _write_team_rating_outputs(
         "combined",
     )
     _write_data_file(fit_team_ratings_by_week(weekly_df, team_fit), season, "ratings_by_week")
-    print(f"Resampling games {BOOTSTRAP_RESAMPLES} times for team rank ranges and pairs...")
+    logger.info("Resampling games %d times for team rank ranges and pairs...", BOOTSTRAP_RESAMPLES)
     team_ranges, team_pairs = build_team_rank_summaries(weekly_df, team_fit)
     _write_data_file(team_ranges, season, "rating_ranges")
     _write_data_file(team_pairs, season, "rating_pairs")
     if season == SEASON:
-        print("Resampling each week's games for the season-in-progress team rank ranges...")
+        logger.info("Resampling each week's games for the season-in-progress team rank ranges...")
         _write_data_file(
             build_team_rank_ranges_by_week(weekly_df, team_fit), season, "rating_ranges_by_week"
         )
@@ -371,7 +375,7 @@ def _write_qb_rating_outputs(
     qb_opp_profiles: pl.DataFrame | None,
 ) -> None:
     """Fit the season's QB ratings and write every QB rating output."""
-    print("Fitting QB ratings...")
+    logger.info("Fitting QB ratings...")
     qb_combined = qb_season_stats
     if qb_opp_profiles is not None:
         qb_combined = qb_combined.join(
@@ -388,12 +392,12 @@ def _write_qb_rating_outputs(
         "qb_ratings",
     )
     _write_data_file(fit_qb_ratings_by_week(qb_game_logs, qb_fit), season, "qb_ratings_by_week")
-    print(f"Resampling games {BOOTSTRAP_RESAMPLES} times for QB rank ranges and pairs...")
+    logger.info("Resampling games %d times for QB rank ranges and pairs...", BOOTSTRAP_RESAMPLES)
     qb_ranges, qb_pairs = build_qb_rank_summaries(qb_game_logs, qb_fit, qb_combined)
     _write_data_file(qb_ranges, season, "qb_rating_ranges")
     _write_data_file(qb_pairs, season, "qb_rating_pairs")
     if season == SEASON:
-        print("Resampling each week's games for the season-in-progress QB rank ranges...")
+        logger.info("Resampling each week's games for the season-in-progress QB rank ranges...")
         _write_data_file(
             build_qb_rank_ranges_by_week(qb_game_logs, qb_fit, qb_combined),
             season,
@@ -403,7 +407,7 @@ def _write_qb_rating_outputs(
 
 def run_season(season: int) -> None:
     """Build and write every output for one regular season."""
-    print(f"=== NFL Strength of Schedule -- {season} Season ===\n")
+    logger.info("=== NFL Strength of Schedule -- %s Season ===", season)
     weekly_df, schedule_df, qb_df = _load_season_frames(season)
     Path(DATA_DIR).mkdir(parents=True, exist_ok=True)
 
@@ -421,12 +425,12 @@ def run_season(season: int) -> None:
     )
     _write_data_file(qb_season_stats, season, "qb_per_game_stats")
 
-    print("Computing QB opponent profiles...")
+    logger.info("Computing QB opponent profiles...")
     qb_opp_profiles, _ = compute_qb_opponent_profiles(weekly_df, qb_df, qb_season_stats)
     if qb_opp_profiles is not None:
         _write_data_file(qb_opp_profiles, season, "qb_opponent_profiles")
 
-    print("Computing team opponent profiles...")
+    logger.info("Computing team opponent profiles...")
     opp_profiles, _ = compute_all_opponent_profiles(weekly_df, schedule_df)
     if opp_profiles is not None:
         _write_data_file(opp_profiles, season, "opponent_profiles")
@@ -439,15 +443,16 @@ def run_season(season: int) -> None:
     ratings = _write_team_rating_outputs(season, weekly_df, team_combined)
     _write_qb_rating_outputs(season, qb_game_logs, qb_season_stats, qb_opp_profiles)
 
-    print("Binning plays by win probability...")
+    logger.info("Binning plays by win probability...")
     team_wp_bins, qb_wp_bins = load_wp_bins(season)
     _write_data_file(team_wp_bins, season, "team_wp_bins")
     _write_data_file(qb_wp_bins, season, "qb_wp_bins")
 
     with pl.Config(tbl_cols=-1, tbl_rows=40, float_precision=2):
-        print(f"\n{season} team ratings (points per game vs an average team):")
-        print(ratings)
-    print(f"\nDone! Parquet files saved to {DATA_DIR}/")
+        sys.stdout.write(
+            f"\n{season} team ratings (points per game vs an average team):\n{ratings}\n"
+        )
+    logger.info("Done! Parquet files saved to %s/", DATA_DIR)
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -473,4 +478,5 @@ def main(argv: list[str] | None = None) -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

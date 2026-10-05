@@ -125,11 +125,6 @@ extend-allowed-calls = ["polars.lit"]
 ]
 # Fixture builders print the values to pin in their tests.
 "tests/fixtures/*/build_fixture.py" = ["T201"]
-# Command-line progress and report output goes to stdout with print until a project logger
-# replaces it in these modules.
-"nfl_sos_ratings/main.py" = ["T201"]
-"nfl_sos_ratings/pipeline.py" = ["T201"]
-"nfl_sos_ratings/validation/walk_forward.py" = ["T201"]
 
 # --------------------------------------------------------------------------------------------
 # Type checking: ty and pyright (strict)

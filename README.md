@@ -125,6 +125,10 @@ schtasks /Create /TN "nfl-sos-ratings weekly refresh" /SC WEEKLY /D TUE /ST 09:0
 
 `schtasks /Delete /TN "nfl-sos-ratings weekly refresh"` removes it.
 
+Progress messages go to stderr and data a command prints for the reader (such as the season's
+ratings table, or the `diff-data` and check reports) to stdout. `nfl-sos-ratings --verbose
+<command>` (or `-v`) adds debug detail on stderr, such as each file written.
+
 Every command, the `nfl-sos` and `nfl-sos-pipeline` shortcuts included, runs NumPy's BLAS on one
 thread unless `OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS`, or `MKL_NUM_THREADS` is already set. The
 rating fits are many small solves, where BLAS threads cost far more CPU than they save: on

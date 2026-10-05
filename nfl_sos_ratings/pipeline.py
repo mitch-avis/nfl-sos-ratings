@@ -8,11 +8,15 @@ Usage:
 
 import argparse
 import io
+import logging
 import sys
 
 from nfl_sos_ratings.config import END_YEAR, START_YEAR
 from nfl_sos_ratings.data_loader import use_disk_cache_unless_configured
+from nfl_sos_ratings.logger import configure_logging
 from nfl_sos_ratings.main import run_season
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -35,33 +39,33 @@ def main(argv: list[str] | None = None) -> None:
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
     seasons = list(range(START_YEAR, END_YEAR + 1))
-    print(
-        f"=== NFL SoS Pipeline: {START_YEAR}-{END_YEAR} "
-        f"({len(seasons)} season{'s' if len(seasons) != 1 else ''}) ===\n"
+    plural = "s" if len(seasons) != 1 else ""
+    logger.info(
+        "=== NFL SoS Pipeline: %s-%s (%d season%s) ===", START_YEAR, END_YEAR, len(seasons), plural
     )
-
-    # Data for every season
-    print(f"{'─' * 70}")
-    print("Phase 1 of 1: Data gathering")
-    print(f"{'─' * 70}\n")
+    logger.info("%s", "-" * 70)
+    logger.info("Phase 1 of 1: Data gathering")
+    logger.info("%s", "-" * 70)
     failed_data_seasons: list[int] = []
     for season in seasons:
         try:
             run_season(season)
-        except Exception as exc:  # noqa: BLE001 - report every failed season, then exit 1
+        except Exception:
+            # Report every failed season with its traceback, then exit 1 after the rest.
             failed_data_seasons.append(season)
-            print(f"\nERROR: season {season} data step failed — {exc}\n")
+            logger.exception("season %s data step failed", season)
 
     if failed_data_seasons:
         failed_season_summary = ", ".join(str(season) for season in failed_data_seasons)
-        print(f"Data step failures: {failed_season_summary}")
-        print("Pipeline finished with failures.")
+        logger.error("Data step failures: %s", failed_season_summary)
+        logger.error("Pipeline finished with failures.")
         raise SystemExit(1)
 
-    print(f"\n{'=' * 70}")
-    print(f"Pipeline complete — {len(seasons)} seasons processed.")
-    print(f"{'=' * 70}")
+    logger.info("%s", "=" * 70)
+    logger.info("Pipeline complete: %d seasons processed.", len(seasons))
+    logger.info("%s", "=" * 70)
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

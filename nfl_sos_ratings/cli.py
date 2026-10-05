@@ -9,6 +9,8 @@ import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
+from nfl_sos_ratings.logger import configure_logging
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -124,6 +126,9 @@ def _build_parser() -> argparse.ArgumentParser:
         epilog=_command_list() + f"\n\nRun '{PROG} <command> --help' for a command's options.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Also show debug detail on stderr."
+    )
     parser.add_argument("command", choices=sorted(COMMANDS_BY_NAME), metavar="command")
     parser.add_argument("args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
     return parser
@@ -139,6 +144,7 @@ def main(argv: list[str] | None = None) -> None:
     """Dispatch to the named command's ``main`` with the remaining arguments."""
     limit_blas_threads()
     args = _build_parser().parse_args(argv)
+    configure_logging(verbose=args.verbose)
     module = importlib.import_module(COMMANDS_BY_NAME[args.command].module)
     command_main = cast("Callable[[list[str]], None]", module.main)
     command_main(list(args.args))

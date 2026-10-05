@@ -1,6 +1,7 @@
 """Tests for nfl_sos_ratings.pipeline."""
 
 import io
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -11,10 +12,11 @@ from tests.stubs import stub
 
 def test_pipeline_raises_on_failures_and_exits_nonzero_for_failed_seasons(
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Verify failed data seasons are summarized and exit non-zero."""
     # Arrange
+    caplog.set_level(logging.INFO, logger="nfl_sos_ratings")
     calls: list[tuple[str, int]] = []
 
     monkeypatch.setattr(pipeline, "START_YEAR", 2024)
@@ -38,11 +40,13 @@ def test_pipeline_raises_on_failures_and_exits_nonzero_for_failed_seasons(
         ("data", 2025),
     ]
     assert excinfo.value.code == 1
-    data = capsys.readouterr().out
-    assert "Phase 1 of 1: Data gathering" in data
-    assert "ERROR: season 2024 data step failed — boom" in data
-    assert "Data step failures: 2024" in data
-    assert "Pipeline finished with failures." in data
+    messages = [(record.levelname, record.getMessage()) for record in caplog.records]
+    assert ("INFO", "Phase 1 of 1: Data gathering") in messages
+    assert ("ERROR", "season 2024 data step failed") in messages
+    errors = [record.exc_info[1] for record in caplog.records if record.exc_info is not None]
+    assert [str(error) for error in errors] == ["boom"]
+    assert ("ERROR", "Data step failures: 2024") in messages
+    assert ("ERROR", "Pipeline finished with failures.") in messages
 
 
 def test_pipeline_main_handles_windows_stdout(
