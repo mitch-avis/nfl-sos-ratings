@@ -38,19 +38,19 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Next steps
 
-All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order. Done
-and merged: the `feat/rank-ranges` pull request (#1), the nfl-predictor note, the three small fixes
-in pull request #2 (single-threaded BLAS by default, one fixed row order per data file, and the
-read-only `nfl-sos-ratings diff-data` command), the garbage-time filter's bins (#3), and its
-refits per threshold and API (#4, `/api/seasons/{season}/{teams|qbs}/wp-ratings`), and the
-slider with its filtered view (#5; phone layout checked by the maintainer). Branch
-`fix/wp-qb-team` shows each QB's team in the filtered table again (the freeze that kept it out
-did not recur with the maintainer's browser extensions disabled; roadmap, WP3) and bumps
-`filelock` in `uv.lock`. Still open: the pre-registered test (WP4, decisions recorded in its
-roadmap section), head-to-head chances and more rank-range views, weekly 2026 refresh automation,
-frontend follow-ups, a project logger, and retired stats on request. Until A1 lands, rebuild 2026
-weekly with `nfl-sos-ratings season` (ask first), copying `data/` beforehand so `diff-data` can
-report what changed.
+All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order. Done and
+merged: the `feat/rank-ranges` pull request (#1), the nfl-predictor note, the three small fixes in
+pull request #2 (single-threaded BLAS by default, one fixed row order per data file, and the
+read-only `nfl-sos-ratings diff-data` command), the garbage-time filter's bins (#3), and its refits
+per threshold and API (#4, `/api/seasons/{season}/{teams|qbs}/wp-ratings`), and the slider with its
+filtered view (#5; phone layout checked by the maintainer). Branch `fix/wp-qb-team` shows each QB's
+team in the filtered table again (the freeze that kept it out did not recur with the maintainer's
+browser extensions disabled; roadmap, WP3), lowers the filter's maximum from 30% to 20%, and bumps
+`filelock` in `uv.lock`. Still open: the pre-registered test (WP4, decisions recorded in its roadmap
+section), head-to-head chances and more rank-range views, weekly 2026 refresh automation, frontend
+follow-ups, a project logger, and retired stats on request. Until A1 lands, rebuild 2026 weekly with
+`nfl-sos-ratings season` (ask first), copying `data/` beforehand so `diff-data` can report what
+changed.
 
 ## Validation snapshot
 

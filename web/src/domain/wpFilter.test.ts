@@ -15,7 +15,7 @@ import {
 
 const TEAM_PAYLOAD: WpRatingsPayload = {
   threshold: 10,
-  max_threshold: 30,
+  max_threshold: 20,
   rows: [
     {
       team: 'KC',
@@ -46,7 +46,7 @@ describe('parseWpThreshold', () => {
   it.each([
     ['10', 10],
     ['0', 0],
-    ['30', 30],
+    ['20', 20],
   ])('reads %s as %d', (raw, expected) => {
     // Act
     const threshold = parseWpThreshold(raw)
@@ -55,7 +55,7 @@ describe('parseWpThreshold', () => {
     expect(threshold).toBe(expected)
   })
 
-  it.each([null, '', '31', '-1', '5.5', 'abc'])('treats %s as no filter', (raw) => {
+  it.each([null, '', '21', '-1', '5.5', 'abc'])('treats %s as no filter', (raw) => {
     // Act
     const threshold = parseWpThreshold(raw)
 

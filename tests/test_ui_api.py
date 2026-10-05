@@ -469,7 +469,7 @@ def test_wp_ratings_route_returns_the_filtered_table(tmp_path: Path, entity: str
     # Assert
     assert response.status_code == 200
     body = response.json()
-    assert (body["threshold"], body["max_threshold"]) == (5, 30)
+    assert (body["threshold"], body["max_threshold"]) == (5, 20)
     assert body["rows"]
 
 
@@ -485,7 +485,7 @@ def test_wp_ratings_route_defaults_to_no_filter(tmp_path: Path) -> None:
     assert response.json()["threshold"] == 0
 
 
-@pytest.mark.parametrize("threshold", [-1, 31])
+@pytest.mark.parametrize("threshold", [-1, 21])
 def test_wp_ratings_route_rejects_a_threshold_outside_the_slider(
     tmp_path: Path, threshold: int
 ) -> None:

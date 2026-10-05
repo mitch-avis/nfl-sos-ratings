@@ -274,7 +274,7 @@ function wpTeamRow(
 /** The team filter view at 10%: KC overtakes DEN once lopsided plays are left out. */
 export const TEAM_WP_RATINGS: WpRatingsPayload = {
   threshold: 10,
-  max_threshold: 30,
+  max_threshold: 20,
   rows: [
     wpTeamRow('KC', [2, 5.4], [1, 6.2], 0.81),
     wpTeamRow('DEN', [1, 7.1], [2, 5.9], 0.74),
@@ -305,7 +305,7 @@ export const TEAM_WP_RATINGS: WpRatingsPayload = {
 /** The QB filter view at 10% for the fixture's qualifying passer. */
 export const QB_WP_RATINGS: WpRatingsPayload = {
   threshold: 10,
-  max_threshold: 30,
+  max_threshold: 20,
   rows: [
     {
       qb_id: 'qb-1',

@@ -30,7 +30,8 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
   audit changes, the regenerated validation report, and docs.
 - S1-S3 merged as pull request #2 (`1d61b2d`), WP1 as #3 (`c574819`), WP2 as #4 (`b70b522`), and
   WP3 as #5 (`main` = `02a2b47`), branches deleted. Branch `fix/wp-qb-team` (from `02a2b47`)
-  restores each QB's team in the filtered table and carries a `filelock` lockfile bump.
+  restores each QB's team in the filtered table, lowers the filter's maximum to 20%, and carries
+  a `filelock` lockfile bump.
 - `data/` (1999-2026: range files, fixed row order, and win-probability bins) was rebuilt on
   2026-10-04 from `c574819` with no value changes (S2 records the `diff-data` summary), and
   `.venv/bin/pytest -m published_data` passes on it.
@@ -292,7 +293,10 @@ Decisions (maintainer, 2026-10-04):
 - Special teams: filtered too. Onside kicks and backup coverage units are concrete garbage-time
   effects, and one play set keeps `team_rating`'s three parts consistent. Special-teams plays get
   the same bins, so the choice stays cheap to revisit.
-- Range and step: 0-30% in 1% steps; default 0%.
+- Range and step: 0-30% in 1% steps; default 0%. Lowered to 0-20% on 2026-10-05 (maintainer, on
+  the agent's recommendation): 20% is the largest WP4 candidate, and past it the filter drops
+  more than a third of the plays (2025 mean `wp_kept_play_share` 0.623 at 20%, 0.453 at 30%; WP4
+  gives the command). A shared link above 20% now opens with the filter off.
 - Rule: keep a play when `min(wp, 1 - wp) >= X`.
 - The published default stays 0% unless WP4 says otherwise and the maintainer agrees.
 
@@ -447,8 +451,8 @@ Decided with the maintainer (2026-10-04), to be written into the protocol above:
   98.33% interval rests on about 17 draws.
 - The QB extras compare each threshold with the 0% play-level value, not the published rating,
   which uses official weekly passing EPA.
-- Open: the slider's maximum (30% today; the maintainer suggested 25% or 20%). It does not affect
-  the test.
+- The slider's and API's maximum is now 20% (see the decisions above). It does not affect the
+  test.
 
 Tasks:
 

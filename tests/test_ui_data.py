@@ -559,7 +559,7 @@ def test_team_wp_ratings_at_zero_reproduce_the_published_ratings(tmp_path: Path)
 
     # Assert
     rows = payload["rows"]
-    assert (payload["threshold"], payload["max_threshold"]) == (0, 30)
+    assert (payload["threshold"], payload["max_threshold"]) == (0, 20)
     assert [row["filtered_team_rating"] for row in rows] == pytest.approx(
         [row["team_rating"] for row in rows]
     )

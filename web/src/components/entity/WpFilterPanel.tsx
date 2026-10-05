@@ -193,7 +193,7 @@ function FilteredView({
 }
 
 /**
- * The garbage-time filter: a 0-30% slider kept in `?wp=`, and at a non-zero threshold an
+ * The garbage-time filter: a 0-20% slider kept in `?wp=`, and at a non-zero threshold an
  * exploration view of the ratings refit without plays in lopsided game states. On an index page
  * it lists every team or qualifying QB; with `entityId` it shows that one row.
  */
