@@ -400,19 +400,16 @@ threshold is a cumulative sum and the API refits on demand with the weighted eng
   `SortableHeader` patterns as established by the UX audit. The dataviz skill was not used: the
   view has no chart. `react-doctor` (run once with `npx`, not added to the repo) flagged only the
   existing complexity of `EntityDetailPage`.
-- [ ] Open (maintainer to check): the phone layout was not seen. The browser window used for
-  checks would not go below about 840 px, so the table's horizontal scroll on a phone is
-  unverified.
-- [ ] Open bug, cause unknown: in the agent's Chrome (2026-10-04), the QB index at
-  `/qbs?season=2025&wp=10` froze the page renderer within a few seconds whenever the filtered
-  table showed each QB's team abbreviation, whether inline after the name or in its own column.
-  It did not freeze without the team text, on the team index, on a QB detail page, or in jsdom
-  with the real 2025 payload (no loop of router navigations or requests either). Bisecting by
-  build narrowed it to that text alone, which points at the browser (for example an extension
-  that scans for player names and teams) rather than the app. The shipped table leaves the QB team
-  out; the main QB table and the detail page still show it. To settle it: open that URL in a
-  browser without extensions (or on a phone), with a build that restores the team span (`row.team`
-  in `WpFilterPanel.tsx`).
+- [x] Phone layout: the maintainer checked every page on a phone after the merge (pull request
+  #5, 2026-10-04) and found it fine.
+- [x] QB index freeze, most likely a browser extension: the agent's Chrome froze on
+  `/qbs?season=2025&wp=10` whenever the filtered table showed each QB's team, so #5 shipped
+  without it. That Chrome profile had the FantasyPros extension enabled on all sites; with it and
+  a few others disabled (2026-10-04), the same page with the team shown stayed responsive in the
+  agent's Chrome: about 20 s idle, scrolling, and the slider moved to 11% and 20%, every row
+  showing its team. One screenshot timed out once, right after scripted key presses on the slider,
+  while the page's scripts kept answering at once; it did not recur. The filtered QB table now
+  shows each QB's team in its own column, as the main QB table does (pull request after #5).
 
 ### WP4. Pre-registered walk-forward test
 

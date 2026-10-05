@@ -98,6 +98,7 @@ function WpRatingsTable({
           <tr className="border-b text-left text-xs text-muted-foreground">
             <th className="py-2 pr-3 font-medium">{header('filteredRank', `filtered_${columns.rank}`, false)}</th>
             <th className="py-2 pr-3 font-medium">{kind === 'teams' ? 'Team' : 'Quarterback'}</th>
+            {kind === 'qbs' ? <th className="py-2 pr-3 font-medium">Team</th> : null}
             <th className="py-2 pr-3 text-right font-medium">{getMetricMetadata(`filtered_${columns.rating}`).label}</th>
             <th className="py-2 pr-3 text-right font-medium">
               {header('ratingChange', `filtered_${columns.rating}_change`, true)}
@@ -122,6 +123,7 @@ function WpRatingsTable({
                   {row.label}
                 </Link>
               </td>
+              {kind === 'qbs' ? <td className="py-1.5 pr-3 text-muted-foreground">{row.team ?? '—'}</td> : null}
               <td className="py-1.5 pr-3 text-right tabular">{formatFixed(row.filteredRating, decimals)}</td>
               <td className="py-1.5 pr-3 text-right tabular">{formatSignedChange(row.ratingChange, decimals)}</td>
               <td className="py-1.5 pr-3 text-muted-foreground">{formatRankChange(row.rankChange)}</td>
