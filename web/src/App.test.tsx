@@ -540,6 +540,20 @@ describe('garbage-time filter', () => {
     expect(screen.getByText(/Rank ranges and the rest of this page count every play/)).toBeInTheDocument()
   })
 
+  it("lists each filtered quarterback's team in its own column", async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/qbs/wp-ratings?threshold=10': QB_WP_RATINGS }))
+
+    // Act
+    renderApp('/qbs?season=2025&wp=10')
+
+    // Assert
+    const table = await screen.findByRole('table', { name: /filtered at 10%/ })
+    const [header, row] = within(table).getAllByRole('row')
+    expect(within(header).getByRole('columnheader', { name: 'Team' })).toBeInTheDocument()
+    expect(within(row).getByRole('cell', { name: 'DEN' })).toBeInTheDocument()
+  })
+
   it('puts the chosen threshold in the address after the slider settles', async () => {
     // Arrange
     const user = userEvent.setup()

@@ -76,7 +76,7 @@ The app never recomputes methodology. The backend (`nfl_sos_ratings/ui_data.py` 
 - `GET /api/seasons/{season}/teams/wp-ratings?threshold=X` and
   `GET /api/seasons/{season}/qbs/wp-ratings?threshold=X`: the garbage-time filter view, every team's
   (or qualifying quarterback's) ratings refit on the plays whose win probability before the snap
-  was between X% and 100% minus X% (X from 0 to 30, default 0; outside that range is a 422), beside
+  was between X% and 100% minus X% (X from 0 to 20, default 0; outside that range is a 422), beside
   the published rating and rank, ordered by filtered rank
 
 A season is listed only when all six contract files exist: `{season}_team_per_game_stats`,
@@ -137,7 +137,7 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   readout above the chart describes the hovered or tapped row (on a phone, its link opens the
   detail page). The detail page adds the rank headline, the top-5 and top-10 chances, and the
   chance of each rank.
-- The `Garbage-time filter` card holds a slider from Off to 30%, kept in the address as `?wp=`. A
+- The `Garbage-time filter` card holds a slider from Off to 20%, kept in the address as `?wp=`. A
   threshold of X% asks `/api/seasons/{season}/{teams|qbs}/wp-ratings` for the ratings refit on the
   plays whose win probability before the snap was between X% and 100% minus X%. It then lists
   every team or qualifying QB by filtered rank, beside the change, the published rank and rating,

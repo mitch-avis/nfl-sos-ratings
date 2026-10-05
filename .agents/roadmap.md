@@ -28,8 +28,10 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
 - Pull request #1 (`feat/rank-ranges`, merged as `c396d83`, branch deleted) brought the rank
   ranges (engine, outputs, API, web views), the QB data fixes, the per-team QB qualifier, the UX
   audit changes, the regenerated validation report, and docs.
-- S1-S3 merged as pull request #2 (`1d61b2d`), WP1 as #3 (`c574819`), and WP2 as #4 (`main` =
-  `b70b522`), branches deleted. Branch `feat/wp-slider` (from `b70b522`) carries WP3.
+- S1-S3 merged as pull request #2 (`1d61b2d`), WP1 as #3 (`c574819`), WP2 as #4 (`b70b522`), and
+  WP3 as #5 (`main` = `02a2b47`), branches deleted. Branch `fix/wp-qb-team` (from `02a2b47`)
+  restores each QB's team in the filtered table, lowers the filter's maximum to 20%, and carries
+  a `filelock` lockfile bump.
 - `data/` (1999-2026: range files, fixed row order, and win-probability bins) was rebuilt on
   2026-10-04 from `c574819` with no value changes (S2 records the `diff-data` summary), and
   `.venv/bin/pytest -m published_data` passes on it.
@@ -291,7 +293,10 @@ Decisions (maintainer, 2026-10-04):
 - Special teams: filtered too. Onside kicks and backup coverage units are concrete garbage-time
   effects, and one play set keeps `team_rating`'s three parts consistent. Special-teams plays get
   the same bins, so the choice stays cheap to revisit.
-- Range and step: 0-30% in 1% steps; default 0%.
+- Range and step: 0-30% in 1% steps; default 0%. Lowered to 0-20% on 2026-10-05 (maintainer, on
+  the agent's recommendation): 20% is the largest WP4 candidate, and past it the filter drops
+  more than a third of the plays (2025 mean `wp_kept_play_share` 0.623 at 20%, 0.453 at 30%; WP4
+  gives the command). A shared link above 20% now opens with the filter off.
 - Rule: keep a play when `min(wp, 1 - wp) >= X`.
 - The published default stays 0% unless WP4 says otherwise and the maintainer agrees.
 
@@ -400,19 +405,16 @@ threshold is a cumulative sum and the API refits on demand with the weighted eng
   `SortableHeader` patterns as established by the UX audit. The dataviz skill was not used: the
   view has no chart. `react-doctor` (run once with `npx`, not added to the repo) flagged only the
   existing complexity of `EntityDetailPage`.
-- [ ] Open (maintainer to check): the phone layout was not seen. The browser window used for
-  checks would not go below about 840 px, so the table's horizontal scroll on a phone is
-  unverified.
-- [ ] Open bug, cause unknown: in the agent's Chrome (2026-10-04), the QB index at
-  `/qbs?season=2025&wp=10` froze the page renderer within a few seconds whenever the filtered
-  table showed each QB's team abbreviation, whether inline after the name or in its own column.
-  It did not freeze without the team text, on the team index, on a QB detail page, or in jsdom
-  with the real 2025 payload (no loop of router navigations or requests either). Bisecting by
-  build narrowed it to that text alone, which points at the browser (for example an extension
-  that scans for player names and teams) rather than the app. The shipped table leaves the QB team
-  out; the main QB table and the detail page still show it. To settle it: open that URL in a
-  browser without extensions (or on a phone), with a build that restores the team span (`row.team`
-  in `WpFilterPanel.tsx`).
+- [x] Phone layout: the maintainer checked every page on a phone after the merge (pull request
+  #5, 2026-10-04) and found it fine.
+- [x] QB index freeze, most likely a browser extension: the agent's Chrome froze on
+  `/qbs?season=2025&wp=10` whenever the filtered table showed each QB's team, so #5 shipped
+  without it. That Chrome profile had the FantasyPros extension enabled on all sites; with it and
+  a few others disabled (2026-10-04), the same page with the team shown stayed responsive in the
+  agent's Chrome: about 20 s idle, scrolling, and the slider moved to 11% and 20%, every row
+  showing its team. One screenshot timed out once, right after scripted key presses on the slider,
+  while the page's scripts kept answering at once; it did not recur. The filtered QB table now
+  shows each QB's team in its own column, as the main QB table does (pull request after #5).
 
 ### WP4. Pre-registered walk-forward test
 
@@ -431,6 +433,26 @@ Write this section's protocol here, in full, before any run (AGENTS.md):
   Report every interval that excludes zero, in either direction.
 - Descriptive extras (not decision inputs): QB year-over-year stability and QBR correlation at
   each candidate; NE 2025 and Maye across thresholds, whichever way they move.
+
+Decided with the maintainer (2026-10-04), to be written into the protocol above:
+
+- Each candidate is the published team fit run unchanged on the kept plays: kept plays and EPA
+  replace the game-log columns `fit_team_ratings` reads, and each threshold's penalties are
+  cross-validated on the previous season's kept plays (1999 cross-validates its own), as the
+  published fit does with every play. Reason: the kept share falls fast, so 0% penalties would
+  shrink filtered ratings harder for a reason unrelated to garbage time. Mean
+  `wp_kept_play_share` over the 32 teams in 2025: 0.846 at 5%, 0.772 at 10%, 0.623 at 20%, 0.453
+  at 30%, from `curl -s 'http://127.0.0.1:8090/api/seasons/2025/teams/wp-ratings?threshold=X'`
+  (server: `nfl-sos-ratings web --port 8090`). If a threshold is adopted, the exploration view
+  switches to the same penalties.
+- A separate read-only command, like `check-in-season-penalty`; `validate` and its report stay as
+  they are unless the maintainer adopts a change.
+- 10,000 paired-bootstrap resamples rather than the validation's 2,000: at 2,000, each tail of a
+  98.33% interval rests on about 17 draws.
+- The QB extras compare each threshold with the 0% play-level value, not the published rating,
+  which uses official weekly passing EPA.
+- The slider's and API's maximum is now 20% (see the decisions above). It does not affect the
+  test.
 
 Tasks:
 

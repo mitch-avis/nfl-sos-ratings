@@ -1,4 +1,4 @@
-"""Team and QB ratings refit on the plays a garbage-time filter keeps, for thresholds 0-30%.
+"""Team and QB ratings refit on the plays a garbage-time filter keeps, for thresholds 0-20%.
 
 A filter at X% keeps the plays whose win-probability bin (``wp_bins``) is X or above, plus the
 plays without a bin, so 0% keeps every play. A bin's plays and EPA add up, so every design row's
@@ -49,21 +49,21 @@ if TYPE_CHECKING:
 
 type FloatArray = npt.NDArray[np.float64]
 
-MAX_WP_THRESHOLD = 30
+MAX_WP_THRESHOLD = 20
 # Bins run 0-50 (``wp_bins``); one more slot holds the plays without a bin.
 _LAST_BIN = 50
 _UNBINNED_SLOT = _LAST_BIN + 1
 
 
 def _check_threshold(threshold: int) -> None:
-    """Raise ``ValueError`` unless ``threshold`` is a whole percentage from 0 to 30."""
+    """Raise ``ValueError`` unless ``threshold`` is a whole percentage from 0 to 20."""
     if not 0 <= threshold <= MAX_WP_THRESHOLD:
         msg = f"WP threshold must be from 0 to {MAX_WP_THRESHOLD}, got {threshold}"
         raise ValueError(msg)
 
 
 def _kept_by_threshold(row_keys: pl.DataFrame, bins: pl.DataFrame, value: str) -> FloatArray:
-    """Return, for each row of ``row_keys`` and each threshold 0-30, the kept total of ``value``.
+    """Return, for each row of ``row_keys`` and each threshold 0-20, the kept total of ``value``.
 
     Bins match rows on every ``row_keys`` column; a row without bins keeps nothing.
     """
@@ -231,7 +231,7 @@ class TeamWpFilter:
             plays over all of the team's scrimmage and special-teams plays), sorted by team.
 
         Raises:
-            ValueError: If ``threshold`` is outside 0-30.
+            ValueError: If ``threshold`` is outside 0-20.
 
         """
         _check_threshold(threshold)
@@ -293,7 +293,7 @@ class QbWpFilter:
             ``qb_faced_pass_defense``, and ``wp_kept_dropback_share``, sorted by ``qb_id``.
 
         Raises:
-            ValueError: If ``threshold`` is outside 0-30.
+            ValueError: If ``threshold`` is outside 0-20.
 
         """
         _check_threshold(threshold)

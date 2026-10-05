@@ -6,11 +6,11 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Current state (2026-10-04)
 
-- `main` (pushed, `b70b522`) holds the points-based ratings, the follow-up work, previous-season
+- `main` (pushed, `02a2b47`) holds the points-based ratings, the follow-up work, previous-season
   ridge penalties for the team fit, the rank ranges, QB data fixes, and UX audit described below
   (pull request #1), the rebuild tooling (pull request #2), and the garbage-time filter's
-  win-probability bins (#3) and refits per threshold with their API (#4), all merged on
-  2026-10-04.
+  win-probability bins (#3), refits per threshold with their API (#4), and slider with its
+  exploration view in the web app (#5), all merged on 2026-10-04.
 - Published team ratings: `team_rating` (points per game against an average team) with
   `offense_rating`, `defense_rating`, and `special_teams_rating` adding up to it,
   head-to-head-excluded `sos`, and `SRS` as the score-based reference. The team fit reuses the
@@ -38,17 +38,19 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Next steps
 
-All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order. Done
-and merged: the `feat/rank-ranges` pull request (#1), the nfl-predictor note, the three small fixes
-in pull request #2 (single-threaded BLAS by default, one fixed row order per data file, and the
-read-only `nfl-sos-ratings diff-data` command), the garbage-time filter's bins (#3), and its
-refits per threshold and API (#4, `/api/seasons/{season}/{teams|qbs}/wp-ratings`). Branch
-`feat/wp-slider` holds the slider and the filtered view in the web app (one open bug and one
-unverified phone layout, recorded under WP3 in the roadmap). Still open: the pre-registered test
-(WP4), head-to-head chances and more rank-range views, weekly 2026 refresh automation, frontend
-follow-ups, a project logger, and retired stats on request. Until A1 lands,
-rebuild 2026 weekly with `nfl-sos-ratings season` (ask first), copying `data/` beforehand so
-`diff-data` can report what changed.
+All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order. Done and
+merged: the `feat/rank-ranges` pull request (#1), the nfl-predictor note, the three small fixes in
+pull request #2 (single-threaded BLAS by default, one fixed row order per data file, and the
+read-only `nfl-sos-ratings diff-data` command), the garbage-time filter's bins (#3), and its refits
+per threshold and API (#4, `/api/seasons/{season}/{teams|qbs}/wp-ratings`), and the slider with its
+filtered view (#5; phone layout checked by the maintainer). Branch `fix/wp-qb-team` shows each QB's
+team in the filtered table again (the freeze that kept it out did not recur with the maintainer's
+browser extensions disabled; roadmap, WP3), lowers the filter's maximum from 30% to 20%, and bumps
+`filelock` in `uv.lock`. Still open: the pre-registered test (WP4, decisions recorded in its roadmap
+section), head-to-head chances and more rank-range views, weekly 2026 refresh automation, frontend
+follow-ups, a project logger, and retired stats on request. Until A1 lands, rebuild 2026 weekly with
+`nfl-sos-ratings season` (ask first), copying `data/` beforehand so `diff-data` can report what
+changed.
 
 ## Validation snapshot
 

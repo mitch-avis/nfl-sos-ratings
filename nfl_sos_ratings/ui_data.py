@@ -342,7 +342,7 @@ def load_team_wp_ratings_payload(data_dir: Path, season: int, threshold: int) ->
     Raises:
         MissingSeasonContractError: If the season's game logs, bins, or ratings file, or the
             previous season's game logs, are missing.
-        ValueError: If ``threshold`` is outside 0-30.
+        ValueError: If ``threshold`` is outside 0-20.
 
     """
     inputs = _wp_inputs(
@@ -380,7 +380,7 @@ def load_qb_wp_ratings_payload(data_dir: Path, season: int, threshold: int) -> W
 
     Raises:
         MissingSeasonContractError: If the season's QB game logs, bins, or ratings file is missing.
-        ValueError: If ``threshold`` is outside 0-30.
+        ValueError: If ``threshold`` is outside 0-20.
 
     """
     inputs = _wp_inputs(

@@ -137,7 +137,7 @@ clock offense, a big deficit brings desperation passing against them. The analys
 ratings without those plays to show how much a ranking depends on them. It is an unvalidated
 exploration view; the published ratings always use every play.
 
-- **The rule.** A threshold of X% (0 to 30, in whole percentages) keeps a play when the offense's
+- **The rule.** A threshold of X% (0 to 20, in whole percentages) keeps a play when the offense's
   win probability before the snap (nflverse `wp`, from score, clock, and field position, without
   the pregame spread) was at least X% and at most 100% minus X%. Scrimmage and special-teams plays
   are filtered alike. Plays without a win probability (17 rated plays in all, in 1999-2001 and

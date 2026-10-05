@@ -2,8 +2,8 @@ import type { EntityKind, RowValue, WpRatingsPayload } from '@/api/types'
 
 import { formatFixed } from './format'
 
-/** The largest threshold the API accepts: plays with a win probability of 30% to 70% remain. */
-export const MAX_WP_THRESHOLD = 30
+/** The largest threshold the API accepts: plays with a win probability of 20% to 80% remain. */
+export const MAX_WP_THRESHOLD = 20
 /** The query-string key that carries the threshold, so a filtered view can be shared. */
 export const WP_QUERY_KEY = 'wp'
 
@@ -41,7 +41,7 @@ export interface WpRatingRow {
 
 export type WpSortKey = 'filteredRank' | 'publishedRank' | 'ratingChange' | 'rankChange' | 'keptShare'
 
-/** Read `?wp=`: a whole percentage from 0 to 30; anything else means no filter. */
+/** Read `?wp=`: a whole percentage from 0 to 20; anything else means no filter. */
 export function parseWpThreshold(raw: string | null): number {
   if (raw === null || !/^\d+$/.test(raw)) return 0
   const value = Number(raw)
