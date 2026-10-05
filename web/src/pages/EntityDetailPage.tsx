@@ -9,6 +9,7 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { PageHeader } from '@/components/common/PageHeader'
 import { StatTile } from '@/components/common/StatTile'
 import { GameLogTable } from '@/components/entity/GameLogTable'
+import { HeadToHeadCard } from '@/components/entity/HeadToHeadCard'
 import { MetricSections } from '@/components/entity/MetricSections'
 import { OpponentBreakdownTable } from '@/components/entity/OpponentBreakdownTable'
 import { RankHistogram } from '@/components/entity/RankHistogram'
@@ -168,6 +169,8 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
           </CardContent>
         </Card>
       ) : null}
+
+      <HeadToHeadCard kind={kind} season={season} entityId={entityId} rows={dataset[kind].rows} />
 
       <WpFilterPanel kind={kind} season={season} entityId={entityId} />
 

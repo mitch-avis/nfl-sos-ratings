@@ -85,6 +85,22 @@ export function useRatingHistory(kind: EntityKind, season: number, entityId: str
   })
 }
 
+/** One team's or QB's head-to-head chances for a season; seasons built without them answer 404. */
+export function useRatingPairs(kind: EntityKind, season: number, entityId: string) {
+  return useQuery({
+    queryKey: ['rating-pairs', kind, season, entityId],
+    enabled: entityId !== '',
+    queryFn: async ({ signal }) => {
+      const payload = await apiFetch<TablePayload>(
+        `/api/seasons/${season}/${kind}/${encodeURIComponent(entityId)}/rating-pairs`,
+        signal,
+      )
+      hydrateColumnMetadata(payload.column_metadata)
+      return payload
+    },
+  })
+}
+
 /** Every team's or QB's bootstrap rank range for a season; seasons built without them answer 404. */
 export function useRankRanges(kind: EntityKind, season: number) {
   return useQuery({

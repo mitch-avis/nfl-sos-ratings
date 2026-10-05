@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import type { EntityConfig, RowValue, TablePayload } from '@/api/types'
 import { useTheme } from '@/app/ThemeProvider'
 import { MetricLabel } from '@/components/common/MetricLabel'
+import { HeadToHeadSentence } from '@/components/entity/HeadToHeadCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -38,6 +39,16 @@ export function ComparisonPanel({
   const compareStats = buildColumnStats(compareRows, compareColumns)
   // The same decimals as the season table below, from every row of the season.
   const compareDecimals = buildColumnDecimals(table.rows, compareColumns)
+  // With exactly two rows, the first is compared head to head with the second.
+  const [first, second] = compareRows
+  const headToHead =
+    compareRows.length === 2 && first && second
+      ? {
+          subject: String(first[config.identityKey] ?? ''),
+          other: String(second[config.identityKey] ?? ''),
+          labels: { subject: getEntityLabel(config.kind, first), other: getEntityLabel(config.kind, second) },
+        }
+      : null
 
   return (
     <Card className="gap-4">
@@ -74,6 +85,15 @@ export function ComparisonPanel({
             )
           })}
         </div>
+        {headToHead ? (
+          <HeadToHeadSentence
+            kind={config.kind}
+            season={season}
+            entityId={headToHead.subject}
+            otherId={headToHead.other}
+            labels={headToHead.labels}
+          />
+        ) : null}
         <Table className="tabular">
           <TableHeader>
             <TableRow>

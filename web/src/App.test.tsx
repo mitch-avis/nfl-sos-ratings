@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DEN_GAME_LOGS,
   DEN_RATING_HISTORY,
+  KC_RATING_PAIRS,
   columnMeta,
   QB_RANK_RANGES,
   REGISTRY,
@@ -454,6 +455,49 @@ describe('rank ranges', () => {
     expect(await screen.findByText('2nd; middle 50%: 2nd; 95%: 1st–3rd')).toBeInTheDocument()
     expect(screen.getByText('Top 5 in 100% of resamples, top 10 in 100%')).toBeInTheDocument()
     expect(screen.getByRole('table', { name: 'Chance of each rank' })).toHaveTextContent('2nd52%')
+  })
+})
+
+describe('head-to-head comparison', () => {
+  it('compares a team with the one ranked just above it', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/teams/KC/rating-pairs': KC_RATING_PAIRS }))
+
+    // Act
+    renderApp('/teams/KC?season=2025')
+
+    // Assert
+    const card = await screen.findByRole('region', { name: 'Head to head' })
+    expect(
+      await within(card).findByText(
+        'KC rated above DEN in 21% of resampled seasons; difference -4.9 points, 95%: -9.8 to +0.3.',
+      ),
+    ).toBeInTheDocument()
+    expect(within(card).getByRole('combobox', { name: 'Compare with' })).toHaveTextContent('DEN')
+  })
+
+  it('states the head-to-head chance when exactly two teams are compared', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/teams/KC/rating-pairs': KC_RATING_PAIRS }))
+
+    // Act
+    renderApp('/teams?season=2025&compare=KC,DEN')
+
+    // Assert
+    expect(
+      await screen.findByText(
+        'KC rated above DEN in 21% of resampled seasons; difference -4.9 points, 95%: -9.8 to +0.3.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('leaves the card out for a season built without head-to-head chances', async () => {
+    // Act
+    renderApp('/teams/KC?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('heading', { name: /Kansas City/ })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Head to head' })).not.toBeInTheDocument())
   })
 })
 

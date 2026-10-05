@@ -185,6 +185,33 @@ export function stubApi(routes: Record<string, unknown>): typeof fetch {
   }) as typeof fetch
 }
 
+/** KC's head-to-head chances against the other two fixture teams. */
+export const KC_RATING_PAIRS: TablePayload = {
+  rows: [
+    {
+      team: 'KC',
+      other_team: 'DEN',
+      team_rated_above_probability: 0.21,
+      team_pair_share: 1,
+      team_rating_gap_q025: -9.8,
+      team_rating_gap_q500: -4.9,
+      team_rating_gap_q975: 0.3,
+    },
+    {
+      team: 'KC',
+      other_team: 'LV',
+      team_rated_above_probability: 0.99,
+      team_pair_share: 1,
+      team_rating_gap_q025: 6.1,
+      team_rating_gap_q500: 12.5,
+      team_rating_gap_q975: 18.0,
+    },
+  ],
+  visible_columns: [],
+  column_groups: {},
+  column_metadata: {},
+}
+
 export const DEN_RATING_HISTORY: TablePayload = {
   rows: [
     { week: 1, team: 'DEN', games_played: 1, team_rating: 1.2, offense_rating: 0.6 },
