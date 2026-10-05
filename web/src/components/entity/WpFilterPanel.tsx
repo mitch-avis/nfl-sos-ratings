@@ -51,7 +51,8 @@ function ExplorationNote({ kind }: { kind: EntityKind }) {
       </Badge>
       <p className="max-w-prose text-sm text-muted-foreground">
         The published ratings use every play. Rank ranges and the rest of this page count every play
-        too.
+        too. In a walk-forward test, no threshold predicted team game margins better than every play,
+        and 20% predicted them worse.
         {kind === 'qbs'
           ? ' Filtered QB ratings use play-by-play EPA, which differs slightly from the official EPA in the published rating, so changes compare with the same calculation at 0%.'
           : null}
