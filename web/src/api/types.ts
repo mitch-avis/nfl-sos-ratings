@@ -47,6 +47,12 @@ export interface RankRangesPayload extends Omit<TablePayload, 'rows'> {
   rows: Array<Record<string, RowValue | number[]>>;
 }
 
+/** `/api/seasons/{season}/{kind}/wp-ratings?threshold=X`: the garbage-time filter view. */
+export interface WpRatingsPayload extends TablePayload {
+  threshold: number;
+  max_threshold: number;
+}
+
 export interface SeasonDataset {
   season: number;
   teams: TablePayload;
