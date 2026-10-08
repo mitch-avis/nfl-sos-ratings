@@ -36,7 +36,7 @@ export function meanReference(
 ): TrendReference | null {
   if (points.length === 0) return null
   const mean = points.reduce((total, point) => total + point.value, 0) / points.length
-  return { value: mean, caption: `Dashed line: the mean of the games shown (${format(mean)}).` }
+  return { value: mean, caption: `Dashed line: the average of the games shown (${format(mean)}).` }
 }
 
 const NICE_STEP_FACTORS = [1, 2, 2.5, 5, 10]

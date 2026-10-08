@@ -217,7 +217,7 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
                 <Label htmlFor="show-unrated">Show QBs below the qualifier</Label>
                 <InfoTooltip
                   label="About the qualifier"
-                  content={`The table ranks quarterbacks with at least 14 pass attempts per game their team has played${gamesSoFar !== null ? ' so far, so teams that have had a bye need fewer' : ''}. Switch on to list the passers below that mark too; they have no rank range. Each quarterback's number is the Qualifier Att column in Raw Total Stats.`}
+                  content={`A quarterback is ranked once they have 14 pass attempts for every game their team has played${gamesSoFar !== null ? ' so far, so a team\'s bye lowers its quarterbacks\' mark by 14' : ''}. Switch on to list the passers below that mark too; they have no rank range. Each quarterback's mark is the Att to Qualify column in Raw Total Stats.`}
                 />
               </div>
             ) : null}
@@ -252,10 +252,10 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
           <CardHeader>
             <CardTitle className="text-base">Rank ranges</CardTitle>
             <CardDescription>
-              Where each {kind === 'teams' ? 'team' : 'qualifying QB'} ranks when the {season} games are
-              redrawn at random, with repeats, and the ratings are refit on every redraw. The spread
-              shows how much a rank depends on which games happened to be played, not whether the
-              model is right. Seasons in progress show very wide ranges.
+              Where each {kind === 'teams' ? 'team' : 'qualifying QB'} ranks across 1,000 redraws of
+              the {season} season: its games drawn at random, with repeats, and everyone re-rated each
+              time. The spread shows how much a rank depends on which games happened to be played, not
+              whether the model is right. Seasons in progress show wider ranges.
             </CardDescription>
           </CardHeader>
           <CardContent>

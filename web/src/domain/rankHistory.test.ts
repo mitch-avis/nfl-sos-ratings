@@ -63,7 +63,7 @@ describe('describeRankHistory', () => {
     const text = describeRankHistory(points)
 
     // Assert
-    expect(text).toBe('Median rank 12th in week 1 (95%: 3rd–28th) and 9th in week 2 (95%: 4th–20th).')
+    expect(text).toBe('Median rank 12th after week 1 (95%: 3rd–28th) and 9th after week 2 (95%: 4th–20th).')
   })
 
   it('describes a single week on its own', () => {
@@ -74,7 +74,7 @@ describe('describeRankHistory', () => {
     const text = describeRankHistory([first])
 
     // Assert
-    expect(text).toBe('Median rank 12th in week 1 (95%: 3rd–28th).')
+    expect(text).toBe('Median rank 12th after week 1 (95%: 3rd–28th).')
   })
 })
 

@@ -26,7 +26,7 @@ const PAIR_COLUMNS: Record<EntityKind, { other: string; above: string; gap: stri
 
 /** Decimals and unit of a rating gap: points per game for teams, EPA per dropback for QBs. */
 const GAP_FORMAT: Record<EntityKind, { decimals: number; unit: string }> = {
-  teams: { decimals: 1, unit: 'points' },
+  teams: { decimals: 1, unit: 'points per game' },
   qbs: { decimals: 3, unit: 'EPA per dropback' },
 }
 
@@ -63,14 +63,14 @@ export function parseRatingPairs(kind: EntityKind, payload: TablePayload): Ratin
  * resamples with both passers, so the sentence says how many those were when it is not all.
  */
 export function describeRatingPair(kind: EntityKind, subject: string, other: string, pair: RatingPair): string {
-  if (pair.aboveChance === null) return `${subject} and ${other} never appeared in the same resampled season.`
+  if (pair.aboveChance === null) return `${subject} and ${other} never appeared in the same redraw.`
   const { decimals, unit } = GAP_FORMAT[kind]
-  const among = kind === 'qbs' ? 'the resampled seasons with both' : 'resampled seasons'
+  const among = kind === 'qbs' ? 'the redraws with both' : 'redraws'
   const sentence =
-    `${subject} rated above ${other} in ${percent(pair.aboveChance)} of ${among}; difference ` +
-    `${signed(pair.gapMid, decimals)} ${unit}, 95%: ${signed(pair.gapLow, decimals)} to ${signed(pair.gapHigh, decimals)}.`
+    `${subject} rated above ${other} in ${percent(pair.aboveChance)} of ${among}. Typical gap ` +
+    `(${subject} minus ${other}): ${signed(pair.gapMid, decimals)} ${unit}; 95% of redraws: ${signed(pair.gapLow, decimals)} to ${signed(pair.gapHigh, decimals)}.`
   if (pair.share === null || pair.share >= 1) return sentence
-  return `${sentence} Both appeared in ${percent(pair.share)} of resampled seasons.`
+  return `${sentence} Both appeared in ${percent(pair.share)} of redraws.`
 }
 
 /**

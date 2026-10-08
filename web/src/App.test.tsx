@@ -350,7 +350,7 @@ describe('season in progress', () => {
 
     // Assert
     expect(await screen.findByRole('tooltip')).toHaveTextContent(
-      'at least 14 pass attempts per game their team has played so far',
+      '14 pass attempts for every game their team has played so far',
     )
   })
 
@@ -527,7 +527,7 @@ describe('rank column', () => {
 
     // Assert
     expect(await screen.findByRole('tooltip')).toHaveTextContent(
-      "Each row's position in the current sort (Team Rating).",
+      "This row's position in the table as it is sorted (Team Rating) and searched now.",
     )
   })
 })
@@ -543,7 +543,7 @@ describe('index header', () => {
     await user.click(button)
 
     // Assert
-    expect(await screen.findByText(/SRS is the classic point-margin rating/)).toBeVisible()
+    expect(await screen.findByText(/SRS is the classic score-based rating/)).toBeVisible()
   })
 
   it('starts with the title, the ranking line, and the table, without repeats or tallies', async () => {
@@ -552,7 +552,7 @@ describe('index header', () => {
 
     // Assert
     expect(await screen.findByRole('heading', { name: /Team Ratings Index · 2025/ })).toBeInTheDocument()
-    expect(screen.getByText(/Team Rating is points per game better than an average team/)).toBeInTheDocument()
+    expect(screen.getByText(/Team Rating is points per game better \(\+\) or worse/)).toBeInTheDocument()
     expect(screen.getAllByText(/Team Ratings Index/)).toHaveLength(1)
     expect(screen.queryByText('Use first')).not.toBeInTheDocument()
     expect(screen.queryByText('3 rows')).not.toBeInTheDocument()
@@ -862,7 +862,7 @@ describe('rank ranges', () => {
 
     // Assert
     expect(await screen.findByText('2nd; middle 50%: 2nd; 95%: 1st–3rd')).toBeInTheDocument()
-    expect(screen.getByText('Top 5 in 100% of resamples, top 10 in 100%')).toBeInTheDocument()
+    expect(screen.getByText('Top 5 in 100% of redraws, top 10 in 100%')).toBeInTheDocument()
     expect(screen.getByRole('table', { name: 'Chance of each rank' })).toHaveTextContent('2nd52%')
   })
 
@@ -913,7 +913,7 @@ describe('head-to-head comparison', () => {
     const card = await screen.findByRole('region', { name: 'Head to head' })
     expect(
       await within(card).findByText(
-        'KC rated above DEN in 21% of resampled seasons; difference -4.9 points, 95%: -9.8 to +0.3.',
+        'KC rated above DEN in 21% of redraws. Typical gap (KC minus DEN): -4.9 points per game; 95% of redraws: -9.8 to +0.3.',
       ),
     ).toBeInTheDocument()
     expect(within(card).getByRole('combobox', { name: 'Compare with' })).toHaveTextContent('DEN')
@@ -929,7 +929,7 @@ describe('head-to-head comparison', () => {
     // Assert
     expect(
       await screen.findByText(
-        'KC rated above DEN in 21% of resampled seasons; difference -4.9 points, 95%: -9.8 to +0.3.',
+        'KC rated above DEN in 21% of redraws. Typical gap (KC minus DEN): -4.9 points per game; 95% of redraws: -9.8 to +0.3.',
       ),
     ).toBeInTheDocument()
   })
@@ -954,7 +954,7 @@ describe('rank by week', () => {
 
     // Assert
     const card = await screen.findByRole('region', { name: 'Rank by week' })
-    expect(within(card).getByText('Median rank 2nd in week 1 (95%: 1st–3rd) and 1st in week 2 (95%: 1st–3rd).')).toBeInTheDocument()
+    expect(within(card).getByText('Median rank 2nd after week 1 (95%: 1st–3rd) and 1st after week 2 (95%: 1st–3rd).')).toBeInTheDocument()
     expect(within(card).getByRole('table', { name: 'Rank by week' })).toBeInTheDocument()
   })
 
@@ -1340,7 +1340,7 @@ describe('garbage-time filter', () => {
     // Assert
     expect(await screen.findByRole('slider', { name: 'Garbage-time filter' })).toHaveAttribute('aria-valuenow', '0')
     expect(screen.getByText(/Off: every play counts/)).toBeInTheDocument()
-    expect(screen.queryByText('Unvalidated exploration view')).not.toBeInTheDocument()
+    expect(screen.queryByText('Exploration only')).not.toBeInTheDocument()
   })
 
   it('lists teams by filtered rank beside their published rank and rating', async () => {
@@ -1358,9 +1358,9 @@ describe('garbage-time filter', () => {
     expect(within(rows[0]).getByRole('link')).toHaveAttribute('href', '/teams/KC?season=2025&wp=10')
     expect(within(table).getByRole('button', { name: /Published/ })).toBeInTheDocument()
     expect(within(rows[0]).getByText('2 · 5.40')).toBeInTheDocument()
-    expect(screen.getByText('Unvalidated exploration view')).toBeInTheDocument()
-    expect(screen.getByText(/Rank ranges and the rest of this page count every play/)).toBeInTheDocument()
-    expect(screen.getByText(/no threshold predicted team game margins better than every play/)).toBeInTheDocument()
+    expect(screen.getByText('Exploration only')).toBeInTheDocument()
+    expect(screen.getByText(/Published ratings, rank ranges, and the rest of this page always use every play/)).toBeInTheDocument()
+    expect(screen.getByText(/none beat using every play/)).toBeInTheDocument()
   })
 
   it("lists each filtered quarterback's team in its own column", async () => {
@@ -1402,7 +1402,7 @@ describe('garbage-time filter', () => {
     // Assert
     const panel = await screen.findByRole('region', { name: 'Garbage-time filter' })
     expect(await within(panel).findByText('0.15')).toBeInTheDocument()
-    expect(within(panel).getByText('Unvalidated exploration view')).toBeInTheDocument()
+    expect(within(panel).getByText('Exploration only')).toBeInTheDocument()
   })
 
   it('opens a detail page from the filtered table without losing the threshold', async () => {

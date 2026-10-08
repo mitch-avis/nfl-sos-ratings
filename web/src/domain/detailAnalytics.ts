@@ -306,10 +306,11 @@ function pickFirstAvailable(availableColumns: string[], candidates: string[]): s
   return candidates.find((column) => availableColumns.includes(column));
 }
 
-function buildLedgerDescription(surface: string): string {
+function buildLedgerDescription(): string {
   return (
-    `These rows are against unique opponents for the ${surface} view. Division opponents are averaged together here when they were faced more than once. `
-    + 'Opponent rating columns are season-long context, not single-game grades.'
+    'One row per opponent: an opponent played twice, such as a division rival, gets one row that '
+    + 'averages both games. Opponent rating and tier columns describe the opponent\'s full season, '
+    + 'not these games; a vs Season column compares these games with the season average.'
   );
 }
 
@@ -339,7 +340,7 @@ function buildTeamLedgerSpec(
   switch (activeGroupId) {
     case 'offense':
       return {
-        description: buildLedgerDescription('selected team offense'),
+        description: buildLedgerDescription(),
         difficultyMetric: offenseContext ?? overallDifficulty,
         groupColumns,
         deltaMetric: pickDeltaMetric(groupColumns, [
@@ -351,7 +352,7 @@ function buildTeamLedgerSpec(
       };
     case 'defense':
       return {
-        description: buildLedgerDescription('selected team defense'),
+        description: buildLedgerDescription(),
         difficultyMetric: defenseContext ?? overallDifficulty,
         groupColumns,
         deltaMetric: pickDeltaMetric(groupColumns, [
@@ -363,14 +364,14 @@ function buildTeamLedgerSpec(
       };
     case 'results':
       return {
-        description: buildLedgerDescription('selected team results'),
+        description: buildLedgerDescription(),
         difficultyMetric: overallDifficulty,
         groupColumns,
         deltaMetric: pickDeltaMetric(groupColumns, ['point_margin']),
       };
     case 'per_snap_rates':
       return {
-        description: buildLedgerDescription('selected team per-snap view'),
+        description: buildLedgerDescription(),
         difficultyMetric: overallDifficulty,
         groupColumns,
         deltaMetric: pickDeltaMetric(groupColumns, [
@@ -384,7 +385,7 @@ function buildTeamLedgerSpec(
     case 'all':
     default:
       return {
-        description: buildLedgerDescription('selected team weekly summary'),
+        description: buildLedgerDescription(),
         difficultyMetric: overallDifficulty ?? offenseContext ?? defenseContext,
         groupColumns,
         deltaMetric: pickDeltaMetric(groupColumns, [
@@ -407,21 +408,21 @@ function buildQbLedgerSpec(
   switch (activeGroupId) {
     case 'results':
       return {
-        description: buildLedgerDescription('selected quarterback results'),
+        description: buildLedgerDescription(),
         difficultyMetric: overallDifficulty ?? passDefenseContext,
         groupColumns,
         deltaMetric: pickDeltaMetric(groupColumns, ['point_margin', 'win_value']),
       };
     case 'volume':
       return {
-        description: buildLedgerDescription('selected quarterback volume'),
+        description: buildLedgerDescription(),
         difficultyMetric: passDefenseContext ?? overallDifficulty,
         groupColumns,
         deltaMetric: pickDeltaMetric(groupColumns, ['qb_pass_yards', 'qb_attempts', 'qb_dropbacks']),
       };
     case 'efficiency':
       return {
-        description: buildLedgerDescription('selected quarterback efficiency'),
+        description: buildLedgerDescription(),
         difficultyMetric: passDefenseContext ?? overallDifficulty,
         groupColumns,
         deltaMetric: pickDeltaMetric(groupColumns, [
@@ -432,7 +433,7 @@ function buildQbLedgerSpec(
       };
     case 'per_dropback_rates':
       return {
-        description: buildLedgerDescription('selected quarterback per-dropback view'),
+        description: buildLedgerDescription(),
         difficultyMetric: passDefenseContext ?? overallDifficulty,
         groupColumns,
         deltaMetric: pickDeltaMetric(groupColumns, [
@@ -445,7 +446,7 @@ function buildQbLedgerSpec(
     case 'all':
     default:
       return {
-        description: buildLedgerDescription('selected quarterback weekly summary'),
+        description: buildLedgerDescription(),
         difficultyMetric: overallDifficulty ?? passDefenseContext,
         groupColumns,
         deltaMetric: pickDeltaMetric(groupColumns, [
@@ -561,17 +562,16 @@ export function buildOpponentBreakdown(
   const columns: OpponentBreakdownColumn[] = [
     { id: 'opponent_team' },
     { id: 'games' },
-    { id: 'weeks' },
+    { id: 'weeks', label: 'Weeks', tooltip: 'The weeks of the games against this opponent.' },
     ...(spec.difficultyMetric
       ? [
           { id: spec.difficultyMetric },
           {
             id: 'opp_schedule_bucket',
-            label: 'Sched Tier',
+            label: 'Opp Tier',
             tooltip:
-              'Quick difficulty label from the opponent\'s league rank on the rating shown for this '
-              + 'view: a top-10 opponent reads Tougher, a bottom-10 opponent reads Softer, and '
-              + 'everything between reads Middle.',
+              'Where this opponent ranked in the league on the rating to the left, over its full '
+              + 'season: Tougher is top 10, Softer is bottom 10, and Middle is the rest.',
           },
         ]
       : []),

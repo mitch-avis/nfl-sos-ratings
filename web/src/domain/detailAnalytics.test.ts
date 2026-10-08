@@ -339,8 +339,8 @@ test('buildOpponentBreakdown curates a team offense ledger with season-delta con
     breakdown.rows.find((row) => row.opponent_team === 'ARI')!.opp_schedule_bucket,
     'Middle',
   );
-  assert.match(breakdown.description, /unique opponents/i);
-  assert.match(breakdown.description, /division opponents are averaged together/i);
+  assert.match(breakdown.description, /one row per opponent/i);
+  assert.match(breakdown.description, /a division rival, gets one row that averages both games/i);
 });
 
 test.each([

@@ -37,7 +37,7 @@ export function RankHistogram({ range }: { range: RankRange }) {
                 return (
                   <ChartTooltipCard
                     title={bar.published ? `Ranked ${ordinal(bar.rank)} (published rank)` : `Ranked ${ordinal(bar.rank)}`}
-                    rows={[{ label: 'Share of resamples', value: formatChance(bar.probability), color: 'var(--chart-1)' }]}
+                    rows={[{ label: 'Share of redraws', value: formatChance(bar.probability), color: 'var(--chart-1)' }]}
                   />
                 )
               }}
@@ -51,7 +51,8 @@ export function RankHistogram({ range }: { range: RankRange }) {
         </ResponsiveContainer>
       </div>
       <p className="text-xs text-muted-foreground">
-        Rank 1 is at the left. The highlighted column is the published rank ({ordinal(range.publishedRank)}).
+        How often each rank came up across the 1,000 redraws. Rank 1 is at the left; the highlighted
+        column is the published rank ({ordinal(range.publishedRank)}).
       </p>
       <table className="sr-only">
         <caption>Chance of each rank</caption>

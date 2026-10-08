@@ -69,7 +69,7 @@ export function RankIntervalTrack({
 /** The key to the interval marks, drawn with the same marks. */
 export function RankIntervalKey() {
   const items = [
-    { label: 'Middle 50% of resamples', mark: <span className="h-2.5 w-5 rounded-sm bg-chart-1" /> },
+    { label: 'Middle 50% of redraws', mark: <span className="h-2.5 w-5 rounded-sm bg-chart-1" /> },
     { label: 'Middle 95%', mark: <span className="h-0.5 w-5 rounded-full bg-chart-1" /> },
     { label: 'Median rank', mark: <span className="size-2.5 rounded-full bg-foreground" /> },
     { label: 'Published rank, when different', mark: <span className="size-2.5 rotate-45 border-2 border-foreground bg-card" /> },

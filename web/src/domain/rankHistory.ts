@@ -62,7 +62,7 @@ function weekText(point: RankHistoryPoint): string {
   const median = point.median === null ? 'n/a' : ordinal(point.median)
   const range =
     point.low95 === null || point.high95 === null ? 'n/a' : `${ordinal(point.low95)}–${ordinal(point.high95)}`
-  return `${median} in week ${point.week} (95%: ${range})`
+  return `${median} after week ${point.week} (95%: ${range})`
 }
 
 /** A one-sentence text alternative: the first and the latest week's median rank and 95% range. */

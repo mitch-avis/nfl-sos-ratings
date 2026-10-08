@@ -65,9 +65,9 @@ export function HeadToHeadCard({
           Head to head
         </CardTitle>
         <CardDescription>
-          How often this {unit} was rated above another one when the {season} games are redrawn at
-          random and the ratings refit. Both move together in each redraw, so this answers the
-          question more directly than two rank ranges.
+          How often this {unit} was rated above the one you pick across the same 1,000 redraws of
+          the {season} season, counting only redraws with both. Both are re-rated in every redraw, so
+          this answers the question more directly than two rank ranges.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">

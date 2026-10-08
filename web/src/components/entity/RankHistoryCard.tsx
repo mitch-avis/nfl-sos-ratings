@@ -78,11 +78,11 @@ export function RankHistoryCard({
           Rank by week
         </CardTitle>
         <CardDescription>
-          The rank when the {season} games through each week are redrawn at random and the ratings
-          refit, rank 1 at the top. The line is the median redraw, the darker band the middle 50%,
-          and the lighter band the middle 95%. It starts once every team has played three games: with
-          fewer, a redraw can only repeat or drop a team&apos;s games, never change their results, so
-          the bands would understate the uncertainty.
+          The rank as the {season} season went on, rank 1 at the top, from 1,000 redraws of the games
+          played through each week. Line: median rank; darker band: middle 50%; lighter band: middle
+          95%. It starts once every team has played three games: with fewer, a redraw can only repeat
+          or drop a team&apos;s games, never change their results, so the bands would understate the
+          uncertainty.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">

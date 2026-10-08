@@ -59,7 +59,7 @@ describe('describeRatingPair', () => {
 
     // Assert
     expect(sentence).toBe(
-      'NE rated above BUF in 38% of resampled seasons; difference -1.2 points, 95%: -5.0 to +2.8.',
+      'NE rated above BUF in 38% of redraws. Typical gap (NE minus BUF): -1.2 points per game; 95% of redraws: -5.0 to +2.8.',
     )
   })
 
@@ -69,7 +69,7 @@ describe('describeRatingPair', () => {
 
     // Assert
     expect(sentence).toBe(
-      'Drake Maye rated above Josh Allen in 82% of the resampled seasons with both; difference +0.045 EPA per dropback, 95%: -0.010 to +0.101. Both appeared in 87% of resampled seasons.',
+      'Drake Maye rated above Josh Allen in 82% of the redraws with both. Typical gap (Drake Maye minus Josh Allen): +0.045 EPA per dropback; 95% of redraws: -0.010 to +0.101. Both appeared in 87% of redraws.',
     )
   })
 
@@ -81,7 +81,7 @@ describe('describeRatingPair', () => {
     const sentence = describeRatingPair('qbs', 'One', 'Two', pair)
 
     // Assert
-    expect(sentence).toBe('One and Two never appeared in the same resampled season.')
+    expect(sentence).toBe('One and Two never appeared in the same redraw.')
   })
 })
 

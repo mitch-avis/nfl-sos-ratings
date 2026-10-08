@@ -130,7 +130,7 @@ export function opponentRankRanges(
 /** The detail-page headline, for example `6th; middle 50%: 4th–8th; 95%: 1st–16th`. */
 export function rankRangeHeadline(range: Pick<RankRange, 'publishedRank' | 'rank'>): string {
   const published = ordinal(range.publishedRank)
-  if (range.rank.q500 === null) return `${published}; not ranked in any resample`
+  if (range.rank.q500 === null) return `${published}; not ranked in any redraw`
   return [
     published,
     `middle 50%: ${rankRangeText(range.rank.q250, range.rank.q750)}`,
@@ -156,7 +156,7 @@ export function formatChance(share: number): string {
  * resample drew none of its games (or, for a QB, none of his dropbacks).
  */
 export function rankChanceText(kind: EntityKind, range: RankRange): string {
-  const text = `Top 5 in ${formatChance(range.top5)} of resamples, top 10 in ${formatChance(range.top10)}`
+  const text = `Top 5 in ${formatChance(range.top5)} of redraws, top 10 in ${formatChance(range.top10)}`
   if (range.missingShare <= 0) return text
   const missing = kind === 'qbs' ? 'no dropbacks' : 'no games'
   return `${text}; left out of ${formatChance(range.missingShare)} (${missing} drawn)`
