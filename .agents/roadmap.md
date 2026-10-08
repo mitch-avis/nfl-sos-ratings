@@ -91,8 +91,8 @@ bottom; update the status boxes in the same change set as the work.
    rebuild only with a fresh yes. Teams first; QBs as a separate later test.
 7. [ ] P7 Index pages: U5-U8.
 8. [ ] P8 Detail pages: U9-U12.
-9. [ ] P9 Charts: U13-U14, with R3's early weeks (chart starts once every team has 3 games;
-   approved).
+9. [x] P9 Charts: U13-U14, with R3's early weeks (chart starts once every team has 3 games;
+   approved), on `feat/chart-polish`.
 10. [ ] P10 Color semantics: U15-U17.
 11. [ ] P11 Palette menu as a division grid (U19); U18 lands with P5.
 12. [ ] P12 Refresh button (maintainer idea, 2026-10-08): an opt-in server flag, one refresh at a
@@ -695,13 +695,13 @@ Tasks:
   /tmp/data-before-r3 --after data --season 2026` reported "18 unchanged, 0 row order only, 0
   values changed, 0 schema changed, 2 added, 0 removed" (the two weekly files);
   `.venv/bin/pytest -m published_data --no-cov` passed (6 tests).
-- [ ] Decision for the maintainer (found 2026-10-05): with one or two games per team, a game
+- [x] Decision for the maintainer (found 2026-10-05): with one or two games per team, a game
   bootstrap can only repeat or drop a team's games, so the first weeks' bands understate the
   uncertainty; NE 2026's 95% band was 11th-21st after week 1 but 4th-31st after week 3. The card
   and `docs/methodology.md` now say so. Recommended: start the chart at the first week in which
   every team has played three games (a small frontend filter; the files keep every week), since
   a caveat alone still draws a misleadingly tight band. Alternative: keep every week with the
-  caveat, as shipped.
+  caveat, as shipped. Approved 2026-10-08 (the recommendation) and built in session plan P9.
 
 ## A1. Weekly refresh automation for 2026
 
@@ -982,11 +982,15 @@ Detail pages:
 
 Charts:
 
-- [ ] U13 The weekly chart draws smoothed lines (`type="monotone"`) that overshoot between games,
+- [x] U13 The weekly chart draws smoothed lines (`type="monotone"`) that overshoot between games,
   and defaults to the first numeric column (Pass Yds on team pages, 4QC on QB pages) instead of the
   rating's per-play stat. Straight segments, and a rating-first default.
-- [ ] U14 Axis ticks: Rating by week uses uneven ticks (-3.60, -2.70, ...); Rank by week crowds
+- [x] U14 Axis ticks: Rating by week uses uneven ticks (-3.60, -2.70, ...); Rank by week crowds
   25th and 32nd. Round ticks from a nice-number step. Settle R3's early-week decision with it.
+  Done: straight segments, `trend.niceTicks` (1, 2, 2.5, or 5 times a power of ten, covering the
+  reference line), rank ticks every eighth rank on the short weekly axis, the game-by-game chart
+  opening on `epa_margin_per_play` (teams) or `qb_epa_per_dropback` (QBs), and the weekly rank API
+  starting at `ui_data.first_rank_history_week` (every team at 3 games; R3 settled).
 
 Color semantics:
 
