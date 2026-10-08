@@ -94,11 +94,11 @@ bottom; update the status boxes in the same change set as the work.
    `rating_ranges.BOOTSTRAP_RESAMPLES`), and the category descriptions, with both catalogs
    regenerated. Not done, by choice: composing `filtered_` and percentile columns without the base
    description, a draft idea to shorten those hints that changes how the registry composes text;
-   it waits for a request. Waiting on the maintainer: `air_epa_total` polarity (recommend neutral,
-   like the other air-yards columns: in a scratch check it tracked throwing depth more than
-   quality), removing `player_id` and `player_display_name` from the registry (no file in `data/`
-   has them; `ui_data._build_qb_payload` lists them only if present), and accepting nine labels of
-   19-20 characters.
+   it waits for a request. Maintainer decisions of 2026-10-08, done on `fix/registry-calls`:
+   `air_epa_total` is neutral, like the other air-yards columns (in a scratch check it tracked
+   throwing depth more than quality); `player_id` and `player_display_name` left the registry and
+   `ui_data._build_qb_payload` (no file in `data/` has them; the tests' fixtures now use `qb_id` and
+   `qb_name`, as the data does); the nine labels of 19-20 characters stay.
 6. [ ] P6 Preseason prior for the team fit: the team fit shrinks toward a regressed previous-season
    rating that fades out early in the season (the maintainer expects the prior gone by mid-season
    or earlier; the fade point is for the pre-registered test to settle). Protocol first, then code

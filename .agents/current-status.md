@@ -63,9 +63,7 @@ history (the composite-rating era and its experiments) is in git, before commit 
    on 2026-10-08).
 3. QB dropbacks and scrambles (roadmap, "Data notes"): a published-rating change that needs its
    own protocol.
-5. Registry (roadmap P5): `air_epa_total` polarity (neutral recommended), removing `player_id` and
-   `player_display_name`, and accepting nine labels of 19-20 characters.
-6. Smaller open items in the roadmap's "Data notes", each a `data/` change: the extra-point drive
+5. Smaller open items in the roadmap's "Data notes", each a `data/` change: the extra-point drive
    after a return touchdown, the near-duplicate
    yards-per-snap columns, `opp_longest_*` averaging per-game maxima, `fourth_down_aggressiveness`
    at 2.0 in two 2000 games, play-by-play as a 2003-2011 source for tackles for loss, and

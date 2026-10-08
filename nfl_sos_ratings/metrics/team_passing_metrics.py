@@ -475,7 +475,8 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
             "caught."
         ),
         shape="count",
-        polarity="higher",
+        # It tracks how deep a team throws more than how well: neutral, like the air-yards stats.
+        polarity="neutral",
         source="PBP",
         since=2006,
     ),

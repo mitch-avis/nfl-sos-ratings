@@ -51,8 +51,6 @@ Who the quarterback is, how much he played, and whether he played enough to be r
 | --- | --- | --- | --- | --- | --- | --- |
 | `qb_id` | QB ID | id | - | - | PBP | The league's official player ID for this quarterback (for example 00-0023459), used to link his rows across tables. If that ID is missing, another source's ID or his name stands in. |
 | `qb_name` | QB | id | - | - | PBP | The quarterback's display name. |
-| `player_id` | Player ID | id | - | - | PLS | The league's player ID as carried in the official weekly stats, used to match rows across data sources. |
-| `player_display_name` | Player Name | id | - | - | PLS | The quarterback's name as given in the official weekly stats. |
 | `qb_games_played` | QB Games | count | - | 1999 | PBP | Games in which the quarterback dropped back at least once or, in seasons with snap counts, played at least one offensive snap. Per-game stats divide by this count. |
 | `qb_offense_snaps` | QB Snaps | count | - | 2013 | SNP | Offensive snaps the quarterback was on the field for, from the league's snap counts, which this data has from 2013 on. Empty before 2013: nflverse's 2012 snap-count file has no rows. |
 | `qb_dropbacks` | Dropbacks | count | - | 1999 | PBP | Pass attempts plus sacks: the plays where the quarterback dropped back and threw or went down. Scrambles are not counted here; they count as carries. Formula: Pass attempts (two-point tries included, spikes left out) + sacks |
