@@ -151,12 +151,15 @@ export function formatChance(share: number): string {
   return `${Math.round(share * 100)}%`
 }
 
-/** The top-5 and top-10 chances, plus how often a QB had no dropbacks when that happened. */
+/**
+ * The top-5 and top-10 chances, plus how often the team or QB was left out of the ranking because a
+ * resample drew none of its games (or, for a QB, none of his dropbacks).
+ */
 export function rankChanceText(kind: EntityKind, range: RankRange): string {
   const text = `Top 5 in ${formatChance(range.top5)} of resamples, top 10 in ${formatChance(range.top10)}`
   if (range.missingShare <= 0) return text
   const missing = kind === 'qbs' ? 'no dropbacks' : 'no games'
-  return `${text}; ${missing} in ${formatChance(range.missingShare)}`
+  return `${text}; left out of ${formatChance(range.missingShare)} (${missing} drawn)`
 }
 
 /** Left offset and width, in percent of the track, of ranks `low` through `high` out of `count`. */

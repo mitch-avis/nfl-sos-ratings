@@ -140,3 +140,21 @@ export const RESET_PATCH: EntityPageViewState = {
   showUnratedRows: false,
   sorting: undefined,
 }
+
+/**
+ * Navigation state for rewriting the index URL to the season shown: keeps whatever the previous
+ * state carried (a page's not-found id) and, when the URL asked for another season, records it as
+ * `unavailableSeason`, so the notice saying so outlives the rewrite.
+ */
+export function seasonRedirectState(previous: unknown, requested: string | null, shown: number): Record<string, unknown> | null {
+  const base = typeof previous === 'object' && previous !== null ? { ...(previous as Record<string, unknown>) } : {}
+  const asked = requested === null ? Number.NaN : Number(requested)
+  if (Number.isInteger(asked) && asked !== shown) base.unavailableSeason = asked
+  return Object.keys(base).length > 0 ? base : null
+}
+
+/** The season a URL asked for but did not have, carried in navigation state; null when none. */
+export function unavailableSeasonFromState(state: unknown): number | null {
+  if (typeof state !== 'object' || state === null || !('unavailableSeason' in state)) return null
+  return typeof state.unavailableSeason === 'number' ? state.unavailableSeason : null
+}

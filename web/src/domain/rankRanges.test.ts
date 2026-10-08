@@ -152,7 +152,7 @@ test('rankChanceText adds how often a quarterback was missing', () => {
   const text = rankChanceText('qbs', qb)
 
   // Assert
-  assert.equal(text, 'Top 5 in 42% of resamples, top 10 in 81%; no dropbacks in 12%')
+  assert.equal(text, 'Top 5 in 42% of resamples, top 10 in 81%; left out of 12% (no dropbacks drawn)')
 })
 
 test('rankChanceText leaves the missing share out when nothing was missing', () => {

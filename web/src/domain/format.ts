@@ -86,3 +86,8 @@ export function formatFixed(value: RowValue, decimals: number | null): string {
   const shown = Number(value.toFixed(decimals)) === 0 ? 0 : value
   return shown.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 }
+
+/** `count` with its noun, singular for one: `1 game`, `4 games`, `2 matches` (given `plural`). */
+export function countLabel(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}

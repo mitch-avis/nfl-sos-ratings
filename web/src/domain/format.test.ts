@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { columnDecimals, formatFixed } from './format'
+import { columnDecimals, countLabel, formatFixed } from './format'
 
 describe('columnDecimals', () => {
   it.each([
@@ -39,5 +39,21 @@ describe('formatFixed', () => {
 
     // Assert
     expect(text).toBe(expected)
+  })
+})
+
+describe('countLabel', () => {
+  it.each([
+    [1, 'game', undefined, '1 game'],
+    [4, 'game', undefined, '4 games'],
+    [0, 'opponent', undefined, '0 opponents'],
+    [1, 'match', 'matches', '1 match'],
+    [2, 'match', 'matches', '2 matches'],
+  ])('labels %i %s', (count, singular, plural, expected) => {
+    // Act
+    const label = countLabel(count, singular, plural)
+
+    // Assert
+    expect(label).toBe(expected)
   })
 })

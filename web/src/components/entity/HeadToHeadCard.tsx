@@ -6,7 +6,7 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { TeamChip } from '@/components/common/TeamChip'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getEntityConfig, getEntityId, getEntityLabel } from '@/domain/entityConfig'
+import { getEntityId, getEntityLabel } from '@/domain/entityConfig'
 import { describeRatingPair, isMissingRatingPairs, neighborId, parseRatingPairs } from '@/domain/ratingPairs'
 
 /** The published rating each kind is ranked by, best first. */
@@ -56,7 +56,7 @@ export function HeadToHeadCard({
   const selected = picked ?? neighborId(ranked, entityId) ?? pairs[0]?.otherId ?? null
   const pair = pairs.find((candidate) => candidate.otherId === selected)
   const options = [...pairs].sort((left, right) => labelOf(left.otherId).localeCompare(labelOf(right.otherId)))
-  const unit = getEntityConfig(kind).singularLabel.toLowerCase()
+  const unit = kind === 'teams' ? 'team' : 'QB'
 
   return (
     <Card role="region" aria-labelledby={titleId} className="gap-4">

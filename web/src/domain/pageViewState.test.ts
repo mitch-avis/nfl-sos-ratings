@@ -8,13 +8,12 @@ import {
   canResetPageView,
   reconcileCompareIds,
   resolvePageViewState,
+  seasonRedirectState,
   toggleCompareId,
   toggleSubcategoryPatch,
+  unavailableSeasonFromState,
 } from './pageViewState'
-import {
-  getInProgressGames,
-  getRegularSeasonGameCount,
-} from './seasonRules'
+import { getInProgressGames } from './seasonRules'
 import { buildTrendPoints } from './trend'
 
 describe('page view state', () => {
@@ -86,34 +85,27 @@ describe('page view state', () => {
 })
 
 describe('season rules', () => {
-  it.each([
-    [2020, 16],
-    [2021, 17],
-  ])('counts %i regular-season games as %i', (season, games) => {
-    // Act
-    const count = getRegularSeasonGameCount(season)
+  function season(inProgress: boolean, rows: Array<Record<string, number | string>>) {
+    return { in_progress: inProgress, teams: { ...SEASON_2025.teams, rows } }
+  }
 
-    // Assert
-    expect(count).toBe(games)
-  })
-
-  it('reports games played so far while a season is in progress', () => {
+  it('reports the most games played so far while the season is in progress', () => {
     // Arrange
-    const rows = [{ team: 'NE', games_played: 3 }, { team: 'DEN', games_played: 4 }]
+    const dataset = season(true, [{ team: 'NE', games_played: 3 }, { team: 'DEN', games_played: 4 }])
 
     // Act
-    const games = getInProgressGames(2026, rows)
+    const games = getInProgressGames(dataset)
 
     // Assert
     expect(games).toBe(4)
   })
 
-  it('reports nothing once every team has a full season', () => {
+  it('reports nothing for a season the API does not mark in progress, whatever the game counts', () => {
     // Arrange
-    const rows = [{ team: 'NE', games_played: 17 }, { team: 'DEN', games_played: 17 }]
+    const dataset = season(false, [{ team: 'BAL', games_played: 15 }, { team: 'DEN', games_played: 16 }])
 
     // Act
-    const games = getInProgressGames(2025, rows)
+    const games = getInProgressGames(dataset)
 
     // Assert
     expect(games).toBeNull()
@@ -121,21 +113,10 @@ describe('season rules', () => {
 
   it('reports nothing when games played is unknown', () => {
     // Act
-    const games = getInProgressGames(2026, [{ team: 'NE' }])
+    const games = getInProgressGames(season(true, [{ team: 'NE' }]))
 
     // Assert
     expect(games).toBeNull()
-  })
-
-  it('keeps a season in progress until the last team finishes', () => {
-    // Arrange
-    const rows = [{ games_played: 17 }, { games_played: 16 }]
-
-    // Act
-    const games = getInProgressGames(2025, rows)
-
-    // Assert
-    expect(games).toBe(17)
   })
 })
 
@@ -156,5 +137,34 @@ describe('weekly trend points', () => {
       { week: 1, value: 0.5, opponent: 'TEN' },
       { week: 3, value: 1.5, opponent: 'LAC' },
     ])
+  })
+})
+
+describe('season redirect state', () => {
+  it.each([
+    [null, '1990', 2025, { unavailableSeason: 1990 }],
+    [{ notFound: 'NOPE' }, '2025', 2025, { notFound: 'NOPE' }],
+    [{ notFound: 'NOPE' }, '1990', 2025, { notFound: 'NOPE', unavailableSeason: 1990 }],
+    [null, null, 2025, null],
+    [null, 'abc', 2025, null],
+  ])('from %o with ?season=%s showing %i gives %o', (previous, requested, shown, expected) => {
+    // Act
+    const state = seasonRedirectState(previous, requested, shown)
+
+    // Assert
+    expect(state).toEqual(expected)
+  })
+
+  it.each([
+    [{ unavailableSeason: 1990 }, 1990],
+    [{ unavailableSeason: '1990' }, null],
+    [null, null],
+    ['text', null],
+  ])('reads %o as %o', (state, expected) => {
+    // Act
+    const season = unavailableSeasonFromState(state)
+
+    // Assert
+    expect(season).toBe(expected)
   })
 })

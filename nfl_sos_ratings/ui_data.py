@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, TypedDict
 
 import polars as pl
 
+from nfl_sos_ratings import config
 from nfl_sos_ratings.data_loader import PBP_START_SEASON
 from nfl_sos_ratings.metrics import get_registry
 from nfl_sos_ratings.qb_rating import fit_qb_ratings
@@ -43,6 +44,8 @@ REQUIRED_CONTRACT_SUFFIXES = (
     "ratings",
     "qb_ratings",
 )
+# The first season with 17 regular-season games per team.
+FIRST_17_GAME_SEASON = 2021
 TEAM_GAME_LOG_SUFFIX = "team_game_logs"
 QB_GAME_LOG_SUFFIX = "qb_game_logs"
 TEAM_RATING_HISTORY_SUFFIX = "ratings_by_week"
@@ -107,9 +110,15 @@ class WpRatingsPayload(TablePayload):
 
 
 class SeasonDataset(TypedDict):
-    """Normalized season payload for the analyst UI."""
+    """Normalized season payload for the analyst UI.
+
+    ``in_progress`` is true only for the season being played (``config.SEASON``) while a team still
+    has regular-season games left, so a completed season with a missing or cancelled game is never
+    shown as in progress.
+    """
 
     season: int
+    in_progress: bool
     teams: TablePayload
     qbs: TablePayload
 
@@ -132,6 +141,26 @@ def discover_available_seasons(data_dir: Path) -> list[int]:
     return sorted(available, reverse=True)
 
 
+def regular_season_games(season: int) -> int:
+    """Return how many regular-season games each team plays: 17 from 2021, 16 before."""
+    return 17 if season >= FIRST_17_GAME_SEASON else 16
+
+
+def season_in_progress(season: int, team_frame: pl.DataFrame) -> bool:
+    """Return whether ``season`` is the one being played and a team still has games left.
+
+    Only ``config.SEASON`` can be in progress; a completed season stays complete even when a team
+    played fewer games (a cancelled game, or one missing from nflverse play-by-play). Without a
+    ``games_played`` column the season being played counts as in progress.
+    """
+    if season != config.SEASON:
+        return False
+    if "games_played" not in team_frame.columns or team_frame.is_empty():
+        return True
+    fewest = team_frame.get_column("games_played").min()
+    return not isinstance(fewest, int) or fewest < regular_season_games(season)
+
+
 def load_season_ui_dataset(data_dir: Path, season: int) -> SeasonDataset:
     """Load one season of normalized index data for the local analyst UI."""
     contract_paths = _build_contract_paths(data_dir, season)
@@ -142,6 +171,7 @@ def load_season_ui_dataset(data_dir: Path, season: int) -> SeasonDataset:
 
     return {
         "season": season,
+        "in_progress": season_in_progress(season, team_frame),
         "teams": _build_team_payload(team_frame),
         "qbs": _build_qb_payload(qb_frame),
     }
