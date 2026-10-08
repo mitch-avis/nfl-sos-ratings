@@ -88,7 +88,8 @@ bottom; update the status boxes in the same change set as the work.
    rating that fades out early in the season (the maintainer expects the prior gone by mid-season
    or earlier; the fade point is for the pre-registered test to settle). Protocol first, then code
    (test-first), an independent review, the check run (approved), the decision, and a `data/`
-   rebuild only with a fresh yes. Teams first; QBs as a separate later test.
+   rebuild only with a fresh yes. Teams first; QBs as a separate later test. Protocol, reviewed
+   and pre-registered: section "P6. Preseason prior for the team fit".
 7. [ ] P7 Index pages: U5-U8.
 8. [ ] P8 Detail pages: U9-U12.
 9. [x] P9 Charts: U13-U14, with R3's early weeks (chart starts once every team has 3 games;
@@ -125,6 +126,7 @@ bottom; update the status boxes in the same change set as the work.
 | 13 | M1 Retired stats, one at a time | On request; each needs its own verification |
 | 14 | S5 Test and pipeline speed | Single-threaded Polars: a season build 32.7 s to 4.8 s (scratch) |
 | 15 | U UX audit (2026-10-08) | Bugs first (U1-U4), then layout, detail page, charts, color semantics |
+| 16 | P6 Preseason prior for the team fit | Pre-registered test first; adoption needs the maintainer |
 
 ## Settled background the workstreams build on
 
@@ -1056,6 +1058,207 @@ Glossary and navigation:
 - [x] U19 The palette menu is a 33-item scrolling list; an eight-division grid of team chips would
   be faster, especially on a phone.
 
+## P6. Preseason prior for the team fit
+
+Background: the 2026 Broncos question (see "Data notes"). After four games the team fit pulls every
+estimate about halfway toward average (zero), and it knows nothing about the previous season.
+A scratch refit of 2026 with a prior inside the solve (2026-10-08, `/tmp` script, not citable)
+moved DEN from 15th to 10th with 45% of 2025 carried over, and a prior of zero reproduced the
+published ratings exactly. `../nfl-predictor` blends a regressed prior after its solve
+(`strength_snapshot._blend_prior`: two-thirds of last season, weight `games / (games + 4)`); its
+own 2026-09-25 review found that this shrinks the in-season solve twice and lets last season
+dominate at week 3 (correlation 0.96 with the prior against 0.45 with the in-season solve), and
+its constants were not tuned. This design puts the prior inside the solve instead.
+
+Maintainer decisions (2026-10-08): combine both kinds of regression to the mean; fade the prior out
+early (gone by mid-season or sooner, the exact point for the test to settle), so completed seasons
+keep their published ratings; teams first, QBs as a separate later test; the check may be run when
+built; a `data/` rebuild needs a fresh yes.
+
+Protocol history: drafted 2026-10-08; an independent review the same day (two blockers, eight
+majors, six minors, all resolved below) saw only descriptive inputs: the 2026 DEN sketch (outside
+the window), carryover slopes, shrink factors, and game counts. No candidate's walk-forward error
+has been computed by anyone before this protocol was committed. Two scope choices the review left
+to the maintainer were made conservatively, so the maintainer can revisit them before any
+adoption. The prior covers scrimmage only; the alternative is a special-teams prior built from a
+fit at a fixed, season-independent penalty (the published special-teams penalty sometimes reaches
+the top of its grid, which flattens that unit's effects for a season, as in 2020 and 2022). An
+adopted prior keeps the head-to-head exclusion in `sos` exactly; the alternative is no prior in
+the `sos` refit, at the cost of rating opponents with a different estimator from `team_rating`
+early in a season.
+
+### Estimator
+
+The team fit has two ridge units, scrimmage and special teams. In the scrimmage unit, the penalty
+pulls each offense and defense effect toward a prior mean instead of toward zero; the
+special-teams unit is unchanged (prior means zero):
+
+```text
+minimize  sum_rows w (y - a - o[team] + d[opp] - h s)^2
+        + lambda * sum_teams ((o[t] - m_o[t])^2 + (d[t] - m_d[t])^2)
+raw_o[t] = c(g_t) * rho_o * o_prev[t]        (raw_d[t] likewise with rho_d and d_prev)
+m_o[t]   = raw_o[t] - mean over the fit's offense units of raw_o   (m_d likewise)
+c(g)     = max(0, 1 - g / G)
+```
+
+- Units: `y` is EPA per play and every effect is per play, as in `ridge`; a rating is an effect
+  times the season's plays per team-game, as published.
+- `lambda`: unchanged, the scrimmage penalty cross-validated on season `s-1`, as published today.
+  It is not re-tuned for the prior; around an informative mean the matching penalty would be
+  larger, so keeping it under-weights the prior. That is conservative: a tie does not show that
+  no prior can help. Cross-validation never uses a prior, so every penalty is today's.
+- `o_prev`, `d_prev`: the scrimmage offense and defense effects of `fit_unit_ridge` on season
+  `s-1`'s rows with the scrimmage penalty cross-validated on season `s-2` (1999's own for 2000):
+  the fit behind `{s-1}_ratings.parquet`. Teams are linked across seasons by the normalized team
+  code (franchise-normalized for 1999-2025; HOU first appears in 2002). A team in season `s`
+  without a season `s-1` effect raises an error instead of defaulting to zero, except 2002 HOU,
+  which gets a raw prior of zero (outside the window either way).
+- `rho_o`, `rho_d`: the least-squares slope, through the origin and unweighted over team pairs, of
+  season `t`'s near-unpenalized scrimmage effects (`fit_unit_ridge` with `ridge_lambda = 1e-6`, an
+  unbiased estimate of that season's effects) on season `t-1`'s `o_prev` (likewise `d_prev`),
+  pooled over every pair `(t-1, t)` with `t < s` (expanding window, no look-ahead). Reason: the
+  penalty treats `m` as the expected true effect, which this slope estimates without bias;
+  shrinkage in `o_prev` itself is absorbed by the slope. Three pairs are needed, so 2003 is the
+  first season with a prior.
+- `c(g)`: the fade. `g_t` is the number of games team `t` has played in season `s` at the
+  snapshot (all of its games before the prediction week). Every refit of a snapshot reuses the
+  snapshot's `g`; no refit recounts games. Bootstrap resamples also reuse the snapshot's prior
+  means; head-to-head-excluded refits take theirs as described under "If adopted". With every
+  candidate `G` at most 9, below the shortest completed season in the
+  window (16 games), every completed-season fit has a zero prior, and so does every snapshot in
+  which every team has played at least `G` games.
+- Centering: the fitted effects average to the average prior mean (the intercept is unpenalized),
+  so the prior means are centered within each snapshot and side, which keeps the effects averaging
+  zero when byes give teams different `c(g)`.
+- A team with no games at a snapshot after week 1 (2017 MIA and TB before week 2) is rated at its
+  prior means on that snapshot's per-game scale: offense `m_o[t]`, defense
+  `m_d[t]` (its raw means shifted by the same centering as the fitted teams'), special teams zero.
+  Week-1 snapshots have no games at all; their feature rows are the harness's zeros (below), and
+  prior-only ratings appear only in the descriptive week-1 extra.
+- Solved directly: `(X'WX + lambda P) b = X'Wy + lambda P m`, with `P` the penalty mask and `m`
+  zero on the intercept and home field (`ridge.UnitPrior`, `fit_unit_ridge(..., prior=...)`). A
+  prior needs a fixed penalty, so cross-validation never sees one. The equivalent residual form,
+  the ordinary ridge on `y - (m_o[team] - m_d[opp])` with the means added back, is the independent
+  side of check 5. The ridge code reads a missing prior key as zero, so the prior-construction
+  module raises on a missing previous-season effect before calling it.
+
+### Pre-registered test
+
+- **Hypothesis (falsifiable):** shrinking the scrimmage effects toward the faded prior predicts
+  game margins out of sample better than shrinking toward zero. Not supported for a horizon `G`
+  unless its paired interval lies entirely below zero.
+- **Candidates, fixed in advance:** `G` = 3, 6, and 9 games, each against today's fit (no prior).
+  With `G = g`, a team's prior is gone once it has played `g` games; the DEN question is at
+  `g = 4`, where the prior weights are 0, 1/3, and 5/9.
+- **Allowed information set:** to predict week `w` of season `s`, a candidate sees season `s`'s
+  games before `w`; seasons before `s` (for `o_prev`, the penalties, and the slopes); and the
+  scrimmage penalty cross-validated on `s-1`, as published. The prior construction for season `s`
+  is computed by a function that receives only the game logs of seasons before `s` (checked
+  below). Its margin model sees only its own earlier predictions. Shared caveat, not a leak
+  between candidates: nflverse's expected-points model is trained on many seasons, including ones
+  after the season being predicted.
+- **Harness:** `nfl_sos_ratings/validation/walk_forward.py`, as `check-wp-filter` uses it. Feature
+  rows are built for every season from 1999 for every candidate (prior candidates equal today's
+  fit before 2003, where they have no prior), so every margin model has the same warm-up. Week-1
+  feature rows are the harness's zeros for every candidate. The margin model is `validate`'s:
+  `home_margin = k * rating_gap + home_edge`, least squares on all of the candidate's earlier
+  feature rows.
+- **Metric and window:** mean absolute error of the predicted home margin over prediction weeks 2
+  and later, seasons 2003-2025, on the games every candidate predicts.
+- **Inference:** a paired bootstrap of the per-game difference |error at G| - |error today| that
+  resamples whole seasons (23 clusters, 2003-2025) with replacement, keeping every game of a drawn
+  season together; 10,000 resamples, seed 0, the same season draws for every candidate and every
+  week band; 98.33% percentile intervals. "Qualifies" is a one-sided test at 0.83% per horizon, so
+  the chance of adopting any horizon when none helps is at most 2.5% (Bonferroni, conservative
+  here because the horizons are nested and their differences correlated).
+- **Decision rule:** a horizon qualifies only if its overall interval lies entirely below zero and
+  none of its week-band intervals (prediction weeks 2-4, 5-8, and 9 on; same draws and level)
+  lies entirely above zero. The recommendation is the qualifying horizon with the lowest overall
+  MAE. None qualifying is a tie, and the recommendation is no prior (the simpler option). Every
+  interval that excludes zero is reported, in either direction. The decision goes to the
+  maintainer either way; adopting changes the published early-week ratings, weekly histories, and
+  the season in progress (ask before the rebuild).
+- **Integrity checks, run before reading any result; if one fails, stop, investigate, and read
+  nothing else:**
+  1. Reproduction: for every `s` in the window, the per-game ratings rebuilt from `o_prev`,
+     `d_prev`, and season `s-1`'s special-teams effects equal `{s-1}_ratings.parquet`'s four
+     rating columns to 1e-9.
+  2. Today's fit: its rating gaps and predictions for weeks 5 on equal the `TeamRating` rows of
+     `walk_forward.run_walk_forward_backtest` over 1999-2025 with start week 5, computed in
+     memory, to 1e-9 (the command never runs `validate`, which rewrites the report).
+  3. Zero prior: with every prior mean zero, a candidate's ratings equal today's to 1e-9 on every
+     snapshot.
+  4. Fade: on every snapshot where every team has played at least `G` games, a candidate equals
+     today's fit to 1e-9; on every snapshot, the prior means used equal `c(g_t) * rho * o_prev[t]`,
+     centered, recomputed from the game counts, with `g_t` counting games before the prediction
+     week only.
+  5. Residual form: on every snapshot of 2003, 2014, and 2025, each candidate's scrimmage effects
+     equal an independent residual-form fit (an ordinary `fit_unit_ridge` with no prior on the
+     response `y - (m_o[team] - m_d[opp])`, the means added back) to 1e-9.
+  6. Limit: with `lambda = 1e12` and `c = 1`, every scrimmage effect equals its prior mean to 1e-6.
+  7. Coverage: in every season of the window, every team in the fit has a previous-season effect
+     (no default fills a missing key).
+  8. Information set: the prior construction for each `s`, run on a data directory holding only
+     the seasons before `s`, gives the same `rho` and `o_prev` as the full run.
+  9. Penalties: every penalty a candidate uses equals today's exactly.
+  10. Inputs: the check prints a SHA-256 fingerprint of exactly the files its decision reads, in
+      name order: `{season}_team_game_logs.parquet` for 1999-2025 and `{season}_ratings.parquet`
+      for 2002-2024 (each file's `sha256sum` line, hashed again), recorded with the results. The
+      2026 game logs, read only by the DEN extra, get a fingerprint of their own.
+- **Descriptive extras (never decision inputs):** MAE and paired intervals for weeks 2-4, 5-8, and
+  9 on; the single-game bootstrap intervals; each candidate's fitted margin slope `k` by band, so
+  a gain from rescaling rather than information shows; Elo's MAE by band as the existing carryover
+  reference; the same results for `G = 17` and a no-fade prior (both change completed seasons, so
+  neither is adoptable); `rho` by season; DEN's 2026 rating and rank after week 4 for each
+  candidate; the week-1 MAE of the prior alone against the home-edge-only prediction.
+- **Command:** a new read-only `nfl-sos-ratings check-team-prior --data-dir data --start-season
+  2003 --end-season 2025`, modeled on `check-wp-filter`; it reads `data/` and writes only to
+  stdout.
+
+### If adopted (after the maintainer's decision; not needed for the test)
+
+- Every refit takes the snapshot's prior: weekly rating histories, rank ranges, and head-to-head
+  chances reuse the snapshot's `g` and prior means. Test: a bootstrap refit in which a team is
+  drawn fewer than `G` times keeps the snapshot's prior. Integrity check before the rebuild: for
+  every completed season, `sos`, rank ranges, and head-to-head chances (same seeds and draws)
+  equal the published files.
+- Head-to-head-excluded `sos`: the opponents' prior means come from a refit of season `s-1`
+  without the evaluated team's games, at the same penalty as `o_prev` (the scrimmage penalty
+  cross-validated on `s-2`) and with the same `rho` and the snapshot's `g`, centered over that
+  refit's own units (every team but the evaluated one). So the evaluated team's results never
+  move its opponents' ratings. Test: changing the evaluated team's previous-season games against
+  an opponent leaves that team's `sos` unchanged.
+- `docs/methodology.md` states that early-week rank ranges hold the prior fixed and so understate
+  uncertainty until week `G`.
+
+### Tests (test-first) for the prior construction and the check
+
+- A synthetic league whose true effects carry over with a known slope: the near-unpenalized slope
+  recovers it within sampling error while the published-on-published slope does not, and the
+  prior beats the zero prior out of sample.
+- Sign: one strong offense and one strong defense, each prior pulling its effect the right way.
+- Units: at `lambda -> infinity` a rating equals `m * plays_per_game`.
+- Fade: `c(g)` at `g = 0, G/2, G, G + 3`.
+- Centering: on a snapshot with byes, the effects average zero to 1e-12.
+- A prior without a fixed penalty raises: the cross-validation path takes no prior.
+- The season bootstrap: when the paired differences are constant within each season, its interval
+  equals the interval from resampling the season means with the same draws.
+- The bootstrap pivot has the same game rows for every candidate (no row dropped).
+- A team without games at a snapshot gets its prior rating; a missing previous-season key raises.
+
+Tasks:
+
+- [x] Commit this protocol before any run (pre-registration): its own pull request, merged
+  before any of the check's code.
+- [x] Independent review of the protocol (a fresh subagent, 2026-10-08), findings resolved here.
+- [ ] The prior construction (`o_prev`, slopes, fade, centering) in a new module, on the `ridge`
+  prior already built (`UnitPrior`); test-first as listed.
+- [ ] `check-team-prior` test-first; integrity checks run on real data before reading any result.
+- [ ] Independent code review; run the check (approved); record the results here with the command.
+- [ ] Maintainer decision; if adopted, the refits above, then ask before the `data/` rebuild, then
+  update the registry, `README.md`, `docs/methodology.md`, the validation report, and the
+  nfl-predictor note.
+
 ## Ideas parking lot (not approved yet)
 
 - Rank ranges at a WP threshold, once WP4 has run.
@@ -1063,7 +1266,3 @@ Glossary and navigation:
 - Season-over-season rank change on the detail page.
 - A CI job that runs `scripts/gate.sh --quick` on every commit of a pull request (needs approval:
   CI changes are ask-first).
-- A preseason prior for the team fit (from the 2026 Broncos question): pull early-season ratings
-  toward a regressed previous-season rating instead of toward zero, so a schedule of last year's
-  strong teams counts as strong from week 1. A methodology change: needs a pre-registered
-  walk-forward test (weeks 2-8 especially) and the maintainer's approval before any code.
