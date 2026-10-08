@@ -34,12 +34,21 @@ _EXPLOSIVE_PASS_YARDS = 20
 _EXPLOSIVE_RUSH_YARDS = 10
 # Drives that start at or inside the offense's own 25 face a long field.
 _LONG_FIELD_START_YARDLINE = 25
+# nflverse play-by-play names the intended receiver on most incomplete passes (the rest are
+# throwaways, spikes, and batted balls), except in 2003-2008, where it names almost none. Below
+# this share of incompletions with a named receiver, a season's targets are unknown.
+_MIN_INCOMPLETION_RECEIVER_SHARE = 0.5
+_RECEIVER_COLUMNS = ("receiver_player_id", "receiver_player_name")
+# nflverse records up to two fumblers per play.
+_FUMBLER_COLUMNS = ("fumbled_1_player_id", "fumbled_2_player_id")
 
 # Offense-row column -> opponent's defense-row column.
 _DEFENSE_MIRROR_RENAMES = {
     "attempts": "attempts_faced",
     "completions": "completions_allowed",
     "completion_pct": "completion_pct_allowed",
+    "targets": "targets_faced",
+    "catch_rate": "catch_rate_allowed",
     "net_passing_yards": "net_passing_yards_allowed",
     "passing_air_yards": "air_yards_allowed",
     "passing_yards_after_catch": "yac_allowed",
@@ -134,6 +143,13 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     is_complete = value_expr(columns, "complete_pass") > 0
     is_dropback = value_expr(columns, "qb_dropback") > 0
     is_rush_attempt = value_expr(columns, "rush_attempt") > 0
+    # Carries (rush attempts that stood, not two-point tries) split into scrambles, kneel-downs,
+    # and designed runs. nflverse keeps the scramble and run flags on plays a penalty wiped out,
+    # so the split starts from rush attempts.
+    is_carry = is_rush_attempt & ~is_two_point
+    is_scramble = is_carry & (value_expr(columns, "qb_scramble") > 0)
+    is_kneel = is_carry & (value_expr(columns, "qb_kneel") > 0)
+    is_designed_run = is_carry & ~is_scramble & ~is_kneel
     is_interception = value_expr(columns, "interception") > 0
     is_fumble_lost = value_expr(columns, "fumble_lost") > 0
     yards = value_expr(columns, "yards_gained", 0.0)
@@ -163,9 +179,18 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     )
     xyac = pl.col("xyac_mean_yardage") if "xyac_mean_yardage" in columns else pl.lit(None)
     yac = pl.col("yards_after_catch") if "yards_after_catch" in columns else pl.lit(None)
+    receiver_fumbled = _receiver_fumbled_expr(columns)
 
     def _count(condition: pl.Expr, name: str) -> pl.Expr:
         return condition.cast(pl.Int64).sum().alias(name)
+
+    # Targets are official attempts thrown to a named receiver (not throwaways or spikes).
+    receiver_named = _target_receiver_expr(plays)
+    targets = (
+        pl.lit(None, dtype=pl.Int64).alias("targets")
+        if receiver_named is None
+        else _count(is_pass_attempt & ~is_sack & ~is_two_point & receiver_named, "targets")
+    )
 
     return (
         plays.group_by([*keys, "posteam", "defteam"])
@@ -173,11 +198,12 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             # Passing volume (official attempts exclude sacks and two-point tries).
             _count(is_pass_attempt & ~is_sack & ~is_two_point, "attempts"),
             _count(is_complete & ~is_two_point, "completions"),
+            targets,
             _count(is_dropback, "dropbacks"),
             (-yards).filter(is_sack).sum().fill_null(0.0).alias("sack_yards_lost"),
-            _count(value_expr(columns, "qb_scramble") > 0, "scrambles"),
+            _count(is_scramble, "scrambles"),
             value_expr(columns, "rushing_yards", 0.0)
-            .filter(value_expr(columns, "qb_scramble") > 0)
+            .filter(is_scramble)
             .sum()
             .fill_null(0.0)
             .alias("scramble_yards"),
@@ -210,13 +236,8 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             xyac.filter(is_complete).mean().alias("xyac_per_completion"),
             (yac - xyac).filter(is_complete).mean().alias("yac_over_expected_per_completion"),
             # Rushing (official carries exclude two-point tries).
-            _count(is_rush_attempt & ~is_two_point, "carries"),
-            _count(
-                (value_expr(columns, "rush") > 0)
-                & (value_expr(columns, "qb_kneel") == 0)
-                & ~is_two_point,
-                "designed_carries",
-            ),
+            _count(is_carry, "carries"),
+            _count(is_designed_run, "designed_carries"),
             value_expr(columns, "rushing_yards", 0.0)
             .filter(is_rush_attempt)
             .max()
@@ -241,11 +262,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             value_expr(columns, "success", 0).filter(scrimmage).mean().alias("success_rate"),
             value_expr(columns, "success", 0).filter(is_dropback).mean().alias("pass_success_rate"),
             value_expr(columns, "success", 0)
-            .filter(
-                (value_expr(columns, "rush") > 0)
-                & (value_expr(columns, "qb_kneel") == 0)
-                & ~is_two_point
-            )
+            .filter(is_designed_run)
             .mean()
             .alias("rush_success_rate"),
             value_expr(columns, "shotgun", 0).filter(scrimmage).mean().alias("shotgun_rate"),
@@ -262,7 +279,9 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
                 is_rush_attempt & ~is_two_point & (yards >= _EXPLOSIVE_RUSH_YARDS),
                 "aux_explosive_rushes",
             ),
-            _count(is_rush_attempt & ~is_two_point & (yards <= 0), "aux_stuffed_rushes"),
+            # A kneel-down is a carry but never a stuff, so stuff rate leaves kneel-downs out.
+            _count(is_carry & ~is_kneel, "aux_carries_without_kneels"),
+            _count(is_carry & ~is_kneel & (yards <= 0), "aux_stuffed_rushes"),
             _count(
                 is_pass_attempt & ~is_two_point & (pl.col("pass_length") == "deep")
                 if "pass_length" in columns
@@ -271,8 +290,8 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             ),
             # Turnovers.
             _count((value_expr(columns, "fumble") > 0) & scrimmage, "fumbles"),
-            _count((value_expr(columns, "fumble") > 0) & is_complete, "receiving_fumbles"),
-            _count(is_fumble_lost & is_complete, "receiving_fumbles_lost"),
+            _count(is_complete & receiver_fumbled, "receiving_fumbles"),
+            _count(is_complete & receiver_fumbled & is_fumble_lost, "receiving_fumbles_lost"),
             _count(is_fumble_lost & scrimmage, "fumbles_lost"),
             _count(is_interception, "aux_interceptions"),
             value_expr(columns, "epa", 0.0)
@@ -320,7 +339,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             .fill_null(0.0)
             .alias("aux_pass_epa"),
             value_expr(columns, "epa", 0.0)
-            .filter(value_expr(columns, "rush") > 0)
+            .filter(is_carry)
             .sum()
             .fill_null(0.0)
             .alias("aux_rush_epa"),
@@ -378,6 +397,48 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     )
 
 
+def _receiver_fumbled_expr(columns: list[str]) -> pl.Expr:
+    """Return an expression that is true when the play's targeted receiver fumbled.
+
+    Matched by player id, so a quarterback's fumbled snap before a completion, or a fumble by
+    a teammate after a lateral, is not the receiver's fumble.
+    """
+    fumblers = [column for column in _FUMBLER_COLUMNS if column in columns]
+    if "receiver_player_id" not in columns or not fumblers:
+        return pl.lit(False)
+    receiver = pl.col("receiver_player_id")
+    return pl.any_horizontal(
+        [(pl.col(column) == receiver).fill_null(value=False) for column in fumblers]
+    )
+
+
+def _target_receiver_expr(plays: pl.DataFrame) -> pl.Expr | None:
+    """Return a named-receiver flag for counting targets, or None when targets are unknown.
+
+    ``plays`` is one season's play-by-play. Completions always name their receiver, so the test
+    is how many incomplete passes do: where almost none do, counted targets would be little more
+    than completions, so they stay unknown, as they do without receiver columns.
+    """
+    columns = plays.columns
+    present = [pl.col(column) for column in _RECEIVER_COLUMNS if column in columns]
+    if not present:
+        return None
+    receiver_named = pl.coalesce(present).is_not_null()
+    named_share = (
+        plays.filter(
+            (value_expr(columns, "pass_attempt") > 0)
+            & (value_expr(columns, "incomplete_pass") > 0)
+            & ~(value_expr(columns, "sack") > 0)
+            & ~(value_expr(columns, "two_point_attempt") > 0)
+        )
+        .select(receiver_named.mean())
+        .item()
+    )
+    if named_share is not None and named_share < _MIN_INCOMPLETION_RECEIVER_SHARE:
+        return None
+    return receiver_named
+
+
 def _aggregate_series_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame | None:
     """Aggregate first-down series outcomes per team-game."""
     if not {"series", "series_success"}.issubset(plays.columns):
@@ -421,6 +482,9 @@ def _aggregate_drive_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame
         value_expr(columns, "drive_inside20", 0).max().alias("inside_20"),
         value_expr(columns, "ydsnet", 0).first().alias("net_yards"),
         value_expr(columns, "drive_yards_penalized", 0).first().alias("yards_penalized"),
+        ((value_expr(columns, "interception") > 0) | (value_expr(columns, "fumble_lost") > 0))
+        .any()
+        .alias("giveaway_play"),
         (
             pl.col("drive_time_of_possession").first()
             if "drive_time_of_possession" in columns
@@ -452,7 +516,12 @@ def _aggregate_drive_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame
         ).alias("possession_seconds"),
         pl.col("result").is_in(["Touchdown", "Field goal"]).alias("scored"),
         (pl.col("result") == "Punt").alias("punted"),
-        pl.col("result").is_in(["Interception", "Fumble", "Opp touchdown"]).alias("turned_over"),
+        # nflverse ends a drive lost to an interception or fumble as "Turnover"; "Opp touchdown"
+        # also covers punts and kicks returned for a score, so it counts only with a giveaway.
+        (
+            (pl.col("result") == "Turnover")
+            | ((pl.col("result") == "Opp touchdown") & pl.col("giveaway_play"))
+        ).alias("turned_over"),
     )
 
     return (
@@ -577,6 +646,7 @@ def _add_offense_ratios(frame: pl.DataFrame) -> pl.DataFrame:
 
     ratio_specs = [
         ("completions", "attempts", "completion_pct"),
+        ("completions", "targets", "catch_rate"),
         ("aux_sacks", "dropbacks", "sack_rate_per_dropback"),
         ("passing_air_yards", "attempts", "air_yards_per_attempt"),
         ("passing_yards_after_catch", "completions", "yac_per_completion"),
@@ -590,7 +660,7 @@ def _add_offense_ratios(frame: pl.DataFrame) -> pl.DataFrame:
         ("aux_rush_yards", "carries", "yards_per_carry"),
         ("aux_rush_epa", "carries", "epa_per_carry"),
         ("aux_explosive_rushes", "carries", "explosive_rush_rate"),
-        ("aux_stuffed_rushes", "carries", "stuffed_run_rate"),
+        ("aux_stuffed_rushes", "aux_carries_without_kneels", "stuffed_run_rate"),
         ("offensive_epa", "aux_off_snaps", "epa_per_offensive_snap"),
         ("aux_total_yards", "aux_off_snaps", "yards_per_offensive_snap"),
         ("dropbacks", "aux_off_snaps", "pass_rate"),
@@ -684,6 +754,8 @@ def _join_defense_mirrors(frame: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
 def _add_cross_side_margins(frame: pl.DataFrame) -> pl.DataFrame:
     """Derive whole-team margins that need both offense and defense values."""
     margin_specs = [
+        # Each takeaway is the opponent's giveaway, so the league's margins sum to zero.
+        ("takeaways", "giveaways", "turnover_margin"),
         ("aux_total_yards", "aux_total_yards_allowed", "total_yards_differential"),
         ("epa_per_offensive_snap", "epa_per_defensive_snap_allowed", "epa_margin_per_play"),
         ("success_rate", "success_rate_allowed", "success_rate_margin"),

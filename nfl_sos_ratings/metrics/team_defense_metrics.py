@@ -21,6 +21,11 @@ _def_to = section("team", "Defense", "Turnovers")
 _def_press = section("team", "Defense", "Pressure & Playmaking")
 _def_pen = section("team", "Defense", "Penalties")
 
+_TARGETS_GAP_NOTE = (
+    "Blank in 2003-2008, when nflverse play-by-play names the intended receiver on almost no "
+    "incomplete passes."
+)
+
 DEFENSE_METRICS: tuple[MetricDef, ...] = (
     _def_total(
         name="defensive_snaps",
@@ -435,12 +440,15 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         name="targets_faced",
         label="Targets Faced",
         full_name="Targets Faced",
-        description="Opponent pass attempts, receiving-side view of the defense.",
+        description=(
+            "Opponent pass attempts thrown to an intended receiver. Throwaways and spikes are "
+            "attempts but not targets."
+        ),
         shape="count",
         polarity="neutral",
         source="PBP +TS",
         since=1999,
-        duplicate_of="attempts_faced",
+        note=_TARGETS_GAP_NOTE,
     ),
     _def_recv(
         name="receptions_allowed",
@@ -474,7 +482,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent targets",
         since=1999,
-        duplicate_of="completion_pct_allowed",
+        note=_TARGETS_GAP_NOTE,
     ),
     _def_score(
         name="points_per_drive_allowed",
@@ -718,11 +726,13 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         name="stuff_rate",
         label="Stuff %",
         full_name="Run Stuff Rate",
-        description="The share of opponent carries stopped for no gain or a loss.",
+        description=(
+            "The share of opponent carries other than kneel-downs stopped for no gain or a loss."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
-        denominator="opponent carries",
+        denominator="opponent carries other than kneel-downs",
         since=1999,
     ),
     _def_press(
@@ -753,7 +763,10 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         name="defensive_penalties",
         label="Def Penalties",
         full_name="Defensive Penalties",
-        description="Penalties committed while on defense.",
+        description=(
+            "Penalties committed on plays where the opponent had the ball, including the "
+            "team's kickoffs, punt returns, and field-goal and extra-point defense."
+        ),
         shape="count",
         polarity="lower",
         source="PBP",
@@ -763,7 +776,10 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         name="defensive_penalty_yards",
         label="Def Pen Yds",
         full_name="Defensive Penalty Yards",
-        description="Penalty yards assessed while on defense.",
+        description=(
+            "Penalty yards assessed on plays where the opponent had the ball, including the "
+            "team's kickoffs, punt returns, and field-goal and extra-point defense."
+        ),
         shape="count",
         polarity="lower",
         source="PBP",

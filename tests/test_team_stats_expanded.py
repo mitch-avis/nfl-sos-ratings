@@ -30,9 +30,12 @@ def _play(**overrides: object) -> dict[str, object]:
         "incomplete_pass": 0,
         "sack": 0,
         "interception": 0,
+        "receiver_player_id": None,
         "fumble": 0,
         "fumble_lost": 0,
         "fumble_forced": 0,
+        "fumbled_1_player_id": None,
+        "fumbled_2_player_id": None,
         "tackled_for_loss": 0,
         "qb_hit": 0,
         "pass_defense_1_player_id": None,
@@ -221,8 +224,8 @@ def test_passing_volume_and_efficiency_extras() -> None:
 def test_rushing_extras_and_run_defense_mirror() -> None:
     """Verify carries, designed splits, explosive/stuffed rates, and stuff rate.
 
-    Fixture: 12-yard explosive run, -1-yard stuffed TFL run, kneel, and a
-    9-yard scramble (a carry but not a designed carry).
+    Fixture: 12-yard explosive run, -1-yard stuffed TFL run, kneel (a carry
+    but not a stuff), and a 9-yard scramble (a carry but not a designed carry).
     """
     # Arrange
     plays = [
@@ -243,7 +246,7 @@ def test_rushing_extras_and_run_defense_mirror() -> None:
             epa=-0.6,
             tackled_for_loss=1,
         ),
-        _play(rush=1, rush_attempt=1, qb_kneel=1, rushing_yards=-1.0, yards_gained=-1.0),
+        _play(rush_attempt=1, qb_kneel=1, rushing_yards=-1.0, yards_gained=-1.0),
         _play(
             **{"pass": 1},
             qb_dropback=1,
@@ -266,13 +269,13 @@ def test_rushing_extras_and_run_defense_mirror() -> None:
     assert abs(_num(den, "yards_per_carry") - 19.0 / 4.0) < 1e-9
     assert den["rush_success_rate"] == 0.5
     assert den["explosive_rush_rate"] == 0.25
-    assert den["stuffed_run_rate"] == 0.5
+    assert abs(_num(den, "stuffed_run_rate") - 1.0 / 3.0) < 1e-9
     assert den["longest_rush"] == 12.0
 
     kc = _row(result, "KC")
     assert kc["carries_faced"] == 4
     assert abs(_num(kc, "yards_per_carry_allowed") - 19.0 / 4.0) < 1e-9
-    assert kc["stuff_rate"] == 0.5
+    assert abs(_num(kc, "stuff_rate") - 1.0 / 3.0) < 1e-9
     assert kc["explosive_rush_rate_allowed"] == 0.25
     assert kc["rush_success_rate_allowed"] == 0.5
 
@@ -500,6 +503,160 @@ def test_drive_scoring_and_field_position_families() -> None:
     assert kc["red_zone_td_pct_allowed"] == 1.0
     assert kc["goal_to_go_td_pct_allowed"] == 1.0
     assert kc["avg_starting_field_position_allowed"] == 30.0
+
+
+def test_epa_per_carry_and_stuff_rate_divide_over_their_own_plays() -> None:
+    """Verify EPA per carry covers every carry and stuff rate leaves kneel-downs out.
+
+    Fixture (nflverse flags): a 12-yard run, a run stopped for a 1-yard loss, a kneel-down, a
+    9-yard scramble, and a run a penalty wiped out (a designed-run flag but no rush attempt).
+    """
+    # Arrange
+    plays = [
+        _play(rush=1, rush_attempt=1, rushing_yards=12.0, yards_gained=12.0, epa=0.8),
+        _play(rush=1, rush_attempt=1, rushing_yards=-1.0, yards_gained=-1.0, epa=-0.6),
+        _play(rush_attempt=1, qb_kneel=1, rushing_yards=-1.0, yards_gained=-1.0, epa=-0.4),
+        _play(
+            **{"pass": 1},
+            qb_dropback=1,
+            qb_scramble=1,
+            rush_attempt=1,
+            rushing_yards=9.0,
+            yards_gained=9.0,
+            epa=0.5,
+        ),
+        _play(rush=1, penalty=1, penalty_team="DEN", rushing_yards=None, epa=-0.6),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    den = _row(result, "DEN")
+    assert abs(_num(den, "epa_per_carry") - (0.8 - 0.6 - 0.4 + 0.5) / 4) < 1e-9
+    assert abs(_num(den, "stuffed_run_rate") - 1 / 3) < 1e-9
+    assert abs(_num(_row(result, "KC"), "stuff_rate") - 1 / 3) < 1e-9
+
+
+def test_scrambles_and_designed_runs_leave_out_plays_wiped_out_by_penalty() -> None:
+    """Verify nullified scrambles and designed runs are not counted as real plays.
+
+    nflverse keeps the scramble and designed-run flags on a play a penalty wiped out, but sets
+    ``rush_attempt`` only on plays that stood, as official carries do. Fixture: one real and one
+    nullified designed run, one real and one nullified scramble, and a kneel-down (``rush`` is 0
+    on scrambles and kneel-downs, as in nflverse).
+    """
+    # Arrange
+    plays = [
+        _play(rush=1, rush_attempt=1, rushing_yards=4.0, yards_gained=4.0, success=1),
+        _play(rush=1, penalty=1, penalty_team="DEN", rushing_yards=None, epa=-0.6),
+        _play(
+            **{"pass": 1},
+            qb_dropback=1,
+            qb_scramble=1,
+            rush_attempt=1,
+            rushing_yards=9.0,
+            yards_gained=9.0,
+            success=1,
+        ),
+        _play(**{"pass": 1}, qb_scramble=1, penalty=1, penalty_team="DEN", rushing_yards=None),
+        _play(rush_attempt=1, qb_kneel=1, rushing_yards=-1.0, yards_gained=-1.0),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    den = _row(result, "DEN")
+    assert (den["carries"], den["designed_carries"], den["scrambles"]) == (3, 1, 1)
+    assert den["scramble_yards"] == 9.0
+    assert den["rush_success_rate"] == 1.0
+
+
+def test_receiving_fumbles_count_only_the_receivers_fumbles() -> None:
+    """Verify receiving fumbles are the receiver's, not any fumble on a completed pass.
+
+    Fixture: three DEN completions, each with a fumble. The receiver fumbles and loses it on the
+    first; the quarterback fumbles the snap and recovers before throwing on the second; the
+    receiver laterals and the lateral's runner fumbles and loses it on the third.
+    """
+    # Arrange
+    receiver, quarterback, runner = "00-0000001", "00-0000002", "00-0000003"
+    catch = {
+        "pass": 1,
+        "pass_attempt": 1,
+        "complete_pass": 1,
+        "qb_dropback": 1,
+        "receiver_player_id": receiver,
+        "fumble": 1,
+    }
+    plays = [
+        _play(**catch, fumble_lost=1, fumbled_1_player_id=receiver),
+        _play(**catch, fumbled_1_player_id=quarterback),
+        _play(**catch, fumble_lost=1, fumbled_1_player_id=runner),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    den = _row(result, "DEN")
+    assert (den["receiving_fumbles"], den["receiving_fumbles_lost"]) == (1, 1)
+
+
+def test_turnover_drive_rate_counts_giveaway_drives_by_nflverse_result() -> None:
+    """Verify giveaway drives are nflverse "Turnover" drives plus giveaways returned for a score.
+
+    nflverse labels a drive lost to an interception or fumble "Turnover"; it never uses
+    "Interception" or "Fumble". "Opp touchdown" covers both giveaways returned for a touchdown
+    and punt returns, so only those with an interception or lost fumble count. Fixture: DEN has
+    five drives (interception, lost fumble, pick-six, punt returned for a touchdown, punt); KC has
+    the one-play extra-point group after its pick-six, which nflverse also labels "Opp touchdown".
+    """
+    # Arrange
+    drives = [
+        {"fixed_drive": 1, "fixed_drive_result": "Turnover"},
+        {"fixed_drive": 2, "fixed_drive_result": "Turnover"},
+        {"fixed_drive": 3, "fixed_drive_result": "Opp touchdown"},
+        {"fixed_drive": 4, "fixed_drive_result": "Opp touchdown"},
+        {"fixed_drive": 5, "fixed_drive_result": "Punt"},
+    ]
+    plays = [
+        _play(**{"pass": 1}, pass_attempt=1, qb_dropback=1, interception=1, **drives[0]),
+        _play(rush=1, rush_attempt=1, fumble=1, fumble_lost=1, **drives[1]),
+        _play(
+            **{"pass": 1},
+            pass_attempt=1,
+            qb_dropback=1,
+            interception=1,
+            return_touchdown=1,
+            touchdown=1,
+            td_team="KC",
+            **drives[2],
+        ),
+        _play(
+            rush=1,
+            rush_attempt=1,
+            **drives[3],
+        ),
+        _play(
+            punt_attempt=1,
+            down=4,
+            return_touchdown=1,
+            touchdown=1,
+            td_team="KC",
+            **drives[3],
+        ),
+        _play(rush=1, rush_attempt=1, **drives[4]),
+        _play(posteam="KC", defteam="DEN", **drives[2]),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    assert _row(result, "DEN")["turnover_pct_per_drive"] == 3 / 5
+    assert _row(result, "KC")["turnover_pct_per_drive"] == 0.0
 
 
 def test_penalty_families_track_both_sides() -> None:

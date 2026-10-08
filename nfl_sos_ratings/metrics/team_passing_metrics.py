@@ -13,6 +13,11 @@ from nfl_sos_ratings.metrics.schema import MetricDef, section
 _off_pass = section("team", "Offense", "Passing")
 _off_recv = section("team", "Offense", "Receiving")
 
+_TARGETS_GAP_NOTE = (
+    "Blank in 2003-2008, when nflverse play-by-play names the intended receiver on almost no "
+    "incomplete passes."
+)
+
 OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
     _off_pass(
         name="passing_yards",
@@ -234,11 +239,11 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_pass(
         name="air_yards_per_attempt",
-        label="aDOT",
-        full_name="Air Yards Per Attempt (aDOT)",
+        label="Air Yds/Att",
+        full_name="Air Yards Per Attempt",
         description=(
-            "Average depth of target: how far downfield the average throw traveled. A "
-            "style stat, not a quality grade."
+            "How far past the line of scrimmage the average pass attempt traveled in the air, "
+            "throwaways included. A style stat, not a quality grade."
         ),
         shape="rate",
         polarity="neutral",
@@ -476,14 +481,14 @@ OFFENSE_RECEIVING_METRICS: tuple[MetricDef, ...] = (
         label="Targets",
         full_name="Targets",
         description=(
-            "Team pass attempts viewed from the receiving side. At team level this is the "
-            "same number as pass attempts, shown here for a receiving-flavored view."
+            "Pass attempts thrown to an intended receiver. Throwaways and spikes are attempts "
+            "but not targets."
         ),
         shape="count",
         polarity="neutral",
         source="PBP +TS",
         since=1999,
-        duplicate_of="attempts",
+        note=_TARGETS_GAP_NOTE,
     ),
     _off_recv(
         name="receptions",
@@ -584,7 +589,7 @@ OFFENSE_RECEIVING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="targets",
         since=1999,
-        duplicate_of="completion_pct",
+        note=_TARGETS_GAP_NOTE,
     ),
 )
 

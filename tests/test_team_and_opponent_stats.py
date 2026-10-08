@@ -264,7 +264,7 @@ def test_compute_team_game_stats_from_pbp_aggregates_core_team_metrics() -> None
             "points_allowed": 17,
             "point_margin": 7,
             "win_value": 1.0,
-            "turnover_margin": 1,
+            "turnover_margin": 0,  # one giveaway each: a strip-sack and an interception
             "passing_yards_allowed": 15.0,
             "rushing_yards_allowed": 5.0,
             "total_yards_allowed": 20.0,
@@ -312,7 +312,7 @@ def test_compute_team_game_stats_from_pbp_aggregates_core_team_metrics() -> None
             "points_allowed": 24,
             "point_margin": -7,
             "win_value": 0.0,
-            "turnover_margin": -1,
+            "turnover_margin": 0,
             "passing_yards_allowed": 20.0,
             "rushing_yards_allowed": 10.0,
             "total_yards_allowed": 30.0,
@@ -398,6 +398,166 @@ def test_compute_team_game_stats_from_pbp_derives_per_snap_rates() -> None:
     assert den.select("passing_epa_allowed_per_defensive_snap").item() == -0.25
     assert den.select("def_sacks_per_defensive_snap").item() == 0.5
     assert den.select("def_fumbles_forced_per_defensive_snap").item() == 0.5
+
+
+def test_turnover_margin_is_takeaways_minus_giveaways() -> None:
+    """Verify turnover margin counts recovered giveaways only, so the two teams sum to zero.
+
+    Fixture: DEN throws an interception and loses a strip-sack fumble; KC loses a fumble after
+    a catch and keeps a fumble DEN forced on a run. Player stats credit DEN with both forced
+    fumbles and KC with the interception and the strip, as nflverse does.
+    """
+    # Arrange
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"] * 4,
+            "season": [2025] * 4,
+            "season_type": ["REG"] * 4,
+            "week": [1] * 4,
+            "posteam": ["DEN", "DEN", "KC", "KC"],
+            "defteam": ["KC", "KC", "DEN", "DEN"],
+            "pass": [1, 1, 1, 0],
+            "rush": [0, 0, 0, 1],
+            "qb_dropback": [1, 1, 1, 0],
+            "pass_attempt": [1, 1, 1, 0],
+            "rush_attempt": [0, 0, 0, 1],
+            "complete_pass": [0, 0, 1, 0],
+            "sack": [0, 1, 0, 0],
+            "interception": [1, 0, 0, 0],
+            "fumble": [0, 1, 1, 1],
+            "fumble_forced": [0, 1, 1, 1],
+            "fumble_lost": [0, 1, 1, 0],
+        }
+    )
+    player_stats = pl.DataFrame(
+        {
+            "season": [2025, 2025],
+            "season_type": ["REG", "REG"],
+            "week": [1, 1],
+            "team": ["DEN", "KC"],
+            "opponent_team": ["KC", "DEN"],
+            "def_interceptions": [0, 1],
+            "def_fumbles_forced": [2, 1],
+        }
+    )
+    schedule = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"],
+            "week": [1],
+            "home_team": ["DEN"],
+            "away_team": ["KC"],
+            "home_score": [10],
+            "away_score": [13],
+        }
+    )
+
+    # Act
+    result = team_stats.compute_team_game_stats_from_pbp(pbp, player_stats, schedule).sort("team")
+
+    # Assert
+    assert result.select("team", "takeaways", "giveaways", "turnover_margin").rows() == [
+        ("DEN", 1, 2, -1),
+        ("KC", 2, 1, 1),
+    ]
+
+
+def _den_kc_schedule() -> pl.DataFrame:
+    """Return a one-game DEN-KC schedule with final scores."""
+    return pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"],
+            "week": [1],
+            "home_team": ["DEN"],
+            "away_team": ["KC"],
+            "home_score": [10],
+            "away_score": [13],
+        }
+    )
+
+
+def _pass_play(posteam: str, **flags: object) -> dict[str, object]:
+    """Return one nflverse-shaped play row for the DEN-KC game with quiet pass flags."""
+    play: dict[str, object] = {
+        "game_id": "2025_01_DEN_KC",
+        "season": 2025,
+        "season_type": "REG",
+        "week": 1,
+        "posteam": posteam,
+        "defteam": "KC" if posteam == "DEN" else "DEN",
+        "pass": 1,
+        "rush": 0,
+        "qb_dropback": 1,
+        "pass_attempt": 1,
+        "rush_attempt": 0,
+        "complete_pass": 0,
+        "incomplete_pass": 0,
+        "sack": 0,
+        "interception": 0,
+        "two_point_attempt": 0,
+        "receiver_player_id": None,
+    }
+    play.update(flags)
+    return play
+
+
+def test_targets_count_attempts_with_an_intended_receiver() -> None:
+    """Verify targets leave out throwaways, sacks, and two-point tries, and catch rate uses them.
+
+    Fixture: DEN throws a completion, two incompletions, and an interception to named receivers,
+    plus a throwaway with no receiver; it is also sacked and completes a two-point pass. That is
+    5 official attempts, 4 targets, and 1 reception.
+    """
+    # Arrange
+    receiver = "00-0000001"
+    plays = [
+        _pass_play("DEN", complete_pass=1, receiver_player_id=receiver),
+        _pass_play("DEN", incomplete_pass=1, receiver_player_id=receiver),
+        _pass_play("DEN", incomplete_pass=1, receiver_player_id=receiver),
+        _pass_play("DEN", interception=1, receiver_player_id=receiver),
+        _pass_play("DEN", incomplete_pass=1),
+        _pass_play("DEN", sack=1),
+        _pass_play("DEN", complete_pass=1, two_point_attempt=1, receiver_player_id=receiver),
+        _pass_play("KC", incomplete_pass=1, receiver_player_id=receiver),
+    ]
+
+    # Act
+    result = team_stats.compute_team_game_stats_from_pbp(
+        pl.DataFrame(plays), pl.DataFrame(), _den_kc_schedule()
+    ).sort("team")
+
+    # Assert
+    den = result.row(0, named=True)
+    kc = result.row(1, named=True)
+    assert (den["attempts"], den["targets"], den["receptions"]) == (5, 4, 1)
+    assert den["catch_rate"] == 0.25
+    assert den["completion_pct"] == 0.2
+    assert (kc["targets_faced"], kc["catch_rate_allowed"]) == (4, 0.25)
+
+
+def test_targets_are_unknown_when_incompletions_name_no_receiver() -> None:
+    """Verify targets and catch rates are null, not undercounts, without receiver data.
+
+    nflverse play-by-play names no receiver on incomplete passes in 2003-2008, so those seasons
+    cannot count targets; completions still name theirs.
+    """
+    # Arrange
+    receiver = "00-0000001"
+    plays = [
+        _pass_play("DEN", complete_pass=1, receiver_player_id=receiver),
+        _pass_play("DEN", incomplete_pass=1),
+        _pass_play("DEN", incomplete_pass=1),
+        _pass_play("KC", complete_pass=1, receiver_player_id=receiver),
+    ]
+
+    # Act
+    result = team_stats.compute_team_game_stats_from_pbp(
+        pl.DataFrame(plays), pl.DataFrame(), _den_kc_schedule()
+    )
+
+    # Assert
+    assert result.select(
+        pl.col("targets", "catch_rate", "targets_faced", "catch_rate_allowed").null_count()
+    ).row(0) == (2, 2, 2, 2)
 
 
 def test_compute_team_stats_excluding_opponent_removes_head_to_head_games() -> None:

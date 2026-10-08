@@ -919,6 +919,25 @@ Proposal (one small pull request after the current one merges):
   schedule against `data/{season}_team_game_logs.parquet`; play-by-play rows for the missing games:
   0). BAL and LAR (1999) and KC, LAC, BUF, and MIA (2000) are rated on 15 games. 2022 BUF and CIN
   have 16 games because their game was cancelled; the same command lists no missing 2022 game.
+- Team stat fixes (found by the P5 audit, on `fix/team-stat-bugs`): `turnover_pct_per_drive`
+  counts nflverse "Turnover" drives plus "Opp touchdown" drives with an interception or lost
+  fumble (it matched "Interception" and "Fumble", which nflverse never uses); `turnover_margin` is
+  `takeaways` minus `giveaways` (it added forced fumbles and missed fumbles lost after a catch);
+  `targets` counts official attempts with a named receiver (it copied attempts) and `catch_rate`
+  is completions per target, both null in 2003-2008, when play-by-play names almost no receiver
+  on an incompletion; `air_yards_per_attempt` keeps its per-attempt definition and loses the aDOT
+  label; receiving fumbles are the receiver's own; scrambles, designed carries, and rush success
+  rate leave out plays a penalty wiped out; `epa_per_carry` sums EPA over the carries it divides
+  by; stuff rates leave kneel-downs out; `drive_penalty_yards` (net penalty yards gained) grades
+  higher as better; and the penalty columns' text says they include special-teams plays.
+  `data/` keeps the old values until a rebuild (ask first): a scratch 2025 build compared with
+  `nfl-sos-ratings diff-data --season 2025 --tolerance 1e-9` (smaller differences are rounding in
+  opponent averages) changed only those columns and their `opp_` averages in the team game logs,
+  per-game stats, combined, and opponent-profile files, plus `turnover_margin` in the QB game
+  logs; no rating, range, pair, or win-probability file changed. Still open: an intercepting
+  defender's fumble that the offense recovers is booked as the offense's fumble lost
+  (`fumbles_lost`, `giveaways`), and the one-play extra-point group after a return touchdown
+  counts as a drive in `drives` and the per-drive rates.
 - The 2026 Broncos question (maintainer, 2026-10-08): through week 4, DEN's head-to-head-excluded
   `sos` (5.28, `data/2026_ratings.parquet`) is the hardest in 2026 and above every completed
   season's (2009 TB, 2.83, from `nfl-sos-ratings schedules`), yet `team_rating` is -0.37 (15th).

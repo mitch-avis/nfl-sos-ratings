@@ -131,7 +131,7 @@ Everything the team did with the ball.
 | `scramble_yards` | Scramble Yds | count | - | 1999 | PBP | Rushing yards gained on quarterback scrambles. |
 | `passing_air_yards` | Air Yds | count | - | 2006 | PBP +TS | Total distance the ball traveled past the line of scrimmage on all throws, including incompletions — a measure of how far downfield the team attacks. |
 | `passing_yards_after_catch` | YAC | count | - | 1999 | PBP +TS | Yards receivers gained after catching the ball. |
-| `air_yards_per_attempt` | aDOT | rate | pass attempts | 2006 | PBP | Average depth of target: how far downfield the average throw traveled. A style stat, not a quality grade. |
+| `air_yards_per_attempt` | Air Yds/Att | rate | pass attempts | 2006 | PBP | How far past the line of scrimmage the average pass attempt traveled in the air, throwaways included. A style stat, not a quality grade. |
 | `yac_per_completion` | YAC/Comp | rate | completions | 1999 | PBP | Average yards gained after the catch on completed passes. |
 | `yards_per_attempt` | Y/A | rate | pass attempts | 1999 | PBP | Passing yards divided by official pass attempts. |
 | `net_yards_per_attempt` | NY/A | rate | pass attempts + sacks | 1999 | PBP | Passing yards minus sack yards, divided by attempts plus sacks — yards per dropback-style efficiency that charges the offense for sacks. Formula: (passing_yards - sack_yards_lost) / (attempts + sacks) |
@@ -167,7 +167,7 @@ Everything the team did with the ball.
 | `epa_per_carry` | EPA/Carry | rate | carries | 1999 | PBP | Rushing expected points added per carry — rushing efficiency. |
 | `rush_success_rate` | Rush Success % | rate | designed carries | 1999 | PBP | The share of designed runs that improved the team's expected points. |
 | `explosive_rush_rate` | Explosive Rush % | rate | carries | 1999 | PBP | Runs of 10+ yards divided by carries. |
-| `stuffed_run_rate` | Stuffed % | rate | carries | 1999 | PBP | The share of carries stopped for no gain or a loss. Lower is better. |
+| `stuffed_run_rate` | Stuffed % | rate | carries other than kneel-downs | 1999 | PBP | The share of carries other than kneel-downs stopped for no gain or a loss. Lower is better. |
 | `rushing_fumbles` | Rush Fumbles | count | - | 1999 | PBP +TS | Fumbles on rushing plays, whether or not the team lost the ball. |
 | `longest_rush` | Long Rush | count | - | 1999 | PBP | The team's longest run of the season, in yards. |
 | `rushing_2pt_conversions` | 2-Pt Rushes | count | - | 1999 | PBP +TS | Successful two-point conversions run in. |
@@ -176,7 +176,7 @@ Everything the team did with the ball.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `targets` | Targets | count | - | 1999 | PBP +TS | Team pass attempts viewed from the receiving side. At team level this is the same number as pass attempts, shown here for a receiving-flavored view. Same value as `attempts`. |
+| `targets` | Targets | count | - | 1999 | PBP +TS | Pass attempts thrown to an intended receiver. Throwaways and spikes are attempts but not targets. Blank in 2003-2008, when nflverse play-by-play names the intended receiver on almost no incomplete passes. |
 | `receptions` | Receptions | count | - | 1999 | PBP +TS | Team catches — the same number as completions, receiving-side view. Same value as `completions`. |
 | `receiving_yards` | Rec Yds | count | - | 1999 | PBP +TS | Team receiving yards. At team level this equals gross passing yards exactly (verified against nflverse data). Same value as `passing_yards`. |
 | `receiving_tds` | Rec TDs | count | - | 1999 | PBP +TS | Touchdown catches — the same number as passing touchdowns. Same value as `passing_tds`. |
@@ -185,7 +185,7 @@ Everything the team did with the ball.
 | `receiving_first_downs` | Rec 1Ds | count | - | 1999 | PBP +TS | First downs on catches — the same number as passing first downs. Same value as `passing_first_downs`. |
 | `receiving_fumbles` | Rec Fumbles | count | - | 1999 | PBP +TS | Fumbles by receivers after the catch, whether or not lost. |
 | `receiving_fumbles_lost` | Rec Fum Lost | count | - | 1999 | PBP +TS | Fumbles lost to the defense after a catch. |
-| `catch_rate` | Catch % | rate | targets | 1999 | PBP | Receptions divided by targets — the receiving view of completion rate. Same value as `completion_pct`. |
+| `catch_rate` | Catch % | rate | targets | 1999 | PBP | Receptions divided by targets — the receiving view of completion rate. Blank in 2003-2008, when nflverse play-by-play names the intended receiver on almost no incomplete passes. |
 
 ### Offense: Scoring
 
@@ -235,7 +235,7 @@ Everything the team did with the ball.
 | `turnover_pct_per_drive` | TO %/Drive | rate | drives | 1999 | PBP | The share of possessions ending in a giveaway. Lower is better. |
 | `avg_starting_field_position` | Avg Start | avg | drives | 1999 | PBP | Where drives started on average, in yards from the team's own goal line. Higher means shorter fields to score. |
 | `long_field_score_pct` | Long-Field Score % | rate | long-field drives | 1999 | PBP | Scoring rate on drives that started inside the team's own 25. |
-| `drive_penalty_yards` | Drive Pen Yds | count | - | 1999 | PBP | Penalty yards assessed against the offense during its drives. |
+| `drive_penalty_yards` | Drive Pen Yds | count | - | 1999 | PBP | Net penalty yards on the team's drives: yards the defense's fouls gave the offense minus yards its own fouls cost it. |
 
 ### Offense: Turnovers
 
@@ -254,10 +254,10 @@ Everything the team did with the ball.
 | --- | --- | --- | --- | --- | --- | --- |
 | `penalties` | Penalties | count | - | 1999 | PBP +TS | Penalties committed by the team across all units. |
 | `penalty_yards` | Penalty Yds | count | - | 1999 | PBP +TS | Yards assessed against the team on its penalties. |
-| `offensive_penalties` | Off Penalties | count | - | 1999 | PBP | Penalties committed while on offense. |
-| `offensive_penalty_yards` | Off Pen Yds | count | - | 1999 | PBP | Penalty yards assessed while on offense. |
+| `offensive_penalties` | Off Penalties | count | - | 1999 | PBP | Penalties committed on plays where the team had the ball, including its punts, field goals, extra points, and kickoff returns. |
+| `offensive_penalty_yards` | Off Pen Yds | count | - | 1999 | PBP | Penalty yards assessed on plays where the team had the ball, including its punts, field goals, extra points, and kickoff returns. |
 | `presnap_penalty_rate` | Pre-Snap Pen % | rate | offensive snaps | 1999 | PBP | False starts, delays of game, and similar self-inflicted penalties per offensive snap. A discipline measure. |
-| `penalty_rate_per_offensive_snap` | Off Pen % | rate | offensive snaps | 1999 | PBP | Offensive penalties divided by offensive snaps. |
+| `penalty_rate_per_offensive_snap` | Off Pen % | rate | offensive snaps | 1999 | PBP | Offensive penalties (special-teams plays with the ball included) divided by offensive snaps. |
 
 ## Defense
 
@@ -313,10 +313,10 @@ Everything the team allowed, plus the plays its defense made.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `targets_faced` | Targets Faced | count | - | 1999 | PBP +TS | Opponent pass attempts, receiving-side view of the defense. Same value as `attempts_faced`. |
+| `targets_faced` | Targets Faced | count | - | 1999 | PBP +TS | Opponent pass attempts thrown to an intended receiver. Throwaways and spikes are attempts but not targets. Blank in 2003-2008, when nflverse play-by-play names the intended receiver on almost no incomplete passes. |
 | `receptions_allowed` | Rec Allowed | count | - | 1999 | PBP +TS | Opponent catches — the same number as completions allowed. Same value as `completions_allowed`. |
 | `receiving_yards_allowed` | Rec Yds Allowed | count | - | 1999 | PBP +TS | Opponent receiving yards — equals passing yards allowed. Same value as `passing_yards_allowed`. |
-| `catch_rate_allowed` | Catch % Allowed | rate | opponent targets | 1999 | PBP | Opponent receptions per target — receiving view of coverage. Same value as `completion_pct_allowed`. |
+| `catch_rate_allowed` | Catch % Allowed | rate | opponent targets | 1999 | PBP | Opponent receptions per target — receiving view of coverage. Blank in 2003-2008, when nflverse play-by-play names the intended receiver on almost no incomplete passes. |
 
 ### Defense: Scoring
 
@@ -371,7 +371,7 @@ Everything the team allowed, plus the plays its defense made.
 | `def_sack_yards` | Sack Yds Forced | count | - | 1999 | PBP +TS | Yards opponents lost to this defense's sacks. |
 | `def_sack_rate_per_dropback` | Sack Rate Forced | rate | opponent dropbacks | 1999 | PBP | Sacks divided by opponent dropbacks — pass-rush efficiency. |
 | `qb_pressure_events_rate` | Pressure Events % | rate | opponent dropbacks | 1999 | PBP | Sacks plus quarterback hits divided by opponent dropbacks. |
-| `stuff_rate` | Stuff % | rate | opponent carries | 1999 | PBP | The share of opponent carries stopped for no gain or a loss. |
+| `stuff_rate` | Stuff % | rate | opponent carries other than kneel-downs | 1999 | PBP | The share of opponent carries other than kneel-downs stopped for no gain or a loss. |
 | `havoc_rate` | Havoc % | rate | defensive snaps | 1999 | PBP | Disruptive plays — tackles for loss, forced fumbles, interceptions, and pass breakups — divided by defensive snaps. |
 | `defensive_2pt_conversions` | Def 2-Pt | count | - | 1999 | PBP | Two-point returns scored by the defense on turnovers during tries. |
 
@@ -379,8 +379,8 @@ Everything the team allowed, plus the plays its defense made.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `defensive_penalties` | Def Penalties | count | - | 1999 | PBP | Penalties committed while on defense. |
-| `defensive_penalty_yards` | Def Pen Yds | count | - | 1999 | PBP | Penalty yards assessed while on defense. |
+| `defensive_penalties` | Def Penalties | count | - | 1999 | PBP | Penalties committed on plays where the opponent had the ball, including the team's kickoffs, punt returns, and field-goal and extra-point defense. |
+| `defensive_penalty_yards` | Def Pen Yds | count | - | 1999 | PBP | Penalty yards assessed on plays where the opponent had the ball, including the team's kickoffs, punt returns, and field-goal and extra-point defense. |
 | `defensive_pass_interference` | DPI | count | - | 1999 | PBP | Defensive pass interference penalties committed. |
 | `penalty_first_downs_allowed` | Pen 1Ds Gifted | count | - | 1999 | PBP | Opponent first downs handed over via defensive penalties. |
 
