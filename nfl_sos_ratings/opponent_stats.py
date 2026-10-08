@@ -1,10 +1,10 @@
 """Head-to-head-excluded opponent profiles: what a team's opponents did against everyone else.
 
-For each team, every unique opponent is profiled from its per-game averages in games that did
-not involve that team, and the opponent profiles are averaged with equal weight per opponent. A
-division rival played twice is profiled once, because removing both head-to-head games makes the
-two profiles identical. The averaged profile is descriptive context for the analyst UI; the
-published ratings come from the simultaneous solve in ``team_rating``.
+For each team, every unique opponent is profiled from its games that did not involve that team
+(counts per game, rates pooled over those games), and the opponent profiles are averaged with equal
+weight per opponent. A division rival played twice is profiled once, because removing both
+head-to-head games makes the two profiles identical. The averaged profile is descriptive context
+for the analyst UI; the published ratings come from the simultaneous solve in ``team_rating``.
 """
 
 from typing import TypedDict
@@ -75,26 +75,6 @@ def _profile_from_rows(
             pl.lit(team).alias("team"), *[pl.col(column).mean() for column in numeric]
         )
     return {"team_stats": averaged, "opponents": opponents, "opponent_details": details}
-
-
-def compute_opponent_profile(
-    weekly_df: pl.DataFrame, team: str, schedule_df: pl.DataFrame
-) -> OpponentProfile:
-    """Return ``team``'s averaged opponent profile, built without head-to-head games.
-
-    Args:
-        weekly_df: One row per team-game.
-        team: The team whose opponents are profiled.
-        schedule_df: The regular-season schedule with ``home_team`` and ``away_team``.
-
-    Returns:
-        The averaged profile (``None`` when no opponent has other games), the opponent list,
-        and per-opponent game counts.
-
-    """
-    opponents = get_opponents(schedule_df, team)
-    rows = compute_team_stats_excluding_opponents(weekly_df, _opponent_pairs(team, opponents))
-    return _profile_from_rows(team, opponents, rows)
 
 
 def compute_all_opponent_profiles(

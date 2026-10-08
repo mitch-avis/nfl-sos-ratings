@@ -596,39 +596,15 @@ def compute_win_totals(weekly_df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def compute_team_stats_excluding_opponent(
-    weekly_df: pl.DataFrame, team: str, exclude_opponent: str
-) -> pl.DataFrame | None:
-    """Compute `team`'s row from its games that were not against `exclude_opponent`.
-
-    Returns a single-row DataFrame aggregated as a season row is (``_games_agg_exprs``: counts
-    per game, rates pooled over the remaining games), except that a longest play is averaged per
-    game, or None if no games remain.
-    """
-    filtered = weekly_df.filter(
-        (pl.col("team") == team) & (pl.col("opponent_team") != exclude_opponent)
-    )
-    games = filtered.height
-    if games == 0:
-        return None
-
-    return filtered.select(
-        [
-            pl.lit(team).alias("team"),
-            *_games_agg_exprs(filtered, longest_as_max=False),
-            pl.lit(games, dtype=pl.Int64).alias("games_included"),
-        ]
-    )
-
-
 def compute_team_stats_excluding_opponents(
     weekly_df: pl.DataFrame, pairs: pl.DataFrame
 ) -> pl.DataFrame:
-    """Return ``compute_team_stats_excluding_opponent`` for many pairs in one aggregation.
+    """Return each team's row over its games not against the opponent it is paired with.
 
     ``pairs`` holds ``team`` and ``excluded_opponent``. The result has one row per pair with a game
-    left, keyed by both columns: the team's games not against that opponent, aggregated as a
-    season row (``_games_agg_exprs``), and ``games_included``.
+    left, keyed by both columns: the team's remaining games aggregated as a season row is
+    (``_games_agg_exprs``: counts per game, rates pooled over the games), except that a longest
+    play is averaged per game, and ``games_included``. One aggregation covers every pair.
     """
     games = (
         pairs.select("team", "excluded_opponent")

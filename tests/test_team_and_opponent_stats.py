@@ -51,6 +51,23 @@ def _schedule_df() -> pl.DataFrame:
     )
 
 
+def _without(weekly: pl.DataFrame, team: str, excluded: str) -> dict[str, object] | None:
+    """Return ``team``'s row over its games not against ``excluded``, or None without games."""
+    rows = team_stats.compute_team_stats_excluding_opponents(
+        weekly, pl.DataFrame({"team": [team], "excluded_opponent": [excluded]})
+    )
+    return rows.row(0, named=True) if rows.height else None
+
+
+def _profile_of(
+    weekly: pl.DataFrame, team: str, schedule: pl.DataFrame
+) -> tuple[dict[str, object] | None, list[opponent_stats.OpponentDetail]]:
+    """Return ``team``'s averaged opponent profile row (or None) and its opponent details."""
+    profiles, details = opponent_stats.compute_all_opponent_profiles(weekly, schedule)
+    rows = [] if profiles is None else profiles.filter(pl.col("team") == team).rows(named=True)
+    return (rows[0] if rows else None), details[team]
+
+
 def test_get_numeric_stat_cols_keeps_stats_and_drops_identity_columns() -> None:
     """Verify the numeric stat list keeps stat columns and skips identity columns."""
     # Arrange
@@ -561,27 +578,27 @@ def test_targets_are_unknown_when_incompletions_name_no_receiver() -> None:
     ).row(0) == (2, 2, 2, 2)
 
 
-def test_compute_team_stats_excluding_opponent_removes_head_to_head_games() -> None:
-    """Verify the team exclusion helper removes games against the excluded opponent."""
+def test_team_stats_excluding_an_opponent_remove_head_to_head_games() -> None:
+    """Verify a team's row without an opponent leaves out the games against it."""
     # Arrange
     weekly = _weekly_df()
 
     # Act
-    team_result = team_stats.compute_team_stats_excluding_opponent(weekly, "KC", "DEN")
+    kc = _without(weekly, "KC", "DEN")
 
     # Assert
-    assert team_result is not None
-    assert team_result.select("games_included").item() == 2
-    assert team_result.select("passing_yards").item() == 255.0
+    assert kc is not None
+    assert kc["games_included"] == 2
+    assert kc["passing_yards"] == 255.0
 
 
-def test_compute_team_stats_excluding_opponent_returns_none_without_games() -> None:
-    """Verify the team exclusion helper returns None when no games remain."""
+def test_team_stats_excluding_an_opponent_have_no_row_without_other_games() -> None:
+    """Verify a team with no game left once the opponent's are removed gets no row."""
     # Arrange
     weekly = _weekly_df().filter((pl.col("team") == "DEN") & (pl.col("opponent_team") == "KC"))
 
     # Act
-    result = team_stats.compute_team_stats_excluding_opponent(weekly, "DEN", "KC")
+    result = _without(weekly, "DEN", "KC")
 
     # Assert
     assert result is None
@@ -608,19 +625,19 @@ def test_is_division_opponent_recognizes_division_rivals() -> None:
     assert result is True
 
 
-def test_compute_opponent_profile_returns_the_team_profile_and_details() -> None:
-    """Verify a single-team opponent profile carries the profile and per-opponent details."""
+def test_opponent_profile_carries_the_team_profile_and_details() -> None:
+    """Verify a team's opponent profile carries the averaged row and per-opponent details."""
     # Arrange
     weekly = _weekly_df()
     schedule = _schedule_df()
 
     # Act
-    profile = opponent_stats.compute_opponent_profile(weekly, "DEN", schedule)
+    profile, details = _profile_of(weekly, "DEN", schedule)
 
     # Assert
-    assert profile["team_stats"] is not None
-    assert profile["team_stats"].select("team").item() == "DEN"
-    assert len(profile["opponent_details"]) == 2
+    assert profile is not None
+    assert profile["team"] == "DEN"
+    assert len(details) == 2
 
 
 def test_compute_all_opponent_profiles_returns_profiles_for_every_team() -> None:
@@ -655,13 +672,11 @@ def test_opponent_profile_handles_missing_opponent_stats() -> None:
     schedule = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})
 
     # Act
-    profile = opponent_stats.compute_opponent_profile(weekly, "DEN", schedule)
+    profile, details = _profile_of(weekly, "DEN", schedule)
 
     # Assert
-    assert profile["team_stats"] is None
-    assert profile["opponent_details"] == [
-        {"opponent": "KC", "division": True, "games_included": 0}
-    ]
+    assert profile is None
+    assert details == [{"opponent": "KC", "division": True, "games_included": 0}]
 
 
 def test_compute_win_totals_counts_a_shutout_loss() -> None:
@@ -685,7 +700,7 @@ def test_compute_win_totals_counts_a_shutout_loss() -> None:
     assert (kc["wins"], kc["losses"], kc["win_pct"]) == (1, 1, 0.5)
 
 
-def test_compute_opponent_profile_averages_each_opponent_once_without_head_to_head() -> None:
+def test_opponent_profile_averages_each_opponent_once_without_head_to_head() -> None:
     """Verify each opponent is profiled from its other games and weighted equally."""
     # Arrange
     weekly = pl.DataFrame(
@@ -699,12 +714,12 @@ def test_compute_opponent_profile_averages_each_opponent_once_without_head_to_he
     schedule = pl.DataFrame({"home_team": ["DEN", "KC", "LAC"], "away_team": ["KC", "DEN", "DEN"]})
 
     # Act
-    profile = opponent_stats.compute_opponent_profile(weekly, "DEN", schedule)
+    profile, _ = _profile_of(weekly, "DEN", schedule)
 
     # Assert
     # KC without DEN games scored 30; LAC scored 10 and 14 (mean 12); equal weight -> 21.
-    assert profile["team_stats"] is not None
-    assert profile["team_stats"].get_column("points_for").item() == 21.0
+    assert profile is not None
+    assert profile["points_for"] == 21.0
 
 
 def test_aggregate_defense_only_player_stats_empty_input_is_typed_empty() -> None:
@@ -918,7 +933,7 @@ def test_compute_all_teams_per_game_pools_each_rate_over_the_season() -> None:
     assert not [column for column in per_game.columns if column.startswith("_")]
 
 
-def test_compute_team_stats_excluding_opponent_pools_the_remaining_games() -> None:
+def test_team_stats_excluding_an_opponent_pool_the_remaining_games() -> None:
     # Arrange
     weekly = pl.concat(
         [
@@ -932,13 +947,13 @@ def test_compute_team_stats_excluding_opponent_pools_the_remaining_games() -> No
     )
 
     # Act
-    kc = team_stats.compute_team_stats_excluding_opponent(weekly, "KC", "DEN")
+    kc = _without(weekly, "KC", "DEN")
 
     # Assert
     assert kc is not None
     # Without DEN: 6 of 6 against LAC and 3 of 4 plus 6 of 6 against BUF, 15 of 16.
-    assert kc.row(0, named=True)["completion_pct"] == pytest.approx(15 / 16)
-    assert kc.row(0, named=True)["games_included"] == 3
+    assert kc["completion_pct"] == pytest.approx(15 / 16)
+    assert kc["games_included"] == 3
 
 
 def test_opponent_profile_pools_each_opponents_rate_over_its_other_games() -> None:
@@ -958,12 +973,12 @@ def test_opponent_profile_pools_each_opponents_rate_over_its_other_games() -> No
     schedule = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})
 
     # Act
-    profile = opponent_stats.compute_opponent_profile(weekly, "DEN", schedule)
+    profile, _ = _profile_of(weekly, "DEN", schedule)
 
     # Assert
     # DEN's one opponent, KC, without the DEN game: 1 of 1 and 1 of 9, so 2 of 10.
-    assert profile["team_stats"] is not None
-    assert profile["team_stats"].row(0, named=True)["completion_pct"] == pytest.approx(0.2)
+    assert profile is not None
+    assert profile["completion_pct"] == pytest.approx(0.2)
 
 
 def test_season_rates_built_from_other_rates_use_the_pooled_inputs() -> None:
@@ -1029,7 +1044,7 @@ def test_a_rate_built_from_rates_without_their_parts_is_averaged_per_game() -> N
     assert per_game.get_column("team_passer_rating").to_list() == [90.0]
 
 
-def test_compute_team_stats_excluding_opponents_matches_each_pair_alone() -> None:
+def test_team_stats_excluding_opponents_give_one_row_per_pair_with_games_left() -> None:
     # Arrange
     weekly = _pooled_weekly_df()
     pairs = pl.DataFrame(
@@ -1037,21 +1052,14 @@ def test_compute_team_stats_excluding_opponents_matches_each_pair_alone() -> Non
     )
 
     # Act
-    batch = team_stats.compute_team_stats_excluding_opponents(weekly, pairs)
+    rows = team_stats.compute_team_stats_excluding_opponents(weekly, pairs)
 
     # Assert
-    alone = [
-        single.with_columns(pl.lit(excluded).alias("excluded_opponent"))
-        for team, excluded in pairs.rows()
-        if (single := team_stats.compute_team_stats_excluding_opponent(weekly, team, excluded))
-        is not None
-    ]
-    expected = pl.concat(alone).select(batch.columns).sort("team", "excluded_opponent")
-    assert batch.sort("team", "excluded_opponent").equals(expected)
-    assert batch.select("team", "excluded_opponent").sort("team", "excluded_opponent").rows() == [
-        ("KC", "DEN"),
-        ("KC", "LAC"),
-    ]
+    # KC without DEN keeps 6 of 6 against LAC and without LAC 3 of 4 against DEN; DEN and LAC
+    # played only KC, so nothing is left without it.
+    assert rows.select("team", "excluded_opponent", "completion_pct", "games_included").sort(
+        "team", "excluded_opponent"
+    ).rows() == [("KC", "DEN", 1.0, 1), ("KC", "LAC", 0.75, 1)]
 
 
 def test_opponent_rows_average_the_longest_play_per_game() -> None:
@@ -1062,12 +1070,12 @@ def test_opponent_rows_average_the_longest_play_per_game() -> None:
     )
 
     # Act
-    kc = team_stats.compute_team_stats_excluding_opponent(weekly, "KC", "DEN")
+    kc = _without(weekly, "KC", "DEN")
 
     # Assert
     assert kc is not None
     # KC without DEN: 33 against BUF and 21 against LAC.
-    assert kc.get_column("longest_pass").item() == 27.0
+    assert kc["longest_pass"] == 27.0
 
 
 def test_compute_all_opponent_profiles_without_games_is_none() -> None:
