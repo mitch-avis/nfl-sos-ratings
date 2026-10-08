@@ -73,8 +73,12 @@ bottom; update the status boxes in the same change set as the work.
    test suite; `pytest -m published_data` works without `--no-cov` (conftest hook, approved).
    Done on `perf/single-thread-polars`; timings in S5.
 3. [x] P3 Bugs and copy (U1-U4), on `fix/season-notice-and-copy`.
-4. [ ] P4 Split `nfl_sos_ratings/metrics/team_metrics.py` by category (approved), catalogs
-   byte-identical as the characterization check.
+4. [x] P4 Split `nfl_sos_ratings/metrics/team_metrics.py` by category (approved), on
+   `refactor/split-team-metrics`: `team_rating_metrics`, `team_overall_metrics`,
+   `team_offense_metrics`, `team_passing_metrics`, and `team_defense_metrics` (209-907 lines each);
+   `team_metrics.py` assembles `TEAM_METRICS` in the same order. Characterization: the catalog
+   drift test (shown to fail when one description changes) and the registry payload, whose JSON was
+   identical before and after; `nfl-sos-ratings catalog` left both catalogs unchanged.
 5. [ ] P5 Tooltip and glossary audit (maintainer request): every registry label, description, and
    formula, the affix rules, the app's own hint text, and a glossary rebuilt from the registry
    (search, categories, a "Start here" section, the methodology linked on GitHub). Tooltips gain a
@@ -611,7 +615,7 @@ Tasks:
   than "opponent", because the two need not have played. The entries live in the new
   `nfl_sos_ratings/metrics/pair_metrics.py`: `team_metrics.py` is past 2,700 lines, and AGENTS.md
   asks for a split proposal before growing such a module (proposal for the maintainer: split it by
-  category, like the sections it already has).
+  category, like the sections it already has; approved and done 2026-10-08, session plan P4).
 - [x] `run_season` writes the files (**Ask first** for the rebuild; approved for after R2); API
   `GET /api/seasons/{season}/{teams|qbs}/{id}/rating-pairs`. One bootstrap per season now feeds
   both the ranges and the pairs (`main.build_team_rank_summaries`, `build_qb_rank_summaries`);

@@ -80,7 +80,7 @@ scheduled task installed), the project logger (S4), opponent rank context (F3), 
 comparison (F4, F6), CSV export (F5), and team palettes (F7); `data/` was rebuilt after R1+R2 and
 2026 again after R3. Decisions waiting for the maintainer are listed in the roadmap: the weekly
 chart's early weeks (R3), the Broncos light-mode contrast (F7), installing the scheduled refresh
-(A1), and splitting `team_metrics.py`. Still open: F1, F2, and M1 (they need the maintainer's
+(A1), and splitting `team_metrics.py` (done 2026-10-08). Still open: F1, F2, and M1 (they need the maintainer's
 input). Rebuild 2026 weekly with `scripts/refresh-season.sh` (ask first; it copies `data/`,
 rebuilds, runs the `published_data` tests, and prints `diff-data`), or schedule it with the command
 in README.
