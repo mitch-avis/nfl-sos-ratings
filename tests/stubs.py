@@ -8,6 +8,10 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
 
+class NflverseDownloadBlockedError(RuntimeError):
+    """Raised when a test reaches nflreadpy's downloader instead of a stubbed loader."""
+
+
 def stub[T](factory: Callable[[], T]) -> Callable[..., T]:
     """Return a stand-in that accepts any arguments and returns ``factory()`` on every call.
 

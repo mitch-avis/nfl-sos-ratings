@@ -66,6 +66,7 @@ def test_load_weekly_team_stats_enriches_and_filters(monkeypatch: pytest.MonkeyP
         stub(lambda: player_stats),
     )
     monkeypatch.setattr(data_loader.nfl, "load_schedules", stub(lambda: schedule))
+    monkeypatch.setattr(data_loader.nfl, "load_team_stats", stub(pl.DataFrame))
 
     # Act
     result = data_loader.load_weekly_team_stats(2025)
@@ -135,6 +136,7 @@ def test_load_weekly_team_stats_normalizes_rams_alias(monkeypatch: pytest.Monkey
         stub(lambda: player_stats),
     )
     monkeypatch.setattr(data_loader.nfl, "load_schedules", stub(lambda: schedule))
+    monkeypatch.setattr(data_loader.nfl, "load_team_stats", stub(pl.DataFrame))
 
     # Act
     result = data_loader.load_weekly_team_stats(2025)
@@ -425,6 +427,7 @@ def test_load_qb_stats_merges_pbp_and_snap_counts_by_canonical_identity(
 
     monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
     monkeypatch.setattr(data_loader.nfl, "load_snap_counts", stub(lambda: snap_counts))
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(pl.DataFrame))
     monkeypatch.setattr(data_loader.nfl, "load_players", lambda: players)
     monkeypatch.setattr(
         data_loader.nfl,
@@ -522,6 +525,7 @@ def test_load_qb_stats_excludes_non_qb_trick_passers(monkeypatch: pytest.MonkeyP
 
     monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
     monkeypatch.setattr(data_loader.nfl, "load_snap_counts", stub(lambda: snap_counts))
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(pl.DataFrame))
     monkeypatch.setattr(data_loader.nfl, "load_players", lambda: players)
     monkeypatch.setattr(
         data_loader.nfl,
@@ -703,6 +707,20 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "pfr_id": ["PFR_A", "PFR_B", "PFR_C", "PFR_D"],
         }
     )
+    # Weekly player stats with no row for these games, so every passing field comes from the
+    # play-by-play and the rushing fields default to zero.
+    player_stats = pl.DataFrame(
+        {
+            "season": [2025],
+            "season_type": ["REG"],
+            "week": [1],
+            "game_id": ["2025_01_BUF_MIA"],
+            "team": ["BUF"],
+            "player_id": ["GSIS_OTHER"],
+            "position": ["QB"],
+            "attempts": [30],
+        }
+    )
     rosters_weekly = pl.DataFrame(
         {
             "season": [2025, 2025, 2025, 2025],
@@ -718,6 +736,7 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
 
     monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
     monkeypatch.setattr(data_loader.nfl, "load_snap_counts", stub(lambda: snap_counts))
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(lambda: player_stats))
     monkeypatch.setattr(data_loader.nfl, "load_players", lambda: players)
     monkeypatch.setattr(
         data_loader.nfl,
@@ -1035,6 +1054,7 @@ def test_load_qb_stats_normalizes_rams_alias(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
     monkeypatch.setattr(data_loader.nfl, "load_snap_counts", stub(lambda: snap_counts))
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(pl.DataFrame))
     monkeypatch.setattr(data_loader.nfl, "load_players", lambda: players)
     monkeypatch.setattr(
         data_loader.nfl,
@@ -1910,6 +1930,7 @@ def test_load_playoff_qb_stats_skips_snap_counts_before_their_first_season(
     monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
     monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(pl.DataFrame))
     monkeypatch.setattr(data_loader.nfl, "load_players", pl.DataFrame)
+    monkeypatch.setattr(data_loader.nfl, "load_rosters_weekly", stub(pl.DataFrame))
 
     # Act
     result = data_loader.load_playoff_qb_stats(2005)

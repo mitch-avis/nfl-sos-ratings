@@ -1,12 +1,14 @@
-"""Tests for the shared pytest setup: Polars threads and the published-data coverage floor."""
+"""Tests for the shared pytest setup: Polars threads, the coverage floor, and blocked downloads."""
 
 from argparse import Namespace
 from types import SimpleNamespace
 from typing import cast
 
+import nflreadpy as nfl
 import pytest
 
 from tests.conftest import limit_polars_threads, only_published_data, pytest_collection_modifyitems
+from tests.stubs import NflverseDownloadBlockedError
 
 
 class _FakeItem:
@@ -114,3 +116,9 @@ def test_collection_hook_does_nothing_without_coverage() -> None:
 
     # Assert
     assert result is None
+
+
+def test_a_loader_left_unstubbed_cannot_reach_nflverse() -> None:
+    # Act & Assert
+    with pytest.raises(NflverseDownloadBlockedError, match="stats_team_week_2025"):
+        nfl.load_team_stats(seasons=2025, summary_level="week")
