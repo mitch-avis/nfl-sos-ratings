@@ -4,28 +4,70 @@ The handoff document for the repo's current state: what is done, what is open, a
 agent should do first. Update it in the same change set whenever any of that changes. Earlier
 history (the composite-rating era and its experiments) is in git, before commit `21c5290`.
 
-## Current state (2026-10-08)
+## Current state (2026-10-08, end of session)
 
-- `main` = `origin/main` = `72cc113`, the maintainer's dependency refresh (Polars 1.44.2 to 2.0.0,
-  a major version, plus fastapi, filelock, ty, and others). Polars 2.0 parity, checked 2026-10-08
-  in a worktree of `3b5946f` (Polars 1.44.2) against `main`: no deprecation warnings in the suite
-  (`pytest -W default::DeprecationWarning`); the package has no lazy queries (2.0's streaming
-  default reorders lazy joins and group-bys); scratch `season` builds of 1999, 2006, 2016, 2025,
-  and 2026 under each version gave bit-identical ratings, ranges, pairs, histories, bins, and game
-  logs, with the four descriptive opponent-profile files per season differing by float rounding
-  only (`diff-data --tolerance 1e-9`: all unchanged); the 1.44.2 builds of the four completed
-  seasons matched `data/` exactly; Polars 2.0 is deterministic run to run; `.venv/bin/python
+- `main` = `origin/main` = `de3a271` plus this handoff. Pull requests #17-#38 landed on
+  2026-10-08, each merged with a merge commit once the gate and CI passed (the maintainer approved
+  merging on green; roadmap, "Session plan"):
+  - Team colors and palettes: #17 (generated Broncos palette, team heat scales, team chips, logo,
+    header stripe, team pages in their team's colors) and #22 (palette menu as a division grid).
+  - Speed and tests: #18 (Polars single-threaded by default; `pytest -m published_data` needs no
+    `--no-cov`).
+  - App fixes and layout: #19 (season-in-progress notice from the API, copy fixes, not-found and
+    unavailable-season notices), #21 (straight trend lines, round ticks, rank by week from three
+    games), #29 and #30 (index pages: table above the fold, reading-notes popover, full-height
+    table, comparison below the table with season-range shading), #31 (detail pages: ranked rating
+    summary with the before-adjustment value, stat-view tabs on the stats section, retired jargon
+    tiles, QB rating companions in the API), #33 (context columns shaded in one neutral hue), #34
+    (registry-built glossary, structured stat hints), #35 (web README), and #37 (the app's
+    explanatory copy in plain words).
+  - Refresh button: #24 (`nfl-sos-ratings web --allow-refresh`; the app refetches every query
+    after a run, so new data shows without a frontend rebuild).
+  - Registry: #20 (`team_metrics.py` split into five category modules) and #38 (labels,
+    descriptions, formulas, affix notes, and category descriptions in plain words; column keys
+    unchanged).
+  - Data correctness (2026-10-08 audit): #23 (Rams `LA` codes in every play-by-play column), #25
+    (QB sack-yards sign, scrambles and kneels, win %, snaps), #27 (seven team stat fixes), #28 (app
+    display: longest plays, vs-season columns, percentages, affix rules), and #36 (season rates
+    pooled over the season's plays instead of averaged over games, blanks instead of zeros where
+    nflverse has no data, passer-rating ties rounded half up, tests that never download). None
+    changes a rating file; all reach the app only after a `data/` rebuild.
+  - Preseason prior: #26 (protocol pre-registered before any code) and #32 (the check and its
+    results; roadmap P6).
+- Polars 2.0 (the maintainer's dependency refresh, `72cc113`) was checked against 1.44.2 on
+  2026-10-08 in a worktree of `3b5946f`: no deprecation warnings in the suite (`pytest -W
+  default::DeprecationWarning`); the package has no lazy queries (2.0's streaming default reorders
+  lazy joins and group-bys); scratch `season` builds of 1999, 2006, 2016, 2025, and 2026 under each
+  version gave bit-identical ratings, ranges, pairs, histories, bins, and game logs, with the four
+  descriptive opponent-profile files per season differing by float rounding only (`diff-data
+  --tolerance 1e-9`: all unchanged); the 1.44.2 builds of the four completed seasons matched
+  `data/` exactly; Polars 2.0 is deterministic run to run; `.venv/bin/python
   .agents/findings_2026_10_08/api_parity.py http://127.0.0.1:8090 http://127.0.0.1:8092 1999 2012
   2025 2026` (a server on each version) reported 1,203 payloads compared and 0 differing; and
   `check-additivity` and `check-in-season-penalty` printed identical output.
-- Pull request #17 (`feat/team-color-depth`): the generated Broncos palette (maintainer
-  approval), neutral page surfaces, team-colored accents, hover backgrounds, tooltips, logo, and
-  header stripe, team heat scales for all 32 teams, team color chips, and team pages in their
-  team's colors (`.agents/roadmap.md`, F7 follow-up).
-- New since the last handoff, all in the roadmap: S5 (Polars single-threaded by default for tests
-  and builds, plus the `published_data` coverage decision), "Data notes" (three 1999-2000 games
-  missing from nflverse play-by-play; the 2026 Broncos rating explained), workstream U (the
-  2026-10-08 UX audit), and a parked preseason-prior idea.
+- `data/` is unchanged since the 2026-10-04 build (2026 through week 4), so the app still shows the
+  descriptive stats from before the data fixes until the maintainer approves a rebuild.
+
+## Decisions waiting for the maintainer
+
+1. Preseason prior: adopt it at 9 games, the pre-registered rule's recommendation (roadmap P6, with
+   the command and every interval)? Adoption needs the in-season refits (rank ranges, and
+   head-to-head `sos` from a previous-season refit without the evaluated team), then a `data/`
+   rebuild and a validation rerun, each ask-first.
+2. Rebuild `data/` (`nfl-sos-ratings pipeline`, then `season --season 2026`) to publish the data
+   fixes, then rerun `validate`: the QB year-over-year figures in the snapshot below predate them.
+3. Default heat scale (U17): blue to orange instead of green to red (a mock comparison was shared
+   on 2026-10-08).
+4. QB dropbacks and scrambles (roadmap, "Data notes"): a published-rating change that needs its
+   own protocol.
+5. Registry (roadmap P5): `air_epa_total` polarity (neutral recommended), removing `player_id` and
+   `player_display_name`, and accepting nine labels of 19-20 characters.
+6. Smaller open items in the roadmap's "Data notes", each a `data/` change: punt muffs and return
+   fumbles booked to the punting team in `turnover_epa` (699 plays in 1999-2025), interceptions
+   fumbled back to the offense, the extra-point drive after a return touchdown, the near-duplicate
+   yards-per-snap columns, `opp_longest_*` averaging per-game maxima, `fourth_down_aggressiveness`
+   at 2.0 in two 2000 games, play-by-play as a 2003-2011 source for tackles for loss, kneel-downs
+   under-recorded in 2000 and 2001, and JAX's 2001-2002 QB official stats.
 
 ## State before 2026-10-08
 
@@ -62,28 +104,15 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Next steps
 
-All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order. Done and
-merged: the `feat/rank-ranges` pull request (#1), the nfl-predictor note, the three small fixes in
-pull request #2 (single-threaded BLAS by default, one fixed row order per data file, and the
-read-only `nfl-sos-ratings diff-data` command), the garbage-time filter's bins (#3), and its refits
-per threshold and API (#4, `/api/seasons/{season}/{teams|qbs}/wp-ratings`), and the slider with its
-filtered view (#5; phone layout checked by the maintainer). Pull request #6 brought each QB's team
-back to the filtered table (the freeze that kept it out did not recur with the maintainer's browser
-extensions disabled; roadmap, WP3), lowered the filter's maximum from 30% to 20%, and bumped
-`filelock` in `uv.lock`. Pull request #7 (merged 2026-10-05) brought the pre-registered garbage-time
-filter test (WP4): no threshold predicts margins better and 20% is significantly worse, so the
-published ratings keep every play (maintainer decision; roadmap, WP4, and
-`.agents/ratings-simplification-plan.md`). Overnight on 2026-10-05, with the maintainer's
-merge-on-green approval, pull requests #8-#16 landed head-to-head chances (R1), unit rank ranges
-(R2), weekly rank ranges for the season in progress (R3), the weekly refresh script (A1, no
-scheduled task installed), the project logger (S4), opponent rank context (F3), the side-by-side
-comparison (F4, F6), CSV export (F5), and team palettes (F7); `data/` was rebuilt after R1+R2 and
-2026 again after R3. Decisions waiting for the maintainer are listed in the roadmap: the weekly
-chart's early weeks (R3), the Broncos light-mode contrast (F7), installing the scheduled refresh
-(A1), and splitting `team_metrics.py` (done 2026-10-08). Still open: F1, F2, and M1 (they need the maintainer's
-input). Rebuild 2026 weekly with `scripts/refresh-season.sh` (ask first; it copies `data/`,
-rebuilds, runs the `published_data` tests, and prints `diff-data`), or schedule it with the command
-in README.
+All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order. The
+2026-10-08 session plan is done except P6 (waiting on the prior decision) and P10's U17 (waiting on
+the heat-scale decision); "Decisions waiting for the maintainer" above lists what each needs.
+Earlier work, pull requests #1-#16 (rank ranges, rebuild tooling, the garbage-time filter and its
+test, head-to-head chances, unit and weekly rank ranges, the refresh script, the project logger,
+opponent context, comparison, CSV export, team palettes), is described in the roadmap. Rebuild 2026
+weekly with `scripts/refresh-season.sh` (ask first; it copies `data/`, rebuilds, runs the
+`published_data` tests, and prints `diff-data`), or with the app's refresh button when the server
+runs with `--allow-refresh`.
 
 ## Validation snapshot
 
@@ -97,14 +126,18 @@ fixes (team numbers unchanged from the run after adopting previous-season penalt
 - Year-over-year Pearson: `team_rating` 0.434, SRS 0.437; adjusted EPA per dropback 0.455, passer
   rating 0.464, ANY/A 0.392 (601 QB pairs). Mean QBR correlation 0.892 / 0.874.
 
+The QB year-over-year figures for passer rating and ANY/A predate #25 and #36: ANY/A used
+sign-flipped sack yards and passer rating averaged game ratings. Rerun `validate` after the next
+rebuild.
+
 Garbage-time filter test (2026-10-05, `nfl-sos-ratings check-wp-filter --data-dir data
 --start-season 1999 --end-season 2025 --start-week 5`): MAE 10.601 with every play, 10.623 at 5%,
 10.663 at 10%, 10.733 at 20%; 5% and 10% tie, 20% is worse (+0.133, 98.33% interval +0.046 to
 +0.222). The published ratings keep every play.
 
-Gate state: `scripts/gate.sh --web` passes, and `.venv/bin/pytest -m published_data` passes on
-`data/` (6 tests, 2026-10-08; with only those tests selected the coverage floor is lifted, so
-`--no-cov` is no longer needed).
+Gate state: `scripts/gate.sh --web` passes on `main` (`de3a271`, 2026-10-08), and
+`.venv/bin/pytest -m published_data` passes on `data/` (8 tests, 2026-10-08; with only those tests
+selected the coverage floor is lifted, so `--no-cov` is not needed).
 
 Season rollover: after the 2026 season, set `END_YEAR` to 2026 and `SEASON` to 2027 in
 `nfl_sos_ratings/config.py`, rebuild (ask first), and regenerate the validation report. The weekly
@@ -112,8 +145,9 @@ rank ranges follow `SEASON`, so 2026's stay as last written and 2027 starts its 
 
 ## Open items
 
-Tracked in `.agents/roadmap.md` (BLAS threading is S1, the project logger S4, frontend follow-ups
-F1-F6). `pytest-html` and `pytest-metadata` stay as dev dependencies (decided 2026-10-02).
+Tracked in `.agents/roadmap.md`: F1 and F2 (frontend follow-ups) and M1 (retired stats) wait for
+the maintainer's input. `pytest-html` and `pytest-metadata` stay as dev dependencies (decided
+2026-10-02).
 
 ## What the next agent should do first
 
