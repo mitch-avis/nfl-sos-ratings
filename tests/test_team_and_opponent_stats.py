@@ -1068,3 +1068,14 @@ def test_opponent_rows_average_the_longest_play_per_game() -> None:
     assert kc is not None
     # KC without DEN: 33 against BUF and 21 against LAC.
     assert kc.get_column("longest_pass").item() == 27.0
+
+
+def test_compute_all_opponent_profiles_without_games_is_none() -> None:
+    # Arrange
+    weekly = _weekly_df().clear()
+
+    # Act
+    profiles, details = opponent_stats.compute_all_opponent_profiles(weekly, _schedule_df())
+
+    # Assert
+    assert (profiles, details) == (None, {})

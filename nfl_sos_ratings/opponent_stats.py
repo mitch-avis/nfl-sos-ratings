@@ -105,6 +105,8 @@ def compute_all_opponent_profiles(
     Every opponent is profiled without its games against each team it played in one aggregation.
     """
     teams = sorted(weekly_df.get_column("team").unique().cast(pl.String).to_list())
+    if not teams:
+        return None, {}
     opponents = {team: get_opponents(schedule_df, team) for team in teams}
     pairs = pl.concat(
         [_opponent_pairs(team, opponents[team]) for team in teams],
