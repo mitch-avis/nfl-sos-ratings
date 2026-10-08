@@ -1,5 +1,4 @@
-import { formatValue } from './format';
-import { getMetricMetadata, SEASON_DELTA_PREFIX } from './metricMetadata';
+import { SEASON_DELTA_PREFIX } from './metricMetadata';
 import type { EntityKind, RowValue, TablePayload } from '@/api/types';
 
 type DataRow = Record<string, RowValue>;
@@ -9,13 +8,6 @@ export interface GameLogGroup {
   label: string;
   description: string;
   columns: string[];
-}
-
-export interface WeeklyHighlight {
-  context: string;
-  eyebrow: string;
-  title: string;
-  value: string;
 }
 
 export interface OpponentBreakdownColumn {
@@ -72,8 +64,6 @@ const QB_EFFICIENCY_COLUMNS = [
   'qb_passer_rating',
   'qb_any_a',
 ];
-const TEAM_TREND_COLUMNS = ['points_per_offensive_snap', 'passing_epa', 'point_margin'];
-const QB_TREND_COLUMNS = ['qb_epa_per_dropback', 'qb_any_a', 'qb_passer_rating'];
 
 export function orderedExisting(columns: string[], preferredColumns: string[]): string[] {
   const available = new Set(columns);
@@ -92,47 +82,6 @@ function roundNumber(value: number): number {
   return Number(value.toFixed(6));
 }
 
-function getWeekNumber(row: DataRow): number | null {
-  return typeof row.week === 'number' ? row.week : null;
-}
-
-function formatWeekContext(row: DataRow): string {
-  const parts: string[] = [];
-  const week = getWeekNumber(row);
-  if (week !== null) {
-    parts.push(`Week ${week}`);
-  }
-  if (typeof row.opponent_team === 'string' && row.opponent_team.length > 0) {
-    parts.push(`vs ${row.opponent_team}`);
-  }
-  return parts.join(' ');
-}
-
-function formatWeekSpan(rows: NumericGameRow[]): string {
-  const weeks = rows
-    .map((entry) => getWeekNumber(entry.row))
-    .filter((week): week is number => week !== null)
-    .sort((left, right) => left - right);
-
-  if (weeks.length === 0) {
-    return 'Recent games';
-  }
-  if (weeks.length === 1) {
-    return `Week ${weeks[0]}`;
-  }
-
-  const isContiguous = weeks.every((week, index) => index === 0 || week === weeks[index - 1] + 1);
-  if (isContiguous) {
-    return `Weeks ${weeks[0]}-${weeks[weeks.length - 1]}`;
-  }
-  return `Weeks ${weeks.join(', ')}`;
-}
-
-function formatSignedNumber(value: number): string {
-  const prefix = value > 0 ? '+' : value < 0 ? '-' : '';
-  return `${prefix}${formatValue(Math.abs(roundNumber(value)))}`;
-}
-
 function getNumericRows(gameLogs: TablePayload, column: string): NumericGameRow[] {
   return gameLogs.rows
     .map((row) => ({ row, value: row[column] }))
@@ -140,10 +89,6 @@ function getNumericRows(gameLogs: TablePayload, column: string): NumericGameRow[
       (entry): entry is NumericGameRow =>
         typeof entry.value === 'number' && Number.isFinite(entry.value),
     );
-}
-
-function findFirstAvailableMetric(gameLogs: TablePayload, candidates: string[]): string | null {
-  return candidates.find((column) => gameLogs.visible_columns.includes(column)) ?? null;
 }
 
 /**
@@ -162,124 +107,6 @@ function resolveSeasonBaseline(
 
   const numericRows = getNumericRows(gameLogs, metric);
   return numericRows.length > 0 ? roundNumber(average(numericRows.map((entry) => entry.value))) : null;
-}
-
-function buildPeakHighlight(gameLogs: TablePayload, metric: string): WeeklyHighlight | null {
-  const numericRows = getNumericRows(gameLogs, metric);
-  if (numericRows.length === 0) {
-    return null;
-  }
-
-  const bestEntry = numericRows.reduce((best, current) =>
-    current.value > best.value ? current : best,
-  );
-
-  return {
-    context: formatWeekContext(bestEntry.row),
-    eyebrow: 'Peak Week',
-    title: getMetricMetadata(metric).label,
-    value: formatValue(bestEntry.value),
-  };
-}
-
-function buildTrendHighlight(gameLogs: TablePayload, metric: string): WeeklyHighlight | null {
-  const numericRows = getNumericRows(gameLogs, metric).sort((left, right) => {
-    const leftWeek = getWeekNumber(left.row) ?? Number.MAX_SAFE_INTEGER;
-    const rightWeek = getWeekNumber(right.row) ?? Number.MAX_SAFE_INTEGER;
-    return leftWeek - rightWeek;
-  });
-
-  if (numericRows.length < 2) {
-    return null;
-  }
-
-  const windowSize = Math.min(3, Math.max(1, Math.floor(numericRows.length / 2)));
-  const openingWindow = numericRows.slice(0, windowSize);
-  const closingWindow = numericRows.slice(-windowSize);
-  const openingAverage = roundNumber(average(openingWindow.map((entry) => entry.value)));
-  const closingAverage = roundNumber(average(closingWindow.map((entry) => entry.value)));
-  const delta = roundNumber(closingAverage - openingAverage);
-
-  return {
-    context:
-      `Last ${closingWindow.length} avg ${formatValue(closingAverage)} vs first `
-      + `${openingWindow.length} avg ${formatValue(openingAverage)} on `
-      + `${getMetricMetadata(metric).label}.`,
-    eyebrow: 'Closing Form',
-    title: getMetricMetadata(metric).fullName,
-    value: formatSignedNumber(delta),
-  };
-}
-
-function buildRollingAverageHighlight(
-  seasonRow: DataRow,
-  gameLogs: TablePayload,
-  metric: string,
-): WeeklyHighlight | null {
-  const numericRows = getNumericRows(gameLogs, metric).sort((left, right) => {
-    const leftWeek = getWeekNumber(left.row) ?? Number.MAX_SAFE_INTEGER;
-    const rightWeek = getWeekNumber(right.row) ?? Number.MAX_SAFE_INTEGER;
-    return leftWeek - rightWeek;
-  });
-
-  if (numericRows.length < 2) {
-    return null;
-  }
-
-  const windowSize = Math.min(3, numericRows.length);
-  const recentWindow = numericRows.slice(-windowSize);
-  const recentAverage = roundNumber(average(recentWindow.map((entry) => entry.value)));
-  const baseline = resolveSeasonBaseline(seasonRow, gameLogs, metric);
-  const baselineContext =
-    baseline === null
-      ? ''
-      : ` vs season ${formatValue(baseline)} (${formatSignedNumber(recentAverage - baseline)})`;
-
-  return {
-    context:
-      `${formatWeekSpan(recentWindow)} avg ${formatValue(recentAverage)}`
-      + `${baselineContext} on ${getMetricMetadata(metric).label}.`,
-    eyebrow: `Recent ${windowSize}-Game`,
-    title: getMetricMetadata(metric).fullName,
-    value: formatValue(recentAverage),
-  };
-}
-
-function buildToughestOpponentHighlight(gameLogs: TablePayload): WeeklyHighlight | null {
-  const toughestOpponents = getNumericRows(gameLogs, 'opp_team_rating');
-  if (toughestOpponents.length === 0) {
-    return null;
-  }
-
-  const toughestGame = toughestOpponents.reduce((best, current) =>
-    current.value > best.value ? current : best,
-  );
-  const opponentLabel = String(toughestGame.row.opponent_team ?? 'Unknown');
-
-  return {
-    context: `${formatWeekContext(toughestGame.row)} · Opp Team Rating ${formatValue(toughestGame.value)}`,
-    eyebrow: 'Schedule Edge',
-    title: 'Toughest Opponent',
-    value: opponentLabel,
-  };
-}
-
-export function buildWeeklyHighlights(
-  kind: EntityKind,
-  seasonRow: DataRow,
-  gameLogs: TablePayload,
-): WeeklyHighlight[] {
-  const coreMetric = findFirstAvailableMetric(
-    gameLogs,
-    kind === 'teams' ? TEAM_TREND_COLUMNS : QB_TREND_COLUMNS,
-  );
-
-  return [
-    coreMetric ? buildPeakHighlight(gameLogs, coreMetric) : null,
-    coreMetric ? buildRollingAverageHighlight(seasonRow, gameLogs, coreMetric) : null,
-    coreMetric ? buildTrendHighlight(gameLogs, coreMetric) : null,
-    buildToughestOpponentHighlight(gameLogs),
-  ].filter((highlight): highlight is WeeklyHighlight => highlight !== null);
 }
 
 export function enrichGameLogsWithOpponentRatings(

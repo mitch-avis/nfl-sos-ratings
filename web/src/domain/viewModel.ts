@@ -186,9 +186,14 @@ export function buildSeasonViewTable(
   const identityColumns = sourceTable.column_groups.identity ?? [];
   const shownIdentityColumns = identityColumns.filter((column) => getEntityConfig(kind).identityColumns.includes(column));
   const ratingColumns = sourceTable.column_groups.ratings ?? [];
+  // Columns the API names to show beside the ratings (a QB's unadjusted rate and sample); each
+  // stays in its own group and view as well.
+  const companionColumns = (sourceTable.column_groups.rating_companions ?? []).filter((column) =>
+    sourceTable.visible_columns.includes(column),
+  );
   const metricColumns =
     state.primaryView === 'ratings'
-      ? ratingColumns
+      ? [...ratingColumns, ...companionColumns]
       : sourceTable.visible_columns.filter(
           (column) =>
             !identityColumns.includes(column)

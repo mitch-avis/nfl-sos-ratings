@@ -403,6 +403,34 @@ describe('season in progress', () => {
 })
 
 describe('QB index', () => {
+  it('lists the unadjusted rate and the sample beside the QB rating', async () => {
+    // Arrange
+    const qbs = SEASON_2025.qbs
+    const withCompanions = {
+      ...SEASON_2025,
+      qbs: {
+        ...qbs,
+        rows: qbs.rows.map((row) => ({ ...row, qb_epa_per_dropback: 0.1, qb_dropbacks_total: 600 })),
+        visible_columns: [...qbs.visible_columns, 'qb_epa_per_dropback', 'qb_dropbacks_total'],
+        column_groups: { ...qbs.column_groups, rating_companions: ['qb_epa_per_dropback', 'qb_dropbacks_total'] },
+        column_metadata: {
+          ...qbs.column_metadata,
+          qb_epa_per_dropback: columnMeta('EPA/DB', { shape: 'rate', denominator: 'dropbacks' }),
+          qb_dropbacks_total: columnMeta('Dropbacks', { shape: 'count', polarity: 'neutral' }),
+        },
+      },
+    }
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025': withCompanions }))
+
+    // Act
+    renderApp('/qbs?season=2025')
+
+    // Assert
+    const table = (await screen.findAllByRole('table'))[0]
+    const headers = within(table).getAllByRole('columnheader').map((header) => header.textContent).join('|')
+    expect(headers).toMatch(/Adj EPA\/DB.*Faced Pass D.*\|EPA\/DB.*Dropbacks/)
+  })
+
   it('lists only qualifying QBs by default', async () => {
     // Act
     renderApp('/qbs?season=2025')
@@ -682,6 +710,72 @@ describe('team detail', () => {
 })
 
 const RANGES_PATH = '/api/seasons/2025/teams/rating-ranges'
+
+describe('detail layout', () => {
+  it('leads with the ratings and their ranks, before the view tabs', async () => {
+    // Act
+    renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    const ratings = await screen.findByRole('region', { name: 'Season Ratings' })
+    expect(ratings).toHaveTextContent('Team Rating8.40')
+    expect(ratings).toHaveTextContent('1st of 3')
+    const views = screen.getByRole('group', { name: 'View' })
+    expect(ratings.compareDocumentPosition(views) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('offers only the stat views on the stats section', async () => {
+    // Act
+    renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    const views = await screen.findByRole('group', { name: 'View' })
+    expect(within(views).queryByRole('button', { name: 'Ratings' })).not.toBeInTheDocument()
+    expect(within(views).getByRole('button', { name: 'Per-Game Rates' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('shows the headline rating before the schedule adjustment', async () => {
+    // Arrange
+    const rows = SEASON_2025.teams.rows.map((row) => ({ ...row, epa_margin_per_play: row.team === 'DEN' ? 0.05 : 0.1 }))
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025': { ...SEASON_2025, teams: { ...SEASON_2025.teams, rows } } }))
+
+    // Act
+    renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    expect(await screen.findByText(/Before the schedule adjustment/)).toHaveTextContent('0.05')
+  })
+
+  it('leaves out the game-by-game highlight tiles and the count pills', async () => {
+    // Act
+    renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    await screen.findByRole('link', { name: '2025_02_DEN_IND' })
+    expect(screen.queryByText('Peak week')).not.toBeInTheDocument()
+    expect(screen.queryByText(/^\d+ (games?|columns?|opponents?)$/)).not.toBeInTheDocument()
+  })
+
+  it('folds the garbage-time exploration at the end of the page', async () => {
+    // Act
+    renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    const log = await screen.findByRole('link', { name: '2025_02_DEN_IND' })
+    const slider = screen.getByRole('slider', { name: 'Garbage-time filter' })
+    expect(slider).not.toBeVisible()
+    expect(log.compareDocumentPosition(slider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('skips the garbage-time exploration for a QB without a rating', async () => {
+    // Act
+    renderApp('/qbs/qb-2?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('heading', { name: /Backup Arm/ })).toBeInTheDocument()
+    expect(screen.queryByText('Explore ratings without garbage time')).not.toBeInTheDocument()
+  })
+})
 
 describe('rank ranges', () => {
   it('charts every team on the index, each row linking to its detail page', async () => {

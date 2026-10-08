@@ -1075,17 +1075,28 @@ Index pages (layout):
 
 Detail pages:
 
-- [ ] U9 The view tabs sit above the whole page but only change the Ratings tiles and the game-log
-  columns; put them on the sections they drive.
-- [ ] U10 The stat tiles show bare values: add each one's rank ("-0.37, 15th of 32") and the
+- [x] U9 The view tabs sit above the whole page but only change the Ratings tiles and the game-log
+  columns; put them on the sections they drive. Done on `feat/detail-layout`: the page leads with
+  the rating summary, rank range, head-to-head, and weekly charts; the tabs head a stats section
+  (sticky only while it scrolls by) holding the view's stats, the game log, and the unique
+  opponents. They offer the five stat views; a Ratings choice carried over from the index reads
+  as Per-Game Rates there, as the game log already did.
+- [x] U10 The stat tiles show bare values: add each one's rank ("-0.37, 15th of 32") and the
   unadjusted counterpart (team EPA margin, QB raw EPA per dropback) so the schedule adjustment is
   visible, the question the 2026 Broncos raised. The QB Ratings view (index and detail) leaves out
-  raw EPA per dropback and dropbacks.
-- [ ] U11 The garbage-time filter card sits mid-page (and shows for a QB without dropbacks); move
-  it to the end as an exploration section, collapsed.
-- [ ] U12 "Game by game" tiles (Peak week, Recent 3-game, Closing form, Schedule edge) use jargon
+  raw EPA per dropback and dropbacks. Done on `feat/detail-layout`: `domain/ratingSummary` ranks
+  each rating (QBs among the qualifiers; context columns such as SoS unranked) and the headline
+  tile adds "Before the schedule adjustment" (2026 DEN: -0.37, 15th; EPA margin -0.108 per play,
+  26th). The API's new `rating_companions` group puts raw EPA per dropback and total dropbacks
+  beside the QB ratings in the Ratings view, while each column stays in its own view too.
+- [x] U11 The garbage-time filter card sits mid-page (and shows for a QB without dropbacks); move
+  it to the end as an exploration section, collapsed. Done on `feat/detail-layout`: the folded
+  section from the index pages closes the page, and a team or QB without a rating gets none.
+- [x] U12 "Game by game" tiles (Peak week, Recent 3-game, Closing form, Schedule edge) use jargon
   and a secondary stat (Points/Off Snap, EPA/DB); retire them or base them on the rating's own
-  stat with plain labels.
+  stat with plain labels. Done on `feat/detail-layout`: retired, with their domain code; the chart
+  above the log already opens on the rating's per-game stat. The detail page's count pills (games,
+  columns, opponents) went with them, the last of U7's noise items.
 
 Charts:
 

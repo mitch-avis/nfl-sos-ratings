@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 import pytest
 
-from nfl_sos_ratings import config
+from nfl_sos_ratings import config, ui_data
 from nfl_sos_ratings.rating_ranges import (
     QB_RANGE_COLUMNS,
     TEAM_RANGE_COLUMNS,
@@ -793,3 +793,44 @@ def test_season_in_progress_counts_the_season_being_played_without_game_counts(
 
     # Assert
     assert in_progress is True
+
+
+def test_qb_payload_names_raw_epa_and_dropbacks_as_rating_companions() -> None:
+    """The Ratings view shows the unadjusted rate and the season's sample beside the rating.
+
+    Each column stays in its own group (raw EPA in the per-dropback rates, total dropbacks in the
+    raw totals); the companions list only names them for the Ratings view.
+    """
+    # Arrange
+    frame = pl.DataFrame(
+        {
+            "player_id": ["qb-1"],
+            "qb_dropbacks_total": [640],
+            "qb_epa_per_dropback": [0.18],
+            "adj_qb_epa_per_dropback": [0.15],
+            "qb_faced_pass_defense": [0.01],
+        }
+    )
+
+    # Act
+    payload = ui_data._build_qb_payload(frame)
+
+    # Assert
+    assert payload["column_groups"]["rating_companions"] == [
+        "qb_epa_per_dropback",
+        "qb_dropbacks_total",
+    ]
+    assert "qb_epa_per_dropback" in payload["column_groups"]["per_dropback_rates"]
+    assert "qb_dropbacks_total" in payload["column_groups"]["raw_totals"]
+    assert payload["visible_columns"].count("qb_epa_per_dropback") == 1
+
+
+def test_team_payload_has_no_rating_companions() -> None:
+    # Arrange
+    frame = pl.DataFrame({"team": ["DET"], "team_rating": [7.1], "epa_margin_per_play": [0.1]})
+
+    # Act
+    payload = ui_data._build_team_payload(frame)
+
+    # Assert
+    assert payload["column_groups"]["rating_companions"] == []
