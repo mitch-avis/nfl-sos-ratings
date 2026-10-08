@@ -53,6 +53,47 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
   (F7, "Palette depth"); a fresh UX audit opened workstream U; S5 (test and pipeline speed) waits
   on one maintainer decision.
 
+## Session plan (from 2026-10-08)
+
+Maintainer decisions of 2026-10-08, in force for this plan: every recommendation in the
+2026-10-08 handoff is approved; the agent may merge each pull request itself (merge commit, delete
+the branch) once `scripts/gate.sh --web` passes locally and CI is green, then branch the next item
+from the updated `main`; the preseason-prior check may be run when built (a `data/` rebuild still
+needs a fresh yes); no scheduled refresh task (the maintainer refreshes by hand). Work top to
+bottom; update the status boxes in the same change set as the work.
+
+1. [ ] P1 Team colors (`feat/team-color-depth`, F7 follow-up). Done on the branch: generated
+   Broncos palette, team heat scales, team chips, logo, header stripe. Maintainer changes of
+   2026-10-08: page surfaces stay the default neutral in every page and palette (only light or dark
+   changes them); accents, charts, heat scale, stripe, logo, and tooltips follow the chosen palette
+   on the Teams, Quarterbacks, and Glossary pages; a team or QB page switches to that team's
+   palette automatically, with a "Use each team's colors on its page" switch (on by default) in the
+   palette menu; the palette menu opens at the chosen team.
+2. [ ] P2 Test and pipeline speed (S5): `POLARS_MAX_THREADS=1` by default in the front door and the
+   test suite; `pytest -m published_data` works without `--no-cov` (conftest hook, approved).
+3. [ ] P3 Bugs and copy (U1-U4).
+4. [ ] P4 Split `nfl_sos_ratings/metrics/team_metrics.py` by category (approved), catalogs
+   byte-identical as the characterization check.
+5. [ ] P5 Tooltip and glossary audit (maintainer request): every registry label, description, and
+   formula, the affix rules, the app's own hint text, and a glossary rebuilt from the registry
+   (search, categories, a "Start here" section, the methodology linked on GitHub). Tooltips gain a
+   generated direction line and a "How it's computed" line. Drafts by six read-only subagents in
+   `/tmp/tooltip-audit/` (style brief there), verified and applied centrally.
+6. [ ] P6 Preseason prior for the team fit: the team fit shrinks toward a regressed previous-season
+   rating that fades out early in the season (the maintainer expects the prior gone by mid-season
+   or earlier; the fade point is for the pre-registered test to settle). Protocol first, then code
+   (test-first), an independent review, the check run (approved), the decision, and a `data/`
+   rebuild only with a fresh yes. Teams first; QBs as a separate later test.
+7. [ ] P7 Index pages: U5-U8.
+8. [ ] P8 Detail pages: U9-U12.
+9. [ ] P9 Charts: U13-U14, with R3's early weeks (chart starts once every team has 3 games;
+   approved).
+10. [ ] P10 Color semantics: U15-U17.
+11. [ ] P11 Palette menu as a division grid (U19); U18 lands with P5.
+12. [ ] P12 Refresh button (maintainer idea, 2026-10-08): an opt-in server flag, one refresh at a
+    time, a confirmation dialog in the app, progress, then the `diff-data` summary and the data
+    checks; the app refetches its data when done.
+
 ## Recommended order
 
 | Order | Workstream | Why here |
@@ -761,13 +802,17 @@ fallback (suggesting the darkest official color in light mode and the lightest i
 Built on branch `feat/team-color-depth` (`nfl_sos_ratings/team_palettes.py`, rules in its module
 docstring):
 
-- Surfaces: page, cards, menus, and sidebar keep the default lightness and take the hue of the
-  team's base color (its first color, or the darker main color when a bright first color is paired
-  with black or silver, so CIN, NO, PIT, and LV get neutral grays). Light mode is tinted no more
-  than the default palette (no cream or pink pages); dark mode up to 0.022 chroma.
-- Hover and selected backgrounds (`accent`, `sidebar_accent`) are tints of the accent hue; the app
+- Surfaces: a first version tinted page surfaces with each team's base color (dark mode up to 0.022
+  chroma); after seeing it the maintainer chose neutral page surfaces in every palette (2026-10-08),
+  so moving between teams changes only accents, never backgrounds or panels. Removed before merge.
+- Hover and selected backgrounds (`accent`, `sidebar_accent`) and tooltips (the hint card,
+  `hint` and `hint_border`) are tints of the accent hue, the card bordered in the accent; the app
   logo is drawn in the team's colors (`mark` in the palette file); a 3 px two-color stripe marks the
   top of the header under a team palette.
+- Team and QB pages show that team's palette (a QB's team that season), the chosen palette applying
+  to the Teams, Quarterbacks, and Glossary pages; the palette menu's "Use each team's colors on its
+  page" switch (on by default, stored) turns it off (maintainer request, 2026-10-08). The menu opens
+  with the chosen palette focused and scrolled into view.
 - Heat scales for all 32 teams in both modes. The literal suggestion was tried against every team
   (scratch renders, 2026-10-08): with black as the darkest color, it makes the team hue the bad
   end in light mode for eight teams (NYJ, CIN, ATL, CAR, TB, LV, PHI, DET), inverting the brand.
@@ -777,8 +822,9 @@ docstring):
   the suggested lightness scale (darker better in light mode, lighter in dark mode).
 - Team chips (independent of the palette): a two-color dot beside every team abbreviation in the
   index tables, game log, opponent table, comparison, filtered table, and detail-page title.
-- Checks: `is_readable` now covers body and secondary text on every tinted surface and the accent
-  surfaces' own text; every committed palette passes in both modes, and every team has a heat scale.
+- Checks: `is_readable` now covers body and secondary text on every tinted surface (hover,
+  selected, and hint card), the accent surfaces' own text, and the hint border; every committed
+  palette passes in both modes, and every team has a heat scale.
   Visual check: all 32 palettes, both modes, index and detail pages, screenshotted with headless
   Chrome against a scratch build (`vite build --outDir /tmp/...`, so `web/dist` was untouched).
 
