@@ -209,6 +209,7 @@ class MetricRegistry:
                 "denominator": resolved.base.denominator,
                 "source": resolved.base.source,
                 "base_name": resolved.base.name,
+                "percent": resolved.base.percent,
             }
         return metadata
 
@@ -245,6 +246,7 @@ class MetricRegistry:
                     "contextual": metric.contextual,
                     "formula": metric.formula,
                     "note": metric.note,
+                    "percent": metric.percent,
                 }
                 for metric in self.metrics.values()
             },
@@ -332,7 +334,7 @@ class MetricRegistry:
         metric: MetricDef,
         category_index: dict[tuple[Entity, str], CategoryDef],
     ) -> None:
-        """Check one metric's links, denominator rule, and description."""
+        """Check one metric's links, denominator and percentage rules, and description."""
         category = category_index.get((metric.entity, metric.category))
         if category is None:
             msg = f"Metric {metric.name} references unknown category {metric.category!r}"
@@ -345,6 +347,9 @@ class MetricRegistry:
             raise RegistryValidationError(msg)
         if metric.shape in ("rate", "avg") and not metric.denominator:
             msg = f"Metric {metric.name} is a {metric.shape} but declares no denominator"
+            raise RegistryValidationError(msg)
+        if metric.percent and metric.shape not in ("rate", "avg"):
+            msg = f"Metric {metric.name} is a {metric.shape}, so it cannot be a percentage"
             raise RegistryValidationError(msg)
         if (
             not metric.description.endswith(".")

@@ -432,6 +432,21 @@ def test_cross_entity_context_columns_map_onto_the_viewing_taxonomy(
             ),
             "full-sentence",
         ),
+        (
+            MetricDef(
+                name="alpha",
+                label="Alpha",
+                full_name="Alpha",
+                description="A synthetic metric used only for validation tests.",
+                entity="team",
+                category="Test Category",
+                shape="count",
+                polarity="higher",
+                source="D",
+                percent=True,
+            ),
+            "percentage",
+        ),
     ],
 )
 def test_registry_rejects_an_invalid_metric(metric: MetricDef, message: str) -> None:
@@ -524,6 +539,42 @@ def test_defense_player_stats_name_weekly_player_stats_as_source(
 
     # Assert
     assert source == "PLS"
+
+
+@pytest.mark.parametrize(
+    ("column", "percent"),
+    [
+        ("completion_pct", True),
+        ("qb_sack_rate", True),
+        ("havoc_rate", True),
+        ("success_rate_margin", True),
+        ("team_rank_top5_probability", True),
+        ("opp_third_down_pct", True),
+        ("qopp_qb_completion_pct", True),
+        ("yards_per_attempt", False),
+        ("qb_completion_percentage_above_expectation", False),
+        ("giveaways_per_drive", False),
+        ("passing_yards", False),
+    ],
+)
+def test_column_metadata_marks_proportions_as_percentages(
+    registry: MetricRegistry, column: str, *, percent: bool
+) -> None:
+    """0.653 means 65.3%; values already in percentage points (CPOE) are not proportions."""
+    # Act
+    metadata = registry.column_metadata([column])
+
+    # Assert
+    assert metadata[column]["percent"] is percent
+
+
+def test_payload_marks_proportions_as_percentages(registry: MetricRegistry) -> None:
+    # Act
+    payload = json.loads(json.dumps(registry.payload()))
+
+    # Assert
+    assert payload["metrics"]["third_down_pct"]["percent"] is True
+    assert payload["metrics"]["points_per_drive"]["percent"] is False
 
 
 def _registry_with_rules(

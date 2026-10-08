@@ -126,6 +126,7 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         denominator="games played",
         since=1999,
         formula="(wins + 0.5 * ties) / games_played",
+        percent=True,
     ),
     _overall(
         name="win_value",
@@ -274,6 +275,7 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="scrimmage snaps",
         since=1999,
+        percent=True,
     ),
     _overall(
         name="wp_unit",
@@ -318,6 +320,7 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="scrimmage and special-teams plays",
         since=1999,
+        percent=True,
     ),
     _overall(
         name="wp_bin_plays",

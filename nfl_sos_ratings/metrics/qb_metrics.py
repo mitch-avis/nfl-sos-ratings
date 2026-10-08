@@ -77,6 +77,7 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="bootstrap resamples",
         since=1999,
+        percent=True,
     ),
     _ratings(
         name="qb_rank_top5_probability",
@@ -93,6 +94,7 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="bootstrap resamples",
         since=1999,
+        percent=True,
     ),
     _ratings(
         name="qb_rank_top10_probability",
@@ -109,6 +111,7 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="bootstrap resamples",
         since=1999,
+        percent=True,
     ),
     _ratings(
         name="qb_rank_probabilities",
@@ -124,6 +127,7 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="bootstrap resamples",
         since=1999,
+        percent=True,
     ),
 )
 
@@ -301,6 +305,7 @@ QB_VOLUME_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="dropbacks",
         since=1999,
+        percent=True,
     ),
     _volume(
         name="qb_wp_bin_dropbacks",
@@ -436,6 +441,7 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="pass attempts",
         since=1999,
+        percent=True,
     ),
     _efficiency(
         name="qb_interception_rate",
@@ -447,6 +453,7 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="pass attempts",
         since=1999,
+        percent=True,
     ),
     _efficiency(
         name="qb_completion_pct",
@@ -458,6 +465,7 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="pass attempts",
         since=1999,
+        percent=True,
     ),
 )
 
@@ -496,6 +504,7 @@ QB_PRESSURE_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="dropbacks",
         since=1999,
+        percent=True,
     ),
     _pressure(
         name="qb_sack_fumbles_lost",
@@ -517,6 +526,7 @@ QB_PRESSURE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="dropbacks",
         since=1999,
+        percent=True,
     ),
 )
 
@@ -755,6 +765,7 @@ QB_CLUTCH_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="primary-QB games",
         since=1999,
+        percent=True,
     ),
     _clutch(
         name="qb_fourth_quarter_comeback",

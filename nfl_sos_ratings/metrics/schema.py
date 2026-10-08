@@ -33,7 +33,13 @@ Polarity = Literal["higher", "lower", "neutral"]
 
 @dataclass(frozen=True, slots=True)
 class MetricDef:
-    """One stat/rating/metric definition — the single source of truth entry."""
+    """One stat/rating/metric definition — the single source of truth entry.
+
+    ``percent`` marks a proportion, where 0.653 means 65.3%: a share of its denominator (completion
+    percentage), events per play (havoc rate), a chance, or the difference of two shares. The
+    analyst app shows it as a percentage; data files, the API, and CSV exports keep the proportion.
+    A value already in percentage points (completion percentage above expectation) is not one.
+    """
 
     name: str
     label: str
@@ -51,6 +57,7 @@ class MetricDef:
     contextual: bool = False
     formula: str | None = None
     note: str | None = None
+    percent: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +129,7 @@ class MetricFields(TypedDict):
     contextual: NotRequired[bool]
     formula: NotRequired[str | None]
     note: NotRequired[str | None]
+    percent: NotRequired[bool]
 
 
 class MetricBuilder(Protocol):

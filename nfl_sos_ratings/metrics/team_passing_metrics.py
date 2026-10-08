@@ -144,6 +144,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="pass attempts",
         since=1999,
+        percent=True,
     ),
     _off_pass(
         name="net_passing_yards",
@@ -193,6 +194,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="dropbacks",
         since=1999,
+        percent=True,
     ),
     _off_pass(
         name="scrambles",
@@ -336,6 +338,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="dropbacks",
         since=1999,
+        percent=True,
     ),
     _off_pass(
         name="team_passer_rating",
@@ -361,6 +364,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="pass attempts",
         since=1999,
+        percent=True,
     ),
     _off_pass(
         name="int_rate_per_attempt",
@@ -372,6 +376,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="pass attempts",
         since=1999,
+        percent=True,
     ),
     _off_pass(
         name="explosive_pass_rate",
@@ -383,6 +388,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="dropbacks",
         since=1999,
+        percent=True,
     ),
     _off_pass(
         name="deep_attempt_rate",
@@ -394,6 +400,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="pass attempts",
         since=1999,
+        percent=True,
     ),
     _off_pass(
         name="longest_pass",
@@ -590,6 +597,7 @@ OFFENSE_RECEIVING_METRICS: tuple[MetricDef, ...] = (
         denominator="targets",
         since=1999,
         note=_TARGETS_GAP_NOTE,
+        percent=True,
     ),
 )
 
