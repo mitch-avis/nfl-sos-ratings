@@ -30,7 +30,7 @@ Start here when ranking QBs.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `adj_qb_epa_per_dropback` | Adj EPA/DB | rate | dropbacks | 1999 | D | The quarterback's expected points added per dropback after adjusting for the pass defenses he faced. It reads on the same scale as raw EPA per dropback, and small samples are pulled toward the league average. Higher is better. |
+| `adj_qb_epa_per_dropback` | Adj EPA/DB | rate | dropbacks | 1999 | D | The quarterback's expected points added per dropback after adjusting for the pass defenses he faced. It reads on the same scale as raw EPA per dropback, and small samples are pulled toward the league average. |
 | `qb_faced_pass_defense` | Faced Pass D | rate | dropbacks | 1999 | D | The average quality of the pass defenses this quarterback faced, weighted by his dropbacks, in EPA per dropback prevented. Each defense is rated without its games against this quarterback. Positive means tougher defenses. Early in a season, defenses that have faced no other passer yet are left out. Context, not a QB grade. |
 | `qb_rank` | Rank | score | - | 1999 | D | The quarterback's place among eligible quarterbacks by Adjusted EPA Per Dropback, 1 for the best. Quarterbacks with equal ratings share the better rank. |
 | `qb_rank_missing_share` | No-Dropback Share | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the quarterback had no dropbacks and so no rank. A quarterback who played only part of the season is missing more often, and the rank quantiles come only from the resamples that include him. |
@@ -88,7 +88,7 @@ Quality per play: the rates that separate good QBs from busy ones.
 | `qb_passer_rating` | Passer Rating | rate | official NFL formula over attempts | 1999 | D | The classic NFL passer-rating formula (0 to 158.3), built from completion rate, yards, touchdowns, and interceptions per attempt. Restates comp%, Y/A, TD%, and INT%; kept in the pool as a frozen exception. |
 | `qb_yards_per_attempt` | Y/A | rate | pass attempts | 1999 | D | Passing yards divided by official pass attempts. |
 | `qb_touchdown_rate` | TD % | rate | pass attempts | 1999 | D | The share of pass attempts that scored touchdowns. |
-| `qb_interception_rate` | INT % | rate | pass attempts | 1999 | D | The share of pass attempts that were intercepted. Lower is better. |
+| `qb_interception_rate` | INT % | rate | pass attempts | 1999 | D | The share of pass attempts that were intercepted. |
 | `qb_completion_pct` | Comp % | rate | pass attempts | 1999 | D | Completions divided by official pass attempts. |
 
 ## Pressure, Sacks & Pocket
@@ -99,7 +99,7 @@ Sacks taken, pressure faced, and how the quarterback handled it.
 | --- | --- | --- | --- | --- | --- | --- |
 | `qb_sacks` | Sacks | count | - | 1999 | PLS | Times the quarterback was sacked. Avoiding sacks is a QB skill. |
 | `qb_sack_yards_lost` | Sack Yds Lost | count | - | 1999 | PLS | Yards lost on sacks, shown as a positive number. Stored negative upstream; the ETL normalizes the sign. |
-| `qb_sack_rate` | Sack Rate | rate | dropbacks | 1999 | D | The share of dropbacks that ended in a sack. Lower is better — sack avoidance tracks quarterbacks more than offensive lines. |
+| `qb_sack_rate` | Sack Rate | rate | dropbacks | 1999 | D | The share of dropbacks that ended in a sack. Sack avoidance tracks quarterbacks more than offensive lines. |
 | `qb_sack_fumbles_lost` | Sack Fum Lost | count | - | 1999 | PLS | Strip-sack fumbles the defense recovered. |
 | `qb_scramble_rate` | Scramble % | rate | dropbacks | 1999 | PBP | Scrambles divided by dropbacks — the escape-and-run tendency. |
 

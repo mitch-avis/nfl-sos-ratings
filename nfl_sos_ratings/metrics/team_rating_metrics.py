@@ -49,8 +49,7 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         full_name="Defense Rating",
         description=(
             "Points per game the defense prevented compared with an average defense, measured "
-            "by scrimmage EPA per play allowed and adjusted for the offenses it faced. Higher "
-            "is better."
+            "by scrimmage EPA per play allowed and adjusted for the offenses it faced."
         ),
         shape="score",
         polarity="higher",
