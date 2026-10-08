@@ -7,8 +7,8 @@ import PALETTE_DATA from './teamPaletteData.json'
  * (`nfl_sos_ratings/team_palettes.py`) from nflverse team colors, with every accent, hint card,
  * chart color, and heat scale checked for readable contrast in both modes. Page surfaces are never
  * part of a palette, so they stay the same whatever palette shows. This module only reads the file:
- * palette names and groups for the menu, the CSS variables a palette sets, its heat scale and logo
- * colors, and every team's two main colors for the team chips.
+ * palette names and groups for the menu, the palette a page shows, the CSS variables a palette sets,
+ * its heat scale and logo colors, and every team's two main colors for the team chips.
  */
 
 type Rgb = readonly number[]
@@ -102,6 +102,15 @@ export function normalizePalette(value: string | null): PaletteMode {
   if (value === 'broncos') return 'DEN'
   if (value !== null && value in PALETTES) return value
   return 'classic'
+}
+
+/**
+ * The palette a page shows: on a team or QB page (`pageTeam`), that team's palette while team colors
+ * are on and the team has one; everywhere else, and otherwise, the chosen palette.
+ */
+export function activePalette(chosen: PaletteMode, pageTeam: string | null, teamPageColors: boolean): PaletteMode {
+  if (teamPageColors && pageTeam !== null && pageTeam in PALETTES) return pageTeam
+  return chosen
 }
 
 /** The palette's display name: `Default`, or the team's name. */

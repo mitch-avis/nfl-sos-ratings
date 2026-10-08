@@ -140,7 +140,7 @@ export function EntityTable({
   sorting,
   table,
 }: EntityTableProps) {
-  const { resolved: theme, palette } = useTheme()
+  const { resolved: theme, activePalette: palette } = useTheme()
   const basePath = `/${config.kind}`
   const availableColumnIds = useMemo(() => [...CONTROL_COLUMNS, ...selectedColumns], [selectedColumns])
   const fallbackSorting = useMemo<SortingState>(

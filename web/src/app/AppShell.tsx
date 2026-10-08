@@ -6,6 +6,7 @@ import { BrandMark } from '@/components/common/BrandMark'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuLabel,
@@ -72,9 +73,21 @@ function ThemeToggle() {
   )
 }
 
-/** The palette menu: the default palette, then every team's, grouped by division. */
+/**
+ * Focuses the chosen palette's menu item once the menu has opened, which also scrolls it into view.
+ * The timeout lets the menu's own opening focus (on the menu itself) happen first.
+ */
+function focusWhenOpened(item: HTMLDivElement | null): void {
+  if (item) window.setTimeout(() => item.focus(), 0)
+}
+
+/**
+ * The palette menu: the switch for team colors on team and QB pages, the default palette, then
+ * every team's, grouped by division. It opens with the chosen palette focused and scrolled into
+ * view, so stepping through the teams in order takes one key press each.
+ */
 function PalettePicker() {
-  const { palette, setPalette } = useTheme()
+  const { palette, setPalette, teamPageColors, setTeamPageColors } = useTheme()
   const name = paletteName(palette)
   return (
     <DropdownMenu>
@@ -89,14 +102,24 @@ function PalettePicker() {
         <TooltipContent>Palette: {name}</TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="end" className="max-h-[70vh] w-64 overflow-y-auto">
+        <DropdownMenuCheckboxItem
+          checked={teamPageColors}
+          onCheckedChange={(checked) => setTeamPageColors(checked === true)}
+          onSelect={(event) => event.preventDefault()}
+        >
+          Use each team's colors on its page
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuSeparator />
         <DropdownMenuRadioGroup value={palette} onValueChange={setPalette}>
-          <DropdownMenuRadioItem value="classic">Default</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="classic" ref={palette === 'classic' ? focusWhenOpened : undefined}>
+            Default
+          </DropdownMenuRadioItem>
           {paletteGroups().map((group) => (
             <DropdownMenuGroup key={group.division}>
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">{group.division}</DropdownMenuLabel>
               {group.teams.map((team) => (
-                <DropdownMenuRadioItem key={team.id} value={team.id}>
+                <DropdownMenuRadioItem key={team.id} value={team.id} ref={team.id === palette ? focusWhenOpened : undefined}>
                   <span aria-hidden className="flex gap-0.5">
                     {team.colors.map((color) => (
                       <span key={color} className="size-2.5 rounded-full ring-1 ring-border" style={{ background: color }} />
@@ -239,8 +262,8 @@ function AppSidebar() {
  * already fitted to read on the current theme. The default palette leaves the header plain.
  */
 function PaletteStripe() {
-  const { palette } = useTheme()
-  if (palette === 'classic') return null
+  const { activePalette } = useTheme()
+  if (activePalette === 'classic') return null
   return (
     <div
       aria-hidden="true"

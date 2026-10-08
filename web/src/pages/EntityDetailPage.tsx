@@ -5,6 +5,7 @@ import { Link, Navigate, useParams } from 'react-router'
 import { useEntityGameLogs, useRankRanges, useRatingHistory } from '@/api/queries'
 import type { EntityKind, SeasonDataset } from '@/api/types'
 import { useEntityPageState } from '@/app/EntityViewStateProvider'
+import { useTeamPageColors } from '@/app/useTeamPageColors'
 import { ErrorState } from '@/components/common/ErrorState'
 import { PageHeader } from '@/components/common/PageHeader'
 import { TeamChip } from '@/components/common/TeamChip'
@@ -58,6 +59,9 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
   const entityId = decodeURIComponent(useParams().entityId ?? '')
   const seasonView = useMemo(() => buildSeasonViewTable(kind, dataset[kind], viewState), [dataset, kind, viewState])
   const row = getEntityRow(seasonView.table, kind, entityId)
+  // A team page shows its team's palette, a QB page his team's (when team colors are on).
+  const pageTeam = row ? String((kind === 'teams' ? row[config.labelKey] : row.team) ?? '') : ''
+  useTeamPageColors(pageTeam === '' ? null : pageTeam)
   const gameLogsQuery = useEntityGameLogs(kind, season, row ? entityId : '')
   const ratingHistoryQuery = useRatingHistory(kind, season, row ? entityId : '')
   const rankRangesQuery = useRankRanges(kind, season)

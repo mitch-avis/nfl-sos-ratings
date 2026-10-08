@@ -1,21 +1,39 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 
 import type { PaletteMode, ThemeMode } from '@/api/types'
-import { normalizePalette, PALETTE_CSS_VARIABLES, paletteCssVariables } from '@/domain/teamPalettes'
+import { activePalette, normalizePalette, PALETTE_CSS_VARIABLES, paletteCssVariables } from '@/domain/teamPalettes'
 
 export type Theme = ThemeMode | 'system'
 
 interface ThemeContextValue {
   theme: Theme
   resolved: ThemeMode
+  /** The chosen palette, for the Teams, Quarterbacks, and Glossary pages and the palette menu. */
   palette: PaletteMode
+  /** The palette the current page shows: a team or QB page's team, or the chosen one. */
+  activePalette: PaletteMode
+  /** Whether team and QB pages show their team's palette. */
+  teamPageColors: boolean
   setTheme: (theme: Theme) => void
   setPalette: (palette: PaletteMode) => void
+  setTeamPageColors: (on: boolean) => void
+  /** Set by a team or QB page for its team; null elsewhere. */
+  setPageTeam: (team: string | null) => void
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 const THEME_KEY = 'nfl-sos-theme'
 const PALETTE_KEY = 'nfl-sos-palette'
+const TEAM_PAGE_COLORS_KEY = 'nfl-sos-team-page-colors'
 
 function readStored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   try {
@@ -48,16 +66,23 @@ function systemPrefersDark(): boolean {
 }
 
 /**
- * Applies the `dark` class and `data-palette` attribute to `<html>` and remembers both choices.
- * A team palette (`teamPalettes.ts`) sets its accent and chart colors as CSS variables on `<html>`
- * for the current mode; the default palette clears them so the stylesheet's values apply. The old
- * stored `broncos` choice reads as the Denver palette.
+ * Applies the `dark` class and `data-palette` attribute to `<html>` and remembers the theme, the
+ * chosen palette, and whether team pages use their team's colors. The palette shown is the active
+ * one: a team or QB page's team (set through `useTeamPageColors`) while team colors are on,
+ * otherwise the chosen palette. A team palette (`teamPalettes.ts`) sets its accent, chart, and hint
+ * colors as CSS variables on `<html>` for the current mode, before paint; the default palette clears
+ * them so the stylesheet's values apply. The old stored `broncos` choice reads as the Denver
+ * palette.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() =>
     readStored(THEME_KEY, ['light', 'dark', 'system'] as const, 'system'),
   )
   const [palette, setPaletteState] = useState<PaletteMode>(readStoredPalette)
+  const [teamPageColors, setTeamPageColorsState] = useState(
+    () => readStored(TEAM_PAGE_COLORS_KEY, ['on', 'off'] as const, 'on') === 'on',
+  )
+  const [pageTeam, setPageTeam] = useState<string | null>(null)
   const [systemDark, setSystemDark] = useState(systemPrefersDark)
 
   useEffect(() => {
@@ -75,14 +100,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.style.colorScheme = resolved
   }, [resolved])
 
-  useEffect(() => {
+  const shown = activePalette(palette, pageTeam, teamPageColors)
+
+  useLayoutEffect(() => {
     const root = document.documentElement
-    root.dataset.palette = palette
+    root.dataset.palette = shown
     for (const variable of PALETTE_CSS_VARIABLES) root.style.removeProperty(variable)
-    for (const [variable, value] of Object.entries(paletteCssVariables(palette, resolved))) {
+    for (const [variable, value] of Object.entries(paletteCssVariables(shown, resolved))) {
       root.style.setProperty(variable, value)
     }
-  }, [palette, resolved])
+  }, [shown, resolved])
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next)
@@ -94,9 +121,24 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     store(PALETTE_KEY, next)
   }, [])
 
+  const setTeamPageColors = useCallback((on: boolean) => {
+    setTeamPageColorsState(on)
+    store(TEAM_PAGE_COLORS_KEY, on ? 'on' : 'off')
+  }, [])
+
   const value = useMemo(
-    () => ({ theme, resolved, palette, setTheme, setPalette }),
-    [theme, resolved, palette, setTheme, setPalette],
+    () => ({
+      theme,
+      resolved,
+      palette,
+      activePalette: shown,
+      teamPageColors,
+      setTheme,
+      setPalette,
+      setTeamPageColors,
+      setPageTeam,
+    }),
+    [theme, resolved, palette, shown, teamPageColors, setTheme, setPalette, setTeamPageColors],
   )
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }

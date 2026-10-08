@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  activePalette,
   brandMark,
   heatPaletteFor,
   normalizePalette,
@@ -148,5 +149,21 @@ describe('paletteName', () => {
 
     // Assert
     expect(names).toEqual(['Default', 'Denver Broncos'])
+  })
+})
+
+describe('activePalette', () => {
+  it.each([
+    ['KC', 'DEN', true, 'DEN'],
+    ['classic', 'DEN', true, 'DEN'],
+    ['KC', 'DEN', false, 'KC'],
+    ['KC', null, true, 'KC'],
+    ['KC', 'XYZ', true, 'KC'],
+  ] as const)('with %s chosen, a page for %s, and team colors %s, shows %s', (chosen, pageTeam, teamColors, expected) => {
+    // Act
+    const palette = activePalette(chosen, pageTeam, teamColors)
+
+    // Assert
+    expect(palette).toBe(expected)
   })
 })

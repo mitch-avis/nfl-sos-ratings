@@ -41,7 +41,7 @@ export function ComparisonPanel({
   rankRanges,
   onRemove,
 }: ComparisonPanelProps) {
-  const { resolved: theme, palette } = useTheme()
+  const { resolved: theme, activePalette: palette } = useTheme()
   const titleId = useId()
   const compareRows = compareIds
     .map((entityId) => table.rows.find((row) => String(row[config.identityKey] ?? '') === entityId))

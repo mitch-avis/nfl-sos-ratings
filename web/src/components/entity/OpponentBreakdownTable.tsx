@@ -17,7 +17,7 @@ const DEFAULT_SORT: SortState = { column: 'opponent_team', desc: false }
 
 /** One row per unique opponent, sortable, with heat shading by column. */
 export function OpponentBreakdownTable({ breakdown }: { breakdown: Breakdown }) {
-  const { resolved: theme, palette } = useTheme()
+  const { resolved: theme, activePalette: palette } = useTheme()
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT)
   const activeSort = breakdown.columns.some((column) => column.id === sort.column) ? sort : DEFAULT_SORT
 
