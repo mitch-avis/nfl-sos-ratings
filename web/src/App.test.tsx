@@ -16,7 +16,7 @@ import {
   TEAM_RANK_RANGES,
   TEAM_WP_RATINGS,
 } from '@/test/fixtures'
-import { paletteCssVariables } from '@/domain/teamPalettes'
+import { PALETTE_CSS_VARIABLES, paletteCssVariables } from '@/domain/teamPalettes'
 import { renderApp } from '@/test/renderApp'
 
 const API = {
@@ -742,7 +742,7 @@ describe('team palettes', () => {
     expect(container.querySelector('[data-palette-stripe]')).toBeNull()
   })
 
-  it("clears a team palette's tinted surfaces on switching back to the default", async () => {
+  it("clears every team palette color on switching back to the default", async () => {
     // Arrange
     window.localStorage.setItem('nfl-sos-palette', 'KC')
     const user = userEvent.setup()
@@ -754,7 +754,39 @@ describe('team palettes', () => {
 
     // Assert
     await waitFor(() => expect(document.documentElement.dataset.palette).toBe('classic'))
-    expect(document.documentElement.style.getPropertyValue('--background')).toBe('')
+    expect(PALETTE_CSS_VARIABLES.filter((name) => document.documentElement.style.getPropertyValue(name) !== '')).toEqual([])
+  })
+
+  it('returns a team page to the chosen palette when team colors are switched off there', async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'KC')
+    const user = userEvent.setup()
+    renderApp('/teams/DEN?season=2025')
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('DEN'))
+    await user.click(await screen.findByRole('button', { name: 'Palette: Kansas City Chiefs' }))
+
+    // Act
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: "Use each team's colors on its page" }))
+
+    // Assert
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('KC'))
+  })
+
+  it("keeps a team page in its team's colors while another season loads", async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'KC')
+    const loaded = stubApi({ ...API, '/api/seasons': { seasons: [2025, 2024] } })
+    vi.stubGlobal('fetch', ((input: RequestInfo | URL) =>
+      String(input).endsWith('/api/seasons/2024') ? new Promise<Response>(() => {}) : loaded(input)) as typeof fetch)
+    const { router } = renderApp('/teams/DEN?season=2025')
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('DEN'))
+
+    // Act
+    await router.navigate('/teams/DEN?season=2024')
+
+    // Assert
+    await screen.findByText(/Loading season data/)
+    expect(document.documentElement.dataset.palette).toBe('DEN')
   })
 })
 

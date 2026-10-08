@@ -77,8 +77,10 @@ function ThemeToggle() {
  * Focuses the chosen palette's menu item once the menu has opened, which also scrolls it into view.
  * The timeout lets the menu's own opening focus (on the menu itself) happen first.
  */
-function focusWhenOpened(item: HTMLDivElement | null): void {
-  if (item) window.setTimeout(() => item.focus(), 0)
+function focusWhenOpened(item: HTMLDivElement | null): (() => void) | undefined {
+  if (!item) return undefined
+  const timer = window.setTimeout(() => item.focus(), 0)
+  return () => window.clearTimeout(timer)
 }
 
 /**

@@ -95,7 +95,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const resolved: ThemeMode = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.classList.toggle('dark', resolved === 'dark')
     document.documentElement.style.colorScheme = resolved
   }, [resolved])

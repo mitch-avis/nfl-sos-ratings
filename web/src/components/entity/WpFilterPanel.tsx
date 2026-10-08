@@ -267,7 +267,7 @@ export function WpFilterPanel({ kind, season, entityId }: { kind: EntityKind; se
               payload={query.data}
             />
           ) : (
-            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full bg-muted" />
           )}
         </>
       )}

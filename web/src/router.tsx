@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 
 import { AppShell } from './app/AppShell'
+import { TeamPageColors } from './app/TeamPageColors'
 import { EntityDetailPage } from './pages/EntityDetailPage'
 import { EntityIndexPage } from './pages/EntityIndexPage'
 import { GlossaryPage } from './pages/GlossaryPage'
@@ -18,7 +19,11 @@ export const routes = [
       },
       {
         path: 'teams/:entityId',
-        element: <SeasonDataRoute kind="teams">{(dataset) => <EntityDetailPage kind="teams" dataset={dataset} />}</SeasonDataRoute>,
+        element: (
+          <TeamPageColors>
+            <SeasonDataRoute kind="teams">{(dataset) => <EntityDetailPage kind="teams" dataset={dataset} />}</SeasonDataRoute>
+          </TeamPageColors>
+        ),
       },
       {
         path: 'qbs',

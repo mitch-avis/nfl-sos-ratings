@@ -59,9 +59,9 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
   const entityId = decodeURIComponent(useParams().entityId ?? '')
   const seasonView = useMemo(() => buildSeasonViewTable(kind, dataset[kind], viewState), [dataset, kind, viewState])
   const row = getEntityRow(seasonView.table, kind, entityId)
-  // A team page shows its team's palette, a QB page his team's (when team colors are on).
-  const pageTeam = row ? String((kind === 'teams' ? row[config.labelKey] : row.team) ?? '') : ''
-  useTeamPageColors(pageTeam === '' ? null : pageTeam)
+  // A QB page shows his team's palette (team pages set theirs from the route, `router.tsx`).
+  const qbTeam = kind === 'qbs' && row ? String(row.team ?? '') : ''
+  useTeamPageColors(qbTeam === '' ? null : qbTeam)
   const gameLogsQuery = useEntityGameLogs(kind, season, row ? entityId : '')
   const ratingHistoryQuery = useRatingHistory(kind, season, row ? entityId : '')
   const rankRangesQuery = useRankRanges(kind, season)
@@ -242,7 +242,7 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
           ) : null}
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {gameLogsQuery.isLoading ? <Skeleton className="h-64" /> : null}
+          {gameLogsQuery.isLoading ? <Skeleton className="h-64 bg-muted" /> : null}
           {gameLogsQuery.isError ? <ErrorState error={gameLogsQuery.error} title="Could not load the weekly log" /> : null}
           {enrichedGameLogs && gameLogSelection ? (
             <>

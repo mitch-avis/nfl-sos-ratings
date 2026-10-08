@@ -99,8 +99,8 @@ export function buildColumnWidths(
   return widths;
 }
 
-// The default heat scale, green to red; team palettes bring their own (teamPalettes.ts) and fall
-// back to this one when a team has no two distinct hues.
+// The default palette's heat scale, green to red. Every team palette brings its own
+// (teamPalettes.ts); a palette without one would fall back to this.
 const DEFAULT_HEAT: Record<ThemeMode, HeatScale> = {
   light: { good: [225, 247, 237], bad: [252, 226, 222], mid: [255, 250, 240] },
   dark: { good: [8, 88, 64], bad: [103, 31, 38], mid: [22, 27, 34] },
