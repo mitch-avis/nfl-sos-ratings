@@ -296,8 +296,10 @@ def _load_official_weekly_qb_stats(
             if "sacks_suffered" in weekly_player_stats_df.columns
             else pl.lit(None, dtype=pl.Int64)
         ).alias("official_qb_sacks"),
+        # nflverse stores the yards lost on sacks as a negative number; the magnitude keeps the
+        # column in yards lost, as the play-by-play fallback counts them and ANY/A subtracts them.
         (
-            pl.col("sack_yards_lost").cast(pl.Float64)
+            pl.col("sack_yards_lost").cast(pl.Float64).abs()
             if "sack_yards_lost" in weekly_player_stats_df.columns
             else pl.lit(None, dtype=pl.Float64)
         ).alias("official_qb_sack_yards_lost"),

@@ -591,7 +591,8 @@ def test_load_qb_stats_prefers_official_weekly_player_stats_for_attempt_fields(
             "passing_tds": [1],
             "passing_interceptions": [1],
             "sacks_suffered": [1],
-            "sack_yards_lost": [8.0],
+            # nflverse stores the yards lost on sacks as a negative number.
+            "sack_yards_lost": [-8.0],
             "passing_epa": [3.0],
             "passing_cpoe": [2.5],
         }
@@ -650,6 +651,7 @@ def test_load_qb_stats_prefers_official_weekly_player_stats_for_attempt_fields(
     assert result.select("qb_pass_yards_per_dropback").item() == 25.0
     assert result.select("qb_td_int_margin_rate").item() == 0.0
     assert result.select("qb_sack_rate").item() == 0.5
+    # ANY/A = (50 yards + 20 * 1 TD - 45 * 1 INT - 8 sack yards) / (5 attempts + 1 sack).
     assert result.select("qb_any_a").item() == pytest.approx(17.0 / 6.0)
     assert result.select("qb_passer_rating").item() == 108.3
 
@@ -1599,7 +1601,7 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
             "passing_tds": [1],
             "passing_interceptions": [0],
             "sacks_suffered": [1],
-            "sack_yards_lost": [6.0],
+            "sack_yards_lost": [-6.0],
             "passing_epa": [3.0],
             "passing_cpoe": [2.5],
             "carries": [5],
