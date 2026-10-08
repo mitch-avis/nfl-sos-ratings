@@ -269,7 +269,7 @@ def test_load_weekly_team_stats_prefers_official_team_stats_for_published_splits
 def test_load_weekly_team_stats_pools_per_snap_rates_over_the_official_totals(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify each per-snap rate's hidden numerator is the official total the rate divides."""
+    """Verify each official rate's hidden numerator is the official value the rate divides."""
     # Arrange
     _stub_official_team_stats_sources(monkeypatch)
 
@@ -281,6 +281,12 @@ def test_load_weekly_team_stats_pools_per_snap_rates_over_the_official_totals(
     rate = "passing_yards_per_offensive_snap"
     assert den[numerator_column(rate)] == 250.0
     assert den[rate] == pytest.approx(den[numerator_column(rate)] / den[denominator_column(rate)])
+    # CPOE's parts follow the official 3.5 (and the opponent's -1.5) over the plays with a CPOE.
+    for cpoe, official in (("passing_cpoe", 3.5), ("passing_cpoe_allowed", -1.5)):
+        assert den[cpoe] == official
+        assert den[numerator_column(cpoe)] == pytest.approx(
+            official * den[denominator_column(cpoe)]
+        )
 
 
 def test_load_schedule_filters_regular_season(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -674,6 +680,9 @@ def test_load_qb_stats_prefers_official_weekly_player_stats_for_attempt_fields(
     assert result.select("qb_sack_yards_lost").item() == 8.0
     assert result.select("qb_passing_epa").item() == 3.0
     assert result.select("qb_completion_percentage_above_expectation").item() == 2.5
+    # CPOE's hidden parts follow the official value: 2.5 over the one play with a CPOE.
+    cpoe = "qb_completion_percentage_above_expectation"
+    assert result.select(numerator_column(cpoe), denominator_column(cpoe)).row(0) == (2.5, 1)
     assert result.select("qb_epa_per_dropback").item() == 1.5
     assert result.select("qb_pass_yards_per_dropback").item() == 25.0
     assert result.select("qb_td_int_margin_rate").item() == 0.0

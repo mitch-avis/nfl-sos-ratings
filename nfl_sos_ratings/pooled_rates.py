@@ -68,6 +68,20 @@ def expression_ratio_with_parts(
     ]
 
 
+def numerator_for_value(frame: pl.DataFrame, rate: str) -> pl.DataFrame:
+    """Return ``frame`` with ``rate``'s numerator set to its value times its denominator.
+
+    For a game rate replaced by an official value (CPOE): the denominator still counts the plays
+    behind it, and pooling then weighs the official value by them. A frame without the rate's
+    parts is returned unchanged.
+    """
+    numerator = numerator_column(rate)
+    denominator = denominator_column(rate)
+    if not {rate, numerator, denominator}.issubset(frame.columns):
+        return frame
+    return frame.with_columns((pl.col(rate) * pl.col(denominator)).alias(numerator))
+
+
 def summed_ratio_with_parts(rate: str, numerator: pl.Expr, denominator: pl.Expr) -> list[pl.Expr]:
     """Return ``rate`` in a group-by aggregation: the summed numerator over the summed denominator.
 

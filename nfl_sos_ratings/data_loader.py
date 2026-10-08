@@ -10,7 +10,9 @@ import polars as pl
 from nflreadpy.config import CacheMode, update_config
 
 from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
+from nfl_sos_ratings.pooled_rates import numerator_for_value
 from nfl_sos_ratings.qb_stats import (
+    CPOE_COLUMN,
     CPOE_PARTS,
     QB_PASSING_TOTALS,
     compute_qb_game_stats_from_pbp,
@@ -373,7 +375,7 @@ def _override_qb_game_stats_with_official_weekly(
     if qb_df.is_empty() or official_qb_stats_df.is_empty():
         return qb_df
 
-    return (
+    overridden = (
         qb_df.join(
             official_qb_stats_df,
             on=["game_id", "week", "team_abbr", "qb_id"],
@@ -492,6 +494,8 @@ def _override_qb_game_stats_with_official_weekly(
             ]
         )
     )
+    # The official CPOE is weighed by the passer's plays with a CPOE when games are pooled.
+    return numerator_for_value(overridden, CPOE_COLUMN)
 
 
 def _normalize_team_abbreviations(df: pl.DataFrame, columns: list[str]) -> pl.DataFrame:
@@ -910,7 +914,10 @@ def _override_team_game_stats_with_official_weekly(
             ]
         )
     )
-    # The per-snap rates divide the official totals now, with their parts beside them.
+    # The per-snap rates divide the official totals now, with their parts beside them, and the
+    # official CPOE is weighed by the plays behind it.
+    for cpoe in ("passing_cpoe", "passing_cpoe_allowed"):
+        overridden = numerator_for_value(overridden, cpoe)
     return add_per_snap_rates(overridden)
 
 

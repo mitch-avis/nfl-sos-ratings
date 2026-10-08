@@ -7,6 +7,7 @@ from nfl_sos_ratings.pooled_rates import (
     drop_rate_parts,
     mean_with_parts,
     numerator_column,
+    numerator_for_value,
     pooled_rate,
     rate_parts,
     ratio_with_parts,
@@ -142,3 +143,31 @@ def test_drop_rate_parts_removes_every_numerator_and_denominator() -> None:
 
     # Assert
     assert result.columns == ["completion_pct"]
+
+
+def test_numerator_for_value_weighs_a_replaced_rate_by_its_denominator() -> None:
+    # Arrange
+    games = pl.DataFrame(
+        {
+            "cpoe": [2.5],
+            numerator_column("cpoe"): [4.0],
+            denominator_column("cpoe"): [2],
+        }
+    )
+
+    # Act
+    result = numerator_for_value(games, "cpoe")
+
+    # Assert
+    assert result.get_column(numerator_column("cpoe")).to_list() == [5.0]
+
+
+def test_numerator_for_value_leaves_a_rate_without_parts_alone() -> None:
+    # Arrange
+    games = pl.DataFrame({"cpoe": [2.5]})
+
+    # Act
+    result = numerator_for_value(games, "cpoe")
+
+    # Assert
+    assert result.equals(games)
