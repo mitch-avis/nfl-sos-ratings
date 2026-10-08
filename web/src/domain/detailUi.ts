@@ -1,4 +1,4 @@
-import { formatFixed } from './format';
+import { formatColumnValue } from './tableState';
 import type { RowValue } from '@/api/types';
 
 export interface ScrollPositionState {
@@ -43,7 +43,7 @@ export function formatDetailCellValue(column: string, value: RowValue, decimals:
     }
   }
 
-  return formatFixed(value, decimals);
+  return formatColumnValue(column, value, decimals);
 }
 
 export function buildGameOverviewUrl(gameId: string): string {

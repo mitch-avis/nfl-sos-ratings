@@ -1,11 +1,14 @@
 import { assert, test } from 'vitest';
 
+import { columnMeta } from '@/test/fixtures';
+
 import {
   buildGameOverviewUrl,
   compareDetailCellValues,
   formatDetailCellValue,
   getPageJumpSlots,
 } from './detailUi';
+import { hydrateColumnMetadata } from './metricMetadata';
 
 test.each([
   ['win_value', 1, 'W'],
@@ -19,6 +22,17 @@ test.each([
 
   // Assert
   assert.strictEqual(formatted, expected);
+});
+
+test('formatDetailCellValue shows a proportion the registry marks as a percentage as one', () => {
+  // Arrange
+  hydrateColumnMetadata({ red_zone_td_pct: columnMeta('RZ TD %', { shape: 'rate', percent: true }) });
+
+  // Act
+  const formatted = formatDetailCellValue('red_zone_td_pct', 0.5, 0);
+
+  // Assert
+  assert.strictEqual(formatted, '50%');
 });
 
 test('buildGameOverviewUrl returns the nflsavant game-overview link', () => {

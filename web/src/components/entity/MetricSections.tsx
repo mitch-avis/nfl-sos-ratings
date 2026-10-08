@@ -1,7 +1,7 @@
 import type { EntityKind, RowValue } from '@/api/types'
 import { MetricLabel } from '@/components/common/MetricLabel'
 import { bucketColumns, detailHeaderLabel } from '@/domain/detailSections'
-import { formatFixed } from '@/domain/format'
+import { formatColumnValue } from '@/domain/tableState'
 import { cn } from '@/utils/cn'
 
 /** The subject's season values for the current view, grouped by category. */
@@ -38,7 +38,7 @@ export function MetricSections({
                 <dt className="text-xs text-muted-foreground">
                   <MetricLabel column={column} label={detailHeaderLabel(column)} />
                 </dt>
-                <dd className="tabular text-lg font-semibold">{formatFixed(row[column] ?? null, decimals[column] ?? null)}</dd>
+                <dd className="tabular text-lg font-semibold">{formatColumnValue(column, row[column] ?? null, decimals[column] ?? null)}</dd>
               </div>
             ))}
           </dl>

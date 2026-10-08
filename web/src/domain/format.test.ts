@@ -42,6 +42,34 @@ describe('formatFixed', () => {
   })
 })
 
+describe('percentages', () => {
+  it.each([
+    { name: 'proportions with tenths of a percent', values: [0.653, 0.6, null], expected: 1 },
+    { name: 'whole percentages', values: [0.29, 0.5, 1, 0], expected: 0 },
+  ])('gives $name $expected decimals', ({ values, expected }) => {
+    // Act
+    const decimals = columnDecimals(values, 'rate', true)
+
+    // Assert
+    expect(decimals).toBe(expected)
+  })
+
+  it.each([
+    { value: 0.653, decimals: 1, expected: '65.3%' },
+    { value: 1, decimals: 0, expected: '100%' },
+    { value: -0.0004, decimals: 1, expected: '0.0%' },
+    { value: -0.032, decimals: 1, expected: '-3.2%' },
+    { value: 0.0153, decimals: null, expected: '1.5%' },
+    { value: null, decimals: 1, expected: '—' },
+  ])('shows the proportion $value as $expected', ({ value, decimals, expected }) => {
+    // Act
+    const text = formatFixed(value, decimals, true)
+
+    // Assert
+    expect(text).toBe(expected)
+  })
+})
+
 describe('countLabel', () => {
   it.each([
     [1, 'game', undefined, '1 game'],

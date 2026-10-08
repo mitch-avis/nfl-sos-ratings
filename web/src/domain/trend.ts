@@ -26,11 +26,17 @@ export function buildTrendPoints(rows: Array<Record<string, RowValue>>, column: 
     .sort((left, right) => left.week - right.week)
 }
 
-/** A reference line at the mean of the games shown, or none when there are no points. */
-export function meanReference(points: TrendPoint[]): TrendReference | null {
+/**
+ * A reference line at the mean of the games shown, or none when there are no points. `format`
+ * writes the mean as the chart writes its values (a percentage for a proportion, for example).
+ */
+export function meanReference(
+  points: TrendPoint[],
+  format: (value: number) => string = formatValue,
+): TrendReference | null {
   if (points.length === 0) return null
   const mean = points.reduce((total, point) => total + point.value, 0) / points.length
-  return { value: mean, caption: `Dashed line: the mean of the games shown (${formatValue(mean)}).` }
+  return { value: mean, caption: `Dashed line: the mean of the games shown (${format(mean)}).` }
 }
 
 const NICE_STEP_FACTORS = [1, 2, 2.5, 5, 10]

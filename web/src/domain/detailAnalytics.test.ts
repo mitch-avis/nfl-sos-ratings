@@ -57,6 +57,7 @@ test('buildSeasonViewTable expands team per-game counts into raw totals', () => 
         shape: 'count',
         source: 'SCH',
         subcategory: null,
+        percent: false,
       },
       games_played: {
         base_name: 'games_played',
@@ -70,6 +71,7 @@ test('buildSeasonViewTable expands team per-game counts into raw totals', () => 
         shape: 'count',
         source: 'SCH',
         subcategory: null,
+        percent: false,
       },
       team_rating: {
         base_name: 'team_rating',
@@ -83,6 +85,7 @@ test('buildSeasonViewTable expands team per-game counts into raw totals', () => 
         shape: 'score',
         source: 'D',
         subcategory: null,
+        percent: false,
       },
     },
     rows: [{ team: 'DET', points_for: 28, games_played: 17, team_rating: 6.2 }],
@@ -104,7 +107,13 @@ test('buildSeasonViewTable keeps a season maximum as it is in raw totals', () =>
     primaryView: 'raw_total_stats',
     teamCategory: 'Offense',
   });
-  const passing = { category: 'Offense', contextual: false, polarity: 'higher', subcategory: 'Passing' } as const;
+  const passing = {
+    category: 'Offense',
+    contextual: false,
+    percent: false,
+    polarity: 'higher',
+    subcategory: 'Passing',
+  } as const;
   const table: TablePayload = {
     column_groups: { identity: ['team'], ratings: [] },
     column_metadata: {
@@ -171,6 +180,7 @@ test('buildGameLogColumnSelection folds results into the weekly base columns', (
         shape: 'count',
         source: 'PLS',
         subcategory: null,
+        percent: false,
       },
       qb_game_winning_drive: {
         base_name: 'qb_game_winning_drive',
@@ -184,6 +194,7 @@ test('buildGameLogColumnSelection folds results into the weekly base columns', (
         shape: 'count',
         source: 'D',
         subcategory: null,
+        percent: false,
       },
     },
     rows: [],

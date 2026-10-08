@@ -63,14 +63,27 @@ export function formatValue(value: string | number | boolean | null): string {
   return value;
 }
 
+/** Decimals of a percentage when its column has no fixed decimals (a chart's axis and tooltip). */
+const PERCENT_DECIMALS = 1
+
 /**
  * Decimal places for one column, so every value in it shows the same number and the decimal points
  * line up: whole numbers stay whole, points-per-game scores (`shape` `score`) get 2, and anything
- * else follows its scale (3 below 1, 2 below 100, 1 above). Null when the column has no numbers.
+ * else follows its scale (3 below 1, 2 below 100, 1 above). A column of proportions shown as
+ * percentages (`percent`) gets 1, or none when every value is a whole percentage. Null when the
+ * column has no numbers.
  */
-export function columnDecimals(values: ReadonlyArray<RowValue>, shape: MetricShape | undefined): number | null {
+export function columnDecimals(
+  values: ReadonlyArray<RowValue>,
+  shape: MetricShape | undefined,
+  percent = false,
+): number | null {
   const numbers = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
   if (numbers.length === 0) return null
+  if (percent) {
+    // Rounded first, so 0.29 (28.999999999999996 when multiplied) counts as a whole 29%.
+    return numbers.every((value) => Number.isInteger(Number((value * 100).toFixed(6)))) ? 0 : PERCENT_DECIMALS
+  }
   if (numbers.every((value) => Number.isInteger(value))) return 0
   if (shape === 'score') return 2
   const scale = Math.max(...numbers.map((value) => Math.abs(value)))
@@ -79,9 +92,18 @@ export function columnDecimals(values: ReadonlyArray<RowValue>, shape: MetricSha
   return 1
 }
 
-/** Format `value` with a column's fixed `decimals`, or as `formatValue` would when there is none. */
-export function formatFixed(value: RowValue, decimals: number | null): string {
-  if (typeof value !== 'number' || decimals === null || !Number.isFinite(value)) return formatValue(value)
+/**
+ * Format `value` with a column's fixed `decimals`, or as `formatValue` would when there is none.
+ * With `percent`, a proportion shows as a percentage (0.653 as 65.3%), with 1 decimal by default.
+ */
+export function formatFixed(value: RowValue, decimals: number | null, percent = false): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return formatValue(value)
+  if (percent) return `${fixedDecimals(value * 100, decimals ?? PERCENT_DECIMALS)}%`
+  if (decimals === null) return formatValue(value)
+  return fixedDecimals(value, decimals)
+}
+
+function fixedDecimals(value: number, decimals: number): string {
   // A value that rounds to zero shows as 0, not -0.
   const shown = Number(value.toFixed(decimals)) === 0 ? 0 : value
   return shown.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })

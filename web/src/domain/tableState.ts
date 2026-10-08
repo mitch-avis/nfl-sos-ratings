@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 
-import { columnDecimals, formatValue } from './format';
+import { columnDecimals, formatFixed, formatValue } from './format';
 import { getMetricMetadata } from './metricMetadata';
 import { heatPaletteFor, type HeatScale } from './teamPalettes';
 import type { PaletteMode, RowValue, ThemeMode } from '@/api/types';
@@ -176,6 +176,17 @@ export function buildColumnDecimals(
   columns: readonly string[],
 ): Record<string, number | null> {
   return Object.fromEntries(
-    columns.map((column) => [column, columnDecimals(rows.map((row) => row[column] ?? null), getMetricMetadata(column).shape)]),
+    columns.map((column) => {
+      const { shape, percent } = getMetricMetadata(column);
+      return [column, columnDecimals(rows.map((row) => row[column] ?? null), shape, percent === true)];
+    }),
   );
+}
+
+/**
+ * One cell's text: `value` with its column's fixed `decimals` (`buildColumnDecimals`), as a
+ * percentage when the registry marks the column a proportion. CSV exports keep the raw value.
+ */
+export function formatColumnValue(column: string, value: RowValue, decimals: number | null): string {
+  return formatFixed(value, decimals, getMetricMetadata(column).percent === true);
 }

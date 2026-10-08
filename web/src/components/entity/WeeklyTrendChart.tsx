@@ -13,8 +13,9 @@ import {
 import type { RowValue } from '@/api/types'
 import { ChartTooltipCard } from '@/components/common/ChartTooltip'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { formatValue } from '@/domain/format'
+import { columnDecimals } from '@/domain/format'
 import { getMetricMetadata } from '@/domain/metricMetadata'
+import { formatColumnValue } from '@/domain/tableState'
 import {
   buildTrendPoints,
   meanReference,
@@ -51,10 +52,15 @@ export function WeeklyTrendChart({
   const points = useMemo(() => (column ? buildTrendPoints(rows, column) : []), [column, rows])
   if (!column || points.length < 2) return null
 
-  const line = reference === 'mean' ? meanReference(points) : reference
+  // Values read as the tables show them: a proportion as a percentage, anything else as is.
+  const formatPoint = (value: number) => formatColumnValue(column, value, null)
+  const line = reference === 'mean' ? meanReference(points, formatPoint) : reference
   const label = getMetricMetadata(column).label
   const values = [...points.map((point) => point.value), ...(line ? [line.value] : [])]
   const ticks = niceTicks(Math.min(...values), Math.max(...values))
+  // Round ticks of a proportion read as whole percentages where they can (25%, not 25.0%).
+  const tickDecimals = getMetricMetadata(column).percent ? columnDecimals(ticks, undefined, true) : null
+  const formatTick = (value: number) => formatColumnValue(column, value, tickDecimals)
 
   return (
     <div className="flex flex-col gap-2">
@@ -84,7 +90,7 @@ export function WeeklyTrendChart({
               className="text-xs"
               domain={[ticks[0], ticks.at(-1) ?? ticks[0]]}
               ticks={ticks}
-              tickFormatter={(value: number) => formatValue(value)}
+              tickFormatter={formatTick}
             />
             <Tooltip
               trigger={hasHover ? 'hover' : 'click'}
@@ -94,7 +100,7 @@ export function WeeklyTrendChart({
                 return (
                   <ChartTooltipCard
                     title={point.opponent ? `Week ${point.week} vs ${point.opponent}` : `Week ${point.week}`}
-                    rows={[{ label, value: formatValue(point.value), color: 'var(--chart-1)' }]}
+                    rows={[{ label, value: formatPoint(point.value), color: 'var(--chart-1)' }]}
                   />
                 )
               }}

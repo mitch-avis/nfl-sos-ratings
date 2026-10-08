@@ -139,9 +139,12 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   QB subcategory toggles.
 - Search filters the visible columns; identity columns stay pinned while scrolling sideways.
   `Reset` restores the default view.
+- Rates the registry marks as proportions (its `percent` flag) show as percentages: a
+  completion rate of 0.653 reads 65.3%.
 - The `CSV` button above the index table downloads the table as shown: the current view's columns
   in display order and the rows after the search, in the current sort, with raw values (full
-  precision, not the rounded display) and column keys as the header.
+  precision, not the rounded display, and proportions as 0.653 rather than 65.3%) and column keys
+  as the header.
 - Tick rows to compare them. The selection lives in `?compare=` so a comparison can be shared. The
   comparison panel sets the picks side by side: one column each, headed by the name, the published
   rank, the middle 50% of resampled ranks with a mini interval, and a remove button; one row per

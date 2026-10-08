@@ -23,6 +23,8 @@ export interface ColumnMetadataPayload {
   denominator: string | null;
   source: string;
   base_name: string;
+  /** A proportion (0.653) the app shows as a percentage (65.3%). */
+  percent: boolean;
 }
 
 export interface RegistryCategoryPayload {

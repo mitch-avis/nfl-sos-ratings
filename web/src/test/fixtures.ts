@@ -24,6 +24,7 @@ export function columnMeta(
     denominator: null,
     source: 'D',
     base_name: label,
+    percent: false,
     ...overrides,
   }
 }

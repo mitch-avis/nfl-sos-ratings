@@ -21,6 +21,8 @@ export interface MetricMetadata {
   subcategory?: string;
   /** The registry shape; tables use it to pick a column's decimals. */
   shape?: MetricShape;
+  /** A proportion (0.653) shown as a percentage (65.3%), per the registry. */
+  percent?: boolean;
 }
 
 // The backend metric registry is the single source of truth for labels,
@@ -142,6 +144,7 @@ function toMetricMetadata(payload: ColumnMetadataPayload): MetricMetadata {
     polarity: payload.polarity,
     contextual: payload.contextual,
     shape: payload.shape,
+    percent: payload.percent,
     heatmap: true,
     category: payload.category,
     subcategory: payload.subcategory ?? undefined,
