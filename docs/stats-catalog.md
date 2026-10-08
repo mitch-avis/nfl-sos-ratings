@@ -25,8 +25,9 @@ play), `score` model outputs on their own scale, `flag` booleans, and `id` ident
 
 ## Schedule-Adjusted Ratings
 
-The project's own ratings: how good each team was after accounting for the opponents it actually
-played. Start here when ranking teams.
+The project's own ratings, in points per game against an average team and adjusted for the opponents
+each team actually played, plus their ranks and how firm those ranks are. Start here when ranking
+teams.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -51,7 +52,8 @@ played. Start here when ranking teams.
 
 ## Overall
 
-Season identity and whole-game outcomes: record, points, and margins.
+Who played whom and how games turned out: record, points, and whole-team margins, plus the win-
+probability data behind the garbage-time filter.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -86,7 +88,8 @@ Season identity and whole-game outcomes: record, points, and margins.
 
 ## Offense
 
-Everything the team did with the ball.
+What the offense did with the ball: passing, rushing, receiving, scoring, conversions, drives,
+turnovers, and penalties.
 
 ### Offense: Total
 

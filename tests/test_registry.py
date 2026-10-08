@@ -175,7 +175,37 @@ def test_quantile_suffix_keeps_the_base_metric_and_its_polarity(registry: Metric
     # Assert
     assert resolved is not None
     assert (resolved.base.name, resolved.polarity) == ("team_rank", "lower")
-    assert "97.5th percentile" in resolved.full_name
+    assert (resolved.label, resolved.full_name) == (
+        "Rank (97.5th %ile)",
+        "Team Rating Rank, 97.5th Percentile",
+    )
+
+
+# The resampling clause every rank-range quantile note shares.
+_REDRAWN = "in 1,000 seasons redrawn from the real games (picked at random, repeats allowed)"
+
+
+@pytest.mark.parametrize(
+    ("column", "start", "end"),
+    [
+        ("team_rank_q025", "Low end of the middle 95%", "2.5% of the results came out smaller."),
+        ("team_rank_q100", "Low end of the middle 80%", "10% of the results came out smaller."),
+        ("team_rank_q250", "Low end of the middle 50%", "25% of the results came out smaller."),
+        ("team_rank_q500", "The middle result", "half of the results came out smaller."),
+        ("team_rank_q750", "High end of the middle 50%", "25% of the results came out larger."),
+        ("team_rank_q900", "High end of the middle 80%", "10% of the results came out larger."),
+        ("team_rank_q975", "High end of the middle 95%", "2.5% of the results came out larger."),
+    ],
+)
+def test_quantile_suffix_says_which_range_it_bounds(
+    registry: MetricRegistry, column: str, start: str, end: str
+) -> None:
+    # Act
+    resolved = registry.resolve_column(column)
+
+    # Assert
+    assert resolved is not None
+    assert resolved.description.endswith(f"{start}: {_REDRAWN}, {end}")
 
 
 def test_filtered_change_column_names_both_the_filter_and_the_change(
@@ -189,7 +219,8 @@ def test_filtered_change_column_names_both_the_filter_and_the_change(
     assert resolved.base.name == "team_rating"
     assert "Garbage-Time Filtered" in resolved.full_name
     assert "Change" in resolved.full_name
-    assert "exploration view" in resolved.description
+    assert "minus the same calculation with every play kept" in resolved.description
+    assert "Exploration only" in resolved.description
 
 
 @pytest.mark.parametrize(

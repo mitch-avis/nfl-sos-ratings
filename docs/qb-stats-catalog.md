@@ -25,8 +25,9 @@ play), `score` model outputs on their own scale, `flag` booleans, and `id` ident
 
 ## Schedule-Adjusted Ratings
 
-The project's own quarterback ratings, adjusted for the defenses each quarterback actually faced.
-Start here when ranking QBs.
+The project's own quarterback ratings, in EPA per dropback adjusted for the defenses each
+quarterback actually faced, plus their ranks and how firm those ranks are. Start here when ranking
+QBs.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -44,7 +45,7 @@ Start here when ranking QBs.
 
 ## Identity & Availability
 
-Who the quarterback is and how much he played.
+Who the quarterback is, how much he played, and whether he played enough to be ranked.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -60,7 +61,8 @@ Who the quarterback is and how much he played.
 
 ## Passing Volume
 
-Raw passing production: attempts, completions, yards, and scores.
+Raw passing production (attempts, completions, yards, touchdowns, interceptions, and passing EPA),
+plus the win-probability data behind the garbage-time filter.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -93,7 +95,7 @@ Quality per play: the rates that separate good QBs from busy ones.
 
 ## Pressure, Sacks & Pocket
 
-Sacks taken, pressure faced, and how the quarterback handled it.
+Sacks taken, the yards and fumbles lost on them, and how often the quarterback scrambled.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -145,7 +147,8 @@ feed the performance ratings.
 
 ## Turnovers & Ball Security
 
-Interceptions, fumbles, and how costly the giveaways were.
+Fumbles on quarterback runs and the touchdown-minus-interception margin. Interceptions are under
+Passing Volume, and sack fumbles under Pressure, Sacks & Pocket.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
