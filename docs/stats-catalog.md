@@ -235,7 +235,7 @@ Everything the team did with the ball.
 | `turnover_pct_per_drive` | TO %/Drive | rate | drives | 1999 | PBP | The share of possessions ending in a giveaway. Lower is better. |
 | `avg_starting_field_position` | Avg Start | avg | drives | 1999 | PBP | Where drives started on average, in yards from the team's own goal line. Higher means shorter fields to score. |
 | `long_field_score_pct` | Long-Field Score % | rate | long-field drives | 1999 | PBP | Scoring rate on drives that started inside the team's own 25. |
-| `drive_penalty_yards` | Drive Pen Yds | count | - | 1999 | PBP | Penalty yards assessed against the offense during its drives. |
+| `drive_penalty_yards` | Drive Pen Yds | count | - | 1999 | PBP | Net penalty yards on the team's drives: yards the defense's fouls gave the offense minus yards its own fouls cost it. |
 
 ### Offense: Turnovers
 

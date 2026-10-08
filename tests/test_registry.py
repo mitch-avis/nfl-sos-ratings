@@ -404,3 +404,17 @@ def test_qopp_prefix_keeps_neutral_polarity_neutral(registry: MetricRegistry) ->
     # Assert
     assert resolved is not None
     assert resolved.polarity == "neutral"
+
+
+def test_drive_penalty_yards_rewards_net_yards_gained(registry: MetricRegistry) -> None:
+    """Verify drive penalty yards grade higher as better for the offense.
+
+    nflverse ``drive_yards_penalized`` is net penalty yards in the offense's favor: positive when
+    the defense's fouls gave the offense yards, negative when the offense's own fouls cost it.
+    """
+    # Act
+    resolved = registry.resolve_column("drive_penalty_yards")
+
+    # Assert
+    assert resolved is not None
+    assert resolved.polarity == "higher"

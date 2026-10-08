@@ -755,9 +755,12 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
         name="drive_penalty_yards",
         label="Drive Pen Yds",
         full_name="Drive Penalty Yards",
-        description="Penalty yards assessed against the offense during its drives.",
+        description=(
+            "Net penalty yards on the team's drives: yards the defense's fouls gave the offense "
+            "minus yards its own fouls cost it."
+        ),
         shape="count",
-        polarity="lower",
+        polarity="higher",
         source="PBP",
         since=1999,
     ),
