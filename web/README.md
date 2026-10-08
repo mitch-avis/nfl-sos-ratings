@@ -145,14 +145,27 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   in display order and the rows after the search, in the current sort, with raw values (full
   precision, not the rounded display, and proportions as 0.653 rather than 65.3%) and column keys
   as the header.
-- Tick rows to compare them. The selection lives in `?compare=` so a comparison can be shared. The
-  comparison panel sets the picks side by side: one column each, headed by the name, the published
-  rank, the middle 50% of resampled ranks with a mini interval, and a remove button; one row per
-  metric of the current view, heat-mapped across the picks, with the metric names pinned while the
+- Each index page opens with the ranking sentence and a "How to read this page" popover with the
+  reading notes; a season in progress adds one line on how many games are in. On the QB page, the
+  "Show QBs below the qualifier" switch sits in the table toolbar, its explanation in a hint.
+- The table box fills the screen below the app header, so it scrolls as one sheet with a sticky
+  header row.
+- Tick rows to compare them (the narrow first column). The selection lives in `?compare=` so a
+  comparison can be shared, and the toolbar shows "N selected" with `View comparison` and
+  `Clear selection`. The comparison panel, below the table, sets the picks side by side: one
+  column each, headed by the name, the published rank, the middle 50% of resampled ranks with a
+  mini interval, and a remove button; one row per metric of the current view, shaded against the
+  whole season (the same color as that cell in the table), with the metric names pinned while the
   table scrolls sideways.
 - Underlined labels, info icons, and chart points explain themselves in a hint card: hover or focus
   with a mouse, tap on a phone or tablet (tap anywhere else to close). On touch screens a tap on a
-  column header sorts, and the info button beside it explains the column.
+  column header sorts, and the info button beside it explains the column. A stat's hint gives its
+  full name, a plain sentence, which way is better (generated from the registry's polarity; context
+  columns say they describe the opposition), and, for a base registry metric, how it is computed.
+- Cells are shaded for better or worse within the season in the palette's heat colors. Columns the
+  registry marks as context (schedule strength, the `opp_` columns, the opponents' schedule tier)
+  shade in one gray instead, deeper toward the tougher end; the unique-opponent table shades rates
+  only, not raw counts.
 - On phones only the name column stays pinned while the table scrolls sideways, and the view
   toggles scroll on one row.
 - When a season has rank-range files, the `Ratings` view gains a `Rank range` column (the middle
@@ -160,9 +173,9 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   below the table draws every team or qualifying QB: thick bar for the middle 50%, thin bar for the
   middle 95%, a dot for the median, and a diamond for the published rank when it differs. The
   readout above the chart describes the hovered or tapped row (on a phone, its link opens the
-  detail page). The detail page adds the rank headline, the top-5 and top-10 chances, the chance
-  of each rank, and, for teams, a `Rank range by unit` table: offense, defense, and special teams
-  with their rank ranges and mini intervals.
+  detail page); until a row is picked it is a line of instructions. The detail page adds the rank
+  headline, the top-5 and top-10 chances, the chance of each rank, and, for teams, a `Rank range
+  by unit` table: offense, defense, and special teams with their rank ranges and mini intervals.
 - In the detail page's game-by-game table, each opponent shows its season-long rank range (the
   middle 50% of redrawn ranks, with a mini interval): the team's own on team pages, its defense's
   on quarterback pages.
@@ -177,16 +190,25 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   with` picker, starting on the team or QB ranked just above (just below for the leader), and one
   sentence such as "NE rated above BUF in 38% of resampled seasons; difference -1.2 points, 95%:
   -5.0 to +2.8." The comparison panel shows the same sentence when exactly two rows are compared.
-- The `Garbage-time filter` card holds a slider from Off to 20%, kept in the address as `?wp=`. A
-  threshold of X% asks `/api/seasons/{season}/{teams|qbs}/wp-ratings` for the ratings refit on the
-  plays whose win probability before the snap was between X% and 100% minus X%. It then lists
+- The garbage-time filter is a folded section at the end of each page ("Explore ratings without
+  garbage time"), open when the address carries a threshold. It holds a slider from Off to 20%,
+  kept in the address as `?wp=`. A threshold of X% asks
+  `/api/seasons/{season}/{teams|qbs}/wp-ratings` for the ratings refit on the plays whose win
+  probability before the snap was between X% and 100% minus X%. It then lists
   every team or qualifying QB by filtered rank, beside the change, the published rank and rating,
   and the share of plays kept, under an "Unvalidated exploration view" label. Detail pages show
-  the same for one row. The slider waits 250 ms after it stops moving before asking. Rank ranges
-  and everything else on the page still count every play.
-- Click a team or QB to open its detail page: stat tiles, metric sections, the weekly trend chart
-  (pick any numeric column of the current view; the season mean is drawn as a reference line), the
-  game log, and the unique-opponent breakdown.
+  the same for one row (and none for a team or QB without a rating). The slider waits 250 ms
+  after it stops moving before asking. Rank ranges and everything else on the page still count
+  every play.
+- Click a team or QB to open its detail page. It leads with the ratings: each with its rank ("15th
+  of 32"; QBs among the qualifiers; context such as SoS unranked) and, on the headline tile, the
+  value before the schedule adjustment (EPA margin per play, or raw EPA per dropback). The rank
+  range, head-to-head, and weekly charts follow. The view tabs then head the stats section they
+  drive (sticky while it scrolls by), offering the five stat views: the view's stats, the
+  game-by-game chart (pick any numeric column; the season mean is drawn as a reference line) and
+  log, and the unique-opponent breakdown. A Ratings choice made on the index reads as Per-Game
+  Rates there. The QB Ratings view, on both pages, also shows raw EPA per dropback and total
+  dropbacks (the API's `rating_companions`).
 - The header toggles light, dark, or system theme, and its `Palette` menu offers the default palette
   (blue accent, green-to-red heat scale) or any team's, shown as a compact grid with one row of four
   teams per division (each team's color chip and abbreviation); it opens at the chosen palette. A
@@ -203,7 +225,11 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   colors with readable contrast checked (`nfl_sos_ratings/team_palettes.py`).
 - Whatever the palette, each team abbreviation in the tables, the comparison, and the detail-page
   title carries a small chip in that team's two main colors.
-- **Glossary** explains every rating and which ones are primary rankings versus context.
+- **Glossary** is built from the metric registry: "Start here" explains EPA, the schedule
+  adjustment, schedule strength, rank ranges, head-to-head chances, the garbage-time filter, and
+  the shading, then lists the headline ratings; every other metric follows by entity and category,
+  with its table label, direction, formula, first season, and any metric it repeats, under a
+  search box. The methodology is linked on GitHub.
 
 ## Troubleshooting
 
