@@ -9,8 +9,8 @@ defenses a quarterback faced allowed to other passers), `_per_game`, `_total`, p
 such as `_per_offensive_snap` and `_per_dropback`, rank-range percentiles `_q025` through `_q975`,
 and, in the analyst app's garbage-time filter view, `filtered_` (refit on the plays the filter
 keeps) and `_change` (filtered minus unfiltered). Shapes: `count` totals, `rate` ratios with their
-own denominator, `avg` per-event averages, `score` model outputs on their own scale, `flag`
-booleans, and `id` identity fields.
+own denominator, `avg` per-event averages, `max` the largest single value (such as the longest
+play), `score` model outputs on their own scale, `flag` booleans, and `id` identity fields.
 
 ## Sources
 
@@ -144,7 +144,7 @@ Everything the team did with the ball.
 | `int_rate_per_attempt` | INT % | rate | pass attempts | 1999 | PBP | The share of pass attempts that were intercepted. Lower is better. |
 | `explosive_pass_rate` | Explosive Pass % | rate | dropbacks | 1999 | PBP | Completions of 20+ yards divided by dropbacks. |
 | `deep_attempt_rate` | Deep Att % | rate | pass attempts | 1999 | PBP | The share of attempts thrown deep (16+ air yards). A style stat. |
-| `longest_pass` | Long Pass | count | - | 1999 | PBP | The team's longest completed pass of the season, in yards. |
+| `longest_pass` | Long Pass | max | - | 1999 | PBP | The team's longest completed pass of the season, in yards. |
 | `sack_fumbles` | Sack Fumbles | count | - | 1999 | PBP +TS | Fumbles on sack plays, whether or not the team lost the ball. |
 | `passing_2pt_conversions` | 2-Pt Passes | count | - | 1999 | PBP +TS | Successful two-point conversions thrown. |
 | `air_epa_total` | Air EPA | count | - | 1999 | PBP | The share of passing EPA created by the throw itself (distance and placement) rather than the run after the catch. |
@@ -169,7 +169,7 @@ Everything the team did with the ball.
 | `explosive_rush_rate` | Explosive Rush % | rate | carries | 1999 | PBP | Runs of 10+ yards divided by carries. |
 | `stuffed_run_rate` | Stuffed % | rate | carries other than kneel-downs | 1999 | PBP | The share of carries other than kneel-downs stopped for no gain or a loss. Lower is better. |
 | `rushing_fumbles` | Rush Fumbles | count | - | 1999 | PBP +TS | Fumbles on rushing plays, whether or not the team lost the ball. |
-| `longest_rush` | Long Rush | count | - | 1999 | PBP | The team's longest run of the season, in yards. |
+| `longest_rush` | Long Rush | max | - | 1999 | PBP | The team's longest run of the season, in yards. |
 | `rushing_2pt_conversions` | 2-Pt Rushes | count | - | 1999 | PBP +TS | Successful two-point conversions run in. |
 
 ### Offense: Receiving

@@ -52,8 +52,8 @@ _INTRO = (
     "filter view, `filtered_` (refit on the plays the filter keeps) and `_change` (filtered "
     "minus unfiltered). "
     "Shapes: `count` totals, `rate` ratios with their own denominator, `avg` per-event "
-    "averages, `score` model outputs on their own scale, `flag` booleans, and `id` identity "
-    "fields."
+    "averages, `max` the largest single value (such as the longest play), `score` model outputs "
+    "on their own scale, `flag` booleans, and `id` identity fields."
 )
 
 

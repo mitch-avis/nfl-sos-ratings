@@ -9,8 +9,8 @@ defenses a quarterback faced allowed to other passers), `_per_game`, `_total`, p
 such as `_per_offensive_snap` and `_per_dropback`, rank-range percentiles `_q025` through `_q975`,
 and, in the analyst app's garbage-time filter view, `filtered_` (refit on the plays the filter
 keeps) and `_change` (filtered minus unfiltered). Shapes: `count` totals, `rate` ratios with their
-own denominator, `avg` per-event averages, `score` model outputs on their own scale, `flag`
-booleans, and `id` identity fields.
+own denominator, `avg` per-event averages, `max` the largest single value (such as the longest
+play), `score` model outputs on their own scale, `flag` booleans, and `id` identity fields.
 
 ## Sources
 

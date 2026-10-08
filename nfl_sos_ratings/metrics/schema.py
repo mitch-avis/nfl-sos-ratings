@@ -14,12 +14,14 @@ from typing import Literal, NotRequired, Protocol, TypedDict, Unpack
 Entity = Literal["team", "qb"]
 """Which page family a metric belongs to: the Teams pages or the QBs pages."""
 
-Shape = Literal["count", "rate", "avg", "flag", "id", "score"]
+Shape = Literal["count", "rate", "avg", "max", "flag", "id", "score"]
 """How a metric behaves across views.
 
 - ``count``: a summable total (yards, touchdowns). Valid in every view.
 - ``rate``: an intrinsic ratio with its own denominator. Never divided again.
 - ``avg``: a per-event mean re-averaged over events, not over weeks.
+- ``max``: the largest single value, such as the longest play. The season row keeps the largest
+  game value, so it is never summed, multiplied by games, or divided by plays.
 - ``flag``: a boolean marker (eligibility, comeback credit).
 - ``id``: identity text (team codes, player names, game ids).
 - ``score``: a model output on its own scale (ratings and SRS in points per game).

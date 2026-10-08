@@ -418,3 +418,27 @@ def test_drive_penalty_yards_rewards_net_yards_gained(registry: MetricRegistry) 
     # Assert
     assert resolved is not None
     assert resolved.polarity == "higher"
+
+
+def test_season_maximum_metrics_have_the_max_shape(registry: MetricRegistry) -> None:
+    """The season row keeps a ``longest_`` column's largest game value (``team_stats``)."""
+    # Act
+    mismatched = [
+        metric.name
+        for metric in registry.metrics.values()
+        if (metric.shape == "max") != metric.name.startswith("longest_")
+    ]
+
+    # Assert
+    assert mismatched == []
+
+
+@pytest.mark.parametrize("column", ["longest_pass", "longest_rush", "opp_longest_pass"])
+def test_column_metadata_marks_longest_plays_as_maxima(
+    registry: MetricRegistry, column: str
+) -> None:
+    # Act
+    metadata = registry.column_metadata([column])
+
+    # Assert
+    assert metadata[column]["shape"] == "max"
