@@ -421,6 +421,9 @@ def _aggregate_drive_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame
         value_expr(columns, "drive_inside20", 0).max().alias("inside_20"),
         value_expr(columns, "ydsnet", 0).first().alias("net_yards"),
         value_expr(columns, "drive_yards_penalized", 0).first().alias("yards_penalized"),
+        ((value_expr(columns, "interception") > 0) | (value_expr(columns, "fumble_lost") > 0))
+        .any()
+        .alias("giveaway_play"),
         (
             pl.col("drive_time_of_possession").first()
             if "drive_time_of_possession" in columns
@@ -452,7 +455,12 @@ def _aggregate_drive_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame
         ).alias("possession_seconds"),
         pl.col("result").is_in(["Touchdown", "Field goal"]).alias("scored"),
         (pl.col("result") == "Punt").alias("punted"),
-        pl.col("result").is_in(["Interception", "Fumble", "Opp touchdown"]).alias("turned_over"),
+        # nflverse ends a drive lost to an interception or fumble as "Turnover"; "Opp touchdown"
+        # also covers punts and kicks returned for a score, so it counts only with a giveaway.
+        (
+            (pl.col("result") == "Turnover")
+            | ((pl.col("result") == "Opp touchdown") & pl.col("giveaway_play"))
+        ).alias("turned_over"),
     )
 
     return (

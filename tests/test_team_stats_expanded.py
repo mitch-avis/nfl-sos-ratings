@@ -502,6 +502,61 @@ def test_drive_scoring_and_field_position_families() -> None:
     assert kc["avg_starting_field_position_allowed"] == 30.0
 
 
+def test_turnover_drive_rate_counts_giveaway_drives_by_nflverse_result() -> None:
+    """Verify giveaway drives are nflverse "Turnover" drives plus giveaways returned for a score.
+
+    nflverse labels a drive lost to an interception or fumble "Turnover"; it never uses
+    "Interception" or "Fumble". "Opp touchdown" covers both giveaways returned for a touchdown
+    and punt returns, so only those with an interception or lost fumble count. Fixture: DEN has
+    five drives (interception, lost fumble, pick-six, punt returned for a touchdown, punt); KC has
+    the one-play extra-point group after its pick-six, which nflverse also labels "Opp touchdown".
+    """
+    # Arrange
+    drives = [
+        {"fixed_drive": 1, "fixed_drive_result": "Turnover"},
+        {"fixed_drive": 2, "fixed_drive_result": "Turnover"},
+        {"fixed_drive": 3, "fixed_drive_result": "Opp touchdown"},
+        {"fixed_drive": 4, "fixed_drive_result": "Opp touchdown"},
+        {"fixed_drive": 5, "fixed_drive_result": "Punt"},
+    ]
+    plays = [
+        _play(**{"pass": 1}, pass_attempt=1, qb_dropback=1, interception=1, **drives[0]),
+        _play(rush=1, rush_attempt=1, fumble=1, fumble_lost=1, **drives[1]),
+        _play(
+            **{"pass": 1},
+            pass_attempt=1,
+            qb_dropback=1,
+            interception=1,
+            return_touchdown=1,
+            touchdown=1,
+            td_team="KC",
+            **drives[2],
+        ),
+        _play(
+            rush=1,
+            rush_attempt=1,
+            **drives[3],
+        ),
+        _play(
+            punt_attempt=1,
+            down=4,
+            return_touchdown=1,
+            touchdown=1,
+            td_team="KC",
+            **drives[3],
+        ),
+        _play(rush=1, rush_attempt=1, **drives[4]),
+        _play(posteam="KC", defteam="DEN", **drives[2]),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    assert _row(result, "DEN")["turnover_pct_per_drive"] == 3 / 5
+    assert _row(result, "KC")["turnover_pct_per_drive"] == 0.0
+
+
 def test_penalty_families_track_both_sides() -> None:
     """Verify penalty counts, yards, splits, and the defensive mirror."""
     # Arrange
