@@ -30,9 +30,12 @@ def _play(**overrides: object) -> dict[str, object]:
         "incomplete_pass": 0,
         "sack": 0,
         "interception": 0,
+        "receiver_player_id": None,
         "fumble": 0,
         "fumble_lost": 0,
         "fumble_forced": 0,
+        "fumbled_1_player_id": None,
+        "fumbled_2_player_id": None,
         "tackled_for_loss": 0,
         "qb_hit": 0,
         "pass_defense_1_player_id": None,
@@ -500,6 +503,37 @@ def test_drive_scoring_and_field_position_families() -> None:
     assert kc["red_zone_td_pct_allowed"] == 1.0
     assert kc["goal_to_go_td_pct_allowed"] == 1.0
     assert kc["avg_starting_field_position_allowed"] == 30.0
+
+
+def test_receiving_fumbles_count_only_the_receivers_fumbles() -> None:
+    """Verify receiving fumbles are the receiver's, not any fumble on a completed pass.
+
+    Fixture: three DEN completions, each with a fumble. The receiver fumbles and loses it on the
+    first; the quarterback fumbles the snap and recovers before throwing on the second; the
+    receiver laterals and the lateral's runner fumbles and loses it on the third.
+    """
+    # Arrange
+    receiver, quarterback, runner = "00-0000001", "00-0000002", "00-0000003"
+    catch = {
+        "pass": 1,
+        "pass_attempt": 1,
+        "complete_pass": 1,
+        "qb_dropback": 1,
+        "receiver_player_id": receiver,
+        "fumble": 1,
+    }
+    plays = [
+        _play(**catch, fumble_lost=1, fumbled_1_player_id=receiver),
+        _play(**catch, fumbled_1_player_id=quarterback),
+        _play(**catch, fumble_lost=1, fumbled_1_player_id=runner),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    den = _row(result, "DEN")
+    assert (den["receiving_fumbles"], den["receiving_fumbles_lost"]) == (1, 1)
 
 
 def test_turnover_drive_rate_counts_giveaway_drives_by_nflverse_result() -> None:

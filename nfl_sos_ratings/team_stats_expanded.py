@@ -39,6 +39,8 @@ _LONG_FIELD_START_YARDLINE = 25
 # this share of incompletions with a named receiver, a season's targets are unknown.
 _MIN_INCOMPLETION_RECEIVER_SHARE = 0.5
 _RECEIVER_COLUMNS = ("receiver_player_id", "receiver_player_name")
+# nflverse records up to two fumblers per play.
+_FUMBLER_COLUMNS = ("fumbled_1_player_id", "fumbled_2_player_id")
 
 # Offense-row column -> opponent's defense-row column.
 _DEFENSE_MIRROR_RENAMES = {
@@ -170,6 +172,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     )
     xyac = pl.col("xyac_mean_yardage") if "xyac_mean_yardage" in columns else pl.lit(None)
     yac = pl.col("yards_after_catch") if "yards_after_catch" in columns else pl.lit(None)
+    receiver_fumbled = _receiver_fumbled_expr(columns)
 
     def _count(condition: pl.Expr, name: str) -> pl.Expr:
         return condition.cast(pl.Int64).sum().alias(name)
@@ -287,8 +290,8 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             ),
             # Turnovers.
             _count((value_expr(columns, "fumble") > 0) & scrimmage, "fumbles"),
-            _count((value_expr(columns, "fumble") > 0) & is_complete, "receiving_fumbles"),
-            _count(is_fumble_lost & is_complete, "receiving_fumbles_lost"),
+            _count(is_complete & receiver_fumbled, "receiving_fumbles"),
+            _count(is_complete & receiver_fumbled & is_fumble_lost, "receiving_fumbles_lost"),
             _count(is_fumble_lost & scrimmage, "fumbles_lost"),
             _count(is_interception, "aux_interceptions"),
             value_expr(columns, "epa", 0.0)
@@ -391,6 +394,21 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             ),
         )
         .rename({"posteam": "team", "defteam": "opponent_team"})
+    )
+
+
+def _receiver_fumbled_expr(columns: list[str]) -> pl.Expr:
+    """Return an expression that is true when the play's targeted receiver fumbled.
+
+    Matched by player id, so a quarterback's fumbled snap before a completion, or a fumble by
+    a teammate after a lateral, is not the receiver's fumble.
+    """
+    fumblers = [column for column in _FUMBLER_COLUMNS if column in columns]
+    if "receiver_player_id" not in columns or not fumblers:
+        return pl.lit(False)
+    receiver = pl.col("receiver_player_id")
+    return pl.any_horizontal(
+        [(pl.col(column) == receiver).fill_null(value=False) for column in fumblers]
     )
 
 
