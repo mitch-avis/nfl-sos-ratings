@@ -5,7 +5,7 @@ import { cn } from '@/utils/cn'
 /** The app logo (the trend line of `public/favicon.svg`), drawn in the colors of the palette shown. */
 export function BrandMark({ className }: { className?: string }) {
   const { activePalette } = useTheme()
-  const { background, line } = brandMark(activePalette)
+  const { background, line, dot } = brandMark(activePalette)
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true" className={cn('size-8 shrink-0', className)}>
       <rect width="32" height="32" rx="7" fill={background} />
@@ -17,7 +17,7 @@ export function BrandMark({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="25" cy="9" r="2.4" fill="#ffffff" />
+      <circle cx="25" cy="9" r="2.4" fill={dot} />
     </svg>
   )
 }

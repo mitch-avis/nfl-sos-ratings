@@ -308,10 +308,10 @@ def test_build_palette_tints_the_hint_card_and_borders_it_with_the_accent(mode: 
     assert tokens["hint_border"] == tokens["primary"]
 
 
-def test_is_readable_rejects_unreadable_text_on_the_hint_card() -> None:
+def test_is_readable_rejects_unreadable_secondary_text_on_the_hint_card() -> None:
     # Arrange
     palette = build_palette(_RED_NAVY)
-    palette["light"]["hint"] = "oklch(0.3 0.05 21.3)"
+    palette["light"]["hint"] = "oklch(0.85 0.03 21.3)"
 
     # Act
     readable = team_palettes.is_readable(palette, "light")
@@ -359,7 +359,7 @@ def test_build_mark_draws_the_logo_in_the_two_main_colors() -> None:
     mark = team_palettes.build_mark(_NAVY_ORANGE)
 
     # Assert
-    assert mark == {"background": "#002244", "line": "#FB4F14"}
+    assert (mark["background"], mark["line"]) == ("#002244", "#FB4F14")
 
 
 def test_build_mark_takes_an_extra_color_when_the_main_two_are_too_close() -> None:
@@ -376,7 +376,7 @@ def test_build_mark_draws_a_white_line_without_a_contrasting_color() -> None:
     mark = team_palettes.build_mark(_GREEN_BLACK)
 
     # Assert
-    assert mark == {"background": "#000000", "line": "#FFFFFF"}
+    assert (mark["background"], mark["line"]) == ("#000000", "#FFFFFF")
 
 
 def test_build_palette_takes_another_listed_gray_when_the_second_one_is_too_close() -> None:
@@ -419,3 +419,67 @@ def test_is_readable_accepts_a_palette_that_keeps_the_default_heat_scale() -> No
 
     # Assert
     assert readable is True
+
+
+@pytest.mark.parametrize("mode", ["light", "dark"])
+def test_build_palette_keeps_the_better_end_in_the_same_team_color_in_both_modes(
+    mode: Mode,
+) -> None:
+    # Act
+    heat = build_palette(_GREEN_GOLD)[mode]["heat"]
+
+    # Assert
+    assert heat is not None
+    assert srgb_to_oklch(heat["good"])[2] == pytest.approx(hex_to_oklch("#203731")[2], abs=12.0)
+
+
+@pytest.mark.parametrize("mode", ["light", "dark"])
+def test_build_palette_keeps_every_heat_end_apart_from_the_card(mode: Mode) -> None:
+    # Act
+    heat = build_palette(_BLACK_SILVER)[mode]["heat"]
+
+    # Assert
+    assert heat is not None
+    card = SURFACES[mode]["card"]
+    for end in ("good", "bad"):
+        assert team_palettes.color_distance(srgb_to_oklch(heat[end]), card) >= (
+            team_palettes.MIN_CARD_SEPARATION
+        )
+
+
+def test_build_mark_draws_the_dot_in_another_team_color_on_a_white_line() -> None:
+    # Act
+    mark = team_palettes.build_mark(_GREEN_BLACK)
+
+    # Assert
+    assert (mark["line"], mark["dot"]) == ("#FFFFFF", "#003F2D")
+
+
+def test_build_mark_draws_the_dot_in_the_tile_color_when_no_other_color_stands_out() -> None:
+    # Arrange
+    two_tone = TeamColors("XX", "Two Tone", "AFC", "AFC East", ("#000000", "#F5F5F5"))
+
+    # Act
+    mark = team_palettes.build_mark(two_tone)
+
+    # Assert
+    assert (mark["line"], mark["dot"]) == ("#F5F5F5", "#000000")
+
+
+def test_build_mark_keeps_the_white_dot_on_a_colored_line() -> None:
+    # Act
+    mark = team_palettes.build_mark(_NAVY_ORANGE)
+
+    # Assert
+    assert mark["dot"] == "#FFFFFF"
+
+
+def test_build_mark_draws_a_black_line_on_a_light_tile_without_a_contrasting_color() -> None:
+    # Arrange
+    pale = TeamColors("XX", "Pale Team", "AFC", "AFC East", ("#FFF8E1", "#FFFDE7"))
+
+    # Act
+    mark = team_palettes.build_mark(pale)
+
+    # Assert
+    assert mark["line"] == "#000000"

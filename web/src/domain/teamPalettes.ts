@@ -38,10 +38,11 @@ interface ModeTokens {
   heat: HeatScale | null
 }
 
-/** The app logo's colors: its tile and the line drawn on it. */
+/** The app logo's colors: its tile, the line drawn on it, and the dot at the line's end. */
 export interface BrandMarkColors {
   background: string
   line: string
+  dot: string
 }
 
 interface TeamPalette {
@@ -75,7 +76,7 @@ const CSS_VARIABLES: Record<Exclude<keyof ModeTokens, 'heat'>, string> = {
 }
 
 /** The default palette's logo (`public/favicon.svg`). */
-const DEFAULT_MARK: BrandMarkColors = { background: '#1f3a8a', line: '#fb923c' }
+const DEFAULT_MARK: BrandMarkColors = { background: '#1f3a8a', line: '#fb923c', dot: '#ffffff' }
 
 /** Every CSS variable a team palette may set, so switching back can clear them all. */
 export const PALETTE_CSS_VARIABLES: readonly string[] = Object.values(CSS_VARIABLES)
@@ -100,7 +101,7 @@ export function paletteGroups(): PaletteGroup[] {
 /** A stored or requested palette as a known one: the old `broncos` is `DEN`, unknown is `classic`. */
 export function normalizePalette(value: string | null): PaletteMode {
   if (value === 'broncos') return 'DEN'
-  if (value !== null && value in PALETTES) return value
+  if (value !== null && Object.hasOwn(PALETTES, value)) return value
   return 'classic'
 }
 
@@ -109,7 +110,7 @@ export function normalizePalette(value: string | null): PaletteMode {
  * are on and the team has one; everywhere else, and otherwise, the chosen palette.
  */
 export function activePalette(chosen: PaletteMode, pageTeam: string | null, teamPageColors: boolean): PaletteMode {
-  if (teamPageColors && pageTeam !== null && pageTeam in PALETTES) return pageTeam
+  if (teamPageColors && pageTeam !== null && Object.hasOwn(PALETTES, pageTeam)) return pageTeam
   return chosen
 }
 
@@ -135,7 +136,7 @@ export function heatPaletteFor(palette: PaletteMode, mode: ThemeMode): HeatScale
 
 /** A team's two main colors (`#RRGGBB`), for its chip beside its name; null for an unknown team. */
 export function teamColors(team: string): [string, string] | null {
-  const source = PALETTES[team]?.source
+  const source = Object.hasOwn(PALETTES, team) ? PALETTES[team].source : undefined
   if (!source || source.length === 0) return null
   return [source[0], source[1] ?? source[0]]
 }

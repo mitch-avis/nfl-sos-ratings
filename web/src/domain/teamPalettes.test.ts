@@ -34,6 +34,7 @@ describe('normalizePalette', () => {
     ['KC', 'KC'],
     ['classic', 'classic'],
     ['nonsense', 'classic'],
+    ['toString', 'classic'],
     [null, 'classic'],
   ])('reads a stored %s as %s', (stored, expected) => {
     // Act
@@ -130,7 +131,7 @@ describe('brandMark', () => {
     const mark = brandMark('classic')
 
     // Assert
-    expect(mark).toEqual({ background: '#1f3a8a', line: '#fb923c' })
+    expect(mark).toEqual({ background: '#1f3a8a', line: '#fb923c', dot: '#ffffff' })
   })
 
   it("draws a team palette's logo in the team's colors", () => {
@@ -138,7 +139,7 @@ describe('brandMark', () => {
     const mark = brandMark('DEN')
 
     // Assert
-    expect(mark).toEqual({ background: '#002244', line: '#FB4F14' })
+    expect(mark).toEqual({ background: '#002244', line: '#FB4F14', dot: '#FFFFFF' })
   })
 })
 
@@ -159,6 +160,7 @@ describe('activePalette', () => {
     ['KC', 'DEN', false, 'KC'],
     ['KC', null, true, 'KC'],
     ['KC', 'XYZ', true, 'KC'],
+    ['KC', 'toString', true, 'KC'],
   ] as const)('with %s chosen, a page for %s, and team colors %s, shows %s', (chosen, pageTeam, teamColors, expected) => {
     // Act
     const palette = activePalette(chosen, pageTeam, teamColors)

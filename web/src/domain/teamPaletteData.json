@@ -9,7 +9,8 @@
     ],
     "mark": {
       "background": "#00338D",
-      "line": "#FFFFFF"
+      "line": "#FFFFFF",
+      "dot": "#0c2e82"
     },
     "light": {
       "primary": "oklch(0.526 0.207 21.3)",
@@ -88,7 +89,8 @@
     ],
     "mark": {
       "background": "#008E97",
-      "line": "#FFFFFF"
+      "line": "#FFFFFF",
+      "dot": "#005778"
     },
     "light": {
       "primary": "oklch(0.524 0.089 202.7)",
@@ -140,14 +142,14 @@
       "hint_border": "oklch(0.722 0.171 53.9)",
       "heat": {
         "good": [
-          96,
-          45,
-          0
-        ],
-        "bad": [
           0,
           70,
           75
+        ],
+        "bad": [
+          96,
+          45,
+          0
         ],
         "mid": [
           22,
@@ -167,7 +169,8 @@
     ],
     "mark": {
       "background": "#002244",
-      "line": "#b0b7bc"
+      "line": "#b0b7bc",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.526 0.207 21.3)",
@@ -246,7 +249,8 @@
     ],
     "mark": {
       "background": "#000000",
-      "line": "#FFFFFF"
+      "line": "#FFFFFF",
+      "dot": "#003F2D"
     },
     "light": {
       "primary": "oklch(0.4 0.067 166.9)",
@@ -325,7 +329,8 @@
     ],
     "mark": {
       "background": "#241773",
-      "line": "#9E7C0C"
+      "line": "#9E7C0C",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.4 0.147 279)",
@@ -377,14 +382,14 @@
       "hint_border": "oklch(0.637 0.12 88.8)",
       "heat": {
         "good": [
-          77,
-          58,
-          0
-        ],
-        "bad": [
           52,
           54,
           107
+        ],
+        "bad": [
+          77,
+          58,
+          0
         ],
         "mid": [
           22,
@@ -404,7 +409,8 @@
     ],
     "mark": {
       "background": "#000000",
-      "line": "#FB4F14"
+      "line": "#FB4F14",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.554 0.188 36.5)",
@@ -483,7 +489,8 @@
     ],
     "mark": {
       "background": "#311D00",
-      "line": "#FF3C00"
+      "line": "#FF3C00",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.558 0.201 33.9)",
@@ -562,7 +569,8 @@
     ],
     "mark": {
       "background": "#000000",
-      "line": "#FFB612"
+      "line": "#FFB612",
+      "dot": "#00539b"
     },
     "light": {
       "primary": "oklch(0.539 0.112 79)",
@@ -641,7 +649,8 @@
     ],
     "mark": {
       "background": "#03202F",
-      "line": "#FFFFFF"
+      "line": "#FFFFFF",
+      "dot": "#00071c"
     },
     "light": {
       "primary": "oklch(0.472 0.174 19.7)",
@@ -720,7 +729,8 @@
     ],
     "mark": {
       "background": "#002C5F",
-      "line": "#a5acaf"
+      "line": "#a5acaf",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.4 0.102 255.8)",
@@ -799,7 +809,8 @@
     ],
     "mark": {
       "background": "#000000",
-      "line": "#006778"
+      "line": "#006778",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.472 0.083 214.2)",
@@ -878,7 +889,8 @@
     ],
     "mark": {
       "background": "#D50A0A",
-      "line": "#FFFFFF"
+      "line": "#FFFFFF",
+      "dot": "#4495D2"
     },
     "light": {
       "primary": "oklch(0.551 0.222 28.9)",
@@ -957,7 +969,8 @@
     ],
     "mark": {
       "background": "#002244",
-      "line": "#FB4F14"
+      "line": "#FB4F14",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.554 0.188 36.5)",
@@ -1036,7 +1049,8 @@
     ],
     "mark": {
       "background": "#E31837",
-      "line": "#000000"
+      "line": "#000000",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.565 0.226 22.2)",
@@ -1115,7 +1129,8 @@
     ],
     "mark": {
       "background": "#000000",
-      "line": "#A5ACAF"
+      "line": "#A5ACAF",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.535 0.009 225.1)",
@@ -1134,19 +1149,19 @@
       "hint_border": "oklch(0.535 0.009 225.1)",
       "heat": {
         "good": [
-          184,
-          191,
-          194
+          178,
+          185,
+          188
         ],
         "bad": [
-          247,
-          255,
-          255
+          236,
+          243,
+          246
         ],
         "mid": [
-          229,
-          237,
-          240
+          213,
+          220,
+          223
         ]
       }
     },
@@ -1167,19 +1182,19 @@
       "hint_border": "oklch(0.74 0.009 225.1)",
       "heat": {
         "good": [
-          80,
-          86,
-          89
+          83,
+          89,
+          92
         ],
         "bad": [
-          16,
-          21,
-          23
+          29,
+          35,
+          37
         ],
         "mid": [
-          34,
-          39,
-          42
+          49,
+          54,
+          57
         ]
       }
     }
@@ -1194,7 +1209,8 @@
     ],
     "mark": {
       "background": "#007BC7",
-      "line": "#001532"
+      "line": "#001532",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.531 0.138 246.6)",
@@ -1246,14 +1262,14 @@
       "hint_border": "oklch(0.846 0.172 85.3)",
       "heat": {
         "good": [
-          79,
-          57,
-          0
-        ],
-        "bad": [
           5,
           64,
           105
+        ],
+        "bad": [
+          79,
+          57,
+          0
         ],
         "mid": [
           22,
@@ -1273,7 +1289,8 @@
     ],
     "mark": {
       "background": "#002244",
-      "line": "#B0B7BC"
+      "line": "#B0B7BC",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.4 0.075 251.9)",
@@ -1352,7 +1369,8 @@
     ],
     "mark": {
       "background": "#0B2265",
-      "line": "#a5acaf"
+      "line": "#a5acaf",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.472 0.174 19.7)",
@@ -1431,7 +1449,8 @@
     ],
     "mark": {
       "background": "#004C54",
-      "line": "#A5ACAF"
+      "line": "#A5ACAF",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.4 0.065 206.9)",
@@ -1510,7 +1529,8 @@
     ],
     "mark": {
       "background": "#5A1414",
-      "line": "#FFB612"
+      "line": "#FFB612",
+      "dot": "#000000"
     },
     "light": {
       "primary": "oklch(0.4 0.102 25.3)",
@@ -1562,14 +1582,14 @@
       "hint_border": "oklch(0.824 0.169 79)",
       "heat": {
         "good": [
-          82,
-          56,
-          0
+          100,
+          39,
+          36
         ],
         "bad": [
-          52,
-          44,
-          43
+          49,
+          45,
+          39
         ],
         "mid": [
           22,
@@ -1589,7 +1609,8 @@
     ],
     "mark": {
       "background": "#0B162A",
-      "line": "#E64100"
+      "line": "#E64100",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.554 0.189 36.2)",
@@ -1668,7 +1689,8 @@
     ],
     "mark": {
       "background": "#0076B6",
-      "line": "#000000"
+      "line": "#000000",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.534 0.13 243.3)",
@@ -1747,7 +1769,8 @@
     ],
     "mark": {
       "background": "#203731",
-      "line": "#FFB612"
+      "line": "#FFB612",
+      "dot": "#1c2d25"
     },
     "light": {
       "primary": "oklch(0.4 0.031 175.9)",
@@ -1799,14 +1822,14 @@
       "hint_border": "oklch(0.824 0.169 79)",
       "heat": {
         "good": [
-          82,
-          56,
-          0
-        ],
-        "bad": [
           43,
           67,
           60
+        ],
+        "bad": [
+          82,
+          56,
+          0
         ],
         "mid": [
           22,
@@ -1826,7 +1849,8 @@
     ],
     "mark": {
       "background": "#4F2683",
-      "line": "#FFC62F"
+      "line": "#FFC62F",
+      "dot": "#000000"
     },
     "light": {
       "primary": "oklch(0.4 0.148 299.4)",
@@ -1878,14 +1902,14 @@
       "hint_border": "oklch(0.855 0.164 85.8)",
       "heat": {
         "good": [
-          78,
-          58,
-          0
-        ],
-        "bad": [
           68,
           48,
           101
+        ],
+        "bad": [
+          78,
+          58,
+          0
         ],
         "mid": [
           22,
@@ -1905,7 +1929,8 @@
     ],
     "mark": {
       "background": "#000000",
-      "line": "#a5acaf"
+      "line": "#a5acaf",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.472 0.174 19.7)",
@@ -1984,7 +2009,8 @@
     ],
     "mark": {
       "background": "#000000",
-      "line": "#0085CA"
+      "line": "#0085CA",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.532 0.127 242.5)",
@@ -2063,7 +2089,8 @@
     ],
     "mark": {
       "background": "#000000",
-      "line": "#D3BC8D"
+      "line": "#D3BC8D",
+      "dot": "#000000"
     },
     "light": {
       "primary": "oklch(0.533 0.068 84.8)",
@@ -2142,7 +2169,8 @@
     ],
     "mark": {
       "background": "#322F2B",
-      "line": "#ff7900"
+      "line": "#ff7900",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.472 0.174 19.7)",
@@ -2221,7 +2249,8 @@
     ],
     "mark": {
       "background": "#000000",
-      "line": "#ffb612"
+      "line": "#ffb612",
+      "dot": "#97233F"
     },
     "light": {
       "primary": "oklch(0.453 0.151 12)",
@@ -2300,7 +2329,8 @@
     ],
     "mark": {
       "background": "#003594",
-      "line": "#FFD100"
+      "line": "#FFD100",
+      "dot": "#001532"
     },
     "light": {
       "primary": "oklch(0.4 0.164 261.4)",
@@ -2352,14 +2382,14 @@
       "hint_border": "oklch(0.875 0.179 92.7)",
       "heat": {
         "good": [
-          75,
-          59,
-          0
-        ],
-        "bad": [
           33,
           59,
           108
+        ],
+        "bad": [
+          75,
+          59,
+          0
         ],
         "mid": [
           22,
@@ -2379,7 +2409,8 @@
     ],
     "mark": {
       "background": "#AA0000",
-      "line": "#a5acaf"
+      "line": "#a5acaf",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.463 0.19 29.2)",
@@ -2431,14 +2462,14 @@
       "hint_border": "oklch(0.693 0.085 86.8)",
       "heat": {
         "good": [
-          78,
-          58,
-          0
-        ],
-        "bad": [
           100,
           39,
           32
+        ],
+        "bad": [
+          78,
+          58,
+          0
         ],
         "mid": [
           22,
@@ -2458,7 +2489,8 @@
     ],
     "mark": {
       "background": "#002244",
-      "line": "#69be28"
+      "line": "#69be28",
+      "dot": "#FFFFFF"
     },
     "light": {
       "primary": "oklch(0.4 0.075 251.9)",
@@ -2510,14 +2542,14 @@
       "hint_border": "oklch(0.72 0.195 135.3)",
       "heat": {
         "good": [
-          38,
-          71,
-          16
-        ],
-        "bad": [
           29,
           63,
           99
+        ],
+        "bad": [
+          38,
+          71,
+          16
         ],
         "mid": [
           22,
