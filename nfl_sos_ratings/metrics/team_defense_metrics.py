@@ -25,6 +25,13 @@ _TARGETS_GAP_NOTE = (
     "Blank in 2003-2008, when nflverse play-by-play names the intended receiver on almost no "
     "incomplete passes."
 )
+_QB_HITS_GAP_NOTE = (
+    "Blank in 2003-2005, when nflverse records no QB hits; in 1999-2002 it records them only on "
+    "sacks."
+)
+_TACKLES_FOR_LOSS_GAP_NOTE = (
+    "Blank in 2003-2011, when nflverse's weekly player stats credit no tackles for loss."
+)
 
 DEFENSE_METRICS: tuple[MetricDef, ...] = (
     _def_total(
@@ -167,6 +174,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PLS",
         since=1999,
+        note=_QB_HITS_GAP_NOTE,
     ),
     _def_press(
         name="def_tackles_for_loss",
@@ -177,6 +185,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PLS",
         since=1999,
+        note=_TACKLES_FOR_LOSS_GAP_NOTE,
     ),
     _def_press(
         name="def_pass_defended",
@@ -373,7 +382,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         shape="count",
         polarity="lower",
         source="PBP",
-        since=1999,
+        since=2006,
     ),
     _def_pass(
         name="team_passer_rating_allowed",
@@ -395,7 +404,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         polarity="neutral",
         source="PBP",
         denominator="opponent pass attempts",
-        since=1999,
+        since=2006,
         percent=True,
     ),
     _def_rush(
@@ -740,6 +749,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent dropbacks",
         since=1999,
+        note=_QB_HITS_GAP_NOTE,
         percent=True,
     ),
     _def_press(

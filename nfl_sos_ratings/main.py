@@ -27,6 +27,7 @@ from nfl_sos_ratings.data_loader import (
 from nfl_sos_ratings.logger import configure_logging
 from nfl_sos_ratings.metrics import get_registry
 from nfl_sos_ratings.opponent_stats import compute_all_opponent_profiles
+from nfl_sos_ratings.pooled_rates import drop_rate_parts
 from nfl_sos_ratings.qb_opponent_stats import compute_qb_opponent_profiles
 from nfl_sos_ratings.qb_rating import (
     QbRatingFit,
@@ -87,16 +88,23 @@ def _matching_qb_join_keys(left: pl.DataFrame, right: pl.DataFrame) -> list[str]
 
 
 def _build_team_game_logs(weekly_df: pl.DataFrame) -> pl.DataFrame:
-    """Return team game logs with identity columns first, sorted by team and week."""
-    leading = [c for c in ("game_id", "week", "team", "opponent_team") if c in weekly_df.columns]
-    rest = [c for c in weekly_df.columns if c not in leading and c not in {"season", "season_type"}]
-    return weekly_df.select(leading + rest).sort(
-        [c for c in ("team", "week", "game_id") if c in weekly_df.columns]
+    """Return team game logs with identity columns first, sorted by team and week.
+
+    The rates' hidden numerators and denominators (``pooled_rates``) stay out of the logs.
+    """
+    published = drop_rate_parts(weekly_df)
+    leading = [c for c in ("game_id", "week", "team", "opponent_team") if c in published.columns]
+    rest = [c for c in published.columns if c not in leading and c not in {"season", "season_type"}]
+    return published.select(leading + rest).sort(
+        [c for c in ("team", "week", "game_id") if c in published.columns]
     )
 
 
 def _build_qb_game_logs(qb_df: pl.DataFrame, weekly_df: pl.DataFrame) -> pl.DataFrame:
-    """Return QB game logs enriched with opponent, venue, and game-result context."""
+    """Return QB game logs enriched with opponent, venue, and game-result context.
+
+    The rates' hidden numerators and denominators (``pooled_rates``) stay out of the logs.
+    """
     context = weekly_df.select(
         [
             column
@@ -114,8 +122,10 @@ def _build_qb_game_logs(qb_df: pl.DataFrame, weekly_df: pl.DataFrame) -> pl.Data
             if column in weekly_df.columns
         ]
     ).rename({"team": "team_abbr"})
-    qb_game_logs = qb_df.join(context, on=["team_abbr", "week"], how="left").rename(
-        {"team_abbr": "team"}
+    qb_game_logs = (
+        drop_rate_parts(qb_df)
+        .join(context, on=["team_abbr", "week"], how="left")
+        .rename({"team_abbr": "team"})
     )
     leading = [
         c

@@ -9,6 +9,8 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings import main
+from nfl_sos_ratings.pooled_rates import denominator_column, is_rate_part, numerator_column
+from nfl_sos_ratings.qb_stats import CPOE_COLUMN
 from nfl_sos_ratings.row_order import data_file_row_order
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
@@ -16,6 +18,7 @@ from nfl_sos_ratings.team_rating import (
     fit_team_ratings,
     fit_team_ratings_with_previous_penalties,
 )
+from nfl_sos_ratings.team_stats import add_per_snap_rates
 from tests.stubs import stub
 
 _TEAMS = ("BUF", "MIA", "NE", "NYJ")
@@ -30,8 +33,17 @@ def _games() -> list[tuple[int, str, str, str]]:
     ]
 
 
+def _snaps(week: int, team: str) -> int:
+    """Return a team's offensive snaps in one week's game: 56 to 68, different game to game."""
+    return 56 + (week * (1 + _TEAMS.index(team))) % 13
+
+
 def _weekly_df() -> pl.DataFrame:
-    """Return team-game rows with the columns the loaders publish for the rating."""
+    """Return team-game rows with the columns the loaders publish for the rating.
+
+    Snap counts differ from game to game, so a rate pooled over a team's games differs from the
+    mean of its game rates.
+    """
     rows: list[dict[str, object]] = []
     for week, game_id, home, away in _games():
         margin = round((_STRENGTH[home] - _STRENGTH[away]) * 100) + 2
@@ -51,21 +63,22 @@ def _weekly_df() -> pl.DataFrame:
                     "points_for": points_for,
                     "points_allowed": points_for - team_margin,
                     "point_margin": team_margin,
-                    "offensive_snaps": 62,
-                    "defensive_snaps": 61,
-                    "offensive_epa": epa_per_play * 62,
+                    "offensive_snaps": _snaps(week, team),
+                    "defensive_snaps": _snaps(week, opponent),
+                    "offensive_epa": epa_per_play * _snaps(week, team),
                     "st_plays": 13,
                     "st_epa": 0.05 if is_home else -0.05,
                 }
             )
-    return pl.DataFrame(rows)
+    # The loaders build per-snap rates with their hidden numerators and denominators.
+    return add_per_snap_rates(pl.DataFrame(rows))
 
 
 def _qb_df() -> pl.DataFrame:
     """Return one starting passer per team-game."""
     rows: list[dict[str, object]] = []
     for row in _weekly_df().iter_rows(named=True):
-        epa = float(row["offensive_epa"]) / 62 + 0.02
+        epa = float(row["offensive_epa"]) / float(row["offensive_snaps"]) + 0.02
         rows.append(
             {
                 "game_id": row["game_id"],
@@ -77,6 +90,10 @@ def _qb_df() -> pl.DataFrame:
                 "qb_attempts": 35,
                 "qb_passing_epa": epa * 38,
                 "qb_epa_per_dropback": epa,
+                # The loaders give CPOE its hidden numerator and denominator.
+                CPOE_COLUMN: 2.0,
+                numerator_column(CPOE_COLUMN): 60.0,
+                denominator_column(CPOE_COLUMN): 30,
             }
         )
     return pl.DataFrame(rows)
@@ -121,14 +138,16 @@ def _wp_bins() -> tuple[pl.DataFrame, pl.DataFrame]:
                 pl.lit("scrimmage").alias("wp_unit"),
                 pl.lit(2, dtype=pl.Int64).alias("wp_bin"),
                 pl.lit(5, dtype=pl.Int64).alias("wp_bin_plays"),
-                (scrimmage_epa * 5 / 62).alias("wp_bin_epa"),
+                (scrimmage_epa * 5 / pl.col("offensive_snaps")).alias("wp_bin_epa"),
             ),
             weekly.select(
                 *keys,
                 pl.lit("scrimmage").alias("wp_unit"),
                 pl.lit(40, dtype=pl.Int64).alias("wp_bin"),
                 (pl.col("offensive_snaps") - 5).cast(pl.Int64).alias("wp_bin_plays"),
-                (scrimmage_epa * 57 / 62).alias("wp_bin_epa"),
+                (scrimmage_epa * (pl.col("offensive_snaps") - 5) / pl.col("offensive_snaps")).alias(
+                    "wp_bin_epa"
+                ),
             ),
             weekly.select(
                 *keys,
@@ -832,3 +851,33 @@ def test_main_wraps_stdout_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
     # Assert
     assert seasons == [2024]
     assert isinstance(main.sys.stdout, io.StringIO)
+
+
+def test_run_season_writes_no_hidden_rate_parts(season_outputs: Path) -> None:
+    # Act
+    columns = {
+        path.name: [column for column in pl.read_parquet_schema(path) if is_rate_part(column)]
+        for path in sorted(season_outputs.glob("2025_*.parquet"))
+    }
+
+    # Assert
+    assert columns
+    assert {name: parts for name, parts in columns.items() if parts} == {}
+
+
+def test_run_season_pools_a_season_rate_over_the_teams_games(season_outputs: Path) -> None:
+    # Arrange
+    games = _weekly_df()
+    expected = dict(
+        games.group_by("team")
+        .agg((pl.col("points_for").sum() / pl.col("offensive_snaps").sum()).alias("rate"))
+        .rows()
+    )
+
+    # Act
+    season = pl.read_parquet(season_outputs / "2025_team_per_game_stats.parquet")
+
+    # Assert
+    assert dict(season.select("team", "points_per_offensive_snap").rows()) == pytest.approx(
+        expected
+    )

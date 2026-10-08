@@ -1,8 +1,19 @@
 """Tests for the expanded Tier 1 team metrics derived from play-by-play."""
 
-import polars as pl
+from pathlib import Path
 
-from nfl_sos_ratings.team_stats_expanded import compute_expanded_team_game_stats
+import polars as pl
+import pytest
+
+from nfl_sos_ratings import team_stats
+from nfl_sos_ratings.metrics import get_registry
+from nfl_sos_ratings.pooled_rates import (
+    denominator_column,
+    is_rate_part,
+    numerator_column,
+    rate_parts,
+)
+from nfl_sos_ratings.team_stats_expanded import TEAM_FORMULA_RATES, compute_expanded_team_game_stats
 
 _GAME = {
     "game_id": "2025_01_DEN_KC",
@@ -752,3 +763,282 @@ def test_two_point_and_defensive_playmaking() -> None:
     assert kc["def_tds"] == 1
     assert kc["total_tds"] == 1
     assert den["total_tds"] == 0
+
+
+def test_fields_the_season_lacks_give_blank_stats_not_zero() -> None:
+    """Verify stats built on a field the season's play-by-play lacks are null, not zero.
+
+    Fixture: a 2004-style game, where the loader leaves air yards, yards after catch, their EPA
+    splits, pass depth, QB hits, and (as in 1999-2002) the no-huddle flag and drive penalty yards
+    null on every play.
+    """
+    # Arrange
+    missing = {
+        "air_yards": None,
+        "air_epa": None,
+        "yac_epa": None,
+        "yards_after_catch": None,
+        "pass_length": None,
+        "qb_hit": None,
+        "no_huddle": None,
+        "drive_yards_penalized": None,
+    }
+    plays = [
+        _play(
+            **{"pass": 1, **missing},
+            pass_attempt=1,
+            complete_pass=1,
+            qb_dropback=1,
+            passing_yards=15.0,
+            yards_gained=15.0,
+        ),
+        _play(**{"pass": 1, **missing}, pass_attempt=1, qb_dropback=1, sack=1, yards_gained=-6.0),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    den = _row(result, "DEN")
+    kc = _row(result, "KC")
+    blank_offense = [
+        "passing_air_yards",
+        "air_yards_per_attempt",
+        "passing_yards_after_catch",
+        "yac_per_completion",
+        "air_epa_total",
+        "yac_epa_total",
+        "deep_attempt_rate",
+        "drive_penalty_yards",
+        "no_huddle_rate",
+    ]
+    blank_defense = [
+        "air_yards_allowed",
+        "yac_allowed",
+        "deep_attempt_rate_faced",
+        "qb_pressure_events_rate",
+    ]
+    assert {column: den[column] for column in blank_offense} == dict.fromkeys(blank_offense)
+    assert {column: kc[column] for column in blank_defense} == dict.fromkeys(blank_defense)
+    assert den["sack_rate_per_dropback"] == 0.5
+    assert kc["def_sack_rate_per_dropback"] == 0.5
+
+
+def _game_rows() -> pl.DataFrame:
+    """Return one game's team rows built from varied DEN and KC plays, as the loader builds them.
+
+    DEN: a completion, an incompletion, a sack, a scramble, an interception, designed runs, a
+    kneel-down, a third-down conversion, a fourth-down try, a two-point pass, and a penalty;
+    KC: a completion and a run.
+    """
+    den_drive = {"fixed_drive": 1, "fixed_drive_result": "Touchdown", "drive_inside20": 1}
+    kc_drive = {
+        "posteam": "KC",
+        "defteam": "DEN",
+        "fixed_drive": 2,
+        "drive_start_yard_line": "KC 30",
+    }
+    plays = [
+        _play(
+            **{"pass": 1, **den_drive},
+            pass_attempt=1,
+            complete_pass=1,
+            qb_dropback=1,
+            passing_yards=25.0,
+            yards_gained=25.0,
+            air_yards=15.0,
+            yards_after_catch=10.0,
+            xyac_mean_yardage=4.0,
+            pass_length="deep",  # noqa: S106 - PBP field, not a password
+            receiver_player_id="WR1",
+            epa=1.5,
+            success=1,
+            cpoe=20.0,
+            pass_oe=8.0,
+            first_down=1,
+            down=3,
+            ydstogo=5,
+            third_down_converted=1,
+            shotgun=1,
+        ),
+        _play(
+            **{"pass": 1, **den_drive},
+            pass_attempt=1,
+            incomplete_pass=1,
+            qb_dropback=1,
+            air_yards=7.0,
+            pass_length="short",  # noqa: S106 - PBP field, not a password
+            receiver_player_id="WR1",
+            epa=-0.6,
+            cpoe=-30.0,
+            pass_oe=-2.0,
+        ),
+        _play(
+            **{"pass": 1, **den_drive},
+            pass_attempt=1,
+            qb_dropback=1,
+            sack=1,
+            qb_hit=1,
+            yards_gained=-6.0,
+            epa=-1.8,
+        ),
+        _play(
+            **{"pass": 1, **den_drive},
+            qb_dropback=1,
+            qb_scramble=1,
+            rush_attempt=1,
+            rushing_yards=11.0,
+            yards_gained=11.0,
+            epa=0.9,
+            success=1,
+        ),
+        _play(
+            **{"pass": 1, **den_drive},
+            pass_attempt=1,
+            qb_dropback=1,
+            interception=1,
+            air_yards=20.0,
+            pass_length="deep",  # noqa: S106 - PBP field, not a password
+            receiver_player_id="WR2",
+            epa=-3.5,
+            down=4,
+            ydstogo=2,
+            fourth_down_failed=1,
+        ),
+        _play(rush=1, rush_attempt=1, rushing_yards=4.0, yards_gained=4.0, epa=0.2, **den_drive),
+        _play(rush=1, rush_attempt=1, rushing_yards=-2.0, yards_gained=-2.0, epa=-0.7, **den_drive),
+        _play(rush_attempt=1, qb_kneel=1, rushing_yards=-1.0, yards_gained=-1.0, **den_drive),
+        _play(
+            **{"pass": 1, **den_drive},
+            pass_attempt=1,
+            complete_pass=1,
+            qb_dropback=1,
+            two_point_attempt=1,
+            two_point_conv_result="success",
+            down=0,
+        ),
+        _play(penalty=1, penalty_team="DEN", penalty_type="False Start", penalty_yards=5.0),
+        _play(
+            **{"pass": 1, **kc_drive},
+            pass_attempt=1,
+            complete_pass=1,
+            qb_dropback=1,
+            passing_yards=8.0,
+            yards_gained=8.0,
+            air_yards=3.0,
+            yards_after_catch=5.0,
+            xyac_mean_yardage=6.0,
+            pass_length="short",  # noqa: S106 - PBP field, not a password
+            receiver_player_id="WR9",
+            epa=0.3,
+            cpoe=10.0,
+            pass_oe=1.0,
+        ),
+        _play(rush=1, rush_attempt=1, rushing_yards=3.0, yards_gained=3.0, epa=0.1, **kc_drive),
+    ]
+    player_stats = pl.DataFrame(
+        {
+            "season": [2025, 2025],
+            "season_type": ["REG", "REG"],
+            "week": [1, 1],
+            "team": ["DEN", "KC"],
+            "opponent_team": ["KC", "DEN"],
+            "def_sacks": [0.0, 1.0],
+            "def_qb_hits": [0, 1],
+            "def_tackles_for_loss": [1, 0],
+            "def_fumbles_forced": [0, 1],
+            "def_interceptions": [1, 0],
+            "def_pass_defended": [2, 1],
+            "def_safeties": [0, 0],
+        }
+    )
+    schedule = pl.DataFrame(
+        {
+            "game_id": [_GAME["game_id"]],
+            "week": [1],
+            "home_team": ["KC"],
+            "away_team": ["DEN"],
+            "home_score": [3],
+            "away_score": [8],
+        }
+    )
+    return team_stats.compute_team_game_stats_from_pbp(pl.DataFrame(plays), player_stats, schedule)
+
+
+def _rate_columns(columns: list[str]) -> list[str]:
+    """Return the columns the registry calls a rate or a mean, per-snap suffix columns included."""
+    registry = get_registry()
+    rates: list[str] = []
+    for column in columns:
+        resolved = registry.resolve_column(column)
+        if resolved is None or is_rate_part(column):
+            continue
+        per_snap = column.endswith(("_per_offensive_snap", "_per_defensive_snap"))
+        if resolved.base.shape in {"rate", "avg"} or per_snap:
+            rates.append(column)
+    return rates
+
+
+def test_every_game_rate_carries_what_pools_it_over_games() -> None:
+    # Arrange
+    games = _game_rows()
+    # A game counts once toward a team's win share, so its per-game mean is already pooled.
+    averaged_over_games = {"win_value"}
+
+    # Act
+    pooled = set(rate_parts(games.columns))
+
+    # Assert
+    unpooled = [
+        column
+        for column in _rate_columns(games.columns)
+        if column not in pooled
+        and column not in averaged_over_games
+        and not (
+            column in TEAM_FORMULA_RATES and pooled.issuperset(TEAM_FORMULA_RATES[column].inputs)
+        )
+    ]
+    assert unpooled == []
+
+
+def test_every_game_rate_equals_its_numerator_over_its_denominator() -> None:
+    # Arrange
+    games = _game_rows()
+
+    # Act
+    mismatches = [
+        (rate, row["team"], row[rate], row[numerator_column(rate)], row[denominator_column(rate)])
+        for rate in rate_parts(games.columns)
+        if rate in games.columns
+        for row in games.iter_rows(named=True)
+        if not _matches_parts(row[rate], row[numerator_column(rate)], row[denominator_column(rate)])
+    ]
+
+    # Assert
+    assert mismatches == []
+
+
+def _matches_parts(value: object, numerator: object, denominator: object) -> bool:
+    """Return whether a game rate is its numerator over its denominator (null without one)."""
+    if not isinstance(denominator, int | float) or denominator <= 0:
+        return value is None
+    assert isinstance(numerator, int | float), numerator
+    assert isinstance(value, int | float), value
+    return abs(value - numerator / denominator) <= 1e-12
+
+
+@pytest.mark.published_data
+def test_the_rate_guard_builds_every_rate_the_published_game_logs_carry() -> None:
+    # Arrange
+    files = sorted(Path("data").glob("*_team_game_logs.parquet"))
+    built = set(_rate_columns(_game_rows().columns))
+
+    # Act
+    missing = {
+        path.name: sorted(set(_rate_columns(list(pl.read_parquet_schema(path)))) - built)
+        for path in files
+    }
+
+    # Assert
+    assert files
+    assert {name: columns for name, columns in missing.items() if columns} == {}

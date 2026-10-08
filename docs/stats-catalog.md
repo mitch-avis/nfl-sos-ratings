@@ -101,7 +101,7 @@ Everything the team did with the ball.
 | `epa_per_offensive_snap` | EPA/Off Snap | rate | offensive snaps | 1999 | PBP | Offensive expected points added per snap — the core efficiency stat. |
 | `success_rate` | Success % | rate | offensive snaps | 1999 | PBP | The share of offensive plays that improved the team's expected points. A consistency measure that ignores how big each gain was. |
 | `explosive_play_rate` | Explosive % | rate | offensive snaps | 1999 | PBP | The share of snaps gaining 20+ passing yards or 10+ rushing yards — the big-play component of offense. |
-| `no_huddle_rate` | No-Huddle % | rate | offensive snaps | 1999 | PBP | The share of offensive snaps run without a huddle. A style stat. |
+| `no_huddle_rate` | No-Huddle % | rate | offensive snaps | 2003 | PBP | The share of offensive snaps run without a huddle. A style stat. Blank before 2003, when nflverse flags almost no snap as no-huddle. The flag follows the play text, which marks no-huddle snaps more often in later seasons, so compare teams within a season. |
 | `shotgun_rate` | Shotgun % | rate | offensive snaps | 1999 | PBP | The share of offensive snaps taken from the shotgun. A style stat. |
 | `pass_rate` | Pass % | rate | offensive snaps | 1999 | PBP | Dropbacks divided by scrimmage snaps — how pass-heavy the offense is. |
 | `early_down_pass_rate` | Early-Down Pass % | rate | early-down snaps | 1999 | PBP | Dropbacks on first and second down divided by early-down snaps. Passing early is the analytics-favored tendency signal. |
@@ -130,9 +130,9 @@ Everything the team did with the ball.
 | `scrambles` | Scrambles | count | - | 1999 | PBP | Dropbacks on which the quarterback took off and ran. |
 | `scramble_yards` | Scramble Yds | count | - | 1999 | PBP | Rushing yards gained on quarterback scrambles. |
 | `passing_air_yards` | Air Yds | count | - | 2006 | PBP +TS | Total distance the ball traveled past the line of scrimmage on all throws, including incompletions — a measure of how far downfield the team attacks. |
-| `passing_yards_after_catch` | YAC | count | - | 1999 | PBP +TS | Yards receivers gained after catching the ball. |
+| `passing_yards_after_catch` | YAC | count | - | 2006 | PBP +TS | Yards receivers gained after catching the ball. |
 | `air_yards_per_attempt` | Air Yds/Att | rate | pass attempts | 2006 | PBP | How far past the line of scrimmage the average pass attempt traveled in the air, throwaways included. A style stat, not a quality grade. |
-| `yac_per_completion` | YAC/Comp | rate | completions | 1999 | PBP | Average yards gained after the catch on completed passes. |
+| `yac_per_completion` | YAC/Comp | rate | completions | 2006 | PBP | Average yards gained after the catch on completed passes. |
 | `yards_per_attempt` | Y/A | rate | pass attempts | 1999 | PBP | Passing yards divided by official pass attempts. |
 | `net_yards_per_attempt` | NY/A | rate | pass attempts + sacks | 1999 | PBP | Passing yards minus sack yards, divided by attempts plus sacks — yards per dropback-style efficiency that charges the offense for sacks. Formula: (passing_yards - sack_yards_lost) / (attempts + sacks) |
 | `adjusted_net_yards_per_attempt` | ANY/A | rate | pass attempts + sacks | 1999 | PBP | The best single conventional passing stat: yards per attempt with a +20-yard bonus per touchdown, a -45-yard penalty per interception, and sacks counted against. Formula: (yards + 20*TD - 45*INT - sack_yards) / (attempts + sacks) |
@@ -143,12 +143,12 @@ Everything the team did with the ball.
 | `passing_td_rate_per_attempt` | TD % | rate | pass attempts | 1999 | PBP | The share of pass attempts that scored touchdowns. |
 | `int_rate_per_attempt` | INT % | rate | pass attempts | 1999 | PBP | The share of pass attempts that were intercepted. |
 | `explosive_pass_rate` | Explosive Pass % | rate | dropbacks | 1999 | PBP | Completions of 20+ yards divided by dropbacks. |
-| `deep_attempt_rate` | Deep Att % | rate | pass attempts | 1999 | PBP | The share of attempts thrown deep (16+ air yards). A style stat. |
+| `deep_attempt_rate` | Deep Att % | rate | pass attempts | 2006 | PBP | The share of attempts thrown deep (16+ air yards). A style stat. |
 | `longest_pass` | Long Pass | max | - | 1999 | PBP | The team's longest completed pass of the season, in yards. |
 | `sack_fumbles` | Sack Fumbles | count | - | 1999 | PBP +TS | Fumbles on sack plays, whether or not the team lost the ball. |
 | `passing_2pt_conversions` | 2-Pt Passes | count | - | 1999 | PBP +TS | Successful two-point conversions thrown. |
-| `air_epa_total` | Air EPA | count | - | 1999 | PBP | The share of passing EPA created by the throw itself (distance and placement) rather than the run after the catch. |
-| `yac_epa_total` | YAC EPA | count | - | 1999 | PBP | The share of passing EPA created after the catch by the receivers. |
+| `air_epa_total` | Air EPA | count | - | 2006 | PBP | The share of passing EPA created by the throw itself (distance and placement) rather than the run after the catch. |
+| `yac_epa_total` | YAC EPA | count | - | 2006 | PBP | The share of passing EPA created after the catch by the receivers. |
 | `xyac_per_completion` | xYAC/Comp | avg | completions | 2006 | PBP | How many yards after the catch an average receiver would have gained on the same catches, per the nflverse model. |
 | `yac_over_expected_per_completion` | YAC +/- | avg | completions | 2006 | PBP | Actual minus expected yards after catch per completion. |
 
@@ -181,7 +181,7 @@ Everything the team did with the ball.
 | `receiving_yards` | Rec Yds | count | - | 1999 | PBP +TS | Team receiving yards. At team level this equals gross passing yards exactly (verified against nflverse data). Same value as `passing_yards`. |
 | `receiving_tds` | Rec TDs | count | - | 1999 | PBP +TS | Touchdown catches — the same number as passing touchdowns. Same value as `passing_tds`. |
 | `receiving_air_yards` | Rec Air Yds | count | - | 2006 | PBP +TS | Air yards on targets — the same number as passing air yards. Same value as `passing_air_yards`. |
-| `receiving_yards_after_catch` | Rec YAC | count | - | 1999 | PBP +TS | Yards gained after the catch — receiving-side view of team YAC. Same value as `passing_yards_after_catch`. |
+| `receiving_yards_after_catch` | Rec YAC | count | - | 2006 | PBP +TS | Yards gained after the catch — receiving-side view of team YAC. Same value as `passing_yards_after_catch`. |
 | `receiving_first_downs` | Rec 1Ds | count | - | 1999 | PBP +TS | First downs on catches — the same number as passing first downs. Same value as `passing_first_downs`. |
 | `receiving_fumbles` | Rec Fumbles | count | - | 1999 | PBP +TS | Fumbles by receivers after the catch, whether or not lost. |
 | `receiving_fumbles_lost` | Rec Fum Lost | count | - | 1999 | PBP +TS | Fumbles lost to the defense after a catch. |
@@ -235,7 +235,7 @@ Everything the team did with the ball.
 | `turnover_pct_per_drive` | TO %/Drive | rate | drives | 1999 | PBP | The share of possessions ending in a giveaway. |
 | `avg_starting_field_position` | Avg Start | avg | drives | 1999 | PBP | Where drives started on average, in yards from the team's own goal line. Higher means shorter fields to score. |
 | `long_field_score_pct` | Long-Field Score % | rate | long-field drives | 1999 | PBP | Scoring rate on drives that started inside the team's own 25. |
-| `drive_penalty_yards` | Drive Pen Yds | count | - | 1999 | PBP | Net penalty yards on the team's drives: yards the defense's fouls gave the offense minus yards its own fouls cost it. |
+| `drive_penalty_yards` | Drive Pen Yds | count | - | 2001 | PBP | Net penalty yards on the team's drives: yards the defense's fouls gave the offense minus yards its own fouls cost it. |
 
 ### Offense: Turnovers
 
@@ -292,9 +292,9 @@ Everything the team allowed, plus the plays its defense made.
 | `any_a_allowed` | ANY/A Allowed | rate | opponent pass attempts + sacks | 1999 | PBP | The best conventional passing stat, from the defense's perspective: what opposing passers earned per attempt with touchdown, interception, and sack adjustments. |
 | `explosive_pass_rate_allowed` | Expl Pass % Allowed | rate | opponent dropbacks | 1999 | PBP | Opponent completions of 20+ yards per opponent dropback. |
 | `air_yards_allowed` | Air Yds Allowed | count | - | 2006 | PBP | Total air yards opponents threw for against this defense. |
-| `yac_allowed` | YAC Allowed | count | - | 1999 | PBP | Yards opponents gained after the catch — a tackling indicator. |
+| `yac_allowed` | YAC Allowed | count | - | 2006 | PBP | Yards opponents gained after the catch — a tackling indicator. |
 | `team_passer_rating_allowed` | Rating Allowed | rate | official NFL formula over opponent attempts | 1999 | PBP | The classic passer rating opposing quarterbacks combined for. |
-| `deep_attempt_rate_faced` | Deep Att % Faced | rate | opponent pass attempts | 1999 | PBP | How often opponents attacked this defense deep. A context stat. |
+| `deep_attempt_rate_faced` | Deep Att % Faced | rate | opponent pass attempts | 2006 | PBP | How often opponents attacked this defense deep. A context stat. |
 
 ### Defense: Rushing
 
@@ -363,14 +363,14 @@ Everything the team allowed, plus the plays its defense made.
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | `def_sacks` | Def Sacks | count | - | 1999 | PLS | Times the defense sacked the opposing quarterback. |
-| `def_qb_hits` | Def QB Hits | count | - | 1999 | PLS | Times the defense hit the quarterback, beyond sacks. |
-| `def_tackles_for_loss` | Def TFL | count | - | 1999 | PLS | Tackles made behind the line of scrimmage. |
+| `def_qb_hits` | Def QB Hits | count | - | 1999 | PLS | Times the defense hit the quarterback, beyond sacks. Blank in 2003-2005, when nflverse records no QB hits; in 1999-2002 it records them only on sacks. |
+| `def_tackles_for_loss` | Def TFL | count | - | 1999 | PLS | Tackles made behind the line of scrimmage. Blank in 2003-2011, when nflverse's weekly player stats credit no tackles for loss. |
 | `def_pass_defended` | Def PD | count | - | 1999 | PLS | Passes broken up or deflected by defenders. |
 | `def_fumbles_forced` | Def FF | count | - | 1999 | PLS | Fumbles the defense knocked loose. |
 | `def_safeties` | Def Safeties | count | - | 1999 | PLS | Safeties forced by the defense (two points each). |
 | `def_sack_yards` | Sack Yds Forced | count | - | 1999 | PBP +TS | Yards opponents lost to this defense's sacks. |
 | `def_sack_rate_per_dropback` | Sack Rate Forced | rate | opponent dropbacks | 1999 | PBP | Sacks divided by opponent dropbacks — pass-rush efficiency. |
-| `qb_pressure_events_rate` | Pressure Events % | rate | opponent dropbacks | 1999 | PBP | Sacks plus quarterback hits divided by opponent dropbacks. |
+| `qb_pressure_events_rate` | Pressure Events % | rate | opponent dropbacks | 1999 | PBP | Sacks plus quarterback hits divided by opponent dropbacks. Blank in 2003-2005, when nflverse records no QB hits; in 1999-2002 it records them only on sacks. |
 | `stuff_rate` | Stuff % | rate | opponent carries other than kneel-downs | 1999 | PBP | The share of opponent carries other than kneel-downs stopped for no gain or a loss. |
 | `havoc_rate` | Havoc % | rate | defensive snaps | 1999 | PBP | Disruptive plays — tackles for loss, forced fumbles, interceptions, and pass breakups — divided by defensive snaps. |
 | `defensive_2pt_conversions` | Def 2-Pt | count | - | 1999 | PBP | Two-point returns scored by the defense on turnovers during tries. |

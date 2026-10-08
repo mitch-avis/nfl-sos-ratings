@@ -1,8 +1,29 @@
 """Quarterback season-level aggregation helpers."""
 
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
 import polars as pl
 
+from nfl_sos_ratings.pbp_expressions import passer_rating_from_rates
+from nfl_sos_ratings.pooled_rates import (
+    denominator_column,
+    guarded_ratio,
+    is_rate_part,
+    mean_with_parts,
+    numerator_column,
+    pooled_rate,
+    rate_parts,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 type PolarsCastType = type[pl.Int64 | pl.Float64]
+type TotalOf = Callable[[str], pl.Expr]
+"""Return the total of one game-row column over the games a row covers."""
+
+CPOE_COLUMN = "qb_completion_percentage_above_expectation"
 
 # Comebacks and game-winning drives count plays from the fourth quarter on (overtime included).
 _FOURTH_QUARTER = 4
@@ -397,6 +418,10 @@ def compute_qb_game_volumes_from_pbp(
     )
 
 
+# CPOE and its hidden numerator and denominator (``pooled_rates``): the CPOE summed over the
+# passer's plays that have one, and their count, so rows for several games pool it.
+CPOE_PARTS = (CPOE_COLUMN, numerator_column(CPOE_COLUMN), denominator_column(CPOE_COLUMN))
+
 # The columns and types `compute_qb_game_stats_from_pbp` returns, with or without plays.
 _QB_GAME_STATS_SCHEMA: dict[str, type[pl.DataType]] = {
     "game_id": pl.String,
@@ -434,6 +459,8 @@ _QB_GAME_STATS_SCHEMA: dict[str, type[pl.DataType]] = {
     "qb_fourth_quarter_comeback": pl.Int64,
     "qb_game_winning_drive": pl.Int64,
     "qb_completion_percentage_above_expectation": pl.Float64,
+    numerator_column(CPOE_COLUMN): pl.Float64,
+    denominator_column(CPOE_COLUMN): pl.Int64,
 }
 
 
@@ -456,7 +483,7 @@ def compute_qb_game_stats_from_pbp(
     sack_yards = (
         pl.col("yards_gained").fill_null(0.0) if "yards_gained" in pbp_columns else pl.lit(0.0)
     )
-    cpoe = pl.col("cpoe").mean() if "cpoe" in pbp_columns else pl.lit(None, dtype=pl.Float64)
+    cpoe = pl.col("cpoe") if "cpoe" in pbp_columns else pl.lit(None, dtype=pl.Float64)
 
     pbp_stats = (
         pbp_df.filter(
@@ -498,7 +525,7 @@ def compute_qb_game_stats_from_pbp(
                 .cast(pl.Int64)
                 .alias("qb_sack_fumbles_lost"),
                 pl.col("qb_epa").fill_null(0.0).sum().alias("qb_passing_epa"),
-                cpoe.alias("qb_completion_percentage_above_expectation"),
+                *mean_with_parts(CPOE_COLUMN, cpoe),
             ]
         )
         .drop("_passer_key")
@@ -526,7 +553,7 @@ def compute_qb_game_stats_from_pbp(
             "qb_sack_yards_lost",
             "qb_sack_fumbles_lost",
             "qb_passing_epa",
-            "qb_completion_percentage_above_expectation",
+            *CPOE_PARTS,
         ]
     )
 
@@ -747,76 +774,161 @@ def compute_qb_game_stats_from_pbp(
     )
 
 
-# (numerator, denominator, output) season rates, each null when the denominator is zero. The
-# order fixes the output column order.
-_QB_SEASON_RATIOS: tuple[tuple[str, str, str], ...] = (
-    ("qb_pass_yards_total", "qb_attempts_total", "qb_yards_per_attempt"),
-    ("qb_pass_touchdowns_total", "qb_attempts_total", "qb_touchdown_rate"),
-    ("qb_interceptions_total", "qb_attempts_total", "qb_interception_rate"),
-    ("qb_completions_total", "qb_attempts_total", "qb_completion_pct"),
-    ("qb_rushing_yards_total", "qb_carries_total", "qb_yards_per_carry"),
-    ("qb_rushing_epa_total", "qb_carries_total", "qb_epa_per_carry"),
-    ("qb_designed_rush_yards_total", "qb_designed_carries_total", "qb_designed_yards_per_carry"),
-    ("qb_designed_rush_epa_total", "qb_designed_carries_total", "qb_designed_epa_per_carry"),
-    ("qb_scramble_yards_total", "qb_scrambles_total", "qb_yards_per_scramble"),
-    ("qb_scrambles_total", "qb_dropbacks_total", "qb_scramble_rate"),
-    ("qb_passing_epa_total", "qb_dropbacks_total", "qb_epa_per_dropback"),
-    ("qb_pass_yards_total", "qb_dropbacks_total", "qb_pass_yards_per_dropback"),
-)
-_ANY_A_INPUTS = frozenset(
-    {
-        "qb_pass_yards_total",
-        "qb_pass_touchdowns_total",
-        "qb_interceptions_total",
-        "qb_sack_yards_lost_total",
-        "qb_sacks_total",
-    }
-)
-# ANY/A credits 20 yards per passing touchdown and charges 45 per interception.
-_ANY_A_TD_BONUS = 20.0
-_ANY_A_INT_PENALTY = 45.0
+# Floating-point noise in a passer rating sits far below this many decimals.
+_RATING_NOISE_DECIMALS = 9
 
 
-def _guarded_ratio(numerator: pl.Expr, denominator: str, output: str) -> pl.Expr:
-    """Return ``numerator / denominator``, or null when the denominator is not positive."""
-    return (
-        pl.when(pl.col(denominator) > 0)
-        .then(numerator / pl.col(denominator))
-        .otherwise(None)
-        .alias(output)
+def qb_passer_rating_expr(
+    completions: pl.Expr,
+    attempts: pl.Expr,
+    yards: pl.Expr,
+    touchdowns: pl.Expr,
+    interceptions: pl.Expr,
+) -> pl.Expr:
+    """Return passer rating over passing totals, to one decimal as the NFL publishes it.
+
+    A tie rounds up (78.75 shows as 78.8). Rounding to nine decimals first removes floating-point
+    noise, which otherwise puts an exact tie just below it (78.74999999999999) or not, depending on
+    how many rows Polars evaluates together. Null without attempts.
+    """
+    rating = passer_rating_from_rates(
+        completions / attempts,
+        yards / attempts,
+        touchdowns / attempts,
+        interceptions / attempts,
+    )
+    shown = rating.round(_RATING_NOISE_DECIMALS).round(1, mode="half_away_from_zero")
+    return pl.when(attempts > 0).then(shown).otherwise(None)
+
+
+@dataclass(frozen=True, slots=True)
+class QbRate:
+    """A quarterback stat rebuilt from the totals of game-row columns over the games a row covers.
+
+    ``build`` takes a ``TotalOf`` and returns the stat from the ``inputs``' totals.
+    """
+
+    inputs: tuple[str, ...]
+    build: Callable[[TotalOf], pl.Expr]
+
+
+def _ratio(numerator: str, denominator: str) -> QbRate:
+    """Return the rate of one total over another, null when the denominator is not positive."""
+    return QbRate(
+        (numerator, denominator),
+        lambda total: guarded_ratio(total(numerator), total(denominator)),
     )
 
 
-def _qb_season_rate_exprs(columns: set[str]) -> list[pl.Expr]:
-    """Return every season rate whose inputs are present, in output-column order."""
-    exprs = [
-        _guarded_ratio(pl.col(numerator), denominator, output)
-        for numerator, denominator, output in _QB_SEASON_RATIOS
-        if {numerator, denominator} <= columns
+# ANY/A credits 20 yards per passing touchdown and charges 45 per interception.
+_ANY_A_TD_BONUS = 20.0
+_ANY_A_INT_PENALTY = 45.0
+# The passing totals passer rating is built from, in ``qb_passer_rating_expr``'s order.
+QB_PASSING_TOTALS = (
+    "qb_completions",
+    "qb_attempts",
+    "qb_pass_yards",
+    "qb_pass_touchdowns",
+    "qb_interceptions",
+)
+
+
+def _td_int_differential(total: TotalOf) -> pl.Expr:
+    """Return touchdown passes minus interceptions."""
+    return total("qb_pass_touchdowns") - total("qb_interceptions")
+
+
+def _td_int_margin_rate(total: TotalOf) -> pl.Expr:
+    """Return touchdown passes minus interceptions per dropback."""
+    return guarded_ratio(_td_int_differential(total), total("qb_dropbacks"))
+
+
+def _any_a(total: TotalOf) -> pl.Expr:
+    """Return adjusted net yards per attempt: yards with TD and INT adjustments, less sacks."""
+    return guarded_ratio(
+        total("qb_pass_yards")
+        + (_ANY_A_TD_BONUS * total("qb_pass_touchdowns"))
+        - (_ANY_A_INT_PENALTY * total("qb_interceptions"))
+        - total("qb_sack_yards_lost"),
+        total("qb_attempts") + total("qb_sacks"),
+    )
+
+
+def _passer_rating(total: TotalOf) -> pl.Expr:
+    """Return passer rating over the passing totals."""
+    return qb_passer_rating_expr(*(total(column) for column in QB_PASSING_TOTALS))
+
+
+# Every quarterback rate rebuilt from totals for a row covering several games (a season row, or
+# the passers a defense faced), so each is its season numerator over its season denominator. The
+# order fixes the season row's column order for the ones a game row lacks.
+QB_RATES: dict[str, QbRate] = {
+    "qb_yards_per_attempt": _ratio("qb_pass_yards", "qb_attempts"),
+    "qb_touchdown_rate": _ratio("qb_pass_touchdowns", "qb_attempts"),
+    "qb_interception_rate": _ratio("qb_interceptions", "qb_attempts"),
+    "qb_completion_pct": _ratio("qb_completions", "qb_attempts"),
+    "qb_yards_per_carry": _ratio("qb_rushing_yards", "qb_carries"),
+    "qb_epa_per_carry": _ratio("qb_rushing_epa", "qb_carries"),
+    "qb_designed_yards_per_carry": _ratio("qb_designed_rush_yards", "qb_designed_carries"),
+    "qb_designed_epa_per_carry": _ratio("qb_designed_rush_epa", "qb_designed_carries"),
+    "qb_yards_per_scramble": _ratio("qb_scramble_yards", "qb_scrambles"),
+    "qb_scramble_rate": _ratio("qb_scrambles", "qb_dropbacks"),
+    "qb_epa_per_dropback": _ratio("qb_passing_epa", "qb_dropbacks"),
+    "qb_pass_yards_per_dropback": _ratio("qb_pass_yards", "qb_dropbacks"),
+    "qb_td_int_margin_rate": QbRate(
+        ("qb_pass_touchdowns", "qb_interceptions", "qb_dropbacks"), _td_int_margin_rate
+    ),
+    "qb_sack_rate": _ratio("qb_sacks", "qb_dropbacks"),
+    "qb_any_a": QbRate(
+        (
+            "qb_pass_yards",
+            "qb_pass_touchdowns",
+            "qb_interceptions",
+            "qb_sack_yards_lost",
+            "qb_attempts",
+            "qb_sacks",
+        ),
+        _any_a,
+    ),
+    "qb_passer_rating": QbRate(QB_PASSING_TOTALS, _passer_rating),
+}
+
+
+# Season-row totals built from other totals, after the rates in the season row's column order.
+# Kept out of ``QB_RATES``, which the QB opponent profiles publish per game.
+_QB_SEASON_TOTALS: dict[str, QbRate] = {
+    "qb_td_int_differential": QbRate(
+        ("qb_pass_touchdowns", "qb_interceptions"), _td_int_differential
+    ),
+}
+
+
+def qb_rate_exprs(available: set[str], total: TotalOf, rates: tuple[str, ...]) -> list[pl.Expr]:
+    """Return each of ``rates`` whose game-row inputs are all ``available``, in order.
+
+    ``total`` returns the total of a game-row column over the games the row covers.
+    """
+    return [
+        QB_RATES[rate].build(total).alias(rate)
+        for rate in rates
+        if available.issuperset(QB_RATES[rate].inputs)
     ]
-    td_int_margin = pl.col("qb_pass_touchdowns_total") - pl.col("qb_interceptions_total")
-    if {"qb_pass_touchdowns_total", "qb_interceptions_total"} <= columns:
-        exprs.append(td_int_margin.alias("qb_td_int_differential"))
-    if {"qb_pass_touchdowns_total", "qb_interceptions_total", "qb_dropbacks_total"} <= columns:
-        exprs.append(_guarded_ratio(td_int_margin, "qb_dropbacks_total", "qb_td_int_margin_rate"))
-    if {"qb_sacks_total", "qb_dropbacks_total"} <= columns:
-        exprs.append(_guarded_ratio(pl.col("qb_sacks_total"), "qb_dropbacks_total", "qb_sack_rate"))
-    if columns >= _ANY_A_INPUTS:
-        exprs.append(
-            pl.when((pl.col("qb_attempts_total") + pl.col("qb_sacks_total")) > 0)
-            .then(
-                (
-                    pl.col("qb_pass_yards_total")
-                    + (_ANY_A_TD_BONUS * pl.col("qb_pass_touchdowns_total"))
-                    - (_ANY_A_INT_PENALTY * pl.col("qb_interceptions_total"))
-                    - pl.col("qb_sack_yards_lost_total")
-                )
-                / (pl.col("qb_attempts_total") + pl.col("qb_sacks_total"))
-            )
-            .otherwise(None)
-            .alias("qb_any_a")
-        )
-    return exprs
+
+
+def _qb_season_rate_exprs(columns: set[str]) -> list[pl.Expr]:
+    """Return every season rate and derived total whose totals are present, in column order."""
+    totals = {source: total for source, (total, _) in _QB_TOTAL_COLUMNS.items()}
+    available = {source for source, total in totals.items() if total in columns}
+
+    def season_total(column: str) -> pl.Expr:
+        return pl.col(totals[column])
+
+    stats = {**QB_RATES, **_QB_SEASON_TOTALS}
+    return [
+        stats[name].build(season_total).alias(name)
+        for name in stats
+        if available.issuperset(stats[name].inputs)
+    ]
 
 
 def _known_total(column: str) -> pl.Expr:
@@ -829,14 +941,23 @@ def _known_total(column: str) -> pl.Expr:
 
 
 def _qb_season_agg_exprs(qb_df: pl.DataFrame) -> list[pl.Expr]:
-    """Return games played, per-game means of numeric stats, and season totals."""
+    """Return games played, season totals, and every other numeric stat over the season.
+
+    A stat with hidden rate parts (CPOE) is pooled over the season (``pooled_rates``); the rest
+    start as per-game means, and ``_qb_season_rate_exprs`` then rebuilds the rates from totals.
+    """
+    pooled = set(rate_parts(qb_df.columns))
     qb_stat_cols = [
         col
         for col, dtype in zip(qb_df.columns, qb_df.dtypes, strict=True)
-        if dtype.is_numeric() and col not in {"week", *set(_QB_PER_GAME_COLUMNS)}
+        if dtype.is_numeric()
+        and col not in {"week", *set(_QB_PER_GAME_COLUMNS)}
+        and not is_rate_part(col)
     ]
     agg_exprs: list[pl.Expr] = [pl.len().alias("qb_games_played")]
-    agg_exprs.extend(pl.col(col).mean().alias(col) for col in qb_stat_cols)
+    agg_exprs.extend(
+        pooled_rate(col) if col in pooled else pl.col(col).mean().alias(col) for col in qb_stat_cols
+    )
     for source_col, (total_col, total_dtype) in _QB_TOTAL_COLUMNS.items():
         if source_col in qb_df.columns:
             agg_exprs.append(_known_total(source_col).cast(total_dtype).alias(total_col))

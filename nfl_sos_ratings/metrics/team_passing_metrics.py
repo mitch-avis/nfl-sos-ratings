@@ -237,7 +237,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         shape="count",
         polarity="higher",
         source="PBP +TS",
-        since=1999,
+        since=2006,
     ),
     _off_pass(
         name="air_yards_per_attempt",
@@ -262,7 +262,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         polarity="higher",
         source="PBP",
         denominator="completions",
-        since=1999,
+        since=2006,
     ),
     _off_pass(
         name="yards_per_attempt",
@@ -399,7 +399,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         polarity="neutral",
         source="PBP",
         denominator="pass attempts",
-        since=1999,
+        since=2006,
         percent=True,
     ),
     _off_pass(
@@ -443,7 +443,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         shape="count",
         polarity="higher",
         source="PBP",
-        since=1999,
+        since=2006,
     ),
     _off_pass(
         name="yac_epa_total",
@@ -453,7 +453,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         shape="count",
         polarity="higher",
         source="PBP",
-        since=1999,
+        since=2006,
     ),
     _off_pass(
         name="xyac_per_completion",
@@ -552,7 +552,7 @@ OFFENSE_RECEIVING_METRICS: tuple[MetricDef, ...] = (
         shape="count",
         polarity="higher",
         source="PBP +TS",
-        since=1999,
+        since=2006,
         duplicate_of="passing_yards_after_catch",
     ),
     _off_recv(

@@ -1,4 +1,4 @@
-"""Shared pytest setup: the import path, Polars threads, and the published-data coverage floor.
+"""Shared pytest setup: import path, Polars threads, published-data coverage, blocked downloads.
 
 - The repo root goes on the import path so ``tests.stubs`` resolves.
 - Polars runs on one thread unless ``POLARS_MAX_THREADS`` is already set: the suite builds
@@ -8,6 +8,10 @@
 - ``pytest -m published_data`` runs the checks of the generated files in ``data/``. They exercise
   little code, so when every selected test is one of them the coverage floor and report are lifted;
   any run that includes a code test keeps both.
+- No test reaches nflverse: every nflreadpy download fails, cache reads included, and so does
+  ``urllib.request.urlopen`` (the ESPN QBR release assets), so a loader a test forgets to stub
+  raises instead of downloading the real file or reading the user's on-disk cache (which another
+  test may have switched nflreadpy to).
 """
 
 import os
@@ -66,6 +70,34 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         return
     options.cov_fail_under = 0
     options.cov_report = {}
+
+
+@pytest.fixture(autouse=True)
+def _block_nflverse_downloads(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make every nflverse download fail for the test.
+
+    That covers nflreadpy's, before its cache is consulted, and the release assets (ESPN QBR)
+    the loaders fetch with ``urllib``.
+    """
+    # Imported here: nflreadpy imports Polars, which must wait for the thread default below.
+    import urllib.request
+
+    from nflreadpy.downloader import NflverseDownloader
+
+    from tests.stubs import NflverseDownloadBlockedError
+
+    def refuse(
+        _self: object, repository: str, path: str, *_args: object, **_kwargs: object
+    ) -> None:
+        msg = f"a test reached nflverse ({repository}: {path}); stub the nflreadpy loader instead"
+        raise NflverseDownloadBlockedError(msg)
+
+    def refuse_url(url: object, *_args: object, **_kwargs: object) -> None:
+        msg = f"a test opened {url}; stub the download instead"
+        raise NflverseDownloadBlockedError(msg)
+
+    monkeypatch.setattr(NflverseDownloader, "download", refuse)
+    monkeypatch.setattr(urllib.request, "urlopen", refuse_url)
 
 
 limit_polars_threads(os.environ)

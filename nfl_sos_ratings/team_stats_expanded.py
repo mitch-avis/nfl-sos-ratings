@@ -7,18 +7,37 @@ and is joined onto the core weekly team frame in ``team_stats``.
 Defensive mirrors are built by mirroring each offense row onto its opponent
 (what the offense produced is exactly what the defense allowed), so both
 sides always agree by construction.
+
+Each rate carries its numerator and denominator as hidden columns, mirrored
+with it, so rows for several games pool it (``pooled_rates``); a rate built
+from other rates is listed in ``TEAM_FORMULA_RATES`` instead.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
 import polars as pl
 
 from nfl_sos_ratings.pbp_expressions import (
-    rate_expr,
+    passer_rating_from_rates,
     scrimmage_snap_expr,
     special_teams_play_expr,
     value_expr,
 )
+from nfl_sos_ratings.pooled_rates import (
+    denominator_column,
+    expression_ratio_with_parts,
+    is_rate_part,
+    mean_with_parts,
+    numerator_column,
+    part_rate,
+    ratio_with_parts,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 _GROUP_KEY_CANDIDATES = ("game_id", "season", "season_type", "week")
 
@@ -96,6 +115,14 @@ _DEFENSE_MIRROR_RENAMES = {
     "aux_dpi": "defensive_pass_interference",
     "aux_total_yards": "aux_total_yards_allowed",
 }
+# Offense rates without a published defensive mirror whose mirror still feeds a published rate
+# over several games (passer rating allowed, ``TEAM_FORMULA_RATES``): only their numerator and
+# denominator are mirrored.
+_DEFENSE_MIRROR_PARTS_ONLY = {
+    "yards_per_attempt": "yards_per_attempt_allowed",
+    "passing_td_rate_per_attempt": "passing_td_rate_per_attempt_allowed",
+    "int_rate_per_attempt": "int_rate_per_attempt_allowed",
+}
 
 
 def compute_expanded_team_game_stats(pbp_df: pl.DataFrame) -> pl.DataFrame:
@@ -127,9 +154,14 @@ def compute_expanded_team_game_stats(pbp_df: pl.DataFrame) -> pl.DataFrame:
     frame = _join_touchdown_totals(frame, plays, keys)
     frame = _add_cross_side_margins(frame)
 
-    aux_columns = [column for column in frame.columns if column.startswith("aux_")]
+    aux_columns = [column for column in frame.columns if _is_auxiliary(column)]
     sort_keys = [key for key in ("team", "week", "game_id") if key in frame.columns]
     return frame.drop(aux_columns).sort(sort_keys)
+
+
+def _is_auxiliary(column: str) -> bool:
+    """Return whether ``column`` is a working column (``aux_``) or a rate part of one."""
+    return (part_rate(column) if is_rate_part(column) else column).startswith("aux_")
 
 
 def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
@@ -177,12 +209,29 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
         | (value_expr(columns, "punt_attempt") > 0)
         | (value_expr(columns, "field_goal_attempt") > 0)
     )
-    xyac = pl.col("xyac_mean_yardage") if "xyac_mean_yardage" in columns else pl.lit(None)
-    yac = pl.col("yards_after_catch") if "yards_after_catch" in columns else pl.lit(None)
+    xyac = (
+        pl.col("xyac_mean_yardage")
+        if "xyac_mean_yardage" in columns
+        else pl.lit(None, dtype=pl.Float64)
+    )
+    yac = (
+        pl.col("yards_after_catch")
+        if "yards_after_catch" in columns
+        else pl.lit(None, dtype=pl.Float64)
+    )
     receiver_fumbled = _receiver_fumbled_expr(columns)
+    # A season without the no-huddle flag leaves the rate's parts empty, so it pools to null.
+    no_huddle = (
+        value_expr(columns, "no_huddle", 0)
+        if _is_charted(plays, "no_huddle")
+        else pl.lit(None, dtype=pl.Float64)
+    )
 
     def _count(condition: pl.Expr, name: str) -> pl.Expr:
         return condition.cast(pl.Int64).sum().alias(name)
+
+    def _if_charted(field: str, expr: pl.Expr, dtype: type[pl.DataType]) -> pl.Expr:
+        return _blank_unless_charted(plays, field, expr, dtype)
 
     # Targets are official attempts thrown to a named receiver (not throwaways or spikes).
     receiver_named = _target_receiver_expr(plays)
@@ -207,34 +256,50 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             .sum()
             .fill_null(0.0)
             .alias("scramble_yards"),
-            value_expr(columns, "air_yards", 0.0)
-            .filter(is_pass_attempt & ~is_two_point)
-            .sum()
-            .fill_null(0.0)
-            .alias("passing_air_yards"),
-            value_expr(columns, "yards_after_catch", 0.0)
-            .filter(is_complete)
-            .sum()
-            .fill_null(0.0)
-            .alias("passing_yards_after_catch"),
+            _if_charted(
+                "air_yards",
+                value_expr(columns, "air_yards", 0.0)
+                .filter(is_pass_attempt & ~is_two_point)
+                .sum()
+                .fill_null(0.0)
+                .alias("passing_air_yards"),
+                pl.Float64,
+            ),
+            _if_charted(
+                "yards_after_catch",
+                value_expr(columns, "yards_after_catch", 0.0)
+                .filter(is_complete)
+                .sum()
+                .fill_null(0.0)
+                .alias("passing_yards_after_catch"),
+                pl.Float64,
+            ),
             value_expr(columns, "passing_yards", 0.0)
             .filter(is_complete)
             .max()
             .alias("longest_pass"),
             _count((value_expr(columns, "fumble") > 0) & is_sack, "sack_fumbles"),
             _count(is_pass_attempt & two_pt_success & is_two_point, "passing_2pt_conversions"),
-            value_expr(columns, "air_epa", 0.0)
-            .filter(is_pass_attempt)
-            .sum()
-            .fill_null(0.0)
-            .alias("air_epa_total"),
-            value_expr(columns, "yac_epa", 0.0)
-            .filter(is_complete)
-            .sum()
-            .fill_null(0.0)
-            .alias("yac_epa_total"),
-            xyac.filter(is_complete).mean().alias("xyac_per_completion"),
-            (yac - xyac).filter(is_complete).mean().alias("yac_over_expected_per_completion"),
+            _if_charted(
+                "air_epa",
+                value_expr(columns, "air_epa", 0.0)
+                .filter(is_pass_attempt)
+                .sum()
+                .fill_null(0.0)
+                .alias("air_epa_total"),
+                pl.Float64,
+            ),
+            _if_charted(
+                "yac_epa",
+                value_expr(columns, "yac_epa", 0.0)
+                .filter(is_complete)
+                .sum()
+                .fill_null(0.0)
+                .alias("yac_epa_total"),
+                pl.Float64,
+            ),
+            *mean_with_parts("xyac_per_completion", xyac.filter(is_complete)),
+            *mean_with_parts("yac_over_expected_per_completion", (yac - xyac).filter(is_complete)),
             # Rushing (official carries exclude two-point tries).
             _count(is_carry, "carries"),
             _count(is_designed_run, "designed_carries"),
@@ -259,18 +324,21 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             # extra points; receiving on kickoffs), the input to the special-teams rating.
             _count(is_special, "st_plays"),
             value_expr(columns, "epa", 0.0).filter(is_special).sum().fill_null(0.0).alias("st_epa"),
-            value_expr(columns, "success", 0).filter(scrimmage).mean().alias("success_rate"),
-            value_expr(columns, "success", 0).filter(is_dropback).mean().alias("pass_success_rate"),
-            value_expr(columns, "success", 0)
-            .filter(is_designed_run)
-            .mean()
-            .alias("rush_success_rate"),
-            value_expr(columns, "shotgun", 0).filter(scrimmage).mean().alias("shotgun_rate"),
-            value_expr(columns, "no_huddle", 0).filter(scrimmage).mean().alias("no_huddle_rate"),
-            (pl.col("pass_oe") if "pass_oe" in columns else pl.lit(None))
-            .filter(scrimmage)
-            .mean()
-            .alias("pass_rate_over_expected"),
+            *mean_with_parts("success_rate", value_expr(columns, "success", 0).filter(scrimmage)),
+            *mean_with_parts(
+                "pass_success_rate", value_expr(columns, "success", 0).filter(is_dropback)
+            ),
+            *mean_with_parts(
+                "rush_success_rate", value_expr(columns, "success", 0).filter(is_designed_run)
+            ),
+            *mean_with_parts("shotgun_rate", value_expr(columns, "shotgun", 0).filter(scrimmage)),
+            *mean_with_parts("no_huddle_rate", no_huddle.filter(scrimmage)),
+            *mean_with_parts(
+                "pass_rate_over_expected",
+                (
+                    pl.col("pass_oe") if "pass_oe" in columns else pl.lit(None, dtype=pl.Float64)
+                ).filter(scrimmage),
+            ),
             _count(scrimmage, "aux_off_snaps"),
             _count(scrimmage & (down <= _LAST_EARLY_DOWN), "aux_early_snaps"),
             _count(is_dropback & (down <= _LAST_EARLY_DOWN), "aux_early_dropbacks"),
@@ -282,11 +350,13 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             # A kneel-down is a carry but never a stuff, so stuff rate leaves kneel-downs out.
             _count(is_carry & ~is_kneel, "aux_carries_without_kneels"),
             _count(is_carry & ~is_kneel & (yards <= 0), "aux_stuffed_rushes"),
-            _count(
-                is_pass_attempt & ~is_two_point & (pl.col("pass_length") == "deep")
-                if "pass_length" in columns
-                else pl.lit(False),
-                "aux_deep_attempts",
+            _if_charted(
+                "pass_length",
+                _count(
+                    is_pass_attempt & ~is_two_point & (pl.col("pass_length") == "deep"),
+                    "aux_deep_attempts",
+                ),
+                pl.Int64,
             ),
             # Turnovers.
             _count((value_expr(columns, "fumble") > 0) & scrimmage, "fumbles"),
@@ -316,9 +386,9 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
                 > 0,
                 "third_down_attempts",
             ),
-            ydstogo.filter(scrimmage & (down == _THIRD_DOWN))
-            .mean()
-            .alias("third_down_avg_distance"),
+            *mean_with_parts(
+                "third_down_avg_distance", ydstogo.filter(scrimmage & (down == _THIRD_DOWN))
+            ),
             _count(value_expr(columns, "fourth_down_converted") > 0, "fourth_down_conversions"),
             _count(is_go_try, "fourth_down_attempts"),
             _count(fourth_down_faced, "aux_fourth_downs_faced"),
@@ -344,7 +414,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             .fill_null(0.0)
             .alias("aux_rush_epa"),
             _count(is_sack, "aux_sacks"),
-            _count(value_expr(columns, "qb_hit") > 0, "aux_qb_hits"),
+            _if_charted("qb_hit", _count(pl.col("qb_hit") > 0, "aux_qb_hits"), pl.Int64),
             (
                 _count(
                     (value_expr(columns, "tackled_for_loss") > 0)
@@ -395,6 +465,25 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
         )
         .rename({"posteam": "team", "defteam": "opponent_team"})
     )
+
+
+def _blank_unless_charted(
+    plays: pl.DataFrame, field: str, expr: pl.Expr, dtype: type[pl.DataType]
+) -> pl.Expr:
+    """Return ``expr``, or a null of ``dtype`` in its place when the season lacks ``field``.
+
+    ``plays`` is one season's play-by-play. A field nflverse did not chart that season (absent,
+    or null on every play, as ``data_loader`` leaves it) makes every stat built on it unknown,
+    not zero.
+    """
+    if _is_charted(plays, field):
+        return expr
+    return pl.lit(None, dtype=dtype).alias(expr.meta.output_name())
+
+
+def _is_charted(plays: pl.DataFrame, field: str) -> bool:
+    """Return whether the season's play-by-play has any value for ``field``."""
+    return field in plays.columns and plays.get_column(field).is_not_null().any()
 
 
 def _receiver_fumbled_expr(columns: list[str]) -> pl.Expr:
@@ -458,12 +547,11 @@ def _aggregate_series_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFram
         per_series.group_by([*keys, "posteam"])
         .agg(
             pl.len().cast(pl.Int64).alias("series"),
-            pl.col("converted").mean().alias("series_conversion_rate"),
-            pl.col("touchdown")
-            .filter(pl.col("goal_to_go") > 0)
-            .cast(pl.Int64)
-            .mean()
-            .alias("goal_to_go_td_pct"),
+            *mean_with_parts("series_conversion_rate", pl.col("converted")),
+            *mean_with_parts(
+                "goal_to_go_td_pct",
+                pl.col("touchdown").filter(pl.col("goal_to_go") > 0).cast(pl.Int64),
+            ),
         )
         .rename({"posteam": "team"})
     )
@@ -528,31 +616,39 @@ def _aggregate_drive_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame
         per_drive.group_by([*keys, "posteam"])
         .agg(
             pl.len().cast(pl.Int64).alias("drives"),
-            pl.col("net_yards").mean().alias("yards_per_drive"),
-            pl.col("play_count").mean().alias("plays_per_drive"),
-            pl.col("possession_seconds").mean().alias("time_per_drive"),
-            pl.col("first_downs").mean().alias("first_downs_per_drive"),
-            pl.col("scored").mean().alias("score_pct_per_drive"),
-            pl.col("punted").mean().alias("punt_pct_per_drive"),
-            pl.col("turned_over").mean().alias("turnover_pct_per_drive"),
-            (pl.col("punted") & (pl.col("first_downs") == 0)).mean().alias("three_and_out_rate"),
-            pl.col("points").mean().alias("points_per_drive"),
+            *mean_with_parts("yards_per_drive", pl.col("net_yards")),
+            *mean_with_parts("plays_per_drive", pl.col("play_count")),
+            *mean_with_parts("time_per_drive", pl.col("possession_seconds")),
+            *mean_with_parts("first_downs_per_drive", pl.col("first_downs")),
+            *mean_with_parts("score_pct_per_drive", pl.col("scored").cast(pl.Int64)),
+            *mean_with_parts("punt_pct_per_drive", pl.col("punted").cast(pl.Int64)),
+            *mean_with_parts("turnover_pct_per_drive", pl.col("turned_over").cast(pl.Int64)),
+            *mean_with_parts(
+                "three_and_out_rate",
+                (pl.col("punted") & (pl.col("first_downs") == 0)).cast(pl.Int64),
+            ),
+            *mean_with_parts("points_per_drive", pl.col("points")),
             (pl.col("inside_20") > 0).cast(pl.Int64).sum().alias("red_zone_trips"),
-            (pl.col("result") == "Touchdown")
-            .filter(pl.col("inside_20") > 0)
-            .cast(pl.Int64)
-            .mean()
-            .alias("red_zone_td_pct"),
-            pl.col("points")
-            .filter(pl.col("inside_20") > 0)
-            .mean()
-            .alias("points_per_red_zone_trip"),
-            pl.col("start_from_own_goal").mean().alias("avg_starting_field_position"),
-            pl.col("scored")
-            .filter(pl.col("start_from_own_goal") <= _LONG_FIELD_START_YARDLINE)
-            .mean()
-            .alias("long_field_score_pct"),
-            pl.col("yards_penalized").sum().alias("drive_penalty_yards"),
+            *mean_with_parts(
+                "red_zone_td_pct",
+                (pl.col("result") == "Touchdown").filter(pl.col("inside_20") > 0).cast(pl.Int64),
+            ),
+            *mean_with_parts(
+                "points_per_red_zone_trip", pl.col("points").filter(pl.col("inside_20") > 0)
+            ),
+            *mean_with_parts("avg_starting_field_position", pl.col("start_from_own_goal")),
+            *mean_with_parts(
+                "long_field_score_pct",
+                pl.col("scored")
+                .filter(pl.col("start_from_own_goal") <= _LONG_FIELD_START_YARDLINE)
+                .cast(pl.Int64),
+            ),
+            _blank_unless_charted(
+                plays,
+                "drive_yards_penalized",
+                pl.col("yards_penalized").sum().alias("drive_penalty_yards"),
+                pl.Float64,
+            ),
         )
         .rename({"posteam": "team"})
     )
@@ -621,17 +717,59 @@ def _join_touchdown_totals(
 def _passer_rating_expr(
     completions: str, attempts: str, yards: str, touchdowns: str, interceptions: str
 ) -> pl.Expr:
-    """Return the official NFL passer-rating formula as a Polars expression."""
-
-    def _clamp(component: pl.Expr) -> pl.Expr:
-        return component.clip(0.0, 2.375)
-
+    """Return the official NFL passer-rating formula over one row's passing totals."""
     attempts_col = pl.col(attempts)
-    a = _clamp(((pl.col(completions) / attempts_col) - 0.3) * 5.0)
-    b = _clamp(((pl.col(yards) / attempts_col) - 3.0) * 0.25)
-    c = _clamp((pl.col(touchdowns) / attempts_col) * 20.0)
-    d = _clamp(2.375 - ((pl.col(interceptions) / attempts_col) * 25.0))
-    return pl.when(attempts_col > 0).then((a + b + c + d) / 6.0 * 100.0).otherwise(None)
+    rating = passer_rating_from_rates(
+        pl.col(completions) / attempts_col,
+        pl.col(yards) / attempts_col,
+        pl.col(touchdowns) / attempts_col,
+        pl.col(interceptions) / attempts_col,
+    )
+    return pl.when(attempts_col > 0).then(rating).otherwise(None)
+
+
+def _difference(own: pl.Expr, allowed: pl.Expr) -> pl.Expr:
+    """Return a team's own rate minus the same rate allowed: a margin."""
+    return own - allowed
+
+
+@dataclass(frozen=True, slots=True)
+class FormulaRate:
+    """A rate built from other rates, so rows for several games rebuild it from their pooled values.
+
+    ``combine`` takes the ``inputs`` in order.
+    """
+
+    inputs: tuple[str, ...]
+    combine: Callable[..., pl.Expr]
+
+
+# Published rates that are a formula of other rates rather than one ratio: passer rating from its
+# four per-attempt rates (the defense's from hidden mirrors of the opponent's), and the margins.
+TEAM_FORMULA_RATES: dict[str, FormulaRate] = {
+    "team_passer_rating": FormulaRate(
+        (
+            "completion_pct",
+            "yards_per_attempt",
+            "passing_td_rate_per_attempt",
+            "int_rate_per_attempt",
+        ),
+        passer_rating_from_rates,
+    ),
+    "team_passer_rating_allowed": FormulaRate(
+        (
+            "completion_pct_allowed",
+            "yards_per_attempt_allowed",
+            "passing_td_rate_per_attempt_allowed",
+            "int_rate_per_attempt_allowed",
+        ),
+        passer_rating_from_rates,
+    ),
+    "epa_margin_per_play": FormulaRate(
+        ("epa_per_offensive_snap", "epa_per_defensive_snap_allowed"), _difference
+    ),
+    "success_rate_margin": FormulaRate(("success_rate", "success_rate_allowed"), _difference),
+}
 
 
 def _add_offense_ratios(frame: pl.DataFrame) -> pl.DataFrame:
@@ -677,51 +815,46 @@ def _add_offense_ratios(frame: pl.DataFrame) -> pl.DataFrame:
     ]
     frame = frame.with_columns(
         [
-            rate_expr(numerator, denominator, output)
+            expr
             for numerator, denominator, output in ratio_specs
             if {numerator, denominator}.issubset(frame.columns)
+            for expr in ratio_with_parts(output, numerator, denominator)
         ]
     )
 
+    pass_plays = pl.col("attempts") + pl.col("aux_sacks")
     derived = [
-        pl.when((pl.col("attempts") + pl.col("aux_sacks")) > 0)
-        .then(
-            (pl.col("aux_pass_yards") - pl.col("sack_yards_lost"))
-            / (pl.col("attempts") + pl.col("aux_sacks"))
-        )
-        .otherwise(None)
-        .alias("net_yards_per_attempt"),
-        pl.when((pl.col("attempts") + pl.col("aux_sacks")) > 0)
-        .then(
-            (
-                pl.col("aux_pass_yards")
-                + 20.0 * pl.col("aux_pass_tds")
-                - 45.0 * pl.col("aux_interceptions")
-                - pl.col("sack_yards_lost")
-            )
-            / (pl.col("attempts") + pl.col("aux_sacks"))
-        )
-        .otherwise(None)
-        .alias("adjusted_net_yards_per_attempt"),
+        *expression_ratio_with_parts(
+            "net_yards_per_attempt",
+            pl.col("aux_pass_yards") - pl.col("sack_yards_lost"),
+            pass_plays,
+        ),
+        *expression_ratio_with_parts(
+            "adjusted_net_yards_per_attempt",
+            pl.col("aux_pass_yards")
+            + 20.0 * pl.col("aux_pass_tds")
+            - 45.0 * pl.col("aux_interceptions")
+            - pl.col("sack_yards_lost"),
+            pass_plays,
+        ),
         _passer_rating_expr(
             "completions", "attempts", "aux_pass_yards", "aux_pass_tds", "aux_interceptions"
         ).alias("team_passer_rating"),
-        pl.when(pl.col("aux_off_snaps") > 0)
-        .then(
-            (pl.col("aux_explosive_passes") + pl.col("aux_explosive_rushes"))
-            / pl.col("aux_off_snaps")
-        )
-        .otherwise(None)
-        .alias("explosive_play_rate"),
-        pl.when(pl.col("dropbacks") > 0)
-        .then((pl.col("aux_sacks") + pl.col("aux_qb_hits")) / pl.col("dropbacks"))
-        .otherwise(None)
-        .alias("aux_pressure_rate"),
+        *expression_ratio_with_parts(
+            "explosive_play_rate",
+            pl.col("aux_explosive_passes") + pl.col("aux_explosive_rushes"),
+            pl.col("aux_off_snaps"),
+        ),
+        *expression_ratio_with_parts(
+            "aux_pressure_rate",
+            pl.col("aux_sacks") + pl.col("aux_qb_hits"),
+            pl.col("dropbacks"),
+        ),
     ]
     frame = frame.with_columns(derived)
 
     if "drives" in frame.columns:
-        frame = frame.with_columns(rate_expr("giveaways", "drives", "giveaways_per_drive"))
+        frame = frame.with_columns(ratio_with_parts("giveaways_per_drive", "giveaways", "drives"))
     return frame
 
 
@@ -736,8 +869,16 @@ def _join_defense_mirrors(frame: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
         for source, target in _DEFENSE_MIRROR_RENAMES.items()
         if source in frame.columns
     }
+    # A mirrored rate's numerator and denominator are the opponent's, so its defense pools too.
+    part_mirrors = [
+        pl.col(part(source)).alias(part(target))
+        for source, target in {**available, **_DEFENSE_MIRROR_PARTS_ONLY}.items()
+        for part in (numerator_column, denominator_column)
+        if part(source) in frame.columns
+    ]
     mirror_columns = [
         *(pl.col(source).alias(target) for source, target in available.items()),
+        *part_mirrors,
         (-pl.col("turnover_epa")).alias("takeaway_epa"),
     ]
     mirror = frame.select(

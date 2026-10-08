@@ -10,8 +10,15 @@ import polars as pl
 from nflreadpy.config import CacheMode, update_config
 
 from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
-from nfl_sos_ratings.qb_stats import compute_qb_game_stats_from_pbp
-from nfl_sos_ratings.team_stats import compute_team_game_stats_from_pbp
+from nfl_sos_ratings.pooled_rates import numerator_for_value
+from nfl_sos_ratings.qb_stats import (
+    CPOE_COLUMN,
+    CPOE_PARTS,
+    QB_PASSING_TOTALS,
+    compute_qb_game_stats_from_pbp,
+    qb_passer_rating_expr,
+)
+from nfl_sos_ratings.team_stats import add_per_snap_rates, compute_team_game_stats_from_pbp
 from nfl_sos_ratings.wp_bins import compute_qb_wp_bins, compute_team_wp_bins
 
 if TYPE_CHECKING:
@@ -69,6 +76,33 @@ _PBP_TEAM_COLUMNS = (
 )
 # Play-by-play yard lines, written "<team> <yards>" (LA 25), or 50 at midfield.
 _PBP_YARD_LINE_COLUMNS = ("yrdln", "drive_start_yard_line", "drive_end_yard_line", "end_yard_line")
+# The first season nflverse charts pass depth, air yards, and yards after catch, with their EPA
+# splits and expected yards after catch: before it they are null, apart from 1999's yards after
+# catch on 337 of 9,522 completions and pass depth on 344 of 16,651 passes.
+PASS_DEPTH_START_SEASON = 2006
+_BEFORE_PASS_DEPTH = range(PBP_START_SEASON, PASS_DEPTH_START_SEASON)
+# Seasons in which nflverse has no value for a play-by-play field, so every stat built on it is
+# unknown there: the loaders write nulls for them, including where nflverse writes 0. Play-by-play
+# records a QB hit on no play in 2003-2005 (before 2003 only on sacks), flags 0 to 22 dropbacks and
+# runs a season as no-huddle before 2003 (275 to 506 in 2003-2005, following the play text), and
+# has no drive penalty yards before 2001.
+_PBP_FIELD_GAPS: dict[str, range] = {
+    "air_yards": _BEFORE_PASS_DEPTH,
+    "air_epa": _BEFORE_PASS_DEPTH,
+    "pass_length": _BEFORE_PASS_DEPTH,
+    "yards_after_catch": _BEFORE_PASS_DEPTH,
+    "yac_epa": _BEFORE_PASS_DEPTH,
+    "xyac_mean_yardage": _BEFORE_PASS_DEPTH,
+    "qb_hit": range(2003, 2006),
+    "no_huddle": range(PBP_START_SEASON, 2003),
+    "drive_yards_penalized": range(PBP_START_SEASON, 2001),
+}
+# The same for weekly player stats, which credit every player with 0 tackles for loss in 2003-2011
+# (one in all of 2006) and 0 QB hits in 2003-2005.
+_PLAYER_STAT_GAPS: dict[str, range] = {
+    "def_tackles_for_loss": range(2003, 2012),
+    "def_qb_hits": range(2003, 2006),
+}
 
 
 def use_disk_cache_unless_configured(environ: Mapping[str, str] = os.environ) -> None:
@@ -343,7 +377,7 @@ def _override_qb_game_stats_with_official_weekly(
     if qb_df.is_empty() or official_qb_stats_df.is_empty():
         return qb_df
 
-    return (
+    overridden = (
         qb_df.join(
             official_qb_stats_df,
             on=["game_id", "week", "team_abbr", "qb_id"],
@@ -462,6 +496,8 @@ def _override_qb_game_stats_with_official_weekly(
             ]
         )
     )
+    # The official CPOE is weighed by the passer's plays with a CPOE when games are pooled.
+    return numerator_for_value(overridden, CPOE_COLUMN)
 
 
 def _normalize_team_abbreviations(df: pl.DataFrame, columns: list[str]) -> pl.DataFrame:
@@ -507,6 +543,18 @@ def _normalize_pbp_teams(df: pl.DataFrame) -> pl.DataFrame:
     """Normalize every team code in play-by-play: the team columns and the yard-line text."""
     df = _normalize_team_abbreviations(df, list(_PBP_TEAM_COLUMNS))
     return _normalize_yard_line_teams(df, list(_PBP_YARD_LINE_COLUMNS))
+
+
+def _blank_fields_missing_in_season(
+    df: pl.DataFrame, season: int, gaps: Mapping[str, range]
+) -> pl.DataFrame:
+    """Return ``df`` with every field the season's source lacks (per ``gaps``) set to null."""
+    exprs = [
+        pl.lit(None, dtype=df.schema[column]).alias(column)
+        for column, seasons in gaps.items()
+        if column in df.columns and season in seasons
+    ]
+    return df.with_columns(exprs) if exprs else df
 
 
 def _filter_regular_season(df: pl.DataFrame) -> pl.DataFrame:
@@ -559,9 +607,13 @@ def load_espn_qbr(
 
 
 def load_pbp_data(season: int) -> pl.DataFrame:
-    """Load regular-season play-by-play data with normalized team abbreviations."""
+    """Load regular-season play-by-play data with normalized team abbreviations.
+
+    Fields nflverse lacks in the season are null (``_PBP_FIELD_GAPS``).
+    """
     df = nfl.load_pbp(seasons=season)
     df = _filter_regular_season(df)
+    df = _blank_fields_missing_in_season(df, season, _PBP_FIELD_GAPS)
     return _normalize_pbp_teams(df)
 
 
@@ -592,9 +644,13 @@ def load_playoff_pbp_data(season: int) -> pl.DataFrame:
 
 
 def load_weekly_player_stats(season: int) -> pl.DataFrame:
-    """Load regular-season weekly player stats with normalized team abbreviations."""
+    """Load regular-season weekly player stats with normalized team abbreviations.
+
+    Stats nflverse credits to no one in the season are null (``_PLAYER_STAT_GAPS``).
+    """
     df = nfl.load_player_stats(seasons=season, summary_level="week")
     df = _filter_regular_season(df)
+    df = _blank_fields_missing_in_season(df, season, _PLAYER_STAT_GAPS)
     return _normalize_team_abbreviations(df, ["team", "opponent_team"])
 
 
@@ -744,7 +800,7 @@ def _override_team_game_stats_with_official_weekly(
         pl.col("official_passing_cpoe").alias("official_passing_cpoe_allowed"),
     )
 
-    return (
+    overridden = (
         team_df.join(official_offense, on=["game_id", "week", "team", "opponent_team"], how="left")
         .join(official_allowed, on=["game_id", "week", "team", "opponent_team"], how="left")
         .with_columns(
@@ -831,96 +887,6 @@ def _override_team_game_stats_with_official_weekly(
                 [pl.col("official_passing_cpoe_allowed"), pl.col("passing_cpoe_allowed")]
             ).alias("passing_cpoe_allowed"),
         )
-        .with_columns(
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("total_yards") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("total_yards_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("passing_yards") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("passing_yards_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("rushing_yards") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_yards_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("passing_epa") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("passing_epa_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("rushing_epa") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_epa_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("passing_tds") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("passing_tds_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("rushing_tds") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_tds_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("sacks_suffered") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("sacks_suffered_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("passing_interceptions") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("passing_interceptions_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("sack_fumbles_lost") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("sack_fumbles_lost_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("rushing_fumbles_lost") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_fumbles_lost_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("passing_first_downs") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("passing_first_downs_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("rushing_first_downs") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_first_downs_per_offensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("total_yards_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("total_yards_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("passing_yards_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("passing_yards_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("rushing_yards_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_yards_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("passing_epa_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("passing_epa_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("rushing_epa_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_epa_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("passing_tds_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("passing_tds_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("rushing_tds_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_tds_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("passing_first_downs_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("passing_first_downs_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("rushing_first_downs_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_first_downs_allowed_per_defensive_snap"),
-        )
         .drop(
             [
                 "official_passing_yards",
@@ -950,6 +916,11 @@ def _override_team_game_stats_with_official_weekly(
             ]
         )
     )
+    # The per-snap rates divide the official totals now, with their parts beside them, and the
+    # official CPOE is weighed by the plays behind it.
+    for cpoe in ("passing_cpoe", "passing_cpoe_allowed"):
+        overridden = numerator_for_value(overridden, cpoe)
+    return add_per_snap_rates(overridden)
 
 
 def load_weekly_team_stats(season: int) -> pl.DataFrame:
@@ -1024,27 +995,8 @@ def _build_qb_stats(
     official_qb_stats_df = _load_official_weekly_qb_stats(weekly_player_stats_df, qb_identity_df)
     qb_df = _override_qb_game_stats_with_official_weekly(qb_df, official_qb_stats_df)
 
-    attempts = pl.col("qb_attempts").cast(pl.Float64)
-    completions = pl.col("qb_completions").cast(pl.Float64)
-    passing_yards = pl.col("qb_pass_yards").cast(pl.Float64)
-    touchdowns = pl.col("qb_pass_touchdowns").cast(pl.Float64)
-    interceptions = pl.col("qb_interceptions").cast(pl.Float64)
-
-    passer_rating = (
-        pl.when(attempts > 0)
-        .then(
-            (
-                (
-                    (((completions / attempts) - 0.3) * 5).clip(0.0, 2.375)
-                    + (((passing_yards / attempts) - 3.0) * 0.25).clip(0.0, 2.375)
-                    + (((touchdowns / attempts) * 20.0).clip(0.0, 2.375))
-                    + ((2.375 - ((interceptions / attempts) * 25.0)).clip(0.0, 2.375))
-                )
-                / 6.0
-                * 100.0
-            ).round(1)
-        )
-        .otherwise(None)
+    passer_rating = qb_passer_rating_expr(
+        *(pl.col(column).cast(pl.Float64) for column in QB_PASSING_TOTALS)
     )
 
     return qb_df.with_columns(
@@ -1076,7 +1028,7 @@ def _build_qb_stats(
             "qb_any_a",
             "qb_fourth_quarter_comeback",
             "qb_game_winning_drive",
-            "qb_completion_percentage_above_expectation",
+            *CPOE_PARTS,
             "qb_passer_rating",
         ]
         + [

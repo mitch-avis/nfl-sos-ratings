@@ -1,9 +1,18 @@
 """Tests for nfl_sos_ratings.qb_stats."""
 
+from pathlib import Path
+
 import polars as pl
 import pytest
 
-from nfl_sos_ratings import qb_stats
+from nfl_sos_ratings import data_loader, qb_stats
+from nfl_sos_ratings.metrics import get_registry
+from nfl_sos_ratings.pooled_rates import (
+    denominator_column,
+    is_rate_part,
+    numerator_column,
+    rate_parts,
+)
 
 
 def test_compute_qb_season_stats_includes_volume_and_eligibility() -> None:
@@ -449,7 +458,11 @@ def test_compute_qb_game_volumes_from_pbp_combines_dropbacks_and_snap_counts() -
 
 
 def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
-    """Verify PBP-derived QB game stats carry dropbacks, snaps, and core passing metrics."""
+    """Verify PBP-derived QB game stats carry dropbacks, snaps, and core passing metrics.
+
+    CPOE carries its hidden parts: the CPOE summed over the passer's plays that have one, and
+    their count.
+    """
     # Arrange
     pbp = pl.DataFrame(
         {
@@ -524,6 +537,8 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": -6.0,
+            numerator_column(qb_stats.CPOE_COLUMN): -6.0,
+            denominator_column(qb_stats.CPOE_COLUMN): 1,
         },
         {
             "game_id": "2025_01_DEN_KC",
@@ -561,6 +576,8 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": None,
+            numerator_column(qb_stats.CPOE_COLUMN): None,
+            denominator_column(qb_stats.CPOE_COLUMN): None,
         },
         {
             "game_id": "2025_01_DEN_KC",
@@ -598,6 +615,8 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": 1.0,
+            numerator_column(qb_stats.CPOE_COLUMN): 2.0,
+            denominator_column(qb_stats.CPOE_COLUMN): 2,
         },
     ]
 
@@ -1260,3 +1279,245 @@ def test_compute_qb_game_stats_from_pbp_keeps_one_row_when_a_passers_name_varies
     assert result.select("qb_id", "qb_attempts").to_dicts() == [
         {"qb_id": "GSIS_P", "qb_attempts": 3}
     ]
+
+
+def _two_uneven_games() -> pl.DataFrame:
+    """Return one passer's 10-attempt and 40-attempt games, with CPOE's hidden parts.
+
+    Game 1: 9 of 10, 100 yards, 1 TD, CPOE +5.0 over 8 plays with a completion probability.
+    Game 2: 20 of 40, 300 yards, 1 TD, 3 INT, CPOE -1.25 over 32 such plays.
+    """
+    cpoe = "qb_completion_percentage_above_expectation"
+    return pl.DataFrame(
+        {
+            "game_id": ["g1", "g2"],
+            "week": [1, 2],
+            "team_abbr": ["DEN", "DEN"],
+            "qb_id": ["qb-1", "qb-1"],
+            "qb_name": ["John Doe", "John Doe"],
+            "qb_dropbacks": [11, 42],
+            "qb_attempts": [10, 40],
+            "qb_completions": [9, 20],
+            "qb_pass_yards": [100.0, 300.0],
+            "qb_pass_touchdowns": [1, 1],
+            "qb_interceptions": [0, 3],
+            "qb_sacks": [1, 2],
+            "qb_sack_yards_lost": [5.0, 12.0],
+            "qb_passing_epa": [6.0, -8.0],
+            cpoe: [5.0, -1.25],
+            "qb_passer_rating": [135.4, 51.0],
+            numerator_column(cpoe): [40.0, -40.0],
+            denominator_column(cpoe): [8, 32],
+        }
+    )
+
+
+def test_compute_qb_season_stats_rates_the_season_totals_not_the_mean_game() -> None:
+    # Arrange
+    qb_df = _two_uneven_games()
+
+    # Act
+    row = qb_stats.compute_qb_season_stats(qb_df).row(0, named=True)
+
+    # Assert
+    # Passer rating of 29 of 50, 400 yards, 2 TD, 3 INT, not the mean of 135.4 and 51.0.
+    completion = min(max((29 / 50 - 0.3) * 5, 0.0), 2.375)
+    yards = min(max((400 / 50 - 3.0) * 0.25, 0.0), 2.375)
+    touchdowns = min(max(2 / 50 * 20, 0.0), 2.375)
+    interceptions = min(max(2.375 - 3 / 50 * 25, 0.0), 2.375)
+    expected = round((completion + yards + touchdowns + interceptions) / 6 * 100, 1)
+    assert row["qb_passer_rating"] == pytest.approx(expected)
+    # CPOE over all 40 plays with a completion probability: (40 - 40) / 40.
+    assert row["qb_completion_percentage_above_expectation"] == pytest.approx(0.0)
+    assert not [column for column in row if column.startswith("_")]
+
+
+# Passing lines whose passer rating is exactly a tie at one decimal, with the rating to show:
+# 1999 Testaverde (78.75) and the 1999 Bills passers IND faced (82.75) compute just below the tie in
+# floating point, depending on how many rows Polars evaluates together; 81.25 is exact, where
+# half-to-even rounding would give 81.2.
+_RATING_TIES = (
+    ((10, 15, 96, 1, 1), 78.8),
+    ((276, 475, 3116, 17, 8), 82.8),
+    ((1, 4, 14, 1, 0), 81.3),
+)
+_PASSING_NAMES = ("completions", "attempts", "yards", "touchdowns", "interceptions")
+
+
+def test_qb_passer_rating_rounds_an_exact_tie_up() -> None:
+    # Arrange
+    passing = pl.DataFrame(
+        [totals for totals, _ in _RATING_TIES], schema=list(_PASSING_NAMES), orient="row"
+    ).cast(pl.Float64)
+
+    # Act
+    result = passing.select(
+        qb_stats.qb_passer_rating_expr(*(pl.col(name) for name in _PASSING_NAMES))
+    )
+
+    # Assert
+    assert result.to_series().to_list() == [rating for _, rating in _RATING_TIES]
+
+
+def test_compute_qb_season_stats_rounds_a_season_rating_tie_up() -> None:
+    # Arrange
+    games = [
+        {
+            "game_id": f"g{index}-{half}",
+            "week": half + 1,
+            "team_abbr": "NYJ",
+            "qb_id": f"qb-{index}",
+            "qb_name": f"Passer {index}",
+            # Each passer's line, split over two games.
+            **{
+                f"qb_{name}": value / 2 if half else value - value / 2
+                for name, value in zip(
+                    ("completions", "attempts", "pass_yards", "pass_touchdowns", "interceptions"),
+                    totals,
+                    strict=True,
+                )
+            },
+        }
+        for index, (totals, _) in enumerate(_RATING_TIES)
+        for half in (0, 1)
+    ]
+
+    # Act
+    season = qb_stats.compute_qb_season_stats(pl.DataFrame(games)).sort("qb_id")
+
+    # Assert
+    assert season.get_column("qb_passer_rating").to_list() == [rating for _, rating in _RATING_TIES]
+
+
+def _qb_game_rows() -> pl.DataFrame:
+    """Return one passer's game rows as the loader builds them, official weekly stats included.
+
+    The play-by-play has a completion, an incompletion, a sack, a scramble, a designed run, and a
+    kneel-down, so every passing and rushing rate is built.
+    """
+    play = {
+        "game_id": "2025_01_DEN_KC",
+        "season_type": "REG",
+        "week": 1,
+        "posteam": "DEN",
+        "passer_player_id": "00-0031234",
+        "passer_player_name": "John Doe",
+        "rusher_player_id": None,
+        "rusher_player_name": None,
+        "qb_dropback": 1,
+        "pass": 1,
+        "rush": 0,
+        "qb_scramble": 0,
+        "qb_kneel": 0,
+        "two_point_attempt": 0,
+        "complete_pass": 0,
+        "passing_yards": 0.0,
+        "rushing_yards": 0.0,
+        "yards_gained": 0.0,
+        "pass_touchdown": 0,
+        "interception": 0,
+        "sack": 0,
+        "fumble_lost": 0,
+        "epa": 0.0,
+        "qb_epa": 0.0,
+        "cpoe": None,
+    }
+    runner = {
+        "passer_player_id": None,
+        "passer_player_name": None,
+        "rusher_player_id": "00-0031234",
+        "rusher_player_name": "John Doe",
+    }
+    plays = [
+        {**play, "complete_pass": 1, "passing_yards": 12.0, "qb_epa": 0.9, "cpoe": 20.0},
+        {**play, "qb_epa": -0.5, "cpoe": -30.0},
+        {**play, "sack": 1, "yards_gained": -6.0, "qb_epa": -1.5},
+        {**play, **runner, "qb_scramble": 1, "rushing_yards": 9.0, "epa": 0.8},
+        {**play, **runner, "qb_dropback": 0, "pass": 0, "rush": 1, "rushing_yards": 4.0},
+        {**play, **runner, "qb_dropback": 0, "pass": 0, "qb_kneel": 1, "rushing_yards": -1.0},
+    ]
+    player_stats = pl.DataFrame(
+        {
+            "season_type": ["REG"],
+            "week": [1],
+            "game_id": ["2025_01_DEN_KC"],
+            "team": ["DEN"],
+            "player_id": ["00-0031234"],
+            "position": ["QB"],
+            "attempts": [2],
+            "completions": [1],
+            "passing_yards": [12.0],
+            "passing_tds": [0],
+            "passing_interceptions": [0],
+            "sacks_suffered": [1],
+            "sack_yards_lost": [-6.0],
+            "passing_epa": [-1.1],
+            "passing_cpoe": [-5.0],
+            "carries": [3],
+            "rushing_yards": [12.0],
+            "rushing_epa": [0.6],
+        }
+    )
+    return data_loader._build_qb_stats(
+        pl.DataFrame(plays), pl.DataFrame(), pl.DataFrame(), player_stats
+    )
+
+
+def _qb_rate_columns(columns: list[str]) -> list[str]:
+    """Return the QB game columns the registry calls a rate or a mean."""
+    registry = get_registry()
+    return [
+        column
+        for column in columns
+        if (resolved := registry.resolve_column(column)) is not None
+        and not is_rate_part(column)
+        and resolved.base.shape in {"rate", "avg"}
+    ]
+
+
+def test_every_qb_game_rate_is_rebuilt_over_games() -> None:
+    # Arrange
+    games = _qb_game_rows()
+
+    # Act
+    with_parts = set(rate_parts(games.columns))
+
+    # Assert
+    rates = _qb_rate_columns(games.columns)
+    assert rates
+    assert [
+        rate for rate in rates if rate not in qb_stats.QB_RATES and rate not in with_parts
+    ] == []
+
+
+@pytest.mark.published_data
+def test_the_qb_rate_guard_builds_every_rate_the_published_game_logs_carry() -> None:
+    # Arrange
+    files = sorted(Path("data").glob("*_qb_game_logs.parquet"))
+    built = set(_qb_rate_columns(_qb_game_rows().columns))
+    # The game result joined onto QB game logs; a season row takes its share of games.
+    from_team_rows = {"win_value"}
+
+    # Act
+    missing = {
+        path.name: sorted(
+            set(_qb_rate_columns(list(pl.read_parquet_schema(path)))) - built - from_team_rows
+        )
+        for path in files
+    }
+
+    # Assert
+    assert files
+    assert {name: columns for name, columns in missing.items() if columns} == {}
+
+
+def test_every_qb_stat_rebuilt_from_totals_for_a_defense_is_a_rate() -> None:
+    """Verify QB_RATES holds rates only, as the QB opponent profiles publish them per game."""
+    # Arrange
+    registry = get_registry()
+
+    # Act
+    shapes = {name: registry.metrics[name].shape for name in qb_stats.QB_RATES}
+
+    # Assert
+    assert {name: shape for name, shape in shapes.items() if shape not in {"rate", "avg"}} == {}
