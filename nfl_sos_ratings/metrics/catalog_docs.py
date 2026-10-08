@@ -47,7 +47,7 @@ _INTRO = (
     "Every column below is regular season only. Data files and the analyst app add a prefix or "
     "suffix to these base names: `opp_` (the team's head-to-head-excluded opponent profile), "
     "`qopp_` (what the defenses a quarterback faced allowed to other passers), `_per_game`, "
-    "`_total`, per-play denominators such as `_per_offensive_snap` and `_per_dropback`, "
+    "`_total`, the per-snap denominators `_per_offensive_snap` and `_per_defensive_snap`, "
     "rank-range percentiles `_q025` through `_q975`, and, in the analyst app's garbage-time "
     "filter view, `filtered_` (refit on the plays the filter keeps) and `_change` (filtered "
     "minus unfiltered). "

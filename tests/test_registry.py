@@ -8,14 +8,23 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings.metrics import CategoryDef, MetricDef, RegistryValidationError, get_registry
-from nfl_sos_ratings.metrics.registry import MetricRegistry
+from nfl_sos_ratings.metrics.registry import (
+    DEFAULT_PREFIX_RULES,
+    DEFAULT_SUFFIX_RULES,
+    MetricRegistry,
+)
+from nfl_sos_ratings.rating_ranges import RANGE_QUANTILES, quantile_suffix
 
 if TYPE_CHECKING:
-    from nfl_sos_ratings.metrics.schema import Entity
+    from collections.abc import Sequence
 
-# A representative sample of every column shape the pipeline writes. The full guarantee is
-# enforced at write time by main._write_data_file and by the published-data test below.
+    from nfl_sos_ratings.metrics.schema import Entity, PrefixRule, SuffixRule
+
+# A representative sample of every column shape the pipeline writes or the API serves, with at
+# least one column for every affix rule. The full guarantee is enforced at write time by
+# main._write_data_file and by the published-data test below.
 _OUTPUT_COLUMN_SAMPLES = (
+    *(f"team_rank{quantile_suffix(level)}" for level in RANGE_QUANTILES),
     "team",
     "game_id",
     "is_home",
@@ -480,3 +489,37 @@ def test_column_metadata_marks_longest_plays_as_maxima(
 
     # Assert
     assert metadata[column]["shape"] == "max"
+
+
+def _registry_with_rules(
+    registry: MetricRegistry,
+    prefix_rules: Sequence[PrefixRule],
+    suffix_rules: Sequence[SuffixRule],
+) -> MetricRegistry:
+    """Return the project's metrics and categories under other affix rules."""
+    return MetricRegistry(
+        list(registry.metrics.values()),
+        [*registry.categories("team"), *registry.categories("qb")],
+        prefix_rules=prefix_rules,
+        suffix_rules=suffix_rules,
+    )
+
+
+@pytest.mark.parametrize(
+    "rule", DEFAULT_SUFFIX_RULES, ids=[rule.suffix for rule in DEFAULT_SUFFIX_RULES]
+)
+def test_every_suffix_rule_resolves_a_real_column(
+    registry: MetricRegistry, rule: SuffixRule
+) -> None:
+    """A rule no real column needs would only describe, and admit, columns that do not exist."""
+    # Arrange
+    others = [other for other in DEFAULT_SUFFIX_RULES if other is not rule]
+    without_rule = _registry_with_rules(registry, DEFAULT_PREFIX_RULES, others)
+
+    # Act
+    needing_rule = [
+        column for column in _OUTPUT_COLUMN_SAMPLES if without_rule.resolve_column(column) is None
+    ]
+
+    # Assert
+    assert needing_rule != []

@@ -94,6 +94,8 @@ DEFAULT_PREFIX_RULES: tuple[PrefixRule, ...] = (
     ),
 )
 
+# Suffixes the pipeline and the API add to a base metric. A stat with its own per-play denominator
+# (qb_epa_per_dropback, epa_per_carry, points_per_drive) is a metric of its own and needs no rule.
 DEFAULT_SUFFIX_RULES: tuple[SuffixRule, ...] = (
     SuffixRule(
         suffix="_per_game",
@@ -116,30 +118,6 @@ DEFAULT_SUFFIX_RULES: tuple[SuffixRule, ...] = (
         description_note=(
             "Shown per defensive snap, so teams with different play volumes compare fairly."
         ),
-    ),
-    SuffixRule(
-        suffix="_per_dropback",
-        label_template="{label}/DB",
-        full_name_template="{full_name} Per Dropback",
-        description_note="Shown per dropback (pass attempts plus sacks plus scrambles).",
-    ),
-    SuffixRule(
-        suffix="_per_attempt",
-        label_template="{label}/Att",
-        full_name_template="{full_name} Per Attempt",
-        description_note="Shown per official pass attempt.",
-    ),
-    SuffixRule(
-        suffix="_per_carry",
-        label_template="{label}/Carry",
-        full_name_template="{full_name} Per Carry",
-        description_note="Shown per rushing attempt.",
-    ),
-    SuffixRule(
-        suffix="_per_drive",
-        label_template="{label}/Drive",
-        full_name_template="{full_name} Per Drive",
-        description_note="Shown per offensive possession.",
     ),
     SuffixRule(
         suffix="_change",
