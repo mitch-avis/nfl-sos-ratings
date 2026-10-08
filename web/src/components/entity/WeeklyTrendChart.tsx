@@ -15,28 +15,36 @@ import { ChartTooltipCard } from '@/components/common/ChartTooltip'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatValue } from '@/domain/format'
 import { getMetricMetadata } from '@/domain/metricMetadata'
-import { buildTrendPoints, meanReference, type TrendPoint, type TrendReference } from '@/domain/trend'
+import {
+  buildTrendPoints,
+  meanReference,
+  niceTicks,
+  trendColumns,
+  type TrendPoint,
+  type TrendReference,
+} from '@/domain/trend'
 import { useHasHover } from '@/hooks/use-has-hover'
 
 /**
- * A line chart of one metric by week. The metric picker offers the numeric `columns`.
+ * A line chart of one metric by week, straight segments between games. The metric picker offers the
+ * numeric `columns`, with any `preferred` column that has values first (and shown first).
  *
  * `reference` is the dashed line: `'mean'` (the default) draws the mean of the points shown, a
- * `TrendReference` draws a fixed value, and `null` draws none.
+ * `TrendReference` draws a fixed value, and `null` draws none. The value axis uses round ticks that
+ * cover the points and the line.
  */
 export function WeeklyTrendChart({
   rows,
   columns,
+  preferred = [],
   reference = 'mean',
 }: {
   rows: Array<Record<string, RowValue>>
   columns: string[]
+  preferred?: readonly string[]
   reference?: 'mean' | TrendReference | null
 }) {
-  const numericColumns = useMemo(
-    () => columns.filter((column) => column !== 'week' && rows.some((row) => typeof row[column] === 'number')),
-    [columns, rows],
-  )
+  const numericColumns = useMemo(() => trendColumns(rows, columns, preferred), [columns, preferred, rows])
   const [picked, setPicked] = useState<string | null>(null)
   const hasHover = useHasHover()
   const column = picked !== null && numericColumns.includes(picked) ? picked : numericColumns[0]
@@ -45,6 +53,8 @@ export function WeeklyTrendChart({
 
   const line = reference === 'mean' ? meanReference(points) : reference
   const label = getMetricMetadata(column).label
+  const values = [...points.map((point) => point.value), ...(line ? [line.value] : [])]
+  const ticks = niceTicks(Math.min(...values), Math.max(...values))
 
   return (
     <div className="flex flex-col gap-2">
@@ -68,7 +78,14 @@ export function WeeklyTrendChart({
           <LineChart data={points} margin={{ top: 8, right: 16, bottom: 4, left: 4 }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
             <XAxis dataKey="week" tickLine={false} className="text-xs" />
-            <YAxis tickLine={false} width={56} className="text-xs" tickFormatter={(value: number) => formatValue(value)} />
+            <YAxis
+              tickLine={false}
+              width={56}
+              className="text-xs"
+              domain={[ticks[0], ticks.at(-1) ?? ticks[0]]}
+              ticks={ticks}
+              tickFormatter={(value: number) => formatValue(value)}
+            />
             <Tooltip
               trigger={hasHover ? 'hover' : 'click'}
               content={({ active, payload }) => {
@@ -83,7 +100,7 @@ export function WeeklyTrendChart({
               }}
             />
             {line ? <ReferenceLine y={line.value} stroke="var(--muted-foreground)" strokeDasharray="4 4" /> : null}
-            <Line type="monotone" dataKey="value" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
+            <Line type="linear" dataKey="value" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
           </LineChart>
         </ResponsiveContainer>
       </div>

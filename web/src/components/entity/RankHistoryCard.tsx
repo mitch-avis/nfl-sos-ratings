@@ -51,7 +51,23 @@ export function RankHistoryCard({
       <ErrorState error={query.error} title="Could not load the rank by week" />
     )
   }
-  if (points.length === 0) return null
+  if (!query.data) return null
+  if (points.length === 0) {
+    return (
+      <Card role="region" aria-labelledby={titleId} className="gap-2">
+        <CardHeader>
+          <CardTitle id={titleId} className="text-base">
+            Rank by week
+          </CardTitle>
+          <CardDescription>
+            The weekly rank chart starts once every team has played three games: with fewer, a
+            redraw of the games can only repeat or drop a team&apos;s games, so the ranges would look
+            more certain than they are.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
   const byWeek = new Map(points.map((point) => [point.week, point]))
   const axisMax = Math.max(count, rankAxisMax(points))
 
@@ -64,9 +80,9 @@ export function RankHistoryCard({
         <CardDescription>
           The rank when the {season} games through each week are redrawn at random and the ratings
           refit, rank 1 at the top. The line is the median redraw, the darker band the middle 50%,
-          and the lighter band the middle 95%. In the first weeks, with one or two games per team, a
-          redraw can only repeat or drop a team&apos;s games, never change their results, so those
-          bands understate the uncertainty.
+          and the lighter band the middle 95%. It starts once every team has played three games: with
+          fewer, a redraw can only repeat or drop a team&apos;s games, never change their results, so
+          the bands would understate the uncertainty.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
@@ -79,7 +95,7 @@ export function RankHistoryCard({
               <YAxis
                 reversed
                 domain={[1, axisMax]}
-                ticks={rankTicks(axisMax)}
+                ticks={rankTicks(axisMax, axisMax > 20 ? 8 : 5)}
                 interval={0}
                 allowDecimals={false}
                 tickLine={false}

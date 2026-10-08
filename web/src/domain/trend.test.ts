@@ -1,6 +1,6 @@
 import { assert, test } from 'vitest'
 
-import { meanReference } from './trend'
+import { meanReference, niceTicks, trendColumns } from './trend'
 
 test('meanReference draws the line at the mean of the points shown', () => {
   // Arrange
@@ -23,4 +23,46 @@ test('meanReference draws no line without points', () => {
 
   // Assert
   assert.isNull(reference)
+})
+
+test('niceTicks covers the values with round steps', () => {
+  // Act
+  const ticks = [niceTicks(-3.46, 0), niceTicks(0.12, 0.48), niceTicks(150, 290)]
+
+  // Assert
+  assert.deepEqual(ticks, [
+    [-4, -3, -2, -1, 0],
+    [0.1, 0.2, 0.3, 0.4, 0.5],
+    [150, 200, 250, 300],
+  ])
+})
+
+test('niceTicks spreads a flat line around its value', () => {
+  // Act
+  const ticks = niceTicks(2, 2)
+
+  // Assert
+  assert.deepEqual(ticks, [1, 1.5, 2, 2.5, 3])
+})
+
+test('trendColumns puts the preferred column first when the rows have it', () => {
+  // Arrange
+  const rows = [{ week: 1, passing_yards: 210, epa_margin_per_play: 0.12 }]
+
+  // Act
+  const columns = trendColumns(rows, ['passing_yards'], ['epa_margin_per_play', 'point_margin'])
+
+  // Assert
+  assert.deepEqual(columns, ['epa_margin_per_play', 'passing_yards'])
+})
+
+test('trendColumns keeps the view order when no preferred column has values', () => {
+  // Arrange
+  const rows = [{ week: 1, passing_yards: 210, rushing_yards: 95 }]
+
+  // Act
+  const columns = trendColumns(rows, ['passing_yards', 'rushing_yards', 'week'], ['epa_margin_per_play'])
+
+  // Assert
+  assert.deepEqual(columns, ['passing_yards', 'rushing_yards'])
 })

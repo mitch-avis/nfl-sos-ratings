@@ -173,12 +173,13 @@ export function rankCenter(rank: number, count: number): number {
 }
 
 /**
- * Axis ticks for `count` ranks: 1, then every fifth rank, then the last rank. A step within three
- * ranks of the last is dropped so the labels stay apart on a phone-width track.
+ * Axis ticks for `count` ranks: 1, then every `step`-th rank (fifth by default; a short axis takes a
+ * wider step), then the last rank. A step within three ranks of the last is dropped so the labels
+ * stay apart on a phone-width track.
  */
-export function rankTicks(count: number): number[] {
+export function rankTicks(count: number, step = 5): number[] {
   const ticks = [1]
-  for (let rank = 5; rank < count; rank += 5) {
+  for (let rank = step; rank < count; rank += step) {
     if (count - rank >= 4) ticks.push(rank)
   }
   if (count > 1) ticks.push(count)

@@ -187,6 +187,14 @@ test('rankTicks steps by five and ends at the last rank', () => {
   assert.deepEqual(ticks, [1, 5, 10, 15, 20, 25, 30, 37])
 })
 
+test('rankTicks takes a wider step for a short axis', () => {
+  // Act
+  const ticks = rankTicks(32, 8)
+
+  // Assert
+  assert.deepEqual(ticks, [1, 8, 16, 24, 32])
+})
+
 test('rankTicks drops a step within three ranks of the last rank', () => {
   // Act
   const ticks = rankTicks(32)
