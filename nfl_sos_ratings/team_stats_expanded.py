@@ -34,12 +34,19 @@ _EXPLOSIVE_PASS_YARDS = 20
 _EXPLOSIVE_RUSH_YARDS = 10
 # Drives that start at or inside the offense's own 25 face a long field.
 _LONG_FIELD_START_YARDLINE = 25
+# nflverse play-by-play names the intended receiver on most incomplete passes (the rest are
+# throwaways, spikes, and batted balls), except in 2003-2008, where it names almost none. Below
+# this share of incompletions with a named receiver, a season's targets are unknown.
+_MIN_INCOMPLETION_RECEIVER_SHARE = 0.5
+_RECEIVER_COLUMNS = ("receiver_player_id", "receiver_player_name")
 
 # Offense-row column -> opponent's defense-row column.
 _DEFENSE_MIRROR_RENAMES = {
     "attempts": "attempts_faced",
     "completions": "completions_allowed",
     "completion_pct": "completion_pct_allowed",
+    "targets": "targets_faced",
+    "catch_rate": "catch_rate_allowed",
     "net_passing_yards": "net_passing_yards_allowed",
     "passing_air_yards": "air_yards_allowed",
     "passing_yards_after_catch": "yac_allowed",
@@ -167,12 +174,21 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     def _count(condition: pl.Expr, name: str) -> pl.Expr:
         return condition.cast(pl.Int64).sum().alias(name)
 
+    # Targets are official attempts thrown to a named receiver (not throwaways or spikes).
+    receiver_named = _target_receiver_expr(plays)
+    targets = (
+        pl.lit(None, dtype=pl.Int64).alias("targets")
+        if receiver_named is None
+        else _count(is_pass_attempt & ~is_sack & ~is_two_point & receiver_named, "targets")
+    )
+
     return (
         plays.group_by([*keys, "posteam", "defteam"])
         .agg(
             # Passing volume (official attempts exclude sacks and two-point tries).
             _count(is_pass_attempt & ~is_sack & ~is_two_point, "attempts"),
             _count(is_complete & ~is_two_point, "completions"),
+            targets,
             _count(is_dropback, "dropbacks"),
             (-yards).filter(is_sack).sum().fill_null(0.0).alias("sack_yards_lost"),
             _count(value_expr(columns, "qb_scramble") > 0, "scrambles"),
@@ -376,6 +392,33 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
         )
         .rename({"posteam": "team", "defteam": "opponent_team"})
     )
+
+
+def _target_receiver_expr(plays: pl.DataFrame) -> pl.Expr | None:
+    """Return a named-receiver flag for counting targets, or None when targets are unknown.
+
+    ``plays`` is one season's play-by-play. Completions always name their receiver, so the test
+    is how many incomplete passes do: where almost none do, counted targets would be little more
+    than completions, so they stay unknown, as they do without receiver columns.
+    """
+    columns = plays.columns
+    present = [pl.col(column) for column in _RECEIVER_COLUMNS if column in columns]
+    if not present:
+        return None
+    receiver_named = pl.coalesce(present).is_not_null()
+    named_share = (
+        plays.filter(
+            (value_expr(columns, "pass_attempt") > 0)
+            & (value_expr(columns, "incomplete_pass") > 0)
+            & ~(value_expr(columns, "sack") > 0)
+            & ~(value_expr(columns, "two_point_attempt") > 0)
+        )
+        .select(receiver_named.mean())
+        .item()
+    )
+    if named_share is not None and named_share < _MIN_INCOMPLETION_RECEIVER_SHARE:
+        return None
+    return receiver_named
 
 
 def _aggregate_series_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame | None:
@@ -585,6 +628,7 @@ def _add_offense_ratios(frame: pl.DataFrame) -> pl.DataFrame:
 
     ratio_specs = [
         ("completions", "attempts", "completion_pct"),
+        ("completions", "targets", "catch_rate"),
         ("aux_sacks", "dropbacks", "sack_rate_per_dropback"),
         ("passing_air_yards", "attempts", "air_yards_per_attempt"),
         ("passing_yards_after_catch", "completions", "yac_per_completion"),

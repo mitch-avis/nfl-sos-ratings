@@ -176,7 +176,7 @@ Everything the team did with the ball.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `targets` | Targets | count | - | 1999 | PBP +TS | Team pass attempts viewed from the receiving side. At team level this is the same number as pass attempts, shown here for a receiving-flavored view. Same value as `attempts`. |
+| `targets` | Targets | count | - | 1999 | PBP +TS | Pass attempts thrown to an intended receiver. Throwaways and spikes are attempts but not targets. Blank in 2003-2008, when nflverse play-by-play names the intended receiver on almost no incomplete passes. |
 | `receptions` | Receptions | count | - | 1999 | PBP +TS | Team catches — the same number as completions, receiving-side view. Same value as `completions`. |
 | `receiving_yards` | Rec Yds | count | - | 1999 | PBP +TS | Team receiving yards. At team level this equals gross passing yards exactly (verified against nflverse data). Same value as `passing_yards`. |
 | `receiving_tds` | Rec TDs | count | - | 1999 | PBP +TS | Touchdown catches — the same number as passing touchdowns. Same value as `passing_tds`. |
@@ -185,7 +185,7 @@ Everything the team did with the ball.
 | `receiving_first_downs` | Rec 1Ds | count | - | 1999 | PBP +TS | First downs on catches — the same number as passing first downs. Same value as `passing_first_downs`. |
 | `receiving_fumbles` | Rec Fumbles | count | - | 1999 | PBP +TS | Fumbles by receivers after the catch, whether or not lost. |
 | `receiving_fumbles_lost` | Rec Fum Lost | count | - | 1999 | PBP +TS | Fumbles lost to the defense after a catch. |
-| `catch_rate` | Catch % | rate | targets | 1999 | PBP | Receptions divided by targets — the receiving view of completion rate. Same value as `completion_pct`. |
+| `catch_rate` | Catch % | rate | targets | 1999 | PBP | Receptions divided by targets — the receiving view of completion rate. Blank in 2003-2008, when nflverse play-by-play names the intended receiver on almost no incomplete passes. |
 
 ### Offense: Scoring
 
@@ -313,10 +313,10 @@ Everything the team allowed, plus the plays its defense made.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `targets_faced` | Targets Faced | count | - | 1999 | PBP +TS | Opponent pass attempts, receiving-side view of the defense. Same value as `attempts_faced`. |
+| `targets_faced` | Targets Faced | count | - | 1999 | PBP +TS | Opponent pass attempts thrown to an intended receiver. Throwaways and spikes are attempts but not targets. Blank in 2003-2008, when nflverse play-by-play names the intended receiver on almost no incomplete passes. |
 | `receptions_allowed` | Rec Allowed | count | - | 1999 | PBP +TS | Opponent catches — the same number as completions allowed. Same value as `completions_allowed`. |
 | `receiving_yards_allowed` | Rec Yds Allowed | count | - | 1999 | PBP +TS | Opponent receiving yards — equals passing yards allowed. Same value as `passing_yards_allowed`. |
-| `catch_rate_allowed` | Catch % Allowed | rate | opponent targets | 1999 | PBP | Opponent receptions per target — receiving view of coverage. Same value as `completion_pct_allowed`. |
+| `catch_rate_allowed` | Catch % Allowed | rate | opponent targets | 1999 | PBP | Opponent receptions per target — receiving view of coverage. Blank in 2003-2008, when nflverse play-by-play names the intended receiver on almost no incomplete passes. |
 
 ### Defense: Scoring
 

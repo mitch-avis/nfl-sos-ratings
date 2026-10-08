@@ -413,23 +413,20 @@ def compute_team_game_stats_from_pbp(
     return result.sort([key for key in ("team", "week", "game_id") if key in result.columns])
 
 
-# Receiving display mirrors: at team level the receiving surface restates the
+# Receiving display mirrors: at team level these receiving columns restate the
 # passing surface exactly (verified: team receiving yards equal gross passing
 # yards). Kept for display only; every alias is duplicate_of its source in the
-# metric registry and is never ratings-eligible.
+# metric registry and is never ratings-eligible. Targets and catch rate are not
+# aliases: throwaways and spikes are attempts but not targets.
 _RECEIVING_ALIAS_SOURCES = {
-    "targets": "attempts",
     "receptions": "completions",
     "receiving_yards": "passing_yards",
     "receiving_tds": "passing_tds",
     "receiving_air_yards": "passing_air_yards",
     "receiving_yards_after_catch": "passing_yards_after_catch",
     "receiving_first_downs": "passing_first_downs",
-    "catch_rate": "completion_pct",
-    "targets_faced": "attempts_faced",
     "receptions_allowed": "completions_allowed",
     "receiving_yards_allowed": "passing_yards_allowed",
-    "catch_rate_allowed": "completion_pct_allowed",
 }
 
 
