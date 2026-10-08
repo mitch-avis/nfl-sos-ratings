@@ -1302,10 +1302,23 @@ Tasks:
 - [x] Commit this protocol before any run (pre-registration): its own pull request, merged
   before any of the check's code.
 - [x] Independent review of the protocol (a fresh subagent, 2026-10-08), findings resolved here.
-- [ ] The prior construction (`o_prev`, slopes, fade, centering) in a new module, on the `ridge`
-  prior already built (`UnitPrior`); test-first as listed.
-- [ ] `check-team-prior` test-first; integrity checks run on real data before reading any result.
-- [ ] Independent code review; run the check (approved); record the results here with the command.
+- [x] The prior construction (`o_prev`, slopes, fade, centering) in a new module, on the `ridge`
+  prior already built (`UnitPrior`); test-first as listed. Done on `feat/team-prior`:
+  `nfl_sos_ratings/team_prior.py` (`PriorHistory`, `snapshot_fit`), `fit_team_ratings(...,
+  scrimmage_prior=...)`, and a prior that refuses to run without a fixed penalty.
+- [x] `check-team-prior` test-first; integrity checks run on real data before reading any result.
+  Done: `nfl_sos_ratings/validation/team_prior_check.py`.
+- [x] Independent code review (2026-10-08): 0 blockers, 1 major, 7 minors, all fixed before any run.
+  The major: no check read the prior the candidates use (swapping its offense and defense passed
+  every check); check 1 now rebuilds all four published columns from that prior, and a new check
+  recomputes the carryover slopes by exact least squares from the published files (tolerance
+  1e-5). The minors: the snapshot audit now checks the means each fit used (`snapshot_fit`),
+  compares teams without games with their prior, and runs the residual and limit checks on every
+  window snapshot rather than three seasons (a superset of checks 5 and 6); candidates must equal
+  today's fit in the seasons before a prior; duplicate rows are rejected before pairing; NaN
+  counts as a mismatch; the single-game bootstrap draws in chunks; and failure tests break the
+  production code (wrong means, a solver that drops the prior, a drifting warm-up).
+- [ ] Run the check (approved); record the results here with the command.
 - [ ] Maintainer decision; if adopted, the refits above, then ask before the `data/` rebuild, then
   update the registry, `README.md`, `docs/methodology.md`, the validation report, and the
   nfl-predictor note.

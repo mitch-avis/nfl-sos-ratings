@@ -1,5 +1,6 @@
 """Tests for the pre-registered walk-forward test of the preseason prior."""
 
+import dataclasses
 import hashlib
 import math
 from typing import TYPE_CHECKING
@@ -8,6 +9,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from nfl_sos_ratings import team_prior
 from nfl_sos_ratings.ridge import UnitPrior
 from nfl_sos_ratings.team_prior import (
     MIN_CARRYOVER_PAIRS,
@@ -15,7 +17,11 @@ from nfl_sos_ratings.team_prior import (
     PriorHistory,
     SeasonPrior,
 )
-from nfl_sos_ratings.team_rating import fit_team_ratings, fit_team_ratings_with_previous_penalties
+from nfl_sos_ratings.team_rating import (
+    TeamRatingFit,
+    fit_team_ratings,
+    fit_team_ratings_with_previous_penalties,
+)
 from nfl_sos_ratings.validation import team_prior_check
 from nfl_sos_ratings.validation.team_prior_check import (
     WEEK_BANDS,
@@ -28,6 +34,7 @@ from nfl_sos_ratings.validation.team_prior_check import (
     check_matching_rows,
     check_penalties,
     check_reproduction,
+    check_slopes,
     compare_horizons,
     compare_horizons_by_game,
     decide,
@@ -41,7 +48,7 @@ from nfl_sos_ratings.validation.team_prior_check import (
 from nfl_sos_ratings.validation.walk_forward import build_team_rating_feature_rows
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Mapping
+    from collections.abc import Callable, Collection, Mapping, Sequence
     from pathlib import Path
 
 _TEAMS: tuple[str, ...] = ("AAA", "BBB", "CCC", "DDD", "EEE", "FFF")
@@ -214,7 +221,7 @@ def test_snapshot_audit_finds_no_gap_on_a_correct_prior() -> None:
     # Arrange
     league = _league(2004)
     history = PriorHistory(league.__getitem__)
-    audit = SnapshotAudit(residual_seasons=(2004,))
+    audit = SnapshotAudit(limit_horizon=6.0)
 
     # Act
     build_prior_feature_rows(
@@ -223,11 +230,28 @@ def test_snapshot_audit_finds_no_gap_on_a_correct_prior() -> None:
 
     # Assert
     assert audit.snapshots > 0
-    assert audit.residual_snapshots > 0
-    assert audit.limit_snapshots > 0
+    assert audit.limit_snapshots == audit.snapshots
     assert audit.means_gap < 1e-12
     assert audit.residual_gap < 1e-9
     assert audit.limit_gap < 1e-6
+
+
+def test_snapshot_audit_checks_teams_without_games_against_their_prior() -> None:
+    # Arrange
+    league = _league(2003)
+    history = PriorHistory(league.__getitem__)
+    skipped = league[2003].filter(~((pl.col("week") == 1) & pl.col("game_id").str.contains("AAA")))
+    audit = SnapshotAudit()
+
+    # Act
+    build_prior_feature_rows(
+        skipped, 2003, 6.0, history.penalties(2003), history.season_prior(2003), audit=audit
+    )
+
+    # Assert
+    assert audit.unplayed_snapshots == 1
+    assert audit.unplayed_gap < 1e-12
+    assert audit.limit_snapshots == 0
 
 
 def test_full_fade_weeks_are_those_where_every_team_has_played_the_horizon() -> None:
@@ -346,6 +370,18 @@ def test_compare_horizons_rejects_a_candidate_missing_a_game() -> None:
     # Act & Assert
     with pytest.raises(ValueError, match="same games"):
         compare_horizons(predictions, (3.0,), resamples=10, seed=0, confidence=0.9)
+
+
+def test_compare_horizons_rejects_a_game_listed_twice() -> None:
+    # Arrange
+    predictions = _predictions(
+        {"TeamRating": [3.0, 3.0], "Prior3": [2.0, 2.0]}, [2003, 2003], [2, 2]
+    )
+    doubled = pl.concat([predictions, predictions.filter(pl.col("baseline") == "Prior3").head(1)])
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="more than once"):
+        compare_horizons(doubled, (3.0,), resamples=10, seed=0, confidence=0.9)
 
 
 def _comparison_rows(rows: list[tuple[float, str, float, float]]) -> pl.DataFrame:
@@ -482,6 +518,112 @@ def test_check_reproduction_rejects_ratings_that_differ(tmp_path: Path) -> None:
     # Act & Assert
     with pytest.raises(ValueError, match="2002"):
         check_reproduction(history, tmp_path, [2003])
+
+
+def _patched_prior(
+    monkeypatch: pytest.MonkeyPatch, change: Callable[[SeasonPrior], SeasonPrior]
+) -> None:
+    """Make every history's ``season_prior`` return ``change`` of the true prior."""
+    original = PriorHistory.season_prior
+
+    def patched(self: PriorHistory, season: int) -> SeasonPrior | None:
+        prior = original(self, season)
+        return None if prior is None else change(prior)
+
+    monkeypatch.setattr(PriorHistory, "season_prior", patched)
+
+
+def test_check_reproduction_rejects_a_prior_with_its_sides_swapped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange
+    _write_league(tmp_path, _league(2004))
+    _patched_prior(
+        monkeypatch,
+        lambda prior: dataclasses.replace(prior, offense=prior.defense, defense=prior.offense),
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="prior"):
+        check_reproduction(PriorHistory(_reader(tmp_path)), tmp_path, [2003, 2004])
+
+
+def test_check_reproduction_rejects_a_prior_missing_a_team(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange
+    _write_league(tmp_path, _league(2004))
+    _patched_prior(
+        monkeypatch,
+        lambda prior: dataclasses.replace(
+            prior, offense={team: value for team, value in prior.offense.items() if team != "AAA"}
+        ),
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="no effect for AAA"):
+        check_reproduction(PriorHistory(_reader(tmp_path)), tmp_path, [2003])
+
+
+def test_prior_rows_refuse_a_fit_that_reports_no_means(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Arrange
+    league = _league(2003)
+    history = PriorHistory(league.__getitem__)
+    original = team_prior_check.snapshot_fit
+
+    def forgetful(
+        game_logs: pl.DataFrame,
+        season_teams: Sequence[str],
+        penalties: TeamRatingFit | None,
+        season_prior: SeasonPrior | None,
+        horizon: float,
+    ) -> tuple[pl.DataFrame, UnitPrior | None]:
+        """Fit as usual but report no means, as a broken fit would."""
+        return original(game_logs, season_teams, penalties, season_prior, horizon)[0], None
+
+    monkeypatch.setattr(team_prior_check, "snapshot_fit", forgetful)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="reported no prior means"):
+        build_prior_feature_rows(
+            league[2003],
+            2003,
+            6.0,
+            history.penalties(2003),
+            history.season_prior(2003),
+            audit=SnapshotAudit(),
+        )
+
+
+def test_check_slopes_matches_an_independent_exact_fit(tmp_path: Path) -> None:
+    # Arrange
+    _write_league(tmp_path, _league(2005))
+
+    # Act
+    gap = check_slopes(PriorHistory(_reader(tmp_path)), tmp_path, [2003, 2004, 2005])
+
+    # Assert
+    assert gap < 1e-5
+
+
+def test_check_slopes_rejects_swapped_slopes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange
+    _write_league(tmp_path, _league(2005))
+    _patched_prior(
+        monkeypatch,
+        lambda prior: dataclasses.replace(
+            prior,
+            slopes=dataclasses.replace(
+                prior.slopes, offense=prior.slopes.defense, defense=prior.slopes.offense
+            ),
+        ),
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="slope"):
+        check_slopes(PriorHistory(_reader(tmp_path)), tmp_path, [2004, 2005])
 
 
 def test_check_coverage_rejects_a_team_without_a_previous_season(tmp_path: Path) -> None:
@@ -653,12 +795,40 @@ def test_main_reports_seasons_without_a_prior_and_an_unrated_team(
     assert "needs two seasons with a prior" in output
 
 
-def test_main_stops_when_a_snapshot_check_fails(
+def test_main_stops_when_a_season_without_a_prior_differs_from_today(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     # Arrange
     _write_league(tmp_path, _league(2003))
-    original = team_prior_check.prior_means
+    original = team_prior_check.snapshot_fit
+
+    def drifting(
+        game_logs: pl.DataFrame,
+        season_teams: Sequence[str],
+        penalties: TeamRatingFit | None,
+        season_prior: SeasonPrior | None,
+        horizon: float,
+    ) -> tuple[pl.DataFrame, UnitPrior | None]:
+        """Move every rating in seasons without a prior, as a broken warm-up would."""
+        ratings, means = original(game_logs, season_teams, penalties, season_prior, horizon)
+        if season_prior is None:
+            ratings = ratings.with_columns(pl.col("team_rating") * 1.5)
+        return ratings, means
+
+    monkeypatch.setattr(team_prior_check, "snapshot_fit", drifting)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="before any prior"):
+        main(["--data-dir", str(tmp_path), "--start-season", "2003", "--end-season", "2003"])
+    assert "Decision" not in capsys.readouterr().out
+
+
+def test_main_stops_when_the_solver_fits_with_wrong_means(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Arrange
+    _write_league(tmp_path, _league(2003))
+    original = team_prior.prior_means
 
     def shifted(
         season_prior: SeasonPrior,
@@ -671,7 +841,35 @@ def test_main_stops_when_a_snapshot_check_fails(
         moved = {team: value + 0.01 for team, value in means.offense.items()}
         return UnitPrior(offense=moved, defense=means.defense)
 
-    monkeypatch.setattr(team_prior_check, "prior_means", shifted)
+    monkeypatch.setattr(team_prior, "prior_means", shifted)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="integrity check failed"):
+        main(["--data-dir", str(tmp_path), "--start-season", "2003", "--end-season", "2003"])
+    assert "Decision" not in capsys.readouterr().out
+
+
+def test_main_stops_when_the_solver_ignores_the_prior(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Arrange
+    _write_league(tmp_path, _league(2003))
+    original = team_prior.fit_team_ratings
+
+    def without_prior(
+        game_logs: pl.DataFrame,
+        *,
+        scrimmage_lambda: float | None = None,
+        special_teams_lambda: float | None = None,
+        scrimmage_prior: UnitPrior | None = None,
+    ) -> TeamRatingFit:
+        """Fit as if no prior were given, as a broken solver would."""
+        del scrimmage_prior
+        return original(
+            game_logs, scrimmage_lambda=scrimmage_lambda, special_teams_lambda=special_teams_lambda
+        )
+
+    monkeypatch.setattr(team_prior, "fit_team_ratings", without_prior)
 
     # Act & Assert
     with pytest.raises(ValueError, match="integrity check failed"):

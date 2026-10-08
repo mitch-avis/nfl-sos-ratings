@@ -17,6 +17,7 @@ from nfl_sos_ratings.team_prior import (
     fade,
     games_played,
     prior_means,
+    snapshot_fit,
     snapshot_ratings,
 )
 from nfl_sos_ratings.team_rating import fit_team_ratings
@@ -477,3 +478,32 @@ def test_history_fits_each_season_once() -> None:
 
     # Assert
     assert again is first
+
+
+def test_snapshot_fit_returns_the_means_it_fit_with() -> None:
+    # Arrange
+    flat = dict.fromkeys(_TEAMS, 0.0)
+    logs = _season_logs(flat, flat).filter(pl.col("week") <= 2)
+    season_prior = _season_prior({**flat, "AAA": 0.08}, flat, slope=0.5)
+    penalties = fit_team_ratings(logs, scrimmage_lambda=200.0, special_teams_lambda=40.0)
+    expected = prior_means(season_prior, games_played(logs, _TEAMS), 6.0, _TEAMS)
+
+    # Act
+    ratings, means = snapshot_fit(logs, _TEAMS, penalties, season_prior, 6.0)
+
+    # Assert
+    assert means == expected
+    assert ratings.equals(snapshot_ratings(logs, _TEAMS, penalties, season_prior, 6.0))
+
+
+def test_snapshot_fit_without_a_prior_has_no_means() -> None:
+    # Arrange
+    flat = dict.fromkeys(_TEAMS, 0.0)
+    logs = _season_logs(flat, flat).filter(pl.col("week") <= 2)
+    penalties = fit_team_ratings(logs, scrimmage_lambda=200.0, special_teams_lambda=40.0)
+
+    # Act
+    _, means = snapshot_fit(logs, _TEAMS, penalties, None, 6.0)
+
+    # Assert
+    assert means is None

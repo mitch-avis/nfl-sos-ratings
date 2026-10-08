@@ -157,11 +157,27 @@ def snapshot_ratings(
 ) -> pl.DataFrame:
     """Return the team ratings fit on ``game_logs``, one season's games so far.
 
+    The ratings of :func:`snapshot_fit`, without the prior means it fit with.
+    """
+    return snapshot_fit(game_logs, season_teams, penalties, season_prior, horizon)[0]
+
+
+def snapshot_fit(
+    game_logs: pl.DataFrame,
+    season_teams: Sequence[str],
+    penalties: TeamRatingFit | None,
+    season_prior: SeasonPrior | None,
+    horizon: float,
+) -> tuple[pl.DataFrame, UnitPrior | None]:
+    """Return the team ratings fit on ``game_logs`` and the prior means the fit used.
+
     Without a prior this is the published fit: ``penalties`` holds the season's penalties (the
     previous season's cross-validated fit), or the games cross-validate their own when it is
     ``None``. With a prior, the scrimmage effects shrink toward the centered prior means at those
     penalties, and every team in ``season_teams`` without a game rates at its prior means on these
     games' per-game scale, with special teams at zero.
+
+    The means are ``None`` without a prior, so an audit can check the exact means a fit used.
 
     Raises:
         ValueError: If a prior comes without penalties, a team has no previous-season effect, or a
@@ -169,7 +185,7 @@ def snapshot_ratings(
 
     """
     if season_prior is None:
-        return fit_team_ratings_with_previous_penalties(game_logs, penalties).ratings
+        return fit_team_ratings_with_previous_penalties(game_logs, penalties).ratings, None
     if penalties is None:
         msg = "a prior needs the season's penalties; cross-validation never sees a prior"
         raise ValueError(msg)
@@ -188,7 +204,7 @@ def snapshot_ratings(
     rated = set(fit.ratings.get_column("team").to_list())
     unplayed = [team for team in season_teams if team not in rated]
     if not unplayed:
-        return fit.ratings
+        return fit.ratings, means
     scale = fit.scrimmage_plays_per_game
     offense = [means.offense[team] * scale for team in unplayed]
     defense = [means.defense[team] * scale for team in unplayed]
@@ -201,7 +217,7 @@ def snapshot_ratings(
             "team_rating": [o + d for o, d in zip(offense, defense, strict=True)],
         }
     )
-    return pl.concat([fit.ratings, prior_rows.select(fit.ratings.columns)]).sort("team")
+    return pl.concat([fit.ratings, prior_rows.select(fit.ratings.columns)]).sort("team"), means
 
 
 class PriorHistory:
@@ -317,5 +333,6 @@ __all__ = [
     "fade",
     "games_played",
     "prior_means",
+    "snapshot_fit",
     "snapshot_ratings",
 ]

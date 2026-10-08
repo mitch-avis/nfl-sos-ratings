@@ -22,7 +22,8 @@ extras, never decision inputs: a single-game bootstrap, the margin slope by band
 17-game and a no-fade prior, the carryover slopes, one team's rating after week 4 of a season in
 progress, and week 1 rated by the prior alone.
 
-Run ``nfl-sos-ratings check-team-prior``; it only reads ``data/``.
+Run ``nfl-sos-ratings check-team-prior``; it only reads ``data/`` (the information-set check links
+earlier seasons' files into a temporary directory it removes).
 """
 
 from __future__ import annotations
@@ -48,6 +49,7 @@ from nfl_sos_ratings.team_prior import (
     SeasonPrior,
     games_played,
     prior_means,
+    snapshot_fit,
     snapshot_ratings,
 )
 from nfl_sos_ratings.team_rating import (
@@ -68,6 +70,8 @@ from nfl_sos_ratings.validation.walk_forward import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
 
+    from nfl_sos_ratings.ridge import UnitPrior
+
 CANDIDATE_HORIZONS: tuple[float, ...] = (3.0, 6.0, 9.0)
 # Descriptive only: both leave a prior in completed seasons, so neither can be adopted.
 EXTRA_HORIZONS: tuple[float, ...] = (17.0, math.inf)
@@ -87,15 +91,17 @@ FAMILY_CONFIDENCE = 0.95
 # Bonferroni over the three candidates: 98.33% intervals.
 COMPARISON_CONFIDENCE = 1.0 - (1.0 - FAMILY_CONFIDENCE) / len(CANDIDATE_HORIZONS)
 MATCH_TOLERANCE = 1e-9
+# The prior's slopes come from fits at a 1e-6 penalty; the independent side solves exactly.
+SLOPE_TOLERANCE = 1e-5
 MEANS_TOLERANCE = 1e-12
 LIMIT_TOLERANCE = 1e-6
 LIMIT_LAMBDA = 1e12
-RESIDUAL_CHECK_SEASONS: tuple[int, ...] = (2003, 2014, 2025)
 DEFAULT_SPOTLIGHT_SEASON = 2026
 DEFAULT_SPOTLIGHT_TEAM = "DEN"
 # The spotlight shows ratings fit on the games before this week (after week 4).
 SPOTLIGHT_WEEK = 5
 _ROW_KEYS = ["season", "week", "game_id"]
+_RESAMPLE_CHUNK = 500
 _FEATURE_COLUMNS = [
     "season",
     "week",
@@ -117,17 +123,20 @@ def baseline_name(horizon: float) -> str:
 class SnapshotAudit:
     """Largest gaps the per-snapshot integrity checks found while building candidate rows.
 
-    ``means_gap`` compares the prior means with an independent recomputation from the season's
-    games before the prediction week; on the ``residual_seasons``, ``residual_gap`` compares the
-    solver with an ordinary fit on the residual response, and ``limit_gap`` compares each effect at
-    a huge penalty with its unfaded prior mean.
+    On every snapshot with a prior: ``means_gap`` compares the means the fit used with an
+    independent recomputation from the season's games before the prediction week;
+    ``residual_gap`` compares the fit's ratings with an ordinary fit on the residual response
+    built from those independent means; ``unplayed_gap`` compares the ratings of teams without
+    games with their independent prior means. Once per snapshot (on ``limit_horizon``'s pass),
+    ``limit_gap`` compares each effect at a huge penalty with its unfaded independent mean.
     """
 
-    residual_seasons: tuple[int, ...] = RESIDUAL_CHECK_SEASONS
+    limit_horizon: float = CANDIDATE_HORIZONS[0]
     snapshots: int = 0
     means_gap: float = 0.0
-    residual_snapshots: int = 0
     residual_gap: float = 0.0
+    unplayed_snapshots: int = 0
+    unplayed_gap: float = 0.0
     limit_snapshots: int = 0
     limit_gap: float = 0.0
 
@@ -168,6 +177,11 @@ def _rating(ratings: pl.DataFrame, column: str) -> dict[str, float]:
     return dict(ratings.select("team", column).iter_rows())
 
 
+def _gap(left: dict[str, float], right: dict[str, float], teams: Iterable[str]) -> float:
+    """Return the largest absolute difference between two team mappings over ``teams``."""
+    return max((abs(left[team] - right[team]) for team in teams), default=0.0)
+
+
 def _audit_snapshot(  # noqa: PLR0913 - one snapshot's inputs, all needed
     audit: SnapshotAudit,
     *,
@@ -177,26 +191,23 @@ def _audit_snapshot(  # noqa: PLR0913 - one snapshot's inputs, all needed
     season_prior: SeasonPrior,
     horizon: float,
     ratings: pl.DataFrame,
+    means: UnitPrior,
 ) -> None:
     """Run the per-snapshot integrity checks on one candidate snapshot and record the gaps."""
     prior_games = game_logs.filter(pl.col("week") < week)
     teams = sorted(set(game_logs.get_column("team").to_list()))
     rows = scrimmage_rows(prior_games)
     fitted = sorted(set(rows.get_column("team").to_list()))
-    means = prior_means(season_prior, games_played(prior_games, teams), horizon, fitted)
+    unplayed = [team for team in teams if team not in fitted]
+    scale = float(rows.get_column("plays").sum()) / rows.height
     offense, defense = _independent_means(game_logs, week, season_prior, horizon)
     audit.snapshots += 1
     audit.means_gap = max(
         audit.means_gap,
-        *(abs(means.offense[team] - offense[team]) for team in teams),
-        *(abs(means.defense[team] - defense[team]) for team in teams),
+        _gap(dict(means.offense), offense, teams),
+        _gap(dict(means.defense), defense, teams),
     )
-    if season_prior.season not in audit.residual_seasons:
-        return
-    plays_per_game = float(rows.get_column("plays").sum()) / rows.height
-    shift = pl.col("team").replace_strict(means.offense) - pl.col("opponent_team").replace_strict(
-        means.defense
-    )
+    shift = pl.col("team").replace_strict(offense) - pl.col("opponent_team").replace_strict(defense)
     residual = fit_team_ratings(
         prior_games.with_columns(
             (pl.col(SCRIMMAGE_EPA_COLUMN) - shift * pl.col(SCRIMMAGE_PLAYS_COLUMN)).alias(
@@ -206,14 +217,25 @@ def _audit_snapshot(  # noqa: PLR0913 - one snapshot's inputs, all needed
         scrimmage_lambda=penalties.scrimmage_lambda,
         special_teams_lambda=penalties.special_teams_lambda,
     ).ratings
-    for column, side in (("offense_rating", means.offense), ("defense_rating", means.defense)):
+    for column, side in (("offense_rating", offense), ("defense_rating", defense)):
         solved, plain = _rating(ratings, column), _rating(residual, column)
-        audit.residual_gap = max(
-            audit.residual_gap,
-            *(abs(solved[team] - (plain[team] + side[team] * plays_per_game)) for team in fitted),
-        )
-    audit.residual_snapshots += 1
-    unfaded = prior_means(season_prior, games_played(prior_games, teams), math.inf, fitted)
+        expected = {team: plain[team] + side[team] * scale for team in fitted}
+        audit.residual_gap = max(audit.residual_gap, _gap(solved, expected, fitted))
+    if unplayed:
+        audit.unplayed_snapshots += 1
+        expected_rows = {
+            "offense_rating": {team: offense[team] * scale for team in unplayed},
+            "defense_rating": {team: defense[team] * scale for team in unplayed},
+            "special_teams_rating": dict.fromkeys(unplayed, 0.0),
+            "team_rating": {team: (offense[team] + defense[team]) * scale for team in unplayed},
+        }
+        for column, expected in expected_rows.items():
+            audit.unplayed_gap = max(
+                audit.unplayed_gap, _gap(_rating(ratings, column), expected, unplayed)
+            )
+    if horizon != audit.limit_horizon:
+        return
+    unfaded = _independent_means(game_logs, week, season_prior, math.inf)
     limit = snapshot_ratings(
         prior_games,
         teams,
@@ -221,12 +243,9 @@ def _audit_snapshot(  # noqa: PLR0913 - one snapshot's inputs, all needed
         season_prior,
         math.inf,
     )
-    for column, side in (("offense_rating", unfaded.offense), ("defense_rating", unfaded.defense)):
-        pinned = _rating(limit, column)
-        audit.limit_gap = max(
-            audit.limit_gap,
-            *(abs(pinned[team] / plays_per_game - side[team]) for team in fitted),
-        )
+    for column, side in zip(("offense_rating", "defense_rating"), unfaded, strict=True):
+        pinned = {team: value / scale for team, value in _rating(limit, column).items()}
+        audit.limit_gap = max(audit.limit_gap, _gap(pinned, side, fitted))
     audit.limit_snapshots += 1
 
 
@@ -254,8 +273,11 @@ def build_prior_feature_rows(  # noqa: PLR0913 - the season, its fit inputs, and
         if prior_games.is_empty():
             ratings = pl.DataFrame({"team": teams, "team_rating": [0.0] * len(teams)})
         else:
-            ratings = snapshot_ratings(prior_games, teams, penalties, season_prior, horizon)
+            ratings, means = snapshot_fit(prior_games, teams, penalties, season_prior, horizon)
             if audit is not None and season_prior is not None and penalties is not None:
+                if means is None:
+                    msg = "a fit with a prior reported no prior means"
+                    raise ValueError(msg)
                 _audit_snapshot(
                     audit,
                     game_logs=game_logs,
@@ -264,6 +286,7 @@ def build_prior_feature_rows(  # noqa: PLR0913 - the season, its fit inputs, and
                     season_prior=season_prior,
                     horizon=horizon,
                     ratings=ratings,
+                    means=means,
                 )
         lookup = ratings.select("team", pl.col("team_rating").alias("rating"))
         frames.append(
@@ -315,13 +338,18 @@ def check_matching_rows(
     joined = expected.select(*keys, column).join(
         actual.select(*keys, pl.col(column).alias("_actual")), on=keys, how="inner"
     )
+    gaps = joined.select(
+        (pl.col(column).cast(pl.Float64) - pl.col("_actual").cast(pl.Float64)).abs().alias("gap")
+    ).get_column("gap")
+    # A missing value, or NaN on either side, is a mismatch: NaN never exceeds a tolerance.
     if (
         not joined.height == expected.height == actual.height
-        or joined.select(pl.col(column).is_null().any() | pl.col("_actual").is_null().any()).item()
+        or gaps.is_null().any()
+        or (gaps.is_nan().any())
     ):
         msg = f"{label}: the two do not cover the same games with values"
         raise ValueError(msg)
-    largest = float(joined.select((pl.col(column) - pl.col("_actual")).abs().max()).item() or 0.0)
+    largest = float(gaps.to_numpy().max()) if gaps.len() else 0.0
     if largest > MATCH_TOLERANCE:
         msg = f"{label}: the rows differ by up to {largest:.3g}"
         raise ValueError(msg)
@@ -341,12 +369,15 @@ def _read_logs(data_dir: Path) -> Callable[[int], pl.DataFrame]:
 def check_reproduction(history: PriorHistory, data_dir: Path, seasons: Iterable[int]) -> float:
     """Return the largest gap between each previous season's rebuilt ratings and its published ones.
 
-    For each season ``s``, season ``s - 1``'s fit at its published penalties must reproduce the
-    four rating columns of ``{s - 1}_ratings.parquet``, and the prior's ``o_prev`` and ``d_prev``
-    times the per-game scale must equal the offense and defense ratings.
+    For each season ``s`` with a prior, the prior the candidates use (``history.season_prior(s)``)
+    must rebuild all four rating columns of ``{s - 1}_ratings.parquet``: its offense and defense
+    effects times season ``s - 1``'s scrimmage plays per game, special teams from season
+    ``s - 1``'s published fit, and the team rating as their sum. A season without a prior checks
+    the refit of season ``s - 1`` alone.
 
     Raises:
-        ValueError: If a gap exceeds ``MATCH_TOLERANCE``, naming the previous season.
+        ValueError: If the prior lacks a team, or a gap exceeds ``MATCH_TOLERANCE``, naming the
+            seasons.
 
     """
     largest = 0.0
@@ -362,35 +393,149 @@ def check_reproduction(history: PriorHistory, data_dir: Path, seasons: Iterable[
         published = pl.read_parquet(data_dir / f"{previous}_ratings.parquet").select(
             "team", *columns
         )
-        effects = history.published_scrimmage(previous)
-        scale = fit.scrimmage_plays_per_game
-        from_effects = pl.DataFrame(
-            {
-                "team": sorted(effects.offense),
-                "offense_rating": [
-                    effects.offense[team] * scale for team in sorted(effects.offense)
-                ],
-                "defense_rating": [
-                    effects.defense[team] * scale for team in sorted(effects.offense)
-                ],
-            }
-        )
+        rebuilt = fit.ratings
+        label = f"{previous} published ratings"
+        season_prior = history.season_prior(season)
+        if season_prior is not None:
+            special = dict(fit.ratings.select("team", "special_teams_rating").iter_rows())
+            teams = sorted(special)
+            missing = [
+                team
+                for team in teams
+                if team not in season_prior.offense or team not in season_prior.defense
+            ]
+            if missing:
+                msg = f"the {season} prior has no effect for {', '.join(missing)}"
+                raise ValueError(msg)
+            scale = fit.scrimmage_plays_per_game
+            offense = [season_prior.offense[team] * scale for team in teams]
+            defense = [season_prior.defense[team] * scale for team in teams]
+            rebuilt = pl.DataFrame(
+                {
+                    "team": teams,
+                    "offense_rating": offense,
+                    "defense_rating": defense,
+                    "special_teams_rating": [special[team] for team in teams],
+                    "team_rating": [
+                        o + d + special[team]
+                        for o, d, team in zip(offense, defense, teams, strict=True)
+                    ],
+                }
+            )
+            label = f"{previous} published ratings from the {season} prior"
         for column in columns:
-            label = f"{previous} {column}"
             largest = max(
                 largest,
                 check_matching_rows(
-                    published, fit.ratings, keys=["team"], column=column, label=label
+                    published, rebuilt, keys=["team"], column=column, label=f"{label} ({column})"
                 ),
             )
-        for column in ("offense_rating", "defense_rating"):
-            label = f"{previous} {column} from the prior's effects"
-            largest = max(
-                largest,
-                check_matching_rows(
-                    published, from_effects, keys=["team"], column=column, label=label
-                ),
+    return largest
+
+
+def _home_signs(rows: pl.DataFrame) -> np.ndarray:
+    """Return +1 for home rows, -1 for away rows, and 0 where the site is unknown or neutral."""
+    flags = rows.get_column("is_home").to_list()
+    return np.array([0.0 if flag is None else (1.0 if flag else -1.0) for flag in flags])
+
+
+def exact_scrimmage_effects(game_logs: pl.DataFrame) -> tuple[dict[str, float], dict[str, float]]:
+    """Return a season's scrimmage effects per play by exact weighted least squares, centered.
+
+    Written with NumPy alone, apart from ``ridge`` and ``team_prior``, as the independent side of
+    the carryover-slope check: the same model (intercept, home field, offense minus defense,
+    weighted by plays), solved without a penalty, with each side's effects shifted to average zero.
+    """
+    rows = game_logs.filter(pl.col(SCRIMMAGE_PLAYS_COLUMN) > 0)
+    teams = sorted(
+        set(rows.get_column("team").to_list()) | set(rows.get_column("opponent_team").to_list())
+    )
+    index = {team: position for position, team in enumerate(teams)}
+    count = len(teams)
+    design = np.zeros((rows.height, 2 + 2 * count))
+    design[:, 0] = 1.0
+    design[:, 1] = _home_signs(rows)
+    for row, (team, opponent) in enumerate(rows.select("team", "opponent_team").iter_rows()):
+        design[row, 2 + index[team]] = 1.0
+        design[row, 2 + count + index[opponent]] = -1.0
+    plays = rows.get_column(SCRIMMAGE_PLAYS_COLUMN).cast(pl.Float64).to_numpy()
+    response = rows.get_column(SCRIMMAGE_EPA_COLUMN).cast(pl.Float64).to_numpy() / plays
+    root = np.sqrt(plays)
+    solution, *_ = np.linalg.lstsq(design * root[:, np.newaxis], response * root, rcond=None)
+    offense = solution[2 : 2 + count] - solution[2 : 2 + count].mean()
+    defense = solution[2 + count :] - solution[2 + count :].mean()
+    return (
+        dict(zip(teams, offense.tolist(), strict=True)),
+        dict(zip(teams, defense.tolist(), strict=True)),
+    )
+
+
+def _published_scrimmage_effects(
+    data_dir: Path, season: int
+) -> tuple[dict[str, float], dict[str, float]]:
+    """Return a season's published offense and defense ratings as per-play effects."""
+    rows = pl.read_parquet(data_dir / f"{season}_team_game_logs.parquet").filter(
+        pl.col(SCRIMMAGE_PLAYS_COLUMN) > 0
+    )
+    scale = float(rows.get_column(SCRIMMAGE_PLAYS_COLUMN).sum()) / rows.height
+    ratings = pl.read_parquet(data_dir / f"{season}_ratings.parquet")
+    return (
+        {
+            team: value / scale
+            for team, value in ratings.select("team", "offense_rating").iter_rows()
+        },
+        {
+            team: value / scale
+            for team, value in ratings.select("team", "defense_rating").iter_rows()
+        },
+    )
+
+
+def independent_slopes(data_dir: Path, season: int, pairs: int) -> tuple[float, float]:
+    """Return the carryover slopes for ``season`` from the published files and exact fits.
+
+    Pools the ``pairs`` season pairs ``(t - 1, t)`` before ``season``: season ``t``'s exact
+    effects on season ``t - 1``'s published effects, through the origin, team by team.
+    """
+    sums = {"offense": [0.0, 0.0], "defense": [0.0, 0.0]}
+    for later in range(season - pairs, season):
+        before = _published_scrimmage_effects(data_dir, later - 1)
+        after = exact_scrimmage_effects(
+            pl.read_parquet(data_dir / f"{later}_team_game_logs.parquet")
+        )
+        for side, earlier, current in (
+            ("offense", before[0], after[0]),
+            ("defense", before[1], after[1]),
+        ):
+            for team in sorted(set(earlier) & set(current)):
+                sums[side][0] += earlier[team] * current[team]
+                sums[side][1] += earlier[team] * earlier[team]
+    return sums["offense"][0] / sums["offense"][1], sums["defense"][0] / sums["defense"][1]
+
+
+def check_slopes(history: PriorHistory, data_dir: Path, seasons: Iterable[int]) -> float:
+    """Return the largest gap between each prior's carryover slopes and an independent recompute.
+
+    Raises:
+        ValueError: If a slope differs by more than ``SLOPE_TOLERANCE``, naming the season.
+
+    """
+    largest = 0.0
+    for season in seasons:
+        season_prior = history.season_prior(season)
+        if season_prior is None:
+            continue
+        slopes = season_prior.slopes
+        offense, defense = independent_slopes(data_dir, season, slopes.pairs)
+        gap = max(abs(slopes.offense - offense), abs(slopes.defense - defense))
+        if gap > SLOPE_TOLERANCE:
+            msg = (
+                f"{season}: the prior's carryover slopes ({slopes.offense:.6f}, "
+                f"{slopes.defense:.6f}) differ from an independent exact fit's ({offense:.6f}, "
+                f"{defense:.6f})"
             )
+            raise ValueError(msg)
+        largest = max(largest, gap)
     return largest
 
 
@@ -483,14 +628,14 @@ def input_fingerprint(paths: Iterable[Path]) -> str:
     return hashlib.sha256(listing.encode()).hexdigest()
 
 
-def decision_input_paths(data_dir: Path, start_season: int, end_season: int) -> list[Path]:
+def decision_input_paths(data_dir: Path, end_season: int) -> list[Path]:
     """Return the files the decision reads: game logs from 1999 and earlier seasons' ratings."""
     logs = [
         data_dir / f"{season}_team_game_logs.parquet"
         for season in range(PBP_START_SEASON, end_season + 1)
     ]
     ratings = [
-        data_dir / f"{season}_ratings.parquet" for season in range(start_season - 1, end_season)
+        data_dir / f"{season}_ratings.parquet" for season in range(PBP_START_SEASON, end_season)
     ]
     return logs + ratings
 
@@ -533,10 +678,14 @@ def _paired_differences(predictions: pl.DataFrame, horizon: float) -> pl.DataFra
         ValueError: If the candidate and today's fit do not predict the same games.
 
     """
-    errors = (
-        predictions.filter(pl.col("baseline").is_in([TEAM_RATING_BASELINE, baseline_name(horizon)]))
-        .with_columns(pl.col("error").abs())
-        .pivot(on="baseline", index=_ROW_KEYS, values="error", aggregate_function="first")
+    paired = predictions.filter(
+        pl.col("baseline").is_in([TEAM_RATING_BASELINE, baseline_name(horizon)])
+    )
+    if paired.select(pl.struct("baseline", *_ROW_KEYS).is_duplicated().any()).item():
+        msg = f"{baseline_name(horizon)} or today's fit predicts a game more than once"
+        raise ValueError(msg)
+    errors = paired.with_columns(pl.col("error").abs()).pivot(
+        on="baseline", index=_ROW_KEYS, values="error", aggregate_function="first"
     )
     columns = [TEAM_RATING_BASELINE, baseline_name(horizon)]
     if (
@@ -604,8 +753,14 @@ def compare_horizons_by_game(
             values = _band_rows(differences, band).get_column("difference").to_numpy()
             if values.size == 0:
                 continue
-            draws = np.random.default_rng(seed).integers(0, values.size, (resamples, values.size))
-            lower, upper = np.quantile(values[draws].mean(axis=1), [tail, 1.0 - tail])
+            rng = np.random.default_rng(seed)
+            means = np.empty(resamples)
+            # In chunks, so the draws never sit in memory all at once (5,000 games by 10,000).
+            for start in range(0, resamples, _RESAMPLE_CHUNK):
+                size = min(_RESAMPLE_CHUNK, resamples - start)
+                draws = rng.integers(0, values.size, (size, values.size))
+                means[start : start + size] = values[draws].mean(axis=1)
+            lower, upper = np.quantile(means, [tail, 1.0 - tail])
             rows.append(
                 {
                     "horizon": horizon,
@@ -706,7 +861,7 @@ def report_decision(decision: PriorDecision) -> None:
         f"{baseline_name(horizon)} {band} ({direction})"
         for horizon, band, direction in decision.excluding_zero
     )
-    _say(f"Intervals excluding zero: {excluding or 'none'}.")
+    _say(f"Candidate intervals excluding zero: {excluding or 'none'}.")
     _say("The decision goes to the maintainer either way.")
 
 
@@ -724,6 +879,7 @@ class _Candidates:
     """Every horizon's walk-forward rows, plus what the row-level integrity checks found."""
 
     features: pl.DataFrame
+    warm_up_gap: float
     zero_prior_gap: float
     fade_gap: float
     fade_rows: int
@@ -742,7 +898,7 @@ def _build_candidates(
     """
     audit = SnapshotAudit()
     frames: list[pl.DataFrame] = []
-    zero_gap = fade_gap = 0.0
+    warm_up_gap = zero_gap = fade_gap = 0.0
     fade_rows = 0
     for season in seasons:
         logs = history.game_logs(season)
@@ -758,6 +914,18 @@ def _build_candidates(
                 audit=audit if horizon in CANDIDATE_HORIZONS else None,
             )
             frames.append(rows)
+            if season_prior is None:
+                # Before a season has a prior, every candidate is today's fit.
+                warm_up_gap = max(
+                    warm_up_gap,
+                    check_matching_rows(
+                        today.filter(pl.col("season") == season),
+                        rows.filter(pl.col("week") >= PREDICTION_START_WEEK),
+                        keys=_ROW_KEYS,
+                        column="rating_diff",
+                        label=f"{season} {baseline_name(horizon)} before any prior",
+                    ),
+                )
             if season not in window or horizon not in CANDIDATE_HORIZONS:
                 continue
             weeks = full_fade_weeks(logs, horizon)
@@ -791,12 +959,13 @@ def _build_candidates(
     for gap, tolerance, label in (
         (audit.means_gap, MEANS_TOLERANCE, "prior means against their recomputation"),
         (audit.residual_gap, MATCH_TOLERANCE, "solver against the residual-form fit"),
+        (audit.unplayed_gap, MATCH_TOLERANCE, "teams without games against their prior"),
         (audit.limit_gap, LIMIT_TOLERANCE, "effects at a huge penalty against their means"),
     ):
         if gap > tolerance:
             msg = f"integrity check failed: {label} differ by up to {gap:.3g}"
             raise ValueError(msg)
-    return _Candidates(pl.concat(frames), zero_gap, fade_gap, fade_rows, audit)
+    return _Candidates(pl.concat(frames), warm_up_gap, zero_gap, fade_gap, fade_rows, audit)
 
 
 def _interval(row: dict[str, object]) -> str:
@@ -922,7 +1091,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         prog="nfl-sos-ratings check-team-prior",
         description=(
             "Test whether shrinking the team fit toward a faded previous-season prior predicts "
-            "game margins better in the walk-forward check (reads data/, writes nothing)."
+            "game margins better in the walk-forward check (reads data/; writes only temporary "
+            "files it removes)."
         ),
     )
     parser.add_argument(
@@ -963,11 +1133,12 @@ def main(argv: list[str] | None = None) -> None:
     data_dir = Path(args.data_dir)
     window = list(range(args.start_season, args.end_season + 1))
     seasons = list(range(PBP_START_SEASON, args.end_season + 1))
-    inputs = decision_input_paths(data_dir, args.start_season, args.end_season)
+    inputs = decision_input_paths(data_dir, args.end_season)
     fingerprint = input_fingerprint(inputs)
     history = PriorHistory(_read_logs(data_dir))
 
     reproduction_gap = check_reproduction(history, data_dir, window)
+    slope_gap = check_slopes(history, data_dir, window)
     check_coverage(history, window)
     information = check_information_set(history, data_dir, window)
     penalty_seasons = check_penalties(history, data_dir, seasons)
@@ -1010,16 +1181,21 @@ def main(argv: list[str] | None = None) -> None:
     audit = candidates.audit
     _say(
         "Integrity checks passed:\n"
-        f"  previous seasons' published ratings reproduced (largest gap {reproduction_gap:.1e});\n"
+        f"  previous seasons' published ratings rebuilt from each prior (largest gap "
+        f"{reproduction_gap:.1e});\n"
+        f"  carryover slopes match an independent exact fit (largest gap {slope_gap:.1e});\n"
         f"  today's rows equal the validation backtest's (largest gap {validation_gap:.1e});\n"
+        f"  every candidate equals today's fit in the seasons before a prior (largest gap "
+        f"{candidates.warm_up_gap:.1e});\n"
         f"  a zero prior equals today's fit (largest gap {candidates.zero_prior_gap:.1e});\n"
         f"  fully faded priors equal today's fit on {candidates.fade_rows} rows (largest gap "
         f"{candidates.fade_gap:.1e});\n"
-        f"  prior means match their recomputation on {audit.snapshots} snapshots (largest gap "
-        f"{audit.means_gap:.1e});\n"
-        f"  the solver matches the residual-form fit on {audit.residual_snapshots} snapshots "
-        f"(largest gap {audit.residual_gap:.1e}) and the huge-penalty limit "
-        f"(largest gap {audit.limit_gap:.1e});\n"
+        f"  on {audit.snapshots} snapshots, the means each fit used match an independent "
+        f"recomputation (largest gap {audit.means_gap:.1e}) and its ratings match a residual-form "
+        f"fit on those means (largest gap {audit.residual_gap:.1e});\n"
+        f"  teams without games rate at their prior on {audit.unplayed_snapshots} snapshots "
+        f"(largest gap {audit.unplayed_gap:.1e}); the huge-penalty limit holds on "
+        f"{audit.limit_snapshots} snapshots (largest gap {audit.limit_gap:.1e});\n"
         f"  every team has a previous-season effect; {information} seasons' priors are unchanged "
         f"without later seasons; penalties equal today's in {penalty_seasons} seasons."
     )
