@@ -6,7 +6,7 @@ import { TeamChip } from '@/components/common/TeamChip'
 import type { OpponentBreakdownTable as Breakdown } from '@/domain/detailAnalytics'
 import { compareDetailCellValues, formatDetailCellValue } from '@/domain/detailUi'
 import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
-import { buildColumnDecimals, buildColumnStats, getHeatCellStyle } from '@/domain/tableState'
+import { buildColumnDecimals, buildColumnStats, getHeatCellStyle, shadedColumns } from '@/domain/tableState'
 
 interface SortState {
   column: string
@@ -38,7 +38,8 @@ export function OpponentBreakdownTable({ breakdown }: { breakdown: Breakdown }) 
     [breakdown.columns, rows],
   )
   const stats = useMemo(
-    () => buildColumnStats(rows, breakdown.columns.map((column) => column.id)),
+    // Raw counts against a single opponent mostly track games played, so only rates are shaded.
+    () => buildColumnStats(rows, shadedColumns(breakdown.columns.map((column) => column.id))),
     [breakdown.columns, rows],
   )
 

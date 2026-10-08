@@ -119,6 +119,25 @@ function colorToCss(rgb: number[]): string {
   return `rgb(${rgb[0]} ${rgb[1]} ${rgb[2]})`;
 }
 
+// Context columns (schedule strength, the opponents faced) shade in one neutral hue, deeper toward
+// the tougher end, so they never read as good or bad.
+const CONTEXT_TINT: Record<ThemeMode, readonly [number, number, number]> = {
+  light: [100, 116, 139],
+  dark: [148, 163, 184],
+}
+const CONTEXT_MAX_ALPHA = 0.3
+
+function contextShade(theme: ThemeMode, intensity: number): CSSProperties | undefined {
+  if (intensity <= 0) return undefined
+  const [red, green, blue] = CONTEXT_TINT[theme]
+  return { backgroundColor: `rgba(${red}, ${green}, ${blue}, ${Number((CONTEXT_MAX_ALPHA * intensity).toFixed(3))})` }
+}
+
+/** The columns worth shading in a table of single opponents: rates and scores, not raw counts. */
+export function shadedColumns(columns: string[]): string[] {
+  return columns.filter((column) => getMetricMetadata(column).shape !== 'count')
+}
+
 export function getHeatCellStyle(
   column: string,
   value: RowValue,
@@ -127,15 +146,9 @@ export function getHeatCellStyle(
   palette: PaletteMode,
 ): CSSProperties | undefined {
   if (column === 'opp_schedule_bucket') {
-    // Tougher opponents read as the "better" end of the gradient, Softer as the
-    // "worse" end, and Middle stays uncolored.
-    const paletteSet = heatScale(palette, theme);
-    if (value === 'Tougher') {
-      return { backgroundColor: colorToCss([...paletteSet.good]) };
-    }
-    if (value === 'Softer') {
-      return { backgroundColor: colorToCss([...paletteSet.bad]) };
-    }
+    // How tough an opponent was is context, so it shades like the other context columns.
+    if (value === 'Tougher') return contextShade(theme, 1);
+    if (value === 'Middle') return contextShade(theme, 0.5);
     return undefined;
   }
 
@@ -158,6 +171,9 @@ export function getHeatCellStyle(
   let normalized = (value - min) / span;
   if (polarity === 'lower') {
     normalized = 1 - normalized;
+  }
+  if (metadata.contextual) {
+    return contextShade(theme, normalized);
   }
 
   const paletteSet = heatScale(palette, theme);
