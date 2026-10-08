@@ -92,6 +92,12 @@ COMMANDS: tuple[Command, ...] = (
         "nfl_sos_ratings.validation.wp_filter_check",
     ),
     Command(
+        "check-team-prior",
+        "validation",
+        "Test whether a faded preseason prior improves margin predictions (read-only).",
+        "nfl_sos_ratings.validation.team_prior_check",
+    ),
+    Command(
         "team-palettes",
         "docs",
         "Rebuild the web app's team color palettes from nflverse team colors.",
