@@ -582,22 +582,18 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
 def test_compute_qb_game_stats_from_pbp_splits_designed_runs_scrambles_and_kneels() -> None:
     """Verify QB rushing PBP splits exclude scrambles and kneels from designed-run value."""
     # Arrange
+    # Rows: a completion, a spike, a designed run, a scramble, and a kneel. As in nflverse, the
+    # scramble and the kneel have rush = 0 and a rusher but no passer, and the scramble is a pass.
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_04_BUF_MIA"] * 5,
             "week": [4] * 5,
             "posteam": ["BUF"] * 5,
-            "passer_player_id": ["GSIS_A", "GSIS_A", None, "GSIS_A", "GSIS_A"],
-            "passer_player_name": [
-                "Dual Threat QB",
-                "Dual Threat QB",
-                None,
-                "Dual Threat QB",
-                "Dual Threat QB",
-            ],
+            "passer_player_id": ["GSIS_A", "GSIS_A", None, None, None],
+            "passer_player_name": ["Dual Threat QB", "Dual Threat QB", None, None, None],
             "rusher_player_id": [None, None, "GSIS_A", "GSIS_A", "GSIS_A"],
             "qb_dropback": [1, 1, 0, 1, 0],
-            "pass": [1, 0, 0, 0, 0],
+            "pass": [1, 0, 0, 1, 0],
             "complete_pass": [1, 0, 0, 0, 0],
             "passing_yards": [15.0, 0.0, 0.0, 0.0, 0.0],
             "yards_gained": [15.0, 0.0, 8.0, 12.0, -1.0],
@@ -607,7 +603,7 @@ def test_compute_qb_game_stats_from_pbp_splits_designed_runs_scrambles_and_kneel
             "fumble_lost": [0, 0, 0, 0, 0],
             "qb_epa": [1.5, 0.0, 1.2, 0.8, -0.9],
             "cpoe": [4.0, None, None, None, None],
-            "rush": [0, 0, 1, 1, 1],
+            "rush": [0, 0, 1, 0, 0],
             "qb_scramble": [0, 0, 0, 1, 0],
             "qb_kneel": [0, 0, 0, 0, 1],
             "qb_spike": [0, 1, 0, 0, 0],
@@ -639,15 +635,16 @@ def test_compute_qb_game_stats_from_pbp_splits_designed_runs_scrambles_and_kneel
     # Assert
     row = result.row(0, named=True)
 
-    assert row["qb_dropbacks"] == 3
-    assert row["qb_passing_epa"] == pytest.approx(2.3)
+    # Dropbacks and passing EPA count only plays with a passer, so the scramble is in neither.
+    assert row["qb_dropbacks"] == 2
+    assert row["qb_passing_epa"] == pytest.approx(1.5)
     assert row["qb_designed_carries"] == 1
     assert row["qb_designed_rush_yards"] == 8.0
     assert row["qb_designed_rush_epa"] == pytest.approx(1.2)
     assert row["qb_scrambles"] == 1
     assert row["qb_scramble_yards"] == 12.0
     assert row["qb_kneels"] == 1
-    assert row["qb_scramble_rate"] == pytest.approx(1.0 / 3.0)
+    assert row["qb_scramble_rate"] == pytest.approx(1.0 / 2.0)
     assert row["qb_yards_per_scramble"] == pytest.approx(12.0)
     assert row["qb_designed_yards_per_carry"] == pytest.approx(8.0)
     assert row["qb_designed_epa_per_carry"] == pytest.approx(1.2)

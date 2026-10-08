@@ -1517,28 +1517,16 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
 ) -> None:
     """Verify official rushing fields and derived QB rates flow into game rows."""
     # Arrange
+    # Rows: a completion, three designed runs, a scramble, and a kneel. As in nflverse, the
+    # scramble and the kneel have rush = 0 and a rusher but no passer, and the scramble is a pass.
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC"] * 6,
             "season_type": ["REG"] * 6,
             "week": [1] * 6,
             "posteam": ["DEN"] * 6,
-            "passer_player_id": [
-                "00-0031234",
-                None,
-                None,
-                None,
-                "00-0031234",
-                None,
-            ],
-            "passer_player_name": [
-                "John Doe",
-                None,
-                None,
-                None,
-                "John Doe",
-                None,
-            ],
+            "passer_player_id": ["00-0031234", None, None, None, None, None],
+            "passer_player_name": ["John Doe", None, None, None, None, None],
             "rusher_player_id": [
                 None,
                 "00-0031234",
@@ -1556,7 +1544,7 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
                 "John Doe",
             ],
             "qb_dropback": [1, 0, 0, 0, 1, 0],
-            "pass": [1, 0, 0, 0, 0, 0],
+            "pass": [1, 0, 0, 0, 1, 0],
             "complete_pass": [1, 0, 0, 0, 0, 0],
             "passing_yards": [18.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             "yards_gained": [18.0, 10.0, 14.0, 0.0, 12.0, -1.0],
@@ -1567,7 +1555,7 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
             "qb_epa": [1.2, 0.0, 0.0, 0.0, 0.7, 0.0],
             "epa": [1.2, 0.6, 0.9, 0.0, 0.7, -0.2],
             "cpoe": [4.0, None, None, None, None, None],
-            "rush": [0, 1, 1, 1, 1, 1],
+            "rush": [0, 1, 1, 1, 0, 0],
             "qb_scramble": [0, 0, 0, 0, 1, 0],
             "qb_kneel": [0, 0, 0, 0, 0, 1],
             "qb_spike": [0, 0, 0, 0, 0, 0],
@@ -1667,10 +1655,14 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
     assert row["qb_scrambles"] == 1
     assert row["qb_scramble_yards"] == 12.0
     assert row["qb_kneels"] == 1
+    # The play-by-play split reconciles to the official carries.
+    assert row["qb_designed_carries"] + row["qb_scrambles"] + row["qb_kneels"] == row["qb_carries"]
     assert row["qb_completion_pct"] == 0.75
     assert row["qb_yards_per_carry"] == 7.0
     assert abs(row["qb_epa_per_carry"] - 0.3) < 1e-9
-    assert row["qb_scramble_rate"] == pytest.approx(0.5)
+    # Dropbacks count only plays with a passer, so the scramble is not one of them.
+    assert row["qb_dropbacks"] == 1
+    assert row["qb_scramble_rate"] == pytest.approx(1.0)
     assert row["qb_yards_per_scramble"] == pytest.approx(12.0)
     assert row["qb_designed_yards_per_carry"] == pytest.approx(8.0)
     assert row["qb_designed_epa_per_carry"] == pytest.approx(0.5)

@@ -124,7 +124,7 @@ Quarterback runs: designed carries, scrambles, and their value.
 | `qb_scrambles` | Scrambles | count | - | 1999 | PBP | Dropbacks on which the quarterback took off and ran. |
 | `qb_scramble_yards` | Scramble Yds | count | - | 1999 | PBP | Yards gained on scrambles. |
 | `qb_yards_per_scramble` | Yds/Scramble | rate | scrambles | 1999 | PBP | Average yards gained per scramble. |
-| `qb_kneels` | Kneels | count | - | 1999 | PBP | Kneel-downs to run out the clock (excluded from efficiency rates). |
+| `qb_kneels` | Kneels | count | - | 1999 | PBP | Kneel-downs to run out the clock. Counted in carries and the per-carry rates, left out of the designed-run stats. |
 | `qb_rushing_2pt_conversions` | 2-Pt Rushes | count | - | 1999 | PLS | Successful two-point conversions run in. |
 
 ## Scoring, Clutch & Outcomes

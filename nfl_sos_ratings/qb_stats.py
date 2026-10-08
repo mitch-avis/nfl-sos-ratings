@@ -585,11 +585,13 @@ def compute_qb_game_stats_from_pbp(
                 else pl.lit(None, dtype=pl.String),
             ]
         )
+        # nflverse sets rush = 0 on scrambles and kneels (a scramble counts as a pass play), so
+        # their own flags bring them in beside the designed runs.
         rushing_stats = (
             pbp_df.filter(
                 pl.col("posteam").is_not_null()
                 & pl.col("rusher_player_id").is_not_null()
-                & rush_flag
+                & (rush_flag | scramble_flag | kneel_flag)
             )
             .group_by(["game_id", "week", "posteam", "rusher_player_id"])
             .agg(
