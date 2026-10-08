@@ -143,6 +143,12 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     is_complete = value_expr(columns, "complete_pass") > 0
     is_dropback = value_expr(columns, "qb_dropback") > 0
     is_rush_attempt = value_expr(columns, "rush_attempt") > 0
+    # Carries (rush attempts that stood, not two-point tries) split into scrambles, kneel-downs,
+    # and designed runs. nflverse keeps the scramble and run flags on plays a penalty wiped out,
+    # so the split starts from rush attempts.
+    is_carry = is_rush_attempt & ~is_two_point
+    is_scramble = is_carry & (value_expr(columns, "qb_scramble") > 0)
+    is_designed_run = is_carry & ~is_scramble & ~(value_expr(columns, "qb_kneel") > 0)
     is_interception = value_expr(columns, "interception") > 0
     is_fumble_lost = value_expr(columns, "fumble_lost") > 0
     yards = value_expr(columns, "yards_gained", 0.0)
@@ -194,9 +200,9 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             targets,
             _count(is_dropback, "dropbacks"),
             (-yards).filter(is_sack).sum().fill_null(0.0).alias("sack_yards_lost"),
-            _count(value_expr(columns, "qb_scramble") > 0, "scrambles"),
+            _count(is_scramble, "scrambles"),
             value_expr(columns, "rushing_yards", 0.0)
-            .filter(value_expr(columns, "qb_scramble") > 0)
+            .filter(is_scramble)
             .sum()
             .fill_null(0.0)
             .alias("scramble_yards"),
@@ -229,13 +235,8 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             xyac.filter(is_complete).mean().alias("xyac_per_completion"),
             (yac - xyac).filter(is_complete).mean().alias("yac_over_expected_per_completion"),
             # Rushing (official carries exclude two-point tries).
-            _count(is_rush_attempt & ~is_two_point, "carries"),
-            _count(
-                (value_expr(columns, "rush") > 0)
-                & (value_expr(columns, "qb_kneel") == 0)
-                & ~is_two_point,
-                "designed_carries",
-            ),
+            _count(is_carry, "carries"),
+            _count(is_designed_run, "designed_carries"),
             value_expr(columns, "rushing_yards", 0.0)
             .filter(is_rush_attempt)
             .max()
@@ -260,11 +261,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             value_expr(columns, "success", 0).filter(scrimmage).mean().alias("success_rate"),
             value_expr(columns, "success", 0).filter(is_dropback).mean().alias("pass_success_rate"),
             value_expr(columns, "success", 0)
-            .filter(
-                (value_expr(columns, "rush") > 0)
-                & (value_expr(columns, "qb_kneel") == 0)
-                & ~is_two_point
-            )
+            .filter(is_designed_run)
             .mean()
             .alias("rush_success_rate"),
             value_expr(columns, "shotgun", 0).filter(scrimmage).mean().alias("shotgun_rate"),

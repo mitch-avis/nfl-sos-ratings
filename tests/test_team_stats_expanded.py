@@ -505,6 +505,41 @@ def test_drive_scoring_and_field_position_families() -> None:
     assert kc["avg_starting_field_position_allowed"] == 30.0
 
 
+def test_scrambles_and_designed_runs_leave_out_plays_wiped_out_by_penalty() -> None:
+    """Verify nullified scrambles and designed runs are not counted as real plays.
+
+    nflverse keeps the scramble and designed-run flags on a play a penalty wiped out, but sets
+    ``rush_attempt`` only on plays that stood, as official carries do. Fixture: one real and one
+    nullified designed run, one real and one nullified scramble, and a kneel-down (``rush`` is 0
+    on scrambles and kneel-downs, as in nflverse).
+    """
+    # Arrange
+    plays = [
+        _play(rush=1, rush_attempt=1, rushing_yards=4.0, yards_gained=4.0, success=1),
+        _play(rush=1, penalty=1, penalty_team="DEN", rushing_yards=None, epa=-0.6),
+        _play(
+            **{"pass": 1},
+            qb_dropback=1,
+            qb_scramble=1,
+            rush_attempt=1,
+            rushing_yards=9.0,
+            yards_gained=9.0,
+            success=1,
+        ),
+        _play(**{"pass": 1}, qb_scramble=1, penalty=1, penalty_team="DEN", rushing_yards=None),
+        _play(rush_attempt=1, qb_kneel=1, rushing_yards=-1.0, yards_gained=-1.0),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    den = _row(result, "DEN")
+    assert (den["carries"], den["designed_carries"], den["scrambles"]) == (3, 1, 1)
+    assert den["scramble_yards"] == 9.0
+    assert den["rush_success_rate"] == 1.0
+
+
 def test_receiving_fumbles_count_only_the_receivers_fumbles() -> None:
     """Verify receiving fumbles are the receiver's, not any fumble on a completed pass.
 
