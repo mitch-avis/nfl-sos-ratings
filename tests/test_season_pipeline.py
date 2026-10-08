@@ -33,8 +33,17 @@ def _games() -> list[tuple[int, str, str, str]]:
     ]
 
 
+def _snaps(week: int, team: str) -> int:
+    """Return a team's offensive snaps in one week's game: 56 to 68, different game to game."""
+    return 56 + (week * (1 + _TEAMS.index(team))) % 13
+
+
 def _weekly_df() -> pl.DataFrame:
-    """Return team-game rows with the columns the loaders publish for the rating."""
+    """Return team-game rows with the columns the loaders publish for the rating.
+
+    Snap counts differ from game to game, so a rate pooled over a team's games differs from the
+    mean of its game rates.
+    """
     rows: list[dict[str, object]] = []
     for week, game_id, home, away in _games():
         margin = round((_STRENGTH[home] - _STRENGTH[away]) * 100) + 2
@@ -54,9 +63,9 @@ def _weekly_df() -> pl.DataFrame:
                     "points_for": points_for,
                     "points_allowed": points_for - team_margin,
                     "point_margin": team_margin,
-                    "offensive_snaps": 62,
-                    "defensive_snaps": 61,
-                    "offensive_epa": epa_per_play * 62,
+                    "offensive_snaps": _snaps(week, team),
+                    "defensive_snaps": _snaps(week, opponent),
+                    "offensive_epa": epa_per_play * _snaps(week, team),
                     "st_plays": 13,
                     "st_epa": 0.05 if is_home else -0.05,
                 }
@@ -69,7 +78,7 @@ def _qb_df() -> pl.DataFrame:
     """Return one starting passer per team-game."""
     rows: list[dict[str, object]] = []
     for row in _weekly_df().iter_rows(named=True):
-        epa = float(row["offensive_epa"]) / 62 + 0.02
+        epa = float(row["offensive_epa"]) / float(row["offensive_snaps"]) + 0.02
         rows.append(
             {
                 "game_id": row["game_id"],
@@ -129,14 +138,16 @@ def _wp_bins() -> tuple[pl.DataFrame, pl.DataFrame]:
                 pl.lit("scrimmage").alias("wp_unit"),
                 pl.lit(2, dtype=pl.Int64).alias("wp_bin"),
                 pl.lit(5, dtype=pl.Int64).alias("wp_bin_plays"),
-                (scrimmage_epa * 5 / 62).alias("wp_bin_epa"),
+                (scrimmage_epa * 5 / pl.col("offensive_snaps")).alias("wp_bin_epa"),
             ),
             weekly.select(
                 *keys,
                 pl.lit("scrimmage").alias("wp_unit"),
                 pl.lit(40, dtype=pl.Int64).alias("wp_bin"),
                 (pl.col("offensive_snaps") - 5).cast(pl.Int64).alias("wp_bin_plays"),
-                (scrimmage_epa * 57 / 62).alias("wp_bin_epa"),
+                (scrimmage_epa * (pl.col("offensive_snaps") - 5) / pl.col("offensive_snaps")).alias(
+                    "wp_bin_epa"
+                ),
             ),
             weekly.select(
                 *keys,
