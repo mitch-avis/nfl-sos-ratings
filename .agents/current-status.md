@@ -62,9 +62,8 @@ history (the composite-rating era and its experiments) is in git, before commit 
    own protocol.
 5. Registry (roadmap P5): `air_epa_total` polarity (neutral recommended), removing `player_id` and
    `player_display_name`, and accepting nine labels of 19-20 characters.
-6. Smaller open items in the roadmap's "Data notes", each a `data/` change: punt muffs and return
-   fumbles booked to the punting team in `turnover_epa` (699 plays in 1999-2025), interceptions
-   fumbled back to the offense, the extra-point drive after a return touchdown, the near-duplicate
+6. Smaller open items in the roadmap's "Data notes", each a `data/` change: the extra-point drive
+   after a return touchdown, the near-duplicate
    yards-per-snap columns, `opp_longest_*` averaging per-game maxima, `fourth_down_aggressiveness`
    at 2.0 in two 2000 games, play-by-play as a 2003-2011 source for tackles for loss, kneel-downs
    under-recorded in 2000 and 2001, and JAX's 2001-2002 QB official stats.
