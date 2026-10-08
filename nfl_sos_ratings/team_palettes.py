@@ -2,23 +2,33 @@
 
 The app's ``Palette`` menu offers the default palette and one per team. A team palette swaps the
 accent (buttons, links, focus rings, the sidebar's active item, the first chart color), the second
-chart color, and the table heat scale for the team's own colors, in light and dark mode alike.
+chart color, the tinted surfaces, the app's logo mark, and the table heat scale for the team's own
+colors, in light and dark mode alike.
 
 Colors come from nflverse's teams table (``team_color`` through ``team_color4``; the first two are
 the team's primary and secondary colors). For each mode:
 
+- **Surfaces:** the page, cards, menus, and sidebar keep the default palette's lightness and take
+  the hue of the team's base color: its first color, or the darker main color when the first is a
+  bright one paired with black or silver (Bengals orange, Saints gold), so black-based teams get
+  neutral grays. Light mode is tinted no more than the default palette; dark mode up to
+  ``SURFACE_CHROMA``.
 - **Accent:** the more vivid of the two main colors that can reach readable contrast with little
   change, its lightness moved (hue kept, chroma kept where sRGB allows) until text on it and links
-  in it reach ``TEXT_CONTRAST`` (WCAG AA for normal text) on every surface links sit on.
+  in it reach ``TEXT_CONTRAST`` (WCAG AA for normal text) on every surface links sit on. Hover and
+  selected backgrounds (``accent``, ``sidebar_accent``) are tints of the accent hue.
 - **Second chart color:** the other main color, or, when that is black, white, silver, or too close
   in hue, the most distinct of the extra listed colors; moved until it reaches ``MARK_CONTRAST``.
 - **Heat scale:** pale tints (light mode) or deep shades (dark mode) of the accent hue for the good
-  end and the second color's hue for the bad end, around a neutral middle; ``None`` (the app's
-  default heat scale) when the team has no two distinct hues.
+  end and the second color's hue for the bad end, around a neutral middle. When the second color is
+  black, white, silver, or its tint looks like the accent's, the bad end is a muted gray of it, so
+  the team color marks the good end. A team without any hue (black and silver) gets a lightness
+  scale instead: darker is better in light mode, lighter in dark mode.
 
-The Broncos palette predates this module and was tuned and checked by hand; it is kept exactly.
-Run ``nfl-sos-ratings team-palettes`` to regenerate ``web/src/domain/teamPaletteData.json``; it
-downloads nflverse's teams table and writes only that file.
+The logo mark is the darker main color with a line in the other one (or the most contrasting listed
+color, or white). Run ``nfl-sos-ratings team-palettes`` to regenerate
+``web/src/domain/teamPaletteData.json``; it downloads nflverse's teams table and writes only that
+file.
 """
 
 from __future__ import annotations
@@ -60,10 +70,20 @@ class ModeTokens(TypedDict):
     primary_foreground: str
     ring: str
     sidebar_primary: str
-    sidebar_primary_foreground: str | None
+    sidebar_primary_foreground: str
     sidebar_ring: str
     chart_1: str
     chart_2: str
+    background: str
+    card: str
+    popover: str
+    muted: str
+    secondary: str
+    sidebar: str
+    accent: str
+    accent_foreground: str
+    sidebar_accent: str
+    sidebar_accent_foreground: str
     heat: HeatScale | None
 
 
@@ -74,6 +94,13 @@ class ModePalettes(TypedDict):
     dark: ModeTokens
 
 
+class BrandMark(TypedDict):
+    """The app logo's two colors for a team: its tile and the line drawn on it (``#RRGGBB``)."""
+
+    background: str
+    line: str
+
+
 class TeamPalette(ModePalettes):
     """One team's entry in the palette file."""
 
@@ -81,6 +108,7 @@ class TeamPalette(ModePalettes):
     conference: str
     division: str
     source: list[str]
+    mark: BrandMark
 
 
 PALETTE_PATH = (
@@ -101,53 +129,72 @@ MIN_HEAT_SEPARATION: dict[Mode, float] = {"light": 4.9, "dark": 8.0}
 # (the default palette's accent sits at 0.42).
 LIGHT_ACCENT_FLOOR = 0.4
 LIGHTNESS_STEP = 0.005
-# The app's surfaces and text colors (web/src/index.css); links sit on background, card, and muted.
+# The default palette's surfaces and text colors (web/src/index.css). Links sit on background, card,
+# and muted; ``on_accent`` is the text on the accent.
 SURFACES: dict[Mode, dict[str, Oklch]] = {
     "light": {
         "background": (0.985, 0.002, 250.0),
         "card": (1.0, 0.0, 0.0),
+        "popover": (1.0, 0.0, 0.0),
         "muted": (0.955, 0.006, 255.0),
+        "secondary": (0.95, 0.008, 255.0),
+        "sidebar": (0.975, 0.004, 255.0),
+        "accent": (0.94, 0.02, 262.0),
+        "sidebar_accent": (0.93, 0.015, 262.0),
         "foreground": (0.2, 0.02, 260.0),
+        "muted_foreground": (0.52, 0.02, 260.0),
+        "accent_foreground": (0.3, 0.05, 262.0),
         "on_accent": (0.985, 0.002, 250.0),
     },
     "dark": {
         "background": (0.17, 0.015, 260.0),
         "card": (0.21, 0.017, 260.0),
+        "popover": (0.21, 0.017, 260.0),
         "muted": (0.26, 0.018, 260.0),
+        "secondary": (0.27, 0.02, 260.0),
+        "sidebar": (0.2, 0.017, 260.0),
+        "accent": (0.3, 0.04, 262.0),
+        "sidebar_accent": (0.28, 0.03, 262.0),
         "foreground": (0.95, 0.008, 255.0),
+        "muted_foreground": (0.7, 0.02, 255.0),
+        "accent_foreground": (0.95, 0.008, 255.0),
         "on_accent": (0.17, 0.015, 260.0),
     },
 }
 LINK_SURFACES = ("background", "card", "muted")
+# The neutral surfaces a team palette tints with its base color, and the accent surfaces it tints
+# with its accent hue.
+NEUTRAL_SURFACES = ("background", "card", "popover", "muted", "secondary", "sidebar")
+ACCENT_SURFACES = ("accent", "sidebar_accent")
+# Body text sits on every surface; secondary text on the neutral ones (the default palette's
+# secondary text is just under 4.5:1 on its own selected sidebar item).
+TEXT_SURFACES = (*NEUTRAL_SURFACES, *ACCENT_SURFACES)
+MUTED_TEXT_SURFACES = ("background", "card", "muted", "secondary")
+# The most chroma a neutral surface takes from the team's base color. Light mode keeps each
+# surface's default chroma, so pages never turn cream or pink; dark surfaces carry a visible tint.
+SURFACE_CHROMA: dict[Mode, float | None] = {"light": None, "dark": 0.022}
+# The chroma of the accent-hue hover and selected backgrounds.
+ACCENT_SURFACE_CHROMA: dict[Mode, float] = {"light": 0.035, "dark": 0.05}
+# A first color lighter than this is bright (orange, gold); paired with a black, white, or silver
+# second color, the neutral becomes the base color for surfaces.
+BRIGHT_BASE_LIGHTNESS = 0.6
 # Heat-scale tints: pale in light mode, deep in dark mode, with a neutral middle.
 HEAT_LIGHTNESS: dict[Mode, float] = {"light": 0.91, "dark": 0.36}
 HEAT_MAX_CHROMA: dict[Mode, float] = {"light": 0.06, "dark": 0.09}
-HEAT_MID: dict[Mode, list[int]] = {"light": [244, 247, 250], "dark": [22, 27, 34]}
-# The hand-tuned Broncos palette (verified by the maintainer), kept exactly.
-BRONCOS: ModePalettes = {
-    "light": {
-        "primary": "oklch(0.66 0.2 40)",
-        "primary_foreground": "oklch(0.99 0.005 60)",
-        "ring": "oklch(0.66 0.2 40)",
-        "sidebar_primary": "oklch(0.66 0.2 40)",
-        "sidebar_primary_foreground": None,
-        "sidebar_ring": "oklch(0.66 0.2 40)",
-        "chart_1": "oklch(0.66 0.2 40)",
-        "chart_2": "oklch(0.35 0.09 255)",
-        "heat": {"good": [255, 231, 220], "bad": [223, 233, 244], "mid": [244, 247, 250]},
-    },
-    "dark": {
-        "primary": "oklch(0.72 0.18 45)",
-        "primary_foreground": "oklch(0.17 0.015 260)",
-        "ring": "oklch(0.66 0.2 40)",
-        "sidebar_primary": "oklch(0.66 0.2 40)",
-        "sidebar_primary_foreground": None,
-        "sidebar_ring": "oklch(0.66 0.2 40)",
-        "chart_1": "oklch(0.66 0.2 40)",
-        "chart_2": "oklch(0.65 0.1 245)",
-        "heat": {"good": [124, 51, 24], "bad": [15, 48, 84], "mid": [22, 27, 34]},
-    },
+# The heat scale's neutral middle: a near-white in light mode (the default's 244, 247, 250), the
+# card in dark mode.
+HEAT_MID: dict[Mode, Oklch] = {"light": (0.975, 0.004, 250.0), "dark": (0.21, 0.017, 260.0)}
+# A muted bad end (a gray of the second color): a little darker than the tints in light mode and a
+# little lighter than the card in dark mode, with at most this much chroma.
+HEAT_MUTED_LIGHTNESS: dict[Mode, float] = {"light": 0.85, "dark": 0.3}
+HEAT_MUTED_CHROMA = 0.012
+# A team without any hue gets good, middle, and bad lightnesses instead (darker is better in light
+# mode, lighter in dark mode), in its own gray.
+HEAT_LIGHTNESS_SCALE: dict[Mode, tuple[float, float, float]] = {
+    "light": (0.8, 0.94, 0.995),
+    "dark": (0.45, 0.27, 0.19),
 }
+WHITE = "#FFFFFF"
 # sRGB transfer function breakpoints, and how far outside 0-1 a linear channel may drift from
 # rounding and still count as in gamut.
 _SRGB_ENCODED_LIMIT = 0.04045
@@ -301,37 +348,42 @@ def _is_neutral(color: Oklch) -> bool:
     return color[1] < NEUTRAL_CHROMA
 
 
-def _passes_accent(color: Oklch, mode: Mode) -> bool:
-    """Return whether text on ``color`` and links in it reach ``TEXT_CONTRAST`` in ``mode``."""
-    surfaces = SURFACES[mode]
+type Surfaces = dict[str, Oklch]
+
+
+def _passes_accent(color: Oklch, surfaces: Surfaces) -> bool:
+    """Return whether text on ``color`` and links in it reach ``TEXT_CONTRAST`` on ``surfaces``."""
     return contrast_ratio(color, surfaces["on_accent"]) >= TEXT_CONTRAST and all(
         contrast_ratio(color, surfaces[surface]) >= TEXT_CONTRAST for surface in LINK_SURFACES
     )
 
 
-def _passes_mark(color: Oklch, mode: Mode) -> bool:
+def _passes_mark(color: Oklch, surfaces: Surfaces) -> bool:
     """Return whether ``color`` stands out from the card by ``MARK_CONTRAST``."""
-    return contrast_ratio(color, SURFACES[mode]["card"]) >= MARK_CONTRAST
+    return contrast_ratio(color, surfaces["card"]) >= MARK_CONTRAST
 
 
-def _fit(color: Oklch, mode: Mode, *, accent: bool) -> tuple[Oklch, float]:
+def _fit(color: Oklch, mode: Mode, surfaces: Surfaces, *, accent: bool) -> tuple[Oklch, float]:
     """Move ``color``'s lightness (darker in light mode, lighter in dark mode) until it passes.
 
-    The hue stays; the chroma stays where the sRGB gamut allows. Returns the fitted color and how
-    far its lightness moved.
+    The hue stays; the chroma stays where the sRGB gamut allows. The check runs on the color as
+    the palette file writes it (rounded), so the published value passes. Returns the fitted color
+    and how far its lightness moved.
     """
     passes = _passes_accent if accent else _passes_mark
     lightness, chroma, hue = color
     start = max(lightness, LIGHT_ACCENT_FLOOR) if accent and mode == "light" else lightness
     step = -LIGHTNESS_STEP if mode == "light" else LIGHTNESS_STEP
     current = (start, _max_chroma(start, hue, chroma), hue)
-    while not passes(current, mode) and 0.0 < current[0] + step < 1.0:
+    while (
+        not passes(parse_oklch(format_oklch(current)), surfaces) and 0.0 < current[0] + step < 1.0
+    ):
         next_lightness = current[0] + step
         current = (next_lightness, _max_chroma(next_lightness, hue, chroma), hue)
     return current, abs(current[0] - lightness)
 
 
-def _accent(main: Sequence[Oklch], mode: Mode) -> tuple[int, Oklch]:
+def _accent(main: Sequence[Oklch], mode: Mode, surfaces: Surfaces) -> tuple[int, Oklch]:
     """Return which main color becomes the accent in ``mode``, and its fitted form.
 
     Among the vivid main colors that move at most ``MAX_ACCENT_SHIFT``, the most vivid wins; with
@@ -339,7 +391,7 @@ def _accent(main: Sequence[Oklch], mode: Mode) -> tuple[int, Oklch]:
     """
     vivid = [index for index, color in enumerate(main) if not _is_neutral(color)]
     candidates = vivid or list(range(len(main)))
-    fitted = {index: _fit(main[index], mode, accent=True) for index in candidates}
+    fitted = {index: _fit(main[index], mode, surfaces, accent=True) for index in candidates}
     close = [index for index in candidates if fitted[index][1] <= MAX_ACCENT_SHIFT]
     if close:
         best = max(close, key=lambda index: fitted[index][0][1])
@@ -371,30 +423,132 @@ def _second(colors: Sequence[Oklch], accent_index: int) -> Oklch | None:
     return max(extras, key=lambda color: _hue_distance(color[2], accent_hue))
 
 
+def _base_color(colors: Sequence[Oklch]) -> Oklch:
+    """Return the color whose hue tints the surfaces: the first, unless a neutral takes over.
+
+    A bright first color (lighter than ``BRIGHT_BASE_LIGHTNESS``) paired with a black, white, or
+    silver second color would tint dark surfaces brown or olive, so the darker of the two wins.
+    """
+    first = colors[0]
+    if len(colors) > 1 and first[0] > BRIGHT_BASE_LIGHTNESS and _is_neutral(colors[1]):
+        return min(colors[:2], key=lambda color: color[0])
+    return first
+
+
+def _surfaces(colors: Sequence[Oklch], mode: Mode) -> Surfaces:
+    """Return the mode's surfaces tinted with the team's base color, plus the default text colors.
+
+    Each neutral surface keeps the default palette's lightness and takes the base color's hue, with
+    no more chroma than the base color has and than ``SURFACE_CHROMA`` (light mode: the default's
+    own chroma) allows.
+    """
+    base = _base_color(colors)
+    surfaces = dict(SURFACES[mode])
+    for surface in NEUTRAL_SURFACES:
+        lightness, default_chroma, _ = SURFACES[mode][surface]
+        ceiling = SURFACE_CHROMA[mode] or default_chroma
+        chroma = _max_chroma(lightness, base[2], min(base[1], ceiling))
+        surfaces[surface] = (lightness, chroma, base[2])
+    return surfaces
+
+
+def _accent_surfaces(accent: Oklch, mode: Mode) -> Surfaces:
+    """Return the hover and selected backgrounds and their text, tinted with the accent hue."""
+    hue = accent[2]
+    tinted: Surfaces = {}
+    for surface in ACCENT_SURFACES:
+        lightness = SURFACES[mode][surface][0]
+        ceiling = min(accent[1], ACCENT_SURFACE_CHROMA[mode])
+        tinted[surface] = (lightness, _max_chroma(lightness, hue, ceiling), hue)
+    text_lightness, text_chroma, _ = SURFACES[mode]["accent_foreground"]
+    tinted["accent_foreground"] = (
+        text_lightness,
+        _max_chroma(text_lightness, hue, min(accent[1], text_chroma)),
+        hue,
+    )
+    return tinted
+
+
+def _rgb(color: Oklch) -> list[int]:
+    """Return an OKLCH color as rounded 0-255 sRGB channels."""
+    return [round(channel) for channel in oklch_to_srgb(color)]
+
+
 def _tint(color: Oklch, mode: Mode) -> list[int]:
     """Return the heat-scale tint of ``color``'s hue in ``mode`` as 0-255 sRGB channels."""
     lightness = HEAT_LIGHTNESS[mode]
     hue = color[2]
     chroma = _max_chroma(lightness, hue, min(color[1], HEAT_MAX_CHROMA[mode]))
-    return [round(channel) for channel in oklch_to_srgb((lightness, chroma, hue))]
+    return _rgb((lightness, chroma, hue))
+
+
+def _muted_tint(color: Oklch, mode: Mode) -> list[int]:
+    """Return a gray of ``color``'s hue for a heat scale's bad end, set apart by lightness."""
+    lightness = HEAT_MUTED_LIGHTNESS[mode]
+    chroma = _max_chroma(lightness, color[2], min(color[1], HEAT_MUTED_CHROMA))
+    return _rgb((lightness, chroma, color[2]))
+
+
+def _separated(good: list[int], bad: list[int], mode: Mode) -> bool:
+    """Return whether a heat scale's two ends are at least ``MIN_HEAT_SEPARATION`` apart."""
+    return _distance(srgb_to_oklch(good), srgb_to_oklch(bad)) >= MIN_HEAT_SEPARATION[mode]
+
+
+def _heat(
+    colors: Sequence[Oklch], accent_index: int, second: Oklch | None, mode: Mode, mid: Oklch
+) -> HeatScale | None:
+    """Return the team's heat scale in ``mode``, or ``None`` when no rule separates its ends.
+
+    The accent hue marks the good end. The bad end is the second hue's tint when the two tints are
+    far enough apart, otherwise a muted gray of the second color (or of the other main color, or
+    failing that of whichever other listed color sets the ends farthest apart), so the team's color
+    always means better. A team whose accent has no hue gets a scale of its own gray by lightness.
+    """
+    accent = colors[accent_index]
+    if _is_neutral(accent):
+        good_lightness, mid_lightness, bad_lightness = HEAT_LIGHTNESS_SCALE[mode]
+        chroma = min(accent[1], HEAT_MUTED_CHROMA)
+        return {
+            "good": _rgb((good_lightness, chroma, accent[2])),
+            "bad": _rgb((bad_lightness, chroma, accent[2])),
+            "mid": _rgb((mid_lightness, chroma, accent[2])),
+        }
+    good = _tint(accent, mode)
+    if second is not None and _separated(good, bad := _tint(second, mode), mode):
+        return {"good": good, "bad": bad, "mid": _rgb(mid)}
+    other = second if second is not None else colors[1 - accent_index if len(colors) > 1 else 0]
+    rest = [color for index, color in enumerate(colors) if index != accent_index]
+    by_separation = sorted(
+        (_muted_tint(color, mode) for color in rest),
+        key=lambda gray: _distance(srgb_to_oklch(good), srgb_to_oklch(gray)),
+        reverse=True,
+    )
+    grays = [_muted_tint(other, mode), *by_separation]
+    bad = next((gray for gray in grays if _separated(good, gray, mode)), None)
+    return None if bad is None else {"good": good, "bad": bad, "mid": _rgb(mid)}
 
 
 def _mode_palette(colors: Sequence[Oklch], mode: Mode) -> ModeTokens:
     """Return one mode's palette tokens for a team's listed colors (primary first)."""
+    surfaces = _surfaces(colors, mode)
     main = colors[:2]
-    accent_index, accent = _accent(main, mode)
+    accent_index, accent = _accent(main, mode, surfaces)
     second = _second(colors, accent_index)
     chart2_source = (
         second if second is not None else colors[1 - accent_index if len(colors) > 1 else 0]
     )
-    chart2, _ = _fit(chart2_source, mode, accent=False)
-    heat: HeatScale | None = None
-    if second is not None and not _is_neutral(colors[accent_index]):
-        good, bad = _tint(colors[accent_index], mode), _tint(second, mode)
-        if _distance(srgb_to_oklch(good), srgb_to_oklch(bad)) >= MIN_HEAT_SEPARATION[mode]:
-            heat = {"good": good, "bad": bad, "mid": HEAT_MID[mode]}
+    chart2, _ = _fit(chart2_source, mode, surfaces, accent=False)
+    mid_lightness, mid_chroma, _ = HEAT_MID[mode]
+    base = _base_color(colors)
+    mid = (
+        (mid_lightness, _max_chroma(mid_lightness, base[2], min(base[1], mid_chroma)), base[2])
+        if mode == "light"
+        else surfaces["card"]
+    )
+    accent_surfaces = _accent_surfaces(accent, mode)
     primary = format_oklch(accent)
     on_accent = format_oklch(SURFACES[mode]["on_accent"])
+    accent_foreground = format_oklch(accent_surfaces["accent_foreground"])
     return {
         "primary": primary,
         "primary_foreground": on_accent,
@@ -404,7 +558,17 @@ def _mode_palette(colors: Sequence[Oklch], mode: Mode) -> ModeTokens:
         "sidebar_ring": primary,
         "chart_1": primary,
         "chart_2": format_oklch(chart2),
-        "heat": heat,
+        "background": format_oklch(surfaces["background"]),
+        "card": format_oklch(surfaces["card"]),
+        "popover": format_oklch(surfaces["popover"]),
+        "muted": format_oklch(surfaces["muted"]),
+        "secondary": format_oklch(surfaces["secondary"]),
+        "sidebar": format_oklch(surfaces["sidebar"]),
+        "accent": format_oklch(accent_surfaces["accent"]),
+        "accent_foreground": accent_foreground,
+        "sidebar_accent": format_oklch(accent_surfaces["sidebar_accent"]),
+        "sidebar_accent_foreground": accent_foreground,
+        "heat": _heat(colors, accent_index, second, mode, mid),
     }
 
 
@@ -414,22 +578,63 @@ def build_palette(team: TeamColors) -> ModePalettes:
     return {"light": _mode_palette(colors, "light"), "dark": _mode_palette(colors, "dark")}
 
 
+def build_mark(team: TeamColors) -> BrandMark:
+    """Return the app logo's colors for a team: its darker main color with a contrasting line.
+
+    The line is the other main color when it stands out from the tile by ``MARK_CONTRAST``,
+    otherwise the most contrasting extra listed color that does, otherwise white.
+    """
+    main = team.colors[:2]
+    tile = min(main, key=lambda color: hex_to_oklch(color)[0])
+    tile_color = hex_to_oklch(tile)
+    others = [color for color in main if color != tile]
+    extras = sorted(
+        (color for color in team.colors[2:] if color.lower() != tile.lower()),
+        key=lambda color: contrast_ratio(hex_to_oklch(color), tile_color),
+        reverse=True,
+    )
+    line = next(
+        (
+            color
+            for color in (*others, *extras)
+            if contrast_ratio(hex_to_oklch(color), tile_color) >= MARK_CONTRAST
+        ),
+        WHITE,
+    )
+    return {"background": tile, "line": line}
+
+
+def _palette_surfaces(tokens: ModeTokens, mode: Mode) -> Surfaces:
+    """Return a palette's surfaces as OKLCH colors, with the default text colors."""
+    surfaces = dict(SURFACES[mode])
+    for surface in (*NEUTRAL_SURFACES, *ACCENT_SURFACES, "accent_foreground"):
+        surfaces[surface] = parse_oklch(tokens[surface])
+    surfaces["sidebar_accent_foreground"] = parse_oklch(tokens["sidebar_accent_foreground"])
+    return surfaces
+
+
 def is_readable(palette: ModePalettes, mode: Mode) -> bool:
     """Return whether one mode of a palette meets the readability rules this module builds to.
 
-    Text on the accent and links in it reach ``TEXT_CONTRAST``; both chart colors reach
-    ``MARK_CONTRAST`` on the card; and a heat scale keeps text readable on every step while its two
-    ends stay ``MIN_HEAT_SEPARATION`` apart for the mode.
+    Text on the accent and links in it reach ``TEXT_CONTRAST``; body text reaches it on every
+    surface and secondary text on the neutral ones; the accent surfaces' own text reaches it; both
+    chart colors reach ``MARK_CONTRAST`` on the card; and a heat scale keeps text readable on every
+    step while its two ends stay ``MIN_HEAT_SEPARATION`` apart for the mode.
     """
     tokens = palette[mode]
     primary = parse_oklch(tokens["primary"])
-    surfaces = SURFACES[mode]
-    readable = contrast_ratio(primary, parse_oklch(tokens["primary_foreground"])) >= TEXT_CONTRAST
+    surfaces = _palette_surfaces(tokens, mode)
+    pairs = [
+        (primary, parse_oklch(tokens["primary_foreground"])),
+        *((primary, surfaces[surface]) for surface in LINK_SURFACES),
+        *((surfaces["foreground"], surfaces[surface]) for surface in TEXT_SURFACES),
+        *((surfaces["muted_foreground"], surfaces[surface]) for surface in MUTED_TEXT_SURFACES),
+        (surfaces["accent_foreground"], surfaces["accent"]),
+        (surfaces["sidebar_accent_foreground"], surfaces["sidebar_accent"]),
+    ]
+    readable = all(contrast_ratio(first, second) >= TEXT_CONTRAST for first, second in pairs)
     readable = readable and all(
-        contrast_ratio(primary, surfaces[surface]) >= TEXT_CONTRAST for surface in LINK_SURFACES
-    )
-    readable = readable and all(
-        _passes_mark(parse_oklch(tokens[key]), mode) for key in ("chart_1", "chart_2")
+        _passes_mark(parse_oklch(tokens[key]), surfaces) for key in ("chart_1", "chart_2")
     )
     heat = tokens["heat"]
     if heat is None:
@@ -438,7 +643,7 @@ def is_readable(palette: ModePalettes, mode: Mode) -> bool:
     readable = readable and all(
         contrast_ratio(step, surfaces["foreground"]) >= TEXT_CONTRAST for step in steps
     )
-    return readable and _distance(steps[0], steps[1]) >= MIN_HEAT_SEPARATION[mode]
+    return readable and _separated(heat["good"], heat["bad"], mode)
 
 
 def load_palette_file(path: Path = PALETTE_PATH) -> dict[str, TeamPalette]:
@@ -457,7 +662,6 @@ def build_palettes(teams: pl.DataFrame) -> dict[str, TeamPalette]:
     """Return every current team's palette, keyed by abbreviation, in division order.
 
     Current teams are those in ``config.DIVISIONS``; relocated franchises' old rows are skipped.
-    The Broncos keep their hand-tuned palette.
     """
     rows = {str(row["team_abbr"]): row for row in teams.iter_rows(named=True)}
     palettes: dict[str, TeamPalette] = {}
@@ -468,12 +672,13 @@ def build_palettes(teams: pl.DataFrame) -> dict[str, TeamPalette]:
             identity = TeamColors(
                 team, str(row["team_name"]), str(row["team_conf"]), division, colors
             )
-            modes = BRONCOS if team == "DEN" else build_palette(identity)
+            modes = build_palette(identity)
             palettes[team] = {
                 "name": identity.name,
                 "conference": identity.conference,
                 "division": division,
                 "source": list(colors[:2]),
+                "mark": build_mark(identity),
                 "light": modes["light"],
                 "dark": modes["dark"],
             }
@@ -505,17 +710,18 @@ def main(argv: list[str] | None = None) -> None:
 
 
 __all__ = [
-    "BRONCOS",
     "MARK_CONTRAST",
     "MODES",
     "PALETTE_PATH",
     "SURFACES",
     "TEXT_CONTRAST",
+    "BrandMark",
     "HeatScale",
     "ModePalettes",
     "ModeTokens",
     "TeamColors",
     "TeamPalette",
+    "build_mark",
     "build_palette",
     "build_palettes",
     "contrast_ratio",

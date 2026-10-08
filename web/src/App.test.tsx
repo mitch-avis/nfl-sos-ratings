@@ -639,7 +639,22 @@ describe('team palettes', () => {
 
     // Assert
     expect(await screen.findByRole('button', { name: 'Palette: Denver Broncos' })).toBeInTheDocument()
-    expect(document.documentElement.style.getPropertyValue('--primary')).toBe('oklch(0.66 0.2 40)')
+    expect(document.documentElement.style.getPropertyValue('--primary')).toBe('oklch(0.554 0.188 36.5)')
+  })
+
+  it("clears a team palette's tinted surfaces on switching back to the default", async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'KC')
+    const user = userEvent.setup()
+    renderApp('/teams?season=2025')
+    await user.click(await screen.findByRole('button', { name: 'Palette: Kansas City Chiefs' }))
+
+    // Act
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Default' }))
+
+    // Assert
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('classic'))
+    expect(document.documentElement.style.getPropertyValue('--background')).toBe('')
   })
 })
 

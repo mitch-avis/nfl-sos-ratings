@@ -7,6 +7,10 @@
       "#00338D",
       "#C60C30"
     ],
+    "mark": {
+      "background": "#00338D",
+      "line": "#FFFFFF"
+    },
     "light": {
       "primary": "oklch(0.526 0.207 21.3)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -16,6 +20,16 @@
       "sidebar_ring": "oklch(0.526 0.207 21.3)",
       "chart_1": "oklch(0.526 0.207 21.3)",
       "chart_2": "oklch(0.359 0.157 261.2)",
+      "background": "oklch(0.985 0.002 261.2)",
+      "card": "oklch(1 0 261.2)",
+      "popover": "oklch(1 0 261.2)",
+      "muted": "oklch(0.955 0.006 261.2)",
+      "secondary": "oklch(0.95 0.008 261.2)",
+      "sidebar": "oklch(0.975 0.004 261.2)",
+      "accent": "oklch(0.94 0.03 21.3)",
+      "accent_foreground": "oklch(0.3 0.05 21.3)",
+      "sidebar_accent": "oklch(0.93 0.035 21.3)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 21.3)",
       "heat": {
         "good": [
           255,
@@ -28,9 +42,9 @@
           255
         ],
         "mid": [
-          244,
+          245,
           247,
-          250
+          249
         ]
       }
     },
@@ -42,7 +56,17 @@
       "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
       "sidebar_ring": "oklch(0.661 0.207 21.3)",
       "chart_1": "oklch(0.661 0.207 21.3)",
-      "chart_2": "oklch(0.514 0.157 261.2)",
+      "chart_2": "oklch(0.509 0.157 261.2)",
+      "background": "oklch(0.17 0.022 261.2)",
+      "card": "oklch(0.21 0.022 261.2)",
+      "popover": "oklch(0.21 0.022 261.2)",
+      "muted": "oklch(0.26 0.022 261.2)",
+      "secondary": "oklch(0.27 0.022 261.2)",
+      "sidebar": "oklch(0.2 0.022 261.2)",
+      "accent": "oklch(0.3 0.05 21.3)",
+      "accent_foreground": "oklch(0.95 0.008 21.3)",
+      "sidebar_accent": "oklch(0.28 0.05 21.3)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 21.3)",
       "heat": {
         "good": [
           100,
@@ -55,9 +79,9 @@
           108
         ],
         "mid": [
-          22,
-          27,
-          34
+          19,
+          24,
+          35
         ]
       }
     }
@@ -70,6 +94,10 @@
       "#008E97",
       "#F58220"
     ],
+    "mark": {
+      "background": "#008E97",
+      "line": "#FFFFFF"
+    },
     "light": {
       "primary": "oklch(0.524 0.089 202.7)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -79,6 +107,16 @@
       "sidebar_ring": "oklch(0.524 0.089 202.7)",
       "chart_1": "oklch(0.524 0.089 202.7)",
       "chart_2": "oklch(0.682 0.171 53.9)",
+      "background": "oklch(0.985 0.002 202.7)",
+      "card": "oklch(1 0 202.7)",
+      "popover": "oklch(1 0 202.7)",
+      "muted": "oklch(0.955 0.006 202.7)",
+      "secondary": "oklch(0.95 0.008 202.7)",
+      "sidebar": "oklch(0.975 0.004 202.7)",
+      "accent": "oklch(0.94 0.035 202.7)",
+      "accent_foreground": "oklch(0.3 0.05 202.7)",
+      "sidebar_accent": "oklch(0.93 0.035 202.7)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 202.7)",
       "heat": {
         "good": [
           179,
@@ -92,8 +130,8 @@
         ],
         "mid": [
           244,
-          247,
-          250
+          248,
+          248
         ]
       }
     },
@@ -106,6 +144,16 @@
       "sidebar_ring": "oklch(0.722 0.171 53.9)",
       "chart_1": "oklch(0.722 0.171 53.9)",
       "chart_2": "oklch(0.589 0.1 202.7)",
+      "background": "oklch(0.17 0.022 202.7)",
+      "card": "oklch(0.21 0.022 202.7)",
+      "popover": "oklch(0.21 0.022 202.7)",
+      "muted": "oklch(0.26 0.022 202.7)",
+      "secondary": "oklch(0.27 0.022 202.7)",
+      "sidebar": "oklch(0.2 0.022 202.7)",
+      "accent": "oklch(0.3 0.05 53.9)",
+      "accent_foreground": "oklch(0.95 0.008 53.9)",
+      "sidebar_accent": "oklch(0.28 0.05 53.9)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 53.9)",
       "heat": {
         "good": [
           96,
@@ -118,9 +166,9 @@
           75
         ],
         "mid": [
-          22,
+          11,
           27,
-          34
+          29
         ]
       }
     }
@@ -133,6 +181,10 @@
       "#002244",
       "#C60C30"
     ],
+    "mark": {
+      "background": "#002244",
+      "line": "#b0b7bc"
+    },
     "light": {
       "primary": "oklch(0.526 0.207 21.3)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -142,6 +194,16 @@
       "sidebar_ring": "oklch(0.526 0.207 21.3)",
       "chart_1": "oklch(0.526 0.207 21.3)",
       "chart_2": "oklch(0.251 0.075 251.9)",
+      "background": "oklch(0.985 0.002 251.9)",
+      "card": "oklch(1 0 251.9)",
+      "popover": "oklch(1 0 251.9)",
+      "muted": "oklch(0.955 0.006 251.9)",
+      "secondary": "oklch(0.95 0.008 251.9)",
+      "sidebar": "oklch(0.975 0.004 251.9)",
+      "accent": "oklch(0.94 0.03 21.3)",
+      "accent_foreground": "oklch(0.3 0.05 21.3)",
+      "sidebar_accent": "oklch(0.93 0.035 21.3)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 21.3)",
       "heat": {
         "good": [
           255,
@@ -154,9 +216,9 @@
           255
         ],
         "mid": [
-          244,
+          245,
           247,
-          250
+          249
         ]
       }
     },
@@ -169,6 +231,16 @@
       "sidebar_ring": "oklch(0.661 0.207 21.3)",
       "chart_1": "oklch(0.661 0.207 21.3)",
       "chart_2": "oklch(0.506 0.075 251.9)",
+      "background": "oklch(0.17 0.022 251.9)",
+      "card": "oklch(0.21 0.022 251.9)",
+      "popover": "oklch(0.21 0.022 251.9)",
+      "muted": "oklch(0.26 0.022 251.9)",
+      "secondary": "oklch(0.27 0.022 251.9)",
+      "sidebar": "oklch(0.2 0.022 251.9)",
+      "accent": "oklch(0.3 0.05 21.3)",
+      "accent_foreground": "oklch(0.95 0.008 21.3)",
+      "sidebar_accent": "oklch(0.28 0.05 21.3)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 21.3)",
       "heat": {
         "good": [
           100,
@@ -181,8 +253,8 @@
           99
         ],
         "mid": [
-          22,
-          27,
+          17,
+          25,
           34
         ]
       }
@@ -196,6 +268,10 @@
       "#003F2D",
       "#000000"
     ],
+    "mark": {
+      "background": "#000000",
+      "line": "#FFFFFF"
+    },
     "light": {
       "primary": "oklch(0.4 0.067 166.9)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -205,18 +281,70 @@
       "sidebar_ring": "oklch(0.4 0.067 166.9)",
       "chart_1": "oklch(0.4 0.067 166.9)",
       "chart_2": "oklch(0 0 0)",
-      "heat": null
+      "background": "oklch(0.985 0.002 166.9)",
+      "card": "oklch(1 0 166.9)",
+      "popover": "oklch(1 0 166.9)",
+      "muted": "oklch(0.955 0.006 166.9)",
+      "secondary": "oklch(0.95 0.008 166.9)",
+      "sidebar": "oklch(0.975 0.004 166.9)",
+      "accent": "oklch(0.94 0.035 166.9)",
+      "accent_foreground": "oklch(0.3 0.05 166.9)",
+      "sidebar_accent": "oklch(0.93 0.035 166.9)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 166.9)",
+      "heat": {
+        "good": [
+          188,
+          239,
+          217
+        ],
+        "bad": [
+          206,
+          206,
+          206
+        ],
+        "mid": [
+          244,
+          248,
+          246
+        ]
+      }
     },
     "dark": {
-      "primary": "oklch(0.626 0.067 166.9)",
+      "primary": "oklch(0.631 0.067 166.9)",
       "primary_foreground": "oklch(0.17 0.015 260)",
-      "ring": "oklch(0.626 0.067 166.9)",
-      "sidebar_primary": "oklch(0.626 0.067 166.9)",
+      "ring": "oklch(0.631 0.067 166.9)",
+      "sidebar_primary": "oklch(0.631 0.067 166.9)",
       "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
-      "sidebar_ring": "oklch(0.626 0.067 166.9)",
-      "chart_1": "oklch(0.626 0.067 166.9)",
-      "chart_2": "oklch(0.505 0 0)",
-      "heat": null
+      "sidebar_ring": "oklch(0.631 0.067 166.9)",
+      "chart_1": "oklch(0.631 0.067 166.9)",
+      "chart_2": "oklch(0.51 0 0)",
+      "background": "oklch(0.17 0.022 166.9)",
+      "card": "oklch(0.21 0.022 166.9)",
+      "popover": "oklch(0.21 0.022 166.9)",
+      "muted": "oklch(0.26 0.022 166.9)",
+      "secondary": "oklch(0.27 0.022 166.9)",
+      "sidebar": "oklch(0.2 0.022 166.9)",
+      "accent": "oklch(0.3 0.05 166.9)",
+      "accent_foreground": "oklch(0.95 0.008 166.9)",
+      "sidebar_accent": "oklch(0.28 0.05 166.9)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 166.9)",
+      "heat": {
+        "good": [
+          13,
+          72,
+          54
+        ],
+        "bad": [
+          46,
+          46,
+          46
+        ],
+        "mid": [
+          14,
+          28,
+          22
+        ]
+      }
     }
   },
   "BAL": {
@@ -227,6 +355,10 @@
       "#241773",
       "#9E7C0C"
     ],
+    "mark": {
+      "background": "#241773",
+      "line": "#9E7C0C"
+    },
     "light": {
       "primary": "oklch(0.4 0.147 279)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -236,6 +368,16 @@
       "sidebar_ring": "oklch(0.4 0.147 279)",
       "chart_1": "oklch(0.4 0.147 279)",
       "chart_2": "oklch(0.602 0.12 88.8)",
+      "background": "oklch(0.985 0.002 279)",
+      "card": "oklch(1 0 279)",
+      "popover": "oklch(1 0 279)",
+      "muted": "oklch(0.955 0.006 279)",
+      "secondary": "oklch(0.95 0.008 279)",
+      "sidebar": "oklch(0.975 0.004 279)",
+      "accent": "oklch(0.94 0.029 279)",
+      "accent_foreground": "oklch(0.3 0.05 279)",
+      "sidebar_accent": "oklch(0.93 0.034 279)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 279)",
       "heat": {
         "good": [
           218,
@@ -248,9 +390,9 @@
           180
         ],
         "mid": [
-          244,
-          247,
-          250
+          246,
+          246,
+          249
         ]
       }
     },
@@ -263,6 +405,16 @@
       "sidebar_ring": "oklch(0.637 0.12 88.8)",
       "chart_1": "oklch(0.637 0.12 88.8)",
       "chart_2": "oklch(0.517 0.147 279)",
+      "background": "oklch(0.17 0.022 279)",
+      "card": "oklch(0.21 0.022 279)",
+      "popover": "oklch(0.21 0.022 279)",
+      "muted": "oklch(0.26 0.022 279)",
+      "secondary": "oklch(0.27 0.022 279)",
+      "sidebar": "oklch(0.2 0.022 279)",
+      "accent": "oklch(0.3 0.05 88.8)",
+      "accent_foreground": "oklch(0.95 0.008 88.8)",
+      "sidebar_accent": "oklch(0.28 0.05 88.8)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 88.8)",
       "heat": {
         "good": [
           77,
@@ -276,7 +428,7 @@
         ],
         "mid": [
           22,
-          27,
+          23,
           34
         ]
       }
@@ -290,6 +442,10 @@
       "#FB4F14",
       "#000000"
     ],
+    "mark": {
+      "background": "#000000",
+      "line": "#FB4F14"
+    },
     "light": {
       "primary": "oklch(0.554 0.188 36.5)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -299,7 +455,33 @@
       "sidebar_ring": "oklch(0.554 0.188 36.5)",
       "chart_1": "oklch(0.554 0.188 36.5)",
       "chart_2": "oklch(0 0 0)",
-      "heat": null
+      "background": "oklch(0.985 0 0)",
+      "card": "oklch(1 0 0)",
+      "popover": "oklch(1 0 0)",
+      "muted": "oklch(0.955 0 0)",
+      "secondary": "oklch(0.95 0 0)",
+      "sidebar": "oklch(0.975 0 0)",
+      "accent": "oklch(0.94 0.031 36.5)",
+      "accent_foreground": "oklch(0.3 0.05 36.5)",
+      "sidebar_accent": "oklch(0.93 0.035 36.5)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 36.5)",
+      "heat": {
+        "good": [
+          255,
+          215,
+          204
+        ],
+        "bad": [
+          206,
+          206,
+          206
+        ],
+        "mid": [
+          247,
+          247,
+          247
+        ]
+      }
     },
     "dark": {
       "primary": "oklch(0.664 0.217 36.5)",
@@ -310,7 +492,33 @@
       "sidebar_ring": "oklch(0.664 0.217 36.5)",
       "chart_1": "oklch(0.664 0.217 36.5)",
       "chart_2": "oklch(0.505 0 0)",
-      "heat": null
+      "background": "oklch(0.17 0 0)",
+      "card": "oklch(0.21 0 0)",
+      "popover": "oklch(0.21 0 0)",
+      "muted": "oklch(0.26 0 0)",
+      "secondary": "oklch(0.27 0 0)",
+      "sidebar": "oklch(0.2 0 0)",
+      "accent": "oklch(0.3 0.05 36.5)",
+      "accent_foreground": "oklch(0.95 0.008 36.5)",
+      "sidebar_accent": "oklch(0.28 0.05 36.5)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 36.5)",
+      "heat": {
+        "good": [
+          100,
+          41,
+          24
+        ],
+        "bad": [
+          46,
+          46,
+          46
+        ],
+        "mid": [
+          24,
+          24,
+          24
+        ]
+      }
     }
   },
   "CLE": {
@@ -321,6 +529,10 @@
       "#FF3C00",
       "#311D00"
     ],
+    "mark": {
+      "background": "#311D00",
+      "line": "#FF3C00"
+    },
     "light": {
       "primary": "oklch(0.558 0.201 33.9)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -330,7 +542,33 @@
       "sidebar_ring": "oklch(0.558 0.201 33.9)",
       "chart_1": "oklch(0.558 0.201 33.9)",
       "chart_2": "oklch(0.251 0.053 73.1)",
-      "heat": null
+      "background": "oklch(0.985 0.002 33.9)",
+      "card": "oklch(1 0 33.9)",
+      "popover": "oklch(1 0 33.9)",
+      "muted": "oklch(0.955 0.006 33.9)",
+      "secondary": "oklch(0.95 0.008 33.9)",
+      "sidebar": "oklch(0.975 0.004 33.9)",
+      "accent": "oklch(0.94 0.031 33.9)",
+      "accent_foreground": "oklch(0.3 0.05 33.9)",
+      "sidebar_accent": "oklch(0.93 0.035 33.9)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 33.9)",
+      "heat": {
+        "good": [
+          255,
+          215,
+          205
+        ],
+        "bad": [
+          211,
+          205,
+          197
+        ],
+        "mid": [
+          249,
+          246,
+          245
+        ]
+      }
     },
     "dark": {
       "primary": "oklch(0.663 0.226 33.9)",
@@ -341,7 +579,33 @@
       "sidebar_ring": "oklch(0.663 0.226 33.9)",
       "chart_1": "oklch(0.663 0.226 33.9)",
       "chart_2": "oklch(0.506 0.053 73.1)",
-      "heat": null
+      "background": "oklch(0.17 0.022 33.9)",
+      "card": "oklch(0.21 0.022 33.9)",
+      "popover": "oklch(0.21 0.022 33.9)",
+      "muted": "oklch(0.26 0.022 33.9)",
+      "secondary": "oklch(0.27 0.022 33.9)",
+      "sidebar": "oklch(0.2 0.022 33.9)",
+      "accent": "oklch(0.3 0.05 33.9)",
+      "accent_foreground": "oklch(0.95 0.008 33.9)",
+      "sidebar_accent": "oklch(0.28 0.05 33.9)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 33.9)",
+      "heat": {
+        "good": [
+          100,
+          40,
+          27
+        ],
+        "bad": [
+          50,
+          45,
+          39
+        ],
+        "mid": [
+          33,
+          21,
+          18
+        ]
+      }
     }
   },
   "PIT": {
@@ -352,6 +616,10 @@
       "#000000",
       "#FFB612"
     ],
+    "mark": {
+      "background": "#000000",
+      "line": "#FFB612"
+    },
     "light": {
       "primary": "oklch(0.539 0.112 79)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -361,6 +629,16 @@
       "sidebar_ring": "oklch(0.539 0.112 79)",
       "chart_1": "oklch(0.539 0.112 79)",
       "chart_2": "oklch(0.442 0.136 252.9)",
+      "background": "oklch(0.985 0 0)",
+      "card": "oklch(1 0 0)",
+      "popover": "oklch(1 0 0)",
+      "muted": "oklch(0.955 0 0)",
+      "secondary": "oklch(0.95 0 0)",
+      "sidebar": "oklch(0.975 0 0)",
+      "accent": "oklch(0.94 0.035 79)",
+      "accent_foreground": "oklch(0.3 0.05 79)",
+      "sidebar_accent": "oklch(0.93 0.035 79)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 79)",
       "heat": {
         "good": [
           247,
@@ -373,9 +651,9 @@
           255
         ],
         "mid": [
-          244,
           247,
-          250
+          247,
+          247
         ]
       }
     },
@@ -388,6 +666,16 @@
       "sidebar_ring": "oklch(0.824 0.169 79)",
       "chart_1": "oklch(0.824 0.169 79)",
       "chart_2": "oklch(0.507 0.136 252.9)",
+      "background": "oklch(0.17 0 0)",
+      "card": "oklch(0.21 0 0)",
+      "popover": "oklch(0.21 0 0)",
+      "muted": "oklch(0.26 0 0)",
+      "secondary": "oklch(0.27 0 0)",
+      "sidebar": "oklch(0.2 0 0)",
+      "accent": "oklch(0.3 0.05 79)",
+      "accent_foreground": "oklch(0.95 0.008 79)",
+      "sidebar_accent": "oklch(0.28 0.05 79)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 79)",
       "heat": {
         "good": [
           82,
@@ -400,9 +688,9 @@
           107
         ],
         "mid": [
-          22,
-          27,
-          34
+          24,
+          24,
+          24
         ]
       }
     }
@@ -415,6 +703,10 @@
       "#03202F",
       "#A71930"
     ],
+    "mark": {
+      "background": "#03202F",
+      "line": "#FFFFFF"
+    },
     "light": {
       "primary": "oklch(0.472 0.174 19.7)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -424,6 +716,16 @@
       "sidebar_ring": "oklch(0.472 0.174 19.7)",
       "chart_1": "oklch(0.472 0.174 19.7)",
       "chart_2": "oklch(0.231 0.045 235.2)",
+      "background": "oklch(0.985 0.002 235.2)",
+      "card": "oklch(1 0 235.2)",
+      "popover": "oklch(1 0 235.2)",
+      "muted": "oklch(0.955 0.006 235.2)",
+      "secondary": "oklch(0.95 0.008 235.2)",
+      "sidebar": "oklch(0.975 0.004 235.2)",
+      "accent": "oklch(0.94 0.03 19.7)",
+      "accent_foreground": "oklch(0.3 0.05 19.7)",
+      "sidebar_accent": "oklch(0.93 0.035 19.7)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 19.7)",
       "heat": {
         "good": [
           255,
@@ -438,7 +740,7 @@
         "mid": [
           244,
           247,
-          250
+          249
         ]
       }
     },
@@ -451,6 +753,16 @@
       "sidebar_ring": "oklch(0.657 0.174 19.7)",
       "chart_1": "oklch(0.657 0.174 19.7)",
       "chart_2": "oklch(0.506 0.045 235.2)",
+      "background": "oklch(0.17 0.022 235.2)",
+      "card": "oklch(0.21 0.022 235.2)",
+      "popover": "oklch(0.21 0.022 235.2)",
+      "muted": "oklch(0.26 0.022 235.2)",
+      "secondary": "oklch(0.27 0.022 235.2)",
+      "sidebar": "oklch(0.2 0.022 235.2)",
+      "accent": "oklch(0.3 0.05 19.7)",
+      "accent_foreground": "oklch(0.95 0.008 19.7)",
+      "sidebar_accent": "oklch(0.28 0.05 19.7)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 19.7)",
       "heat": {
         "good": [
           100,
@@ -463,9 +775,9 @@
           81
         ],
         "mid": [
-          22,
-          27,
-          34
+          14,
+          26,
+          33
         ]
       }
     }
@@ -478,6 +790,10 @@
       "#002C5F",
       "#a5acaf"
     ],
+    "mark": {
+      "background": "#002C5F",
+      "line": "#a5acaf"
+    },
     "light": {
       "primary": "oklch(0.4 0.102 255.8)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -487,7 +803,33 @@
       "sidebar_ring": "oklch(0.4 0.102 255.8)",
       "chart_1": "oklch(0.4 0.102 255.8)",
       "chart_2": "oklch(0.665 0.009 225.1)",
-      "heat": null
+      "background": "oklch(0.985 0.002 255.8)",
+      "card": "oklch(1 0 255.8)",
+      "popover": "oklch(1 0 255.8)",
+      "muted": "oklch(0.955 0.006 255.8)",
+      "secondary": "oklch(0.95 0.008 255.8)",
+      "sidebar": "oklch(0.975 0.004 255.8)",
+      "accent": "oklch(0.94 0.029 255.8)",
+      "accent_foreground": "oklch(0.3 0.05 255.8)",
+      "sidebar_accent": "oklch(0.93 0.034 255.8)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 255.8)",
+      "heat": {
+        "good": [
+          207,
+          227,
+          255
+        ],
+        "bad": [
+          200,
+          207,
+          210
+        ],
+        "mid": [
+          245,
+          247,
+          249
+        ]
+      }
     },
     "dark": {
       "primary": "oklch(0.635 0.102 255.8)",
@@ -498,7 +840,33 @@
       "sidebar_ring": "oklch(0.635 0.102 255.8)",
       "chart_1": "oklch(0.635 0.102 255.8)",
       "chart_2": "oklch(0.74 0.009 225.1)",
-      "heat": null
+      "background": "oklch(0.17 0.022 255.8)",
+      "card": "oklch(0.21 0.022 255.8)",
+      "popover": "oklch(0.21 0.022 255.8)",
+      "muted": "oklch(0.26 0.022 255.8)",
+      "secondary": "oklch(0.27 0.022 255.8)",
+      "sidebar": "oklch(0.2 0.022 255.8)",
+      "accent": "oklch(0.3 0.05 255.8)",
+      "accent_foreground": "oklch(0.95 0.008 255.8)",
+      "sidebar_accent": "oklch(0.28 0.05 255.8)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 255.8)",
+      "heat": {
+        "good": [
+          25,
+          61,
+          107
+        ],
+        "bad": [
+          41,
+          47,
+          49
+        ],
+        "mid": [
+          18,
+          25,
+          34
+        ]
+      }
     }
   },
   "JAX": {
@@ -509,6 +877,10 @@
       "#006778",
       "#000000"
     ],
+    "mark": {
+      "background": "#000000",
+      "line": "#006778"
+    },
     "light": {
       "primary": "oklch(0.472 0.083 214.2)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -518,6 +890,16 @@
       "sidebar_ring": "oklch(0.472 0.083 214.2)",
       "chart_1": "oklch(0.472 0.083 214.2)",
       "chart_2": "oklch(0.599 0.104 81.7)",
+      "background": "oklch(0.985 0.002 214.2)",
+      "card": "oklch(1 0 214.2)",
+      "popover": "oklch(1 0 214.2)",
+      "muted": "oklch(0.955 0.006 214.2)",
+      "secondary": "oklch(0.95 0.008 214.2)",
+      "sidebar": "oklch(0.975 0.004 214.2)",
+      "accent": "oklch(0.94 0.035 214.2)",
+      "accent_foreground": "oklch(0.3 0.05 214.2)",
+      "sidebar_accent": "oklch(0.93 0.035 214.2)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 214.2)",
       "heat": {
         "good": [
           180,
@@ -532,19 +914,29 @@
         "mid": [
           244,
           247,
-          250
+          248
         ]
       }
     },
     "dark": {
-      "primary": "oklch(0.627 0.083 214.2)",
+      "primary": "oklch(0.632 0.083 214.2)",
       "primary_foreground": "oklch(0.17 0.015 260)",
-      "ring": "oklch(0.627 0.083 214.2)",
-      "sidebar_primary": "oklch(0.627 0.083 214.2)",
+      "ring": "oklch(0.632 0.083 214.2)",
+      "sidebar_primary": "oklch(0.632 0.083 214.2)",
       "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
-      "sidebar_ring": "oklch(0.627 0.083 214.2)",
-      "chart_1": "oklch(0.627 0.083 214.2)",
+      "sidebar_ring": "oklch(0.632 0.083 214.2)",
+      "chart_1": "oklch(0.632 0.083 214.2)",
       "chart_2": "oklch(0.599 0.104 81.7)",
+      "background": "oklch(0.17 0.022 214.2)",
+      "card": "oklch(0.21 0.022 214.2)",
+      "popover": "oklch(0.21 0.022 214.2)",
+      "muted": "oklch(0.26 0.022 214.2)",
+      "secondary": "oklch(0.27 0.022 214.2)",
+      "sidebar": "oklch(0.2 0.022 214.2)",
+      "accent": "oklch(0.3 0.05 214.2)",
+      "accent_foreground": "oklch(0.95 0.008 214.2)",
+      "sidebar_accent": "oklch(0.28 0.049 214.2)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 214.2)",
       "heat": {
         "good": [
           0,
@@ -557,9 +949,9 @@
           0
         ],
         "mid": [
-          22,
+          12,
           27,
-          34
+          30
         ]
       }
     }
@@ -572,6 +964,10 @@
       "#4495D2",
       "#D50A0A"
     ],
+    "mark": {
+      "background": "#D50A0A",
+      "line": "#FFFFFF"
+    },
     "light": {
       "primary": "oklch(0.551 0.222 28.9)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -581,6 +977,16 @@
       "sidebar_ring": "oklch(0.551 0.222 28.9)",
       "chart_1": "oklch(0.551 0.222 28.9)",
       "chart_2": "oklch(0.646 0.121 244.1)",
+      "background": "oklch(0.985 0.002 244.1)",
+      "card": "oklch(1 0 244.1)",
+      "popover": "oklch(1 0 244.1)",
+      "muted": "oklch(0.955 0.006 244.1)",
+      "secondary": "oklch(0.95 0.008 244.1)",
+      "sidebar": "oklch(0.975 0.004 244.1)",
+      "accent": "oklch(0.94 0.03 28.9)",
+      "accent_foreground": "oklch(0.3 0.05 28.9)",
+      "sidebar_accent": "oklch(0.93 0.035 28.9)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 28.9)",
       "heat": {
         "good": [
           255,
@@ -593,9 +999,9 @@
           255
         ],
         "mid": [
-          244,
+          245,
           247,
-          250
+          249
         ]
       }
     },
@@ -608,6 +1014,16 @@
       "sidebar_ring": "oklch(0.661 0.222 28.9)",
       "chart_1": "oklch(0.661 0.222 28.9)",
       "chart_2": "oklch(0.646 0.121 244.1)",
+      "background": "oklch(0.17 0.022 244.1)",
+      "card": "oklch(0.21 0.022 244.1)",
+      "popover": "oklch(0.21 0.022 244.1)",
+      "muted": "oklch(0.26 0.022 244.1)",
+      "secondary": "oklch(0.27 0.022 244.1)",
+      "sidebar": "oklch(0.2 0.022 244.1)",
+      "accent": "oklch(0.3 0.05 28.9)",
+      "accent_foreground": "oklch(0.95 0.008 28.9)",
+      "sidebar_accent": "oklch(0.28 0.05 28.9)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 28.9)",
       "heat": {
         "good": [
           100,
@@ -620,8 +1036,8 @@
           104
         ],
         "mid": [
-          22,
-          27,
+          15,
+          25,
           34
         ]
       }
@@ -635,56 +1051,80 @@
       "#002244",
       "#FB4F14"
     ],
+    "mark": {
+      "background": "#002244",
+      "line": "#FB4F14"
+    },
     "light": {
-      "primary": "oklch(0.66 0.2 40)",
-      "primary_foreground": "oklch(0.99 0.005 60)",
-      "ring": "oklch(0.66 0.2 40)",
-      "sidebar_primary": "oklch(0.66 0.2 40)",
-      "sidebar_primary_foreground": null,
-      "sidebar_ring": "oklch(0.66 0.2 40)",
-      "chart_1": "oklch(0.66 0.2 40)",
-      "chart_2": "oklch(0.35 0.09 255)",
+      "primary": "oklch(0.554 0.188 36.5)",
+      "primary_foreground": "oklch(0.985 0.002 250)",
+      "ring": "oklch(0.554 0.188 36.5)",
+      "sidebar_primary": "oklch(0.554 0.188 36.5)",
+      "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
+      "sidebar_ring": "oklch(0.554 0.188 36.5)",
+      "chart_1": "oklch(0.554 0.188 36.5)",
+      "chart_2": "oklch(0.251 0.075 251.9)",
+      "background": "oklch(0.985 0.002 251.9)",
+      "card": "oklch(1 0 251.9)",
+      "popover": "oklch(1 0 251.9)",
+      "muted": "oklch(0.955 0.006 251.9)",
+      "secondary": "oklch(0.95 0.008 251.9)",
+      "sidebar": "oklch(0.975 0.004 251.9)",
+      "accent": "oklch(0.94 0.031 36.5)",
+      "accent_foreground": "oklch(0.3 0.05 36.5)",
+      "sidebar_accent": "oklch(0.93 0.035 36.5)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 36.5)",
       "heat": {
         "good": [
           255,
-          231,
-          220
+          215,
+          204
         ],
         "bad": [
-          223,
-          233,
-          244
+          204,
+          228,
+          255
         ],
         "mid": [
-          244,
+          245,
           247,
-          250
+          249
         ]
       }
     },
     "dark": {
-      "primary": "oklch(0.72 0.18 45)",
+      "primary": "oklch(0.664 0.217 36.5)",
       "primary_foreground": "oklch(0.17 0.015 260)",
-      "ring": "oklch(0.66 0.2 40)",
-      "sidebar_primary": "oklch(0.66 0.2 40)",
-      "sidebar_primary_foreground": null,
-      "sidebar_ring": "oklch(0.66 0.2 40)",
-      "chart_1": "oklch(0.66 0.2 40)",
-      "chart_2": "oklch(0.65 0.1 245)",
+      "ring": "oklch(0.664 0.217 36.5)",
+      "sidebar_primary": "oklch(0.664 0.217 36.5)",
+      "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
+      "sidebar_ring": "oklch(0.664 0.217 36.5)",
+      "chart_1": "oklch(0.664 0.217 36.5)",
+      "chart_2": "oklch(0.506 0.075 251.9)",
+      "background": "oklch(0.17 0.022 251.9)",
+      "card": "oklch(0.21 0.022 251.9)",
+      "popover": "oklch(0.21 0.022 251.9)",
+      "muted": "oklch(0.26 0.022 251.9)",
+      "secondary": "oklch(0.27 0.022 251.9)",
+      "sidebar": "oklch(0.2 0.022 251.9)",
+      "accent": "oklch(0.3 0.05 36.5)",
+      "accent_foreground": "oklch(0.95 0.008 36.5)",
+      "sidebar_accent": "oklch(0.28 0.05 36.5)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 36.5)",
       "heat": {
         "good": [
-          124,
-          51,
+          100,
+          41,
           24
         ],
         "bad": [
-          15,
-          48,
-          84
+          29,
+          63,
+          99
         ],
         "mid": [
-          22,
-          27,
+          17,
+          25,
           34
         ]
       }
@@ -698,15 +1138,29 @@
       "#E31837",
       "#FFB612"
     ],
+    "mark": {
+      "background": "#E31837",
+      "line": "#000000"
+    },
     "light": {
-      "primary": "oklch(0.565 0.226 22.2)",
+      "primary": "oklch(0.56 0.226 22.2)",
       "primary_foreground": "oklch(0.985 0.002 250)",
-      "ring": "oklch(0.565 0.226 22.2)",
-      "sidebar_primary": "oklch(0.565 0.226 22.2)",
+      "ring": "oklch(0.56 0.226 22.2)",
+      "sidebar_primary": "oklch(0.56 0.226 22.2)",
       "sidebar_primary_foreground": "oklch(0.985 0.002 250)",
-      "sidebar_ring": "oklch(0.565 0.226 22.2)",
-      "chart_1": "oklch(0.565 0.226 22.2)",
+      "sidebar_ring": "oklch(0.56 0.226 22.2)",
+      "chart_1": "oklch(0.56 0.226 22.2)",
       "chart_2": "oklch(0.674 0.14 79)",
+      "background": "oklch(0.985 0.002 22.2)",
+      "card": "oklch(1 0 22.2)",
+      "popover": "oklch(1 0 22.2)",
+      "muted": "oklch(0.955 0.006 22.2)",
+      "secondary": "oklch(0.95 0.008 22.2)",
+      "sidebar": "oklch(0.975 0.004 22.2)",
+      "accent": "oklch(0.94 0.03 22.2)",
+      "accent_foreground": "oklch(0.3 0.05 22.2)",
+      "sidebar_accent": "oklch(0.93 0.035 22.2)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 22.2)",
       "heat": {
         "good": [
           255,
@@ -719,21 +1173,31 @@
           181
         ],
         "mid": [
-          244,
-          247,
-          250
+          249,
+          246,
+          245
         ]
       }
     },
     "dark": {
-      "primary": "oklch(0.665 0.222 22.2)",
+      "primary": "oklch(0.66 0.226 22.2)",
       "primary_foreground": "oklch(0.17 0.015 260)",
-      "ring": "oklch(0.665 0.222 22.2)",
-      "sidebar_primary": "oklch(0.665 0.222 22.2)",
+      "ring": "oklch(0.66 0.226 22.2)",
+      "sidebar_primary": "oklch(0.66 0.226 22.2)",
       "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
-      "sidebar_ring": "oklch(0.665 0.222 22.2)",
-      "chart_1": "oklch(0.665 0.222 22.2)",
+      "sidebar_ring": "oklch(0.66 0.226 22.2)",
+      "chart_1": "oklch(0.66 0.226 22.2)",
       "chart_2": "oklch(0.824 0.169 79)",
+      "background": "oklch(0.17 0.022 22.2)",
+      "card": "oklch(0.21 0.022 22.2)",
+      "popover": "oklch(0.21 0.022 22.2)",
+      "muted": "oklch(0.26 0.022 22.2)",
+      "secondary": "oklch(0.27 0.022 22.2)",
+      "sidebar": "oklch(0.2 0.022 22.2)",
+      "accent": "oklch(0.3 0.05 22.2)",
+      "accent_foreground": "oklch(0.95 0.008 22.2)",
+      "sidebar_accent": "oklch(0.28 0.05 22.2)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 22.2)",
       "heat": {
         "good": [
           100,
@@ -746,9 +1210,9 @@
           0
         ],
         "mid": [
-          22,
-          27,
-          34
+          34,
+          20,
+          20
         ]
       }
     }
@@ -761,6 +1225,10 @@
       "#000000",
       "#A5ACAF"
     ],
+    "mark": {
+      "background": "#000000",
+      "line": "#A5ACAF"
+    },
     "light": {
       "primary": "oklch(0.535 0.009 225.1)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -770,7 +1238,33 @@
       "sidebar_ring": "oklch(0.535 0.009 225.1)",
       "chart_1": "oklch(0.535 0.009 225.1)",
       "chart_2": "oklch(0 0 0)",
-      "heat": null
+      "background": "oklch(0.985 0 0)",
+      "card": "oklch(1 0 0)",
+      "popover": "oklch(1 0 0)",
+      "muted": "oklch(0.955 0 0)",
+      "secondary": "oklch(0.95 0 0)",
+      "sidebar": "oklch(0.975 0 0)",
+      "accent": "oklch(0.94 0.009 225.1)",
+      "accent_foreground": "oklch(0.3 0.009 225.1)",
+      "sidebar_accent": "oklch(0.93 0.009 225.1)",
+      "sidebar_accent_foreground": "oklch(0.3 0.009 225.1)",
+      "heat": {
+        "good": [
+          184,
+          191,
+          194
+        ],
+        "bad": [
+          247,
+          255,
+          255
+        ],
+        "mid": [
+          229,
+          237,
+          240
+        ]
+      }
     },
     "dark": {
       "primary": "oklch(0.74 0.009 225.1)",
@@ -781,7 +1275,33 @@
       "sidebar_ring": "oklch(0.74 0.009 225.1)",
       "chart_1": "oklch(0.74 0.009 225.1)",
       "chart_2": "oklch(0.505 0 0)",
-      "heat": null
+      "background": "oklch(0.17 0 0)",
+      "card": "oklch(0.21 0 0)",
+      "popover": "oklch(0.21 0 0)",
+      "muted": "oklch(0.26 0 0)",
+      "secondary": "oklch(0.27 0 0)",
+      "sidebar": "oklch(0.2 0 0)",
+      "accent": "oklch(0.3 0.009 225.1)",
+      "accent_foreground": "oklch(0.95 0.008 225.1)",
+      "sidebar_accent": "oklch(0.28 0.009 225.1)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 225.1)",
+      "heat": {
+        "good": [
+          80,
+          86,
+          89
+        ],
+        "bad": [
+          16,
+          21,
+          23
+        ],
+        "mid": [
+          34,
+          39,
+          42
+        ]
+      }
     }
   },
   "LAC": {
@@ -792,6 +1312,10 @@
       "#007BC7",
       "#ffc20e"
     ],
+    "mark": {
+      "background": "#007BC7",
+      "line": "#001532"
+    },
     "light": {
       "primary": "oklch(0.531 0.138 246.6)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -801,6 +1325,16 @@
       "sidebar_ring": "oklch(0.531 0.138 246.6)",
       "chart_1": "oklch(0.531 0.138 246.6)",
       "chart_2": "oklch(0.671 0.138 85.3)",
+      "background": "oklch(0.985 0.002 246.6)",
+      "card": "oklch(1 0 246.6)",
+      "popover": "oklch(1 0 246.6)",
+      "muted": "oklch(0.955 0.006 246.6)",
+      "secondary": "oklch(0.95 0.008 246.6)",
+      "sidebar": "oklch(0.975 0.004 246.6)",
+      "accent": "oklch(0.94 0.03 246.6)",
+      "accent_foreground": "oklch(0.3 0.05 246.6)",
+      "sidebar_accent": "oklch(0.93 0.035 246.6)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 246.6)",
       "heat": {
         "good": [
           201,
@@ -813,9 +1347,9 @@
           180
         ],
         "mid": [
-          244,
+          245,
           247,
-          250
+          249
         ]
       }
     },
@@ -828,6 +1362,16 @@
       "sidebar_ring": "oklch(0.846 0.172 85.3)",
       "chart_1": "oklch(0.846 0.172 85.3)",
       "chart_2": "oklch(0.566 0.147 246.6)",
+      "background": "oklch(0.17 0.022 246.6)",
+      "card": "oklch(0.21 0.022 246.6)",
+      "popover": "oklch(0.21 0.022 246.6)",
+      "muted": "oklch(0.26 0.022 246.6)",
+      "secondary": "oklch(0.27 0.022 246.6)",
+      "sidebar": "oklch(0.2 0.022 246.6)",
+      "accent": "oklch(0.3 0.05 85.3)",
+      "accent_foreground": "oklch(0.95 0.008 85.3)",
+      "sidebar_accent": "oklch(0.28 0.05 85.3)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 85.3)",
       "heat": {
         "good": [
           79,
@@ -840,8 +1384,8 @@
           105
         ],
         "mid": [
-          22,
-          27,
+          16,
+          25,
           34
         ]
       }
@@ -855,6 +1399,10 @@
       "#002244",
       "#B0B7BC"
     ],
+    "mark": {
+      "background": "#002244",
+      "line": "#B0B7BC"
+    },
     "light": {
       "primary": "oklch(0.4 0.075 251.9)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -864,7 +1412,33 @@
       "sidebar_ring": "oklch(0.4 0.075 251.9)",
       "chart_1": "oklch(0.4 0.075 251.9)",
       "chart_2": "oklch(0.665 0.011 238.6)",
-      "heat": null
+      "background": "oklch(0.985 0.002 251.9)",
+      "card": "oklch(1 0 251.9)",
+      "popover": "oklch(1 0 251.9)",
+      "muted": "oklch(0.955 0.006 251.9)",
+      "secondary": "oklch(0.95 0.008 251.9)",
+      "sidebar": "oklch(0.975 0.004 251.9)",
+      "accent": "oklch(0.94 0.03 251.9)",
+      "accent_foreground": "oklch(0.3 0.05 251.9)",
+      "sidebar_accent": "oklch(0.93 0.035 251.9)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 251.9)",
+      "heat": {
+        "good": [
+          204,
+          228,
+          255
+        ],
+        "bad": [
+          200,
+          207,
+          212
+        ],
+        "mid": [
+          245,
+          247,
+          249
+        ]
+      }
     },
     "dark": {
       "primary": "oklch(0.636 0.075 251.9)",
@@ -875,7 +1449,33 @@
       "sidebar_ring": "oklch(0.636 0.075 251.9)",
       "chart_1": "oklch(0.636 0.075 251.9)",
       "chart_2": "oklch(0.775 0.011 238.6)",
-      "heat": null
+      "background": "oklch(0.17 0.022 251.9)",
+      "card": "oklch(0.21 0.022 251.9)",
+      "popover": "oklch(0.21 0.022 251.9)",
+      "muted": "oklch(0.26 0.022 251.9)",
+      "secondary": "oklch(0.27 0.022 251.9)",
+      "sidebar": "oklch(0.2 0.022 251.9)",
+      "accent": "oklch(0.3 0.05 251.9)",
+      "accent_foreground": "oklch(0.95 0.008 251.9)",
+      "sidebar_accent": "oklch(0.28 0.05 251.9)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 251.9)",
+      "heat": {
+        "good": [
+          29,
+          63,
+          99
+        ],
+        "bad": [
+          41,
+          47,
+          51
+        ],
+        "mid": [
+          17,
+          25,
+          34
+        ]
+      }
     }
   },
   "NYG": {
@@ -886,6 +1486,10 @@
       "#0B2265",
       "#A71930"
     ],
+    "mark": {
+      "background": "#0B2265",
+      "line": "#a5acaf"
+    },
     "light": {
       "primary": "oklch(0.472 0.174 19.7)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -895,6 +1499,16 @@
       "sidebar_ring": "oklch(0.472 0.174 19.7)",
       "chart_1": "oklch(0.472 0.174 19.7)",
       "chart_2": "oklch(0.286 0.121 264.8)",
+      "background": "oklch(0.985 0.002 264.8)",
+      "card": "oklch(1 0 264.8)",
+      "popover": "oklch(1 0 264.8)",
+      "muted": "oklch(0.955 0.006 264.8)",
+      "secondary": "oklch(0.95 0.008 264.8)",
+      "sidebar": "oklch(0.975 0.004 264.8)",
+      "accent": "oklch(0.94 0.03 19.7)",
+      "accent_foreground": "oklch(0.3 0.05 19.7)",
+      "sidebar_accent": "oklch(0.93 0.035 19.7)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 19.7)",
       "heat": {
         "good": [
           255,
@@ -907,9 +1521,9 @@
           255
         ],
         "mid": [
-          244,
+          245,
           247,
-          250
+          249
         ]
       }
     },
@@ -922,6 +1536,16 @@
       "sidebar_ring": "oklch(0.657 0.174 19.7)",
       "chart_1": "oklch(0.657 0.174 19.7)",
       "chart_2": "oklch(0.511 0.121 264.8)",
+      "background": "oklch(0.17 0.022 264.8)",
+      "card": "oklch(0.21 0.022 264.8)",
+      "popover": "oklch(0.21 0.022 264.8)",
+      "muted": "oklch(0.26 0.022 264.8)",
+      "secondary": "oklch(0.27 0.022 264.8)",
+      "sidebar": "oklch(0.2 0.022 264.8)",
+      "accent": "oklch(0.3 0.05 19.7)",
+      "accent_foreground": "oklch(0.95 0.008 19.7)",
+      "sidebar_accent": "oklch(0.28 0.05 19.7)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 19.7)",
       "heat": {
         "good": [
           100,
@@ -934,9 +1558,9 @@
           108
         ],
         "mid": [
-          22,
-          27,
-          34
+          19,
+          24,
+          35
         ]
       }
     }
@@ -949,6 +1573,10 @@
       "#004C54",
       "#A5ACAF"
     ],
+    "mark": {
+      "background": "#004C54",
+      "line": "#A5ACAF"
+    },
     "light": {
       "primary": "oklch(0.4 0.065 206.9)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -958,7 +1586,33 @@
       "sidebar_ring": "oklch(0.4 0.065 206.9)",
       "chart_1": "oklch(0.4 0.065 206.9)",
       "chart_2": "oklch(0.665 0.009 225.1)",
-      "heat": null
+      "background": "oklch(0.985 0.002 206.9)",
+      "card": "oklch(1 0 206.9)",
+      "popover": "oklch(1 0 206.9)",
+      "muted": "oklch(0.955 0.006 206.9)",
+      "secondary": "oklch(0.95 0.008 206.9)",
+      "sidebar": "oklch(0.975 0.004 206.9)",
+      "accent": "oklch(0.94 0.035 206.9)",
+      "accent_foreground": "oklch(0.3 0.05 206.9)",
+      "sidebar_accent": "oklch(0.93 0.035 206.9)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 206.9)",
+      "heat": {
+        "good": [
+          179,
+          237,
+          246
+        ],
+        "bad": [
+          200,
+          207,
+          210
+        ],
+        "mid": [
+          244,
+          248,
+          248
+        ]
+      }
     },
     "dark": {
       "primary": "oklch(0.631 0.065 206.9)",
@@ -969,7 +1623,33 @@
       "sidebar_ring": "oklch(0.631 0.065 206.9)",
       "chart_1": "oklch(0.631 0.065 206.9)",
       "chart_2": "oklch(0.74 0.009 225.1)",
-      "heat": null
+      "background": "oklch(0.17 0.022 206.9)",
+      "card": "oklch(0.21 0.022 206.9)",
+      "popover": "oklch(0.21 0.022 206.9)",
+      "muted": "oklch(0.26 0.022 206.9)",
+      "secondary": "oklch(0.27 0.022 206.9)",
+      "sidebar": "oklch(0.2 0.022 206.9)",
+      "accent": "oklch(0.3 0.05 206.9)",
+      "accent_foreground": "oklch(0.95 0.008 206.9)",
+      "sidebar_accent": "oklch(0.28 0.048 206.9)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 206.9)",
+      "heat": {
+        "good": [
+          0,
+          70,
+          77
+        ],
+        "bad": [
+          46,
+          46,
+          46
+        ],
+        "mid": [
+          11,
+          27,
+          29
+        ]
+      }
     }
   },
   "WAS": {
@@ -980,6 +1660,10 @@
       "#5A1414",
       "#FFB612"
     ],
+    "mark": {
+      "background": "#5A1414",
+      "line": "#FFB612"
+    },
     "light": {
       "primary": "oklch(0.4 0.102 25.3)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -989,6 +1673,16 @@
       "sidebar_ring": "oklch(0.4 0.102 25.3)",
       "chart_1": "oklch(0.4 0.102 25.3)",
       "chart_2": "oklch(0.674 0.14 79)",
+      "background": "oklch(0.985 0.002 25.3)",
+      "card": "oklch(1 0 25.3)",
+      "popover": "oklch(1 0 25.3)",
+      "muted": "oklch(0.955 0.006 25.3)",
+      "secondary": "oklch(0.95 0.008 25.3)",
+      "sidebar": "oklch(0.975 0.004 25.3)",
+      "accent": "oklch(0.94 0.03 25.3)",
+      "accent_foreground": "oklch(0.3 0.05 25.3)",
+      "sidebar_accent": "oklch(0.93 0.035 25.3)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 25.3)",
       "heat": {
         "good": [
           255,
@@ -1001,9 +1695,9 @@
           181
         ],
         "mid": [
-          244,
-          247,
-          250
+          249,
+          246,
+          245
         ]
       }
     },
@@ -1016,7 +1710,33 @@
       "sidebar_ring": "oklch(0.824 0.169 79)",
       "chart_1": "oklch(0.824 0.169 79)",
       "chart_2": "oklch(0.518 0.102 25.3)",
-      "heat": null
+      "background": "oklch(0.17 0.022 25.3)",
+      "card": "oklch(0.21 0.022 25.3)",
+      "popover": "oklch(0.21 0.022 25.3)",
+      "muted": "oklch(0.26 0.022 25.3)",
+      "secondary": "oklch(0.27 0.022 25.3)",
+      "sidebar": "oklch(0.2 0.022 25.3)",
+      "accent": "oklch(0.3 0.05 79)",
+      "accent_foreground": "oklch(0.95 0.008 79)",
+      "sidebar_accent": "oklch(0.28 0.05 79)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 79)",
+      "heat": {
+        "good": [
+          82,
+          56,
+          0
+        ],
+        "bad": [
+          52,
+          44,
+          43
+        ],
+        "mid": [
+          34,
+          20,
+          19
+        ]
+      }
     }
   },
   "CHI": {
@@ -1027,6 +1747,10 @@
       "#0B162A",
       "#E64100"
     ],
+    "mark": {
+      "background": "#0B162A",
+      "line": "#E64100"
+    },
     "light": {
       "primary": "oklch(0.554 0.189 36.2)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -1036,6 +1760,16 @@
       "sidebar_ring": "oklch(0.554 0.189 36.2)",
       "chart_1": "oklch(0.554 0.189 36.2)",
       "chart_2": "oklch(0.202 0.043 261.5)",
+      "background": "oklch(0.985 0.002 261.5)",
+      "card": "oklch(1 0 261.5)",
+      "popover": "oklch(1 0 261.5)",
+      "muted": "oklch(0.955 0.006 261.5)",
+      "secondary": "oklch(0.95 0.008 261.5)",
+      "sidebar": "oklch(0.975 0.004 261.5)",
+      "accent": "oklch(0.94 0.031 36.2)",
+      "accent_foreground": "oklch(0.3 0.05 36.2)",
+      "sidebar_accent": "oklch(0.93 0.035 36.2)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 36.2)",
       "heat": {
         "good": [
           255,
@@ -1048,9 +1782,9 @@
           255
         ],
         "mid": [
-          244,
+          245,
           247,
-          250
+          249
         ]
       }
     },
@@ -1063,6 +1797,16 @@
       "sidebar_ring": "oklch(0.659 0.209 36.2)",
       "chart_1": "oklch(0.659 0.209 36.2)",
       "chart_2": "oklch(0.507 0.043 261.5)",
+      "background": "oklch(0.17 0.022 261.5)",
+      "card": "oklch(0.21 0.022 261.5)",
+      "popover": "oklch(0.21 0.022 261.5)",
+      "muted": "oklch(0.26 0.022 261.5)",
+      "secondary": "oklch(0.27 0.022 261.5)",
+      "sidebar": "oklch(0.2 0.022 261.5)",
+      "accent": "oklch(0.3 0.05 36.2)",
+      "accent_foreground": "oklch(0.95 0.008 36.2)",
+      "sidebar_accent": "oklch(0.28 0.05 36.2)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 36.2)",
       "heat": {
         "good": [
           100,
@@ -1075,9 +1819,9 @@
           84
         ],
         "mid": [
-          22,
-          27,
-          34
+          19,
+          24,
+          35
         ]
       }
     }
@@ -1090,6 +1834,10 @@
       "#0076B6",
       "#B0B7BC"
     ],
+    "mark": {
+      "background": "#0076B6",
+      "line": "#000000"
+    },
     "light": {
       "primary": "oklch(0.534 0.13 243.3)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -1099,7 +1847,33 @@
       "sidebar_ring": "oklch(0.534 0.13 243.3)",
       "chart_1": "oklch(0.534 0.13 243.3)",
       "chart_2": "oklch(0.665 0.011 238.6)",
-      "heat": null
+      "background": "oklch(0.985 0.002 243.3)",
+      "card": "oklch(1 0 243.3)",
+      "popover": "oklch(1 0 243.3)",
+      "muted": "oklch(0.955 0.006 243.3)",
+      "secondary": "oklch(0.95 0.008 243.3)",
+      "sidebar": "oklch(0.975 0.004 243.3)",
+      "accent": "oklch(0.94 0.031 243.3)",
+      "accent_foreground": "oklch(0.3 0.05 243.3)",
+      "sidebar_accent": "oklch(0.93 0.035 243.3)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 243.3)",
+      "heat": {
+        "good": [
+          199,
+          230,
+          255
+        ],
+        "bad": [
+          200,
+          207,
+          212
+        ],
+        "mid": [
+          244,
+          247,
+          249
+        ]
+      }
     },
     "dark": {
       "primary": "oklch(0.634 0.132 243.3)",
@@ -1110,7 +1884,33 @@
       "sidebar_ring": "oklch(0.634 0.132 243.3)",
       "chart_1": "oklch(0.634 0.132 243.3)",
       "chart_2": "oklch(0.775 0.011 238.6)",
-      "heat": null
+      "background": "oklch(0.17 0.022 243.3)",
+      "card": "oklch(0.21 0.022 243.3)",
+      "popover": "oklch(0.21 0.022 243.3)",
+      "muted": "oklch(0.26 0.022 243.3)",
+      "secondary": "oklch(0.27 0.022 243.3)",
+      "sidebar": "oklch(0.2 0.022 243.3)",
+      "accent": "oklch(0.3 0.05 243.3)",
+      "accent_foreground": "oklch(0.95 0.008 243.3)",
+      "sidebar_accent": "oklch(0.28 0.05 243.3)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 243.3)",
+      "heat": {
+        "good": [
+          0,
+          65,
+          103
+        ],
+        "bad": [
+          41,
+          47,
+          51
+        ],
+        "mid": [
+          15,
+          26,
+          34
+        ]
+      }
     }
   },
   "GB": {
@@ -1121,6 +1921,10 @@
       "#203731",
       "#FFB612"
     ],
+    "mark": {
+      "background": "#203731",
+      "line": "#FFB612"
+    },
     "light": {
       "primary": "oklch(0.4 0.031 175.9)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -1130,6 +1934,16 @@
       "sidebar_ring": "oklch(0.4 0.031 175.9)",
       "chart_1": "oklch(0.4 0.031 175.9)",
       "chart_2": "oklch(0.674 0.14 79)",
+      "background": "oklch(0.985 0.002 175.9)",
+      "card": "oklch(1 0 175.9)",
+      "popover": "oklch(1 0 175.9)",
+      "muted": "oklch(0.955 0.006 175.9)",
+      "secondary": "oklch(0.95 0.008 175.9)",
+      "sidebar": "oklch(0.975 0.004 175.9)",
+      "accent": "oklch(0.94 0.031 175.9)",
+      "accent_foreground": "oklch(0.3 0.031 175.9)",
+      "sidebar_accent": "oklch(0.93 0.031 175.9)",
+      "sidebar_accent_foreground": "oklch(0.3 0.031 175.9)",
       "heat": {
         "good": [
           205,
@@ -1143,8 +1957,8 @@
         ],
         "mid": [
           244,
-          247,
-          250
+          248,
+          247
         ]
       }
     },
@@ -1156,7 +1970,17 @@
       "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
       "sidebar_ring": "oklch(0.824 0.169 79)",
       "chart_1": "oklch(0.824 0.169 79)",
-      "chart_2": "oklch(0.501 0.031 175.9)",
+      "chart_2": "oklch(0.506 0.031 175.9)",
+      "background": "oklch(0.17 0.022 175.9)",
+      "card": "oklch(0.21 0.022 175.9)",
+      "popover": "oklch(0.21 0.022 175.9)",
+      "muted": "oklch(0.26 0.022 175.9)",
+      "secondary": "oklch(0.27 0.022 175.9)",
+      "sidebar": "oklch(0.2 0.022 175.9)",
+      "accent": "oklch(0.3 0.05 79)",
+      "accent_foreground": "oklch(0.95 0.008 79)",
+      "sidebar_accent": "oklch(0.28 0.05 79)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 79)",
       "heat": {
         "good": [
           82,
@@ -1169,9 +1993,9 @@
           60
         ],
         "mid": [
-          22,
-          27,
-          34
+          13,
+          28,
+          24
         ]
       }
     }
@@ -1184,6 +2008,10 @@
       "#4F2683",
       "#FFC62F"
     ],
+    "mark": {
+      "background": "#4F2683",
+      "line": "#FFC62F"
+    },
     "light": {
       "primary": "oklch(0.4 0.148 299.4)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -1193,6 +2021,16 @@
       "sidebar_ring": "oklch(0.4 0.148 299.4)",
       "chart_1": "oklch(0.4 0.148 299.4)",
       "chart_2": "oklch(0.67 0.137 85.8)",
+      "background": "oklch(0.985 0.002 299.4)",
+      "card": "oklch(1 0 299.4)",
+      "popover": "oklch(1 0 299.4)",
+      "muted": "oklch(0.955 0.006 299.4)",
+      "secondary": "oklch(0.95 0.008 299.4)",
+      "sidebar": "oklch(0.975 0.004 299.4)",
+      "accent": "oklch(0.94 0.033 299.4)",
+      "accent_foreground": "oklch(0.3 0.05 299.4)",
+      "sidebar_accent": "oklch(0.93 0.035 299.4)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 299.4)",
       "heat": {
         "good": [
           230,
@@ -1205,9 +2043,9 @@
           180
         ],
         "mid": [
-          244,
           247,
-          250
+          246,
+          249
         ]
       }
     },
@@ -1219,7 +2057,17 @@
       "sidebar_primary_foreground": "oklch(0.17 0.015 260)",
       "sidebar_ring": "oklch(0.855 0.164 85.8)",
       "chart_1": "oklch(0.855 0.164 85.8)",
-      "chart_2": "oklch(0.523 0.148 299.4)",
+      "chart_2": "oklch(0.518 0.148 299.4)",
+      "background": "oklch(0.17 0.022 299.4)",
+      "card": "oklch(0.21 0.022 299.4)",
+      "popover": "oklch(0.21 0.022 299.4)",
+      "muted": "oklch(0.26 0.022 299.4)",
+      "secondary": "oklch(0.27 0.022 299.4)",
+      "sidebar": "oklch(0.2 0.022 299.4)",
+      "accent": "oklch(0.3 0.05 85.8)",
+      "accent_foreground": "oklch(0.95 0.008 85.8)",
+      "sidebar_accent": "oklch(0.28 0.05 85.8)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 85.8)",
       "heat": {
         "good": [
           78,
@@ -1232,9 +2080,9 @@
           101
         ],
         "mid": [
+          26,
           22,
-          27,
-          34
+          33
         ]
       }
     }
@@ -1247,6 +2095,10 @@
       "#A71930",
       "#000000"
     ],
+    "mark": {
+      "background": "#000000",
+      "line": "#a5acaf"
+    },
     "light": {
       "primary": "oklch(0.472 0.174 19.7)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -1256,7 +2108,33 @@
       "sidebar_ring": "oklch(0.472 0.174 19.7)",
       "chart_1": "oklch(0.472 0.174 19.7)",
       "chart_2": "oklch(0 0 0)",
-      "heat": null
+      "background": "oklch(0.985 0.002 19.7)",
+      "card": "oklch(1 0 19.7)",
+      "popover": "oklch(1 0 19.7)",
+      "muted": "oklch(0.955 0.006 19.7)",
+      "secondary": "oklch(0.95 0.008 19.7)",
+      "sidebar": "oklch(0.975 0.004 19.7)",
+      "accent": "oklch(0.94 0.03 19.7)",
+      "accent_foreground": "oklch(0.3 0.05 19.7)",
+      "sidebar_accent": "oklch(0.93 0.035 19.7)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 19.7)",
+      "heat": {
+        "good": [
+          255,
+          214,
+          213
+        ],
+        "bad": [
+          206,
+          206,
+          206
+        ],
+        "mid": [
+          249,
+          246,
+          246
+        ]
+      }
     },
     "dark": {
       "primary": "oklch(0.657 0.174 19.7)",
@@ -1267,7 +2145,33 @@
       "sidebar_ring": "oklch(0.657 0.174 19.7)",
       "chart_1": "oklch(0.657 0.174 19.7)",
       "chart_2": "oklch(0.505 0 0)",
-      "heat": null
+      "background": "oklch(0.17 0.022 19.7)",
+      "card": "oklch(0.21 0.022 19.7)",
+      "popover": "oklch(0.21 0.022 19.7)",
+      "muted": "oklch(0.26 0.022 19.7)",
+      "secondary": "oklch(0.27 0.022 19.7)",
+      "sidebar": "oklch(0.2 0.022 19.7)",
+      "accent": "oklch(0.3 0.05 19.7)",
+      "accent_foreground": "oklch(0.95 0.008 19.7)",
+      "sidebar_accent": "oklch(0.28 0.05 19.7)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 19.7)",
+      "heat": {
+        "good": [
+          100,
+          38,
+          41
+        ],
+        "bad": [
+          46,
+          46,
+          46
+        ],
+        "mid": [
+          34,
+          20,
+          20
+        ]
+      }
     }
   },
   "CAR": {
@@ -1278,6 +2182,10 @@
       "#0085CA",
       "#000000"
     ],
+    "mark": {
+      "background": "#000000",
+      "line": "#0085CA"
+    },
     "light": {
       "primary": "oklch(0.532 0.127 242.5)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -1287,7 +2195,33 @@
       "sidebar_ring": "oklch(0.532 0.127 242.5)",
       "chart_1": "oklch(0.532 0.127 242.5)",
       "chart_2": "oklch(0 0 0)",
-      "heat": null
+      "background": "oklch(0.985 0.002 242.5)",
+      "card": "oklch(1 0 242.5)",
+      "popover": "oklch(1 0 242.5)",
+      "muted": "oklch(0.955 0.006 242.5)",
+      "secondary": "oklch(0.95 0.008 242.5)",
+      "sidebar": "oklch(0.975 0.004 242.5)",
+      "accent": "oklch(0.94 0.031 242.5)",
+      "accent_foreground": "oklch(0.3 0.05 242.5)",
+      "sidebar_accent": "oklch(0.93 0.035 242.5)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 242.5)",
+      "heat": {
+        "good": [
+          199,
+          230,
+          255
+        ],
+        "bad": [
+          206,
+          206,
+          206
+        ],
+        "mid": [
+          244,
+          247,
+          249
+        ]
+      }
     },
     "dark": {
       "primary": "oklch(0.632 0.142 242.5)",
@@ -1298,7 +2232,33 @@
       "sidebar_ring": "oklch(0.632 0.142 242.5)",
       "chart_1": "oklch(0.632 0.142 242.5)",
       "chart_2": "oklch(0.505 0 0)",
-      "heat": null
+      "background": "oklch(0.17 0.022 242.5)",
+      "card": "oklch(0.21 0.022 242.5)",
+      "popover": "oklch(0.21 0.022 242.5)",
+      "muted": "oklch(0.26 0.022 242.5)",
+      "secondary": "oklch(0.27 0.022 242.5)",
+      "sidebar": "oklch(0.2 0.022 242.5)",
+      "accent": "oklch(0.3 0.05 242.5)",
+      "accent_foreground": "oklch(0.95 0.008 242.5)",
+      "sidebar_accent": "oklch(0.28 0.05 242.5)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 242.5)",
+      "heat": {
+        "good": [
+          0,
+          65,
+          102
+        ],
+        "bad": [
+          46,
+          46,
+          46
+        ],
+        "mid": [
+          15,
+          26,
+          34
+        ]
+      }
     }
   },
   "NO": {
@@ -1309,6 +2269,10 @@
       "#D3BC8D",
       "#000000"
     ],
+    "mark": {
+      "background": "#000000",
+      "line": "#D3BC8D"
+    },
     "light": {
       "primary": "oklch(0.533 0.068 84.8)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -1318,7 +2282,33 @@
       "sidebar_ring": "oklch(0.533 0.068 84.8)",
       "chart_1": "oklch(0.533 0.068 84.8)",
       "chart_2": "oklch(0 0 0)",
-      "heat": null
+      "background": "oklch(0.985 0 0)",
+      "card": "oklch(1 0 0)",
+      "popover": "oklch(1 0 0)",
+      "muted": "oklch(0.955 0 0)",
+      "secondary": "oklch(0.95 0 0)",
+      "sidebar": "oklch(0.975 0 0)",
+      "accent": "oklch(0.94 0.035 84.8)",
+      "accent_foreground": "oklch(0.3 0.05 84.8)",
+      "sidebar_accent": "oklch(0.93 0.035 84.8)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 84.8)",
+      "heat": {
+        "good": [
+          244,
+          223,
+          180
+        ],
+        "bad": [
+          206,
+          206,
+          206
+        ],
+        "mid": [
+          247,
+          247,
+          247
+        ]
+      }
     },
     "dark": {
       "primary": "oklch(0.803 0.068 84.8)",
@@ -1329,7 +2319,33 @@
       "sidebar_ring": "oklch(0.803 0.068 84.8)",
       "chart_1": "oklch(0.803 0.068 84.8)",
       "chart_2": "oklch(0.505 0 0)",
-      "heat": null
+      "background": "oklch(0.17 0 0)",
+      "card": "oklch(0.21 0 0)",
+      "popover": "oklch(0.21 0 0)",
+      "muted": "oklch(0.26 0 0)",
+      "secondary": "oklch(0.27 0 0)",
+      "sidebar": "oklch(0.2 0 0)",
+      "accent": "oklch(0.3 0.05 84.8)",
+      "accent_foreground": "oklch(0.95 0.008 84.8)",
+      "sidebar_accent": "oklch(0.28 0.05 84.8)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 84.8)",
+      "heat": {
+        "good": [
+          77,
+          58,
+          9
+        ],
+        "bad": [
+          46,
+          46,
+          46
+        ],
+        "mid": [
+          24,
+          24,
+          24
+        ]
+      }
     }
   },
   "TB": {
@@ -1340,6 +2356,10 @@
       "#A71930",
       "#322F2B"
     ],
+    "mark": {
+      "background": "#322F2B",
+      "line": "#ff7900"
+    },
     "light": {
       "primary": "oklch(0.472 0.174 19.7)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -1349,7 +2369,33 @@
       "sidebar_ring": "oklch(0.472 0.174 19.7)",
       "chart_1": "oklch(0.472 0.174 19.7)",
       "chart_2": "oklch(0.682 0.18 50.2)",
-      "heat": null
+      "background": "oklch(0.985 0.002 19.7)",
+      "card": "oklch(1 0 19.7)",
+      "popover": "oklch(1 0 19.7)",
+      "muted": "oklch(0.955 0.006 19.7)",
+      "secondary": "oklch(0.95 0.008 19.7)",
+      "sidebar": "oklch(0.975 0.004 19.7)",
+      "accent": "oklch(0.94 0.03 19.7)",
+      "accent_foreground": "oklch(0.3 0.05 19.7)",
+      "sidebar_accent": "oklch(0.93 0.035 19.7)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 19.7)",
+      "heat": {
+        "good": [
+          255,
+          214,
+          213
+        ],
+        "bad": [
+          213,
+          204,
+          199
+        ],
+        "mid": [
+          249,
+          246,
+          246
+        ]
+      }
     },
     "dark": {
       "primary": "oklch(0.657 0.174 19.7)",
@@ -1360,7 +2406,33 @@
       "sidebar_ring": "oklch(0.657 0.174 19.7)",
       "chart_1": "oklch(0.657 0.174 19.7)",
       "chart_2": "oklch(0.722 0.19 50.2)",
-      "heat": null
+      "background": "oklch(0.17 0.022 19.7)",
+      "card": "oklch(0.21 0.022 19.7)",
+      "popover": "oklch(0.21 0.022 19.7)",
+      "muted": "oklch(0.26 0.022 19.7)",
+      "secondary": "oklch(0.27 0.022 19.7)",
+      "sidebar": "oklch(0.2 0.022 19.7)",
+      "accent": "oklch(0.3 0.05 19.7)",
+      "accent_foreground": "oklch(0.95 0.008 19.7)",
+      "sidebar_accent": "oklch(0.28 0.05 19.7)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 19.7)",
+      "heat": {
+        "good": [
+          100,
+          38,
+          41
+        ],
+        "bad": [
+          51,
+          44,
+          41
+        ],
+        "mid": [
+          34,
+          20,
+          20
+        ]
+      }
     }
   },
   "ARI": {
@@ -1371,6 +2443,10 @@
       "#97233F",
       "#000000"
     ],
+    "mark": {
+      "background": "#000000",
+      "line": "#ffb612"
+    },
     "light": {
       "primary": "oklch(0.453 0.151 12)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -1380,6 +2456,16 @@
       "sidebar_ring": "oklch(0.453 0.151 12)",
       "chart_1": "oklch(0.453 0.151 12)",
       "chart_2": "oklch(0.674 0.14 79)",
+      "background": "oklch(0.985 0.002 12)",
+      "card": "oklch(1 0 12)",
+      "popover": "oklch(1 0 12)",
+      "muted": "oklch(0.955 0.006 12)",
+      "secondary": "oklch(0.95 0.008 12)",
+      "sidebar": "oklch(0.975 0.004 12)",
+      "accent": "oklch(0.94 0.031 12)",
+      "accent_foreground": "oklch(0.3 0.05 12)",
+      "sidebar_accent": "oklch(0.93 0.035 12)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 12)",
       "heat": {
         "good": [
           255,
@@ -1392,9 +2478,9 @@
           181
         ],
         "mid": [
-          244,
-          247,
-          250
+          249,
+          246,
+          246
         ]
       }
     },
@@ -1407,6 +2493,16 @@
       "sidebar_ring": "oklch(0.653 0.151 12)",
       "chart_1": "oklch(0.653 0.151 12)",
       "chart_2": "oklch(0.824 0.169 79)",
+      "background": "oklch(0.17 0.022 12)",
+      "card": "oklch(0.21 0.022 12)",
+      "popover": "oklch(0.21 0.022 12)",
+      "muted": "oklch(0.26 0.022 12)",
+      "secondary": "oklch(0.27 0.022 12)",
+      "sidebar": "oklch(0.2 0.022 12)",
+      "accent": "oklch(0.3 0.05 12)",
+      "accent_foreground": "oklch(0.95 0.008 12)",
+      "sidebar_accent": "oklch(0.28 0.05 12)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 12)",
       "heat": {
         "good": [
           99,
@@ -1419,9 +2515,9 @@
           0
         ],
         "mid": [
-          22,
-          27,
-          34
+          33,
+          20,
+          22
         ]
       }
     }
@@ -1434,6 +2530,10 @@
       "#003594",
       "#FFD100"
     ],
+    "mark": {
+      "background": "#003594",
+      "line": "#FFD100"
+    },
     "light": {
       "primary": "oklch(0.4 0.164 261.4)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -1443,6 +2543,16 @@
       "sidebar_ring": "oklch(0.4 0.164 261.4)",
       "chart_1": "oklch(0.4 0.164 261.4)",
       "chart_2": "oklch(0.665 0.136 92.7)",
+      "background": "oklch(0.985 0.002 261.4)",
+      "card": "oklch(1 0 261.4)",
+      "popover": "oklch(1 0 261.4)",
+      "muted": "oklch(0.955 0.006 261.4)",
+      "secondary": "oklch(0.95 0.008 261.4)",
+      "sidebar": "oklch(0.975 0.004 261.4)",
+      "accent": "oklch(0.94 0.029 261.4)",
+      "accent_foreground": "oklch(0.3 0.05 261.4)",
+      "sidebar_accent": "oklch(0.93 0.033 261.4)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 261.4)",
       "heat": {
         "good": [
           210,
@@ -1455,9 +2565,9 @@
           181
         ],
         "mid": [
-          244,
+          245,
           247,
-          250
+          249
         ]
       }
     },
@@ -1470,6 +2580,16 @@
       "sidebar_ring": "oklch(0.875 0.179 92.7)",
       "chart_1": "oklch(0.875 0.179 92.7)",
       "chart_2": "oklch(0.51 0.164 261.4)",
+      "background": "oklch(0.17 0.022 261.4)",
+      "card": "oklch(0.21 0.022 261.4)",
+      "popover": "oklch(0.21 0.022 261.4)",
+      "muted": "oklch(0.26 0.022 261.4)",
+      "secondary": "oklch(0.27 0.022 261.4)",
+      "sidebar": "oklch(0.2 0.022 261.4)",
+      "accent": "oklch(0.3 0.05 92.7)",
+      "accent_foreground": "oklch(0.95 0.008 92.7)",
+      "sidebar_accent": "oklch(0.28 0.05 92.7)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 92.7)",
       "heat": {
         "good": [
           75,
@@ -1482,9 +2602,9 @@
           108
         ],
         "mid": [
-          22,
-          27,
-          34
+          19,
+          24,
+          35
         ]
       }
     }
@@ -1497,6 +2617,10 @@
       "#AA0000",
       "#B3995D"
     ],
+    "mark": {
+      "background": "#AA0000",
+      "line": "#a5acaf"
+    },
     "light": {
       "primary": "oklch(0.463 0.19 29.2)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -1506,6 +2630,16 @@
       "sidebar_ring": "oklch(0.463 0.19 29.2)",
       "chart_1": "oklch(0.463 0.19 29.2)",
       "chart_2": "oklch(0.668 0.085 86.8)",
+      "background": "oklch(0.985 0.002 29.2)",
+      "card": "oklch(1 0 29.2)",
+      "popover": "oklch(1 0 29.2)",
+      "muted": "oklch(0.955 0.006 29.2)",
+      "secondary": "oklch(0.95 0.008 29.2)",
+      "sidebar": "oklch(0.975 0.004 29.2)",
+      "accent": "oklch(0.94 0.03 29.2)",
+      "accent_foreground": "oklch(0.3 0.05 29.2)",
+      "sidebar_accent": "oklch(0.93 0.035 29.2)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 29.2)",
       "heat": {
         "good": [
           255,
@@ -1518,9 +2652,9 @@
           180
         ],
         "mid": [
-          244,
-          247,
-          250
+          249,
+          246,
+          245
         ]
       }
     },
@@ -1533,6 +2667,16 @@
       "sidebar_ring": "oklch(0.693 0.085 86.8)",
       "chart_1": "oklch(0.693 0.085 86.8)",
       "chart_2": "oklch(0.528 0.19 29.2)",
+      "background": "oklch(0.17 0.022 29.2)",
+      "card": "oklch(0.21 0.022 29.2)",
+      "popover": "oklch(0.21 0.022 29.2)",
+      "muted": "oklch(0.26 0.022 29.2)",
+      "secondary": "oklch(0.27 0.022 29.2)",
+      "sidebar": "oklch(0.2 0.022 29.2)",
+      "accent": "oklch(0.3 0.05 86.8)",
+      "accent_foreground": "oklch(0.95 0.008 86.8)",
+      "sidebar_accent": "oklch(0.28 0.05 86.8)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 86.8)",
       "heat": {
         "good": [
           78,
@@ -1545,9 +2689,9 @@
           32
         ],
         "mid": [
-          22,
-          27,
-          34
+          34,
+          20,
+          18
         ]
       }
     }
@@ -1560,6 +2704,10 @@
       "#002244",
       "#69be28"
     ],
+    "mark": {
+      "background": "#002244",
+      "line": "#69be28"
+    },
     "light": {
       "primary": "oklch(0.4 0.075 251.9)",
       "primary_foreground": "oklch(0.985 0.002 250)",
@@ -1569,6 +2717,16 @@
       "sidebar_ring": "oklch(0.4 0.075 251.9)",
       "chart_1": "oklch(0.4 0.075 251.9)",
       "chart_2": "oklch(0.65 0.191 135.3)",
+      "background": "oklch(0.985 0.002 251.9)",
+      "card": "oklch(1 0 251.9)",
+      "popover": "oklch(1 0 251.9)",
+      "muted": "oklch(0.955 0.006 251.9)",
+      "secondary": "oklch(0.95 0.008 251.9)",
+      "sidebar": "oklch(0.975 0.004 251.9)",
+      "accent": "oklch(0.94 0.03 251.9)",
+      "accent_foreground": "oklch(0.3 0.05 251.9)",
+      "sidebar_accent": "oklch(0.93 0.035 251.9)",
+      "sidebar_accent_foreground": "oklch(0.3 0.05 251.9)",
       "heat": {
         "good": [
           204,
@@ -1581,9 +2739,9 @@
           195
         ],
         "mid": [
-          244,
+          245,
           247,
-          250
+          249
         ]
       }
     },
@@ -1596,6 +2754,16 @@
       "sidebar_ring": "oklch(0.72 0.195 135.3)",
       "chart_1": "oklch(0.72 0.195 135.3)",
       "chart_2": "oklch(0.506 0.075 251.9)",
+      "background": "oklch(0.17 0.022 251.9)",
+      "card": "oklch(0.21 0.022 251.9)",
+      "popover": "oklch(0.21 0.022 251.9)",
+      "muted": "oklch(0.26 0.022 251.9)",
+      "secondary": "oklch(0.27 0.022 251.9)",
+      "sidebar": "oklch(0.2 0.022 251.9)",
+      "accent": "oklch(0.3 0.05 135.3)",
+      "accent_foreground": "oklch(0.95 0.008 135.3)",
+      "sidebar_accent": "oklch(0.28 0.05 135.3)",
+      "sidebar_accent_foreground": "oklch(0.95 0.008 135.3)",
       "heat": {
         "good": [
           38,
@@ -1608,8 +2776,8 @@
           99
         ],
         "mid": [
-          22,
-          27,
+          17,
+          25,
           34
         ]
       }
