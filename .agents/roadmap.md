@@ -954,6 +954,16 @@ Proposal (one small pull request after the current one merges):
   defender's fumble that the offense recovers is booked as the offense's fumble lost
   (`fumbles_lost`, `giveaways`), and the one-play extra-point group after a return touchdown
   counts as a drive in `drives` and the per-drive rates.
+- Not fixed (found by the P5 audit, counted 2026-10-08): on a punt, nflverse's `posteam` is the
+  punting team, and `fumble_lost` also marks the receiving team's muff or return fumble that the
+  punting team recovers. `turnover_epa` sums EPA over the interceptions and lost fumbles of the team
+  with the ball on every play type, so it books those plays as the punting team's giveaways, with
+  positive EPA, and the mirrored `takeaway_epa` books them as the receiving team's takeaways.
+  `POLARS_MAX_THREADS=1 .venv/bin/python .agents/findings_2026_10_08/punt_fumbles.py 1999 2025`
+  counts 699 such plays among the 710 punts with a lost fumble (13 to 34 a season), worth
+  +3,463.29 EPA to the punting teams. `fumbles_lost` and `giveaways` count scrimmage plays only and
+  are unaffected, and no rating uses `turnover_epa`. Recommended: book those plays to the
+  receiving team; it changes `data/` (ask first).
 - The 2026 Broncos question (maintainer, 2026-10-08): through week 4, DEN's head-to-head-excluded
   `sos` (5.28, `data/2026_ratings.parquet`) is the hardest in 2026 and above every completed
   season's (2009 TB, 2.83, from `nfl-sos-ratings schedules`), yet `team_rating` is -0.37 (15th).
