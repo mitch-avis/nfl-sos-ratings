@@ -518,6 +518,38 @@ def _pass_play(posteam: str, **flags: object) -> dict[str, object]:
     return play
 
 
+def test_sack_and_rushing_fumbles_lost_count_only_the_offenses_own_fumbles() -> None:
+    """A lost fumble on a sack or run is the offense's only when the offense fumbled.
+
+    Fixture: on a DEN strip-sack, KC recovers and then fumbles back to DEN, so the play's
+    ``fumble_lost`` is KC's (``fumbled_1_team``); a DEN run fumble KC recovers is DEN's.
+    """
+    # Arrange
+    pbp = pl.DataFrame(
+        [
+            _pass_play("DEN", sack=1, fumble=1, fumble_lost=1, fumbled_1_team="KC"),
+            _pass_play(
+                "DEN",
+                **{"pass": 0},
+                qb_dropback=0,
+                pass_attempt=0,
+                rush=1,
+                rush_attempt=1,
+                fumble=1,
+                fumble_lost=1,
+                fumbled_1_team="DEN",
+            ),
+        ]
+    )
+
+    # Act
+    result = team_stats.compute_team_game_stats_from_pbp(pbp, pl.DataFrame(), _den_kc_schedule())
+
+    # Assert
+    den = result.filter(pl.col("team") == "DEN").row(0, named=True)
+    assert (den["sack_fumbles_lost"], den["rushing_fumbles_lost"]) == (0, 1)
+
+
 def test_targets_count_attempts_with_an_intended_receiver() -> None:
     """Verify targets leave out throwaways, sacks, and two-point tries, and catch rate uses them.
 

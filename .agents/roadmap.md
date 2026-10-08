@@ -950,20 +950,34 @@ Proposal (one small pull request after the current one merges):
   `nfl-sos-ratings diff-data --season 2025 --tolerance 1e-9` (smaller differences are rounding in
   opponent averages) changed only those columns and their `opp_` averages in the team game logs,
   per-game stats, combined, and opponent-profile files, plus `turnover_margin` in the QB game
-  logs; no rating, range, pair, or win-probability file changed. Still open: an intercepting
-  defender's fumble that the offense recovers is booked as the offense's fumble lost
-  (`fumbles_lost`, `giveaways`), and the one-play extra-point group after a return touchdown
-  counts as a drive in `drives` and the per-drive rates.
-- Not fixed (found by the P5 audit, counted 2026-10-08): on a punt, nflverse's `posteam` is the
-  punting team, and `fumble_lost` also marks the receiving team's muff or return fumble that the
-  punting team recovers. `turnover_epa` sums EPA over the interceptions and lost fumbles of the team
-  with the ball on every play type, so it books those plays as the punting team's giveaways, with
-  positive EPA, and the mirrored `takeaway_epa` books them as the receiving team's takeaways.
-  `POLARS_MAX_THREADS=1 .venv/bin/python .agents/findings_2026_10_08/punt_fumbles.py 1999 2025`
-  counts 699 such plays among the 710 punts with a lost fumble (13 to 34 a season), worth
-  +3,463.29 EPA to the punting teams. `fumbles_lost` and `giveaways` count scrimmage plays only and
-  are unaffected, and no rating uses `turnover_epa`. Recommended: book those plays to the
-  receiving team; it changes `data/` (ask first).
+  logs; no rating, range, pair, or win-probability file changed. Still open: the one-play
+  extra-point group after a return touchdown counts as a drive in `drives` and the per-drive rates.
+- Lost fumbles go to the team that fumbled (branch `fix/fumble-attribution`; `data/` not rebuilt).
+  nflverse's `fumble_lost` flags a play on which a fumble was lost, whichever team fumbled, and
+  `fumbled_1_team` names the fumbler; on a punt `posteam` is the punting team (Pro Football
+  Reference's expected points also take the punting team's side). The stats read `fumble_lost` as
+  the possession team's, so a returner's lost muff or fumble was the punting team's giveaway in
+  `turnover_epa` (with positive EPA) and the receiving team's takeaway in `takeaway_epa`, and an
+  intercepting defender's fumble the offense recovered was an offensive fumble lost (`fumbles_lost`,
+  `giveaways`, `turnover_margin`). nflverse's data is right; the reading was wrong (an earlier note
+  here blamed nflverse). `POLARS_MAX_THREADS=1 .venv/bin/python
+  .agents/findings_2026_10_08/lost_fumbles.py 1999 2025` counts 706 punts whose lost fumble was the
+  receiving team's (4 the punting team's), 70 interceptions fumbled back, and 7,564 other plays
+  whose fumble was the possession team's. `POLARS_MAX_THREADS=1 .venv/bin/python
+  .agents/findings_2026_10_08/espn_fumbles_lost.py 2025,2024,2019,2015,2010,2005,2002,1999 12`
+  compares every team's fumbles lost in those punt games with ESPN's box scores: the fumbling team
+  matches in all 188 team-games ESPN reports (4 have no count), the possession team in 2.
+  Pro Football Reference's team stats agree in the four games checked by hand (1999 DEN at TB, 2015
+  DEN at KC, 2021 GB at ARI, 2025 TEN at DEN). `pbp_expressions.lost_fumble_team_expr` now names the
+  fumbling team (the usual side when `fumbled_1_team` is missing), and `giveaway_team_expr` the
+  first team to give the ball away (the passer's after an interception). `turnover_epa` is the EPA
+  of a team's giveaways from its own side, a returner's fumble included, `takeaway_epa` the
+  opponent's reversed, and `fumbles_lost`, the sack and rushing fumbles lost, the QB's sack fumbles
+  lost, and the drive giveaway flag count the offense's own fumbles. Scratch 2025 builds from `main`
+  and the branch, compared with `nfl-sos-ratings diff-data --before <main> --after <branch>
+  --season 2025 --tolerance 1e-9`, changed `turnover_epa` and `takeaway_epa` in 28 team-game rows
+  and the fumble, giveaway, takeaway, and margin columns in 4, with their season and `opp_`
+  averages; no rating, range, pair, history, or win-probability file changed.
 - The 2026 Broncos question (maintainer, 2026-10-08): through week 4, DEN's head-to-head-excluded
   `sos` (5.28, `data/2026_ratings.parquet`) is the hardest in 2026 and above every completed
   season's (2009 TB, 2.83, from `nfl-sos-ratings schedules`), yet `team_rating` is -0.37 (15th).

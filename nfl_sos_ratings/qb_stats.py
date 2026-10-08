@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from nfl_sos_ratings.pbp_expressions import passer_rating_from_rates
+from nfl_sos_ratings.pbp_expressions import lost_fumble_team_expr, passer_rating_from_rates
 from nfl_sos_ratings.pooled_rates import (
     denominator_column,
     guarded_ratio,
@@ -518,9 +518,13 @@ def compute_qb_game_stats_from_pbp(
                 .otherwise(0.0)
                 .sum()
                 .alias("qb_sack_yards_lost"),
-                pl.when(pl.col("sack").fill_null(0) > 0)
-                .then(pl.col("fumble_lost").fill_null(0))
-                .otherwise(0)
+                # The quarterback's own strip-sacks: not a defender's fumble after recovering one.
+                (
+                    (pl.col("sack").fill_null(0) > 0)
+                    & (lost_fumble_team_expr(list(pbp_columns)) == pl.col("posteam")).fill_null(
+                        value=False
+                    )
+                )
                 .sum()
                 .cast(pl.Int64)
                 .alias("qb_sack_fumbles_lost"),

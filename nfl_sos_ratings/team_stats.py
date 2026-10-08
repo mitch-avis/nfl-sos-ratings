@@ -2,7 +2,7 @@
 
 import polars as pl
 
-from nfl_sos_ratings.pbp_expressions import scrimmage_snap_expr, value_expr
+from nfl_sos_ratings.pbp_expressions import lost_fumble_team_expr, scrimmage_snap_expr, value_expr
 from nfl_sos_ratings.pooled_rates import (
     is_rate_part,
     mean_with_parts,
@@ -283,6 +283,10 @@ def compute_team_game_stats_from_pbp(
     group_keys = [
         key for key in ("game_id", "season", "season_type", "week") if key in pbp_df.columns
     ]
+    # A strip-sack or run fumble the defense recovers and fumbles back is the defense's lost fumble.
+    offense_lost_fumble = (lost_fumble_team_expr(pbp_df.columns) == pl.col("posteam")).fill_null(
+        value=False
+    )
     offense_stats = (
         pbp_df.filter(
             pl.col("posteam").is_not_null()
@@ -330,15 +334,11 @@ def compute_team_game_stats_from_pbp(
                 .sum()
                 .cast(pl.Int64)
                 .alias("passing_interceptions"),
-                pl.when(value_expr(pbp_df.columns, "sack") > 0)
-                .then(value_expr(pbp_df.columns, "fumble_lost"))
-                .otherwise(0)
+                ((value_expr(pbp_df.columns, "sack") > 0) & offense_lost_fumble)
                 .sum()
                 .cast(pl.Int64)
                 .alias("sack_fumbles_lost"),
-                pl.when(value_expr(pbp_df.columns, "rush") > 0)
-                .then(value_expr(pbp_df.columns, "fumble_lost"))
-                .otherwise(0)
+                ((value_expr(pbp_df.columns, "rush") > 0) & offense_lost_fumble)
                 .sum()
                 .cast(pl.Int64)
                 .alias("rushing_fumbles_lost"),

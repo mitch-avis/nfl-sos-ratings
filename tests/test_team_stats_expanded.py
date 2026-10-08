@@ -615,6 +615,64 @@ def test_receiving_fumbles_count_only_the_receivers_fumbles() -> None:
     assert (den["receiving_fumbles"], den["receiving_fumbles_lost"]) == (1, 1)
 
 
+def test_punt_muff_is_the_receiving_teams_giveaway() -> None:
+    """A returner's muff the punting team recovers costs the receiving team, not the punter's.
+
+    nflverse lists the punting team as ``posteam`` on a punt and flags ``fumble_lost`` for the
+    returner's lost fumble too; ``fumbled_1_team`` names the receiving team. The play's EPA (+5.0
+    for DEN, the punting team) is KC's giveaway cost and DEN's takeaway value.
+    """
+    # Arrange
+    plays = [
+        _play(
+            punt_attempt=1,
+            down=4,
+            fumble=1,
+            fumble_lost=1,
+            fumbled_1_team="KC",
+            epa=5.0,
+        ),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    den, kc = _row(result, "DEN"), _row(result, "KC")
+    assert (den["turnover_epa"], den["takeaway_epa"]) == (0.0, 5.0)
+    assert (kc["turnover_epa"], kc["takeaway_epa"]) == (-5.0, 0.0)
+
+
+def test_interception_fumbled_back_is_only_the_passing_teams_giveaway() -> None:
+    """An intercepting defender's fumble the offense recovers is not an offensive fumble lost.
+
+    The interception is DEN's giveaway, so the play's EPA (-1.0 for DEN) counts once, as DEN's
+    turnover EPA; KC's fumble on the return is not a DEN fumble lost or a KC fumble recovery.
+    """
+    # Arrange
+    plays = [
+        _play(
+            **{"pass": 1},
+            pass_attempt=1,
+            qb_dropback=1,
+            interception=1,
+            fumble=1,
+            fumble_lost=1,
+            fumbled_1_team="KC",
+            epa=-1.0,
+        ),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    den, kc = _row(result, "DEN"), _row(result, "KC")
+    assert (den["fumbles_lost"], den["giveaways"], den["turnover_epa"]) == (0, 1, -1.0)
+    assert (kc["fumble_recovery_opp"], kc["takeaways"], kc["takeaway_epa"]) == (0, 1, 1.0)
+    assert kc["turnover_epa"] == 0.0
+
+
 def test_turnover_drive_rate_counts_giveaway_drives_by_nflverse_result() -> None:
     """Verify giveaway drives are nflverse "Turnover" drives plus giveaways returned for a score.
 

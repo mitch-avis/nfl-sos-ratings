@@ -789,14 +789,15 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         label="Takeaway EPA",
         full_name="Takeaway EPA",
         description=(
-            "Expected points opponents lost on plays where the defense took the ball away "
-            "(interceptions and lost fumbles), so each takeaway is weighed by how costly it was."
+            "Expected points opponents lost on plays where the team took the ball away "
+            "(interceptions and opponent fumbles it recovered, including muffed punts and "
+            "return fumbles), so each takeaway is weighed by how costly it was."
         ),
         shape="count",
         polarity="higher",
         source="PBP",
         since=1999,
-        formula="-(Sum of opponent EPA on interceptions and lost fumbles)",
+        formula="-(Opponent Turnover EPA)",
     ),
     _def_to(
         name="def_tds",

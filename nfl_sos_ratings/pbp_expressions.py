@@ -40,6 +40,45 @@ def value_expr(columns: list[str], column: str, default: float = 0) -> pl.Expr:
     return pl.lit(default)
 
 
+def lost_fumble_team_expr(columns: list[str]) -> pl.Expr:
+    """Return the team that lost the play's fumble, or null when no fumble was lost.
+
+    nflverse's ``fumble_lost`` flags a play on which a fumble was lost, whichever team fumbled, and
+    ``fumbled_1_team`` names the fumbling team. ``posteam`` is not always that team: on a punt it is
+    the punting team, so a returner's muff the punting team recovers is a lost fumble on a
+    punting-team row, and after an interception the intercepting team's fumble is one on the
+    passing team's row. When ``fumbled_1_team`` is missing, the team that fumbles on such plays
+    almost always stands in: the receiving team on a punt, the intercepting team after an
+    interception, and the team with the ball otherwise.
+    """
+    defteam = pl.col("defteam") if "defteam" in columns else pl.lit(None, dtype=pl.String)
+    usual = (
+        pl.when(
+            (value_expr(columns, "punt_attempt") > 0) | (value_expr(columns, "interception") > 0)
+        )
+        .then(defteam)
+        .otherwise(pl.col("posteam"))
+    )
+    fumbler = (
+        pl.col("fumbled_1_team") if "fumbled_1_team" in columns else pl.lit(None, dtype=pl.String)
+    )
+    return pl.when(value_expr(columns, "fumble_lost") > 0).then(pl.coalesce(fumbler, usual))
+
+
+def giveaway_team_expr(columns: list[str]) -> pl.Expr:
+    """Return the first team to give the ball away on the play, or null when neither did.
+
+    An interception is the passing team's giveaway, even when the intercepting team fumbles the
+    ball back; otherwise a lost fumble is the fumbling team's (``lost_fumble_team_expr``). Each
+    play is one team's giveaway at most, so its EPA counts once.
+    """
+    return (
+        pl.when(value_expr(columns, "interception") > 0)
+        .then(pl.col("posteam"))
+        .otherwise(lost_fumble_team_expr(columns))
+    )
+
+
 def passer_rating_from_rates(
     completion_rate: pl.Expr,
     yards_per_attempt: pl.Expr,

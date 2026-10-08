@@ -919,9 +919,9 @@ OFFENSE_TURNOVER_METRICS: tuple[MetricDef, ...] = (
         label="Turnover EPA",
         full_name="Expected Points Added on Giveaways",
         description=(
-            "EPA (expected points added) on the team's interceptions and lost fumbles, "
-            "kickoff-return fumbles included: how costly its giveaways were, not just how many. "
-            "Almost always negative."
+            "EPA (expected points added), from the team's side, on its interceptions and lost "
+            "fumbles, including muffs and fumbles on kickoff and punt returns: how costly its "
+            "giveaways were, not just how many. Almost always negative."
         ),
         shape="count",
         polarity="higher",
