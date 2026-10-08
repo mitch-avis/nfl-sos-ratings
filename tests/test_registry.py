@@ -183,6 +183,25 @@ def test_filtered_change_column_names_both_the_filter_and_the_change(
     assert "exploration view" in resolved.description
 
 
+@pytest.mark.parametrize(
+    ("column", "contextual"),
+    [
+        ("filtered_sos", True),
+        ("filtered_qb_faced_pass_defense", True),
+        ("filtered_team_rating", False),
+    ],
+)
+def test_filtered_prefix_keeps_the_base_contextual_flag(
+    registry: MetricRegistry, column: str, *, contextual: bool
+) -> None:
+    # Act
+    resolved = registry.resolve_column(column)
+
+    # Assert
+    assert resolved is not None
+    assert resolved.contextual is contextual
+
+
 def test_per_game_suffix_keeps_the_base_metric(registry: MetricRegistry) -> None:
     # Act
     resolved = registry.resolve_column("qb_attempts_per_game")

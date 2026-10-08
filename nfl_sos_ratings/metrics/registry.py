@@ -307,7 +307,8 @@ class MetricRegistry:
         if prefix is not None and prefix.invert_polarity_for_qb and base.name.startswith("qb_"):
             polarity = _invert(polarity)
 
-        contextual = prefix.contextual if prefix is not None else base.contextual
+        # A prefix can make a column context (opp_), but never makes a context metric a grade.
+        contextual = base.contextual or (prefix is not None and prefix.contextual)
         category, subcategory = _resolved_taxonomy(base, prefix)
 
         return ResolvedColumn(
