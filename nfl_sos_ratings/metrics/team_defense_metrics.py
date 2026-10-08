@@ -155,7 +155,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Times the defense sacked the opposing quarterback.",
         shape="count",
         polarity="higher",
-        source="PBP +TS",
+        source="PLS",
         since=1999,
     ),
     _def_press(
@@ -165,7 +165,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Times the defense hit the quarterback, beyond sacks.",
         shape="count",
         polarity="higher",
-        source="PBP",
+        source="PLS",
         since=1999,
     ),
     _def_press(
@@ -175,7 +175,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Tackles made behind the line of scrimmage.",
         shape="count",
         polarity="higher",
-        source="PBP",
+        source="PLS",
         since=1999,
     ),
     _def_press(
@@ -185,7 +185,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Passes broken up or deflected by defenders.",
         shape="count",
         polarity="higher",
-        source="PBP",
+        source="PLS",
         since=1999,
     ),
     _def_press(
@@ -195,7 +195,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Fumbles the defense knocked loose.",
         shape="count",
         polarity="higher",
-        source="PBP",
+        source="PLS",
         since=1999,
     ),
     _def_press(
@@ -205,7 +205,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Safeties forced by the defense (two points each).",
         shape="count",
         polarity="higher",
-        source="PBP",
+        source="PLS",
         since=1999,
     ),
     _def_to(
@@ -215,7 +215,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Passes intercepted by the defense.",
         shape="count",
         polarity="higher",
-        source="PBP +TS",
+        source="PLS",
         since=1999,
     ),
     # Planned defense expansion (mirrors and defense-only stats).

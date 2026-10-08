@@ -348,7 +348,7 @@ Everything the team allowed, plus the plays its defense made.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `def_interceptions` | Def INTs | count | - | 1999 | PBP +TS | Passes intercepted by the defense. |
+| `def_interceptions` | Def INTs | count | - | 1999 | PLS | Passes intercepted by the defense. |
 | `takeaways` | Takeaways | count | - | 1999 | PBP | Interceptions plus opponent fumbles recovered. |
 | `def_interception_yards` | INT Ret Yds | count | - | 1999 | PBP +TS | Yards gained returning interceptions. |
 | `fumble_recovery_opp` | Opp Fum Rec | count | - | 1999 | PBP +TS | Opponent fumbles this defense recovered. |
@@ -362,12 +362,12 @@ Everything the team allowed, plus the plays its defense made.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `def_sacks` | Def Sacks | count | - | 1999 | PBP +TS | Times the defense sacked the opposing quarterback. |
-| `def_qb_hits` | Def QB Hits | count | - | 1999 | PBP | Times the defense hit the quarterback, beyond sacks. |
-| `def_tackles_for_loss` | Def TFL | count | - | 1999 | PBP | Tackles made behind the line of scrimmage. |
-| `def_pass_defended` | Def PD | count | - | 1999 | PBP | Passes broken up or deflected by defenders. |
-| `def_fumbles_forced` | Def FF | count | - | 1999 | PBP | Fumbles the defense knocked loose. |
-| `def_safeties` | Def Safeties | count | - | 1999 | PBP | Safeties forced by the defense (two points each). |
+| `def_sacks` | Def Sacks | count | - | 1999 | PLS | Times the defense sacked the opposing quarterback. |
+| `def_qb_hits` | Def QB Hits | count | - | 1999 | PLS | Times the defense hit the quarterback, beyond sacks. |
+| `def_tackles_for_loss` | Def TFL | count | - | 1999 | PLS | Tackles made behind the line of scrimmage. |
+| `def_pass_defended` | Def PD | count | - | 1999 | PLS | Passes broken up or deflected by defenders. |
+| `def_fumbles_forced` | Def FF | count | - | 1999 | PLS | Fumbles the defense knocked loose. |
+| `def_safeties` | Def Safeties | count | - | 1999 | PLS | Safeties forced by the defense (two points each). |
 | `def_sack_yards` | Sack Yds Forced | count | - | 1999 | PBP +TS | Yards opponents lost to this defense's sacks. |
 | `def_sack_rate_per_dropback` | Sack Rate Forced | rate | opponent dropbacks | 1999 | PBP | Sacks divided by opponent dropbacks — pass-rush efficiency. |
 | `qb_pressure_events_rate` | Pressure Events % | rate | opponent dropbacks | 1999 | PBP | Sacks plus quarterback hits divided by opponent dropbacks. |

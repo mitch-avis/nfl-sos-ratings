@@ -503,6 +503,29 @@ def test_column_metadata_marks_longest_plays_as_maxima(
     assert metadata[column]["shape"] == "max"
 
 
+@pytest.mark.parametrize(
+    "metric",
+    [
+        "def_tackles_for_loss",
+        "def_fumbles_forced",
+        "def_sacks",
+        "def_qb_hits",
+        "def_interceptions",
+        "def_pass_defended",
+        "def_safeties",
+    ],
+)
+def test_defense_player_stats_name_weekly_player_stats_as_source(
+    registry: MetricRegistry, metric: str
+) -> None:
+    """team_stats sums these from nflverse weekly player stats, never from play-by-play."""
+    # Act
+    source = registry.metrics[metric].source
+
+    # Assert
+    assert source == "PLS"
+
+
 def _registry_with_rules(
     registry: MetricRegistry,
     prefix_rules: Sequence[PrefixRule],
