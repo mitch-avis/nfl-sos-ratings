@@ -26,7 +26,10 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         name="game_id",
         label="Game ID",
         full_name="Game ID",
-        description="The unique nflverse identifier for one game, useful for deep links.",
+        description=(
+            "A unique code for one game: season, week, away team, and home team, for example "
+            "2025_01_ARI_NO."
+        ),
         shape="id",
         polarity="neutral",
         source="SCH",
@@ -55,8 +58,11 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
     _overall(
         name="is_home",
         label="Home",
-        full_name="Home Team Flag",
-        description="Whether this team was the home side in the game represented by the row.",
+        full_name="Home Game",
+        description=(
+            "Whether the team was the home team in this game. At a neutral site, this is the team "
+            "the schedule lists as home."
+        ),
         shape="flag",
         polarity="neutral",
         source="SCH",
@@ -64,9 +70,12 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
     ),
     _overall(
         name="games_played",
-        label="Games",
+        label="Games Played",
         full_name="Games Played",
-        description="Regular-season games played. Rate stats divide by this number.",
+        description=(
+            "Regular-season games played (on a week-by-week history row, games through that week). "
+            "Per-game figures are season totals divided by this number."
+        ),
         shape="count",
         polarity="neutral",
         source="SCH",
@@ -76,7 +85,10 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         name="games",
         label="Games",
         full_name="Games",
-        description="The number of games represented by this row of the table.",
+        description=(
+            "How many games this row covers: 1 for a single game, more for a summary row such as "
+            "all games against one opponent."
+        ),
         shape="count",
         polarity="neutral",
         source="SCH",
@@ -116,16 +128,13 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         name="win_pct",
         label="Win %",
         full_name="Win Percentage",
-        description=(
-            "Share of games won, counting a tie as half a win: (wins + 0.5 x ties) divided "
-            "by games played."
-        ),
+        description=("Share of games won, with a tie counted as half a win."),
         shape="rate",
         polarity="higher",
         source="D",
         denominator="games played",
         since=1999,
-        formula="(wins + 0.5 * ties) / games_played",
+        formula="(Wins + 0.5 x ties) ÷ games played",
         percent=True,
     ),
     _overall(
@@ -133,8 +142,8 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         label="Win Value",
         full_name="Win Value",
         description=(
-            "The game result as a number: 1 for a win, 0.5 for a tie, 0 for a loss. In "
-            "summary rows it is the average across the games included."
+            "A game's result as a number: 1 for a win, 0.5 for a tie, 0 for a loss. A row covering "
+            "several games shows the average, which works like a win percentage."
         ),
         shape="avg",
         polarity="higher",
@@ -146,7 +155,7 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         name="points_for",
         label="Points For",
         full_name="Points Scored",
-        description="Total points the team scored, including all offense, defense, and kicks.",
+        description="Points scored, from every source: offense, defense, and special teams.",
         shape="count",
         polarity="higher",
         source="SCH",
@@ -156,7 +165,10 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         name="points_allowed",
         label="Points Allowed",
         full_name="Points Allowed",
-        description="Total points the team gave up. Fewer points allowed is better.",
+        description=(
+            "Points given up, counting every score by the other side, not only those against the "
+            "defense."
+        ),
         shape="count",
         polarity="lower",
         source="SCH",
@@ -166,24 +178,21 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         name="point_margin",
         label="Point Margin",
         full_name="Point Margin",
-        description=(
-            "Points scored minus points allowed. A restatement of the two point totals, "
-            "kept for display because it is the most intuitive whole-team summary."
-        ),
+        description=("Points scored minus points allowed."),
         shape="count",
         polarity="higher",
         source="D",
         since=1999,
-        formula="points_for - points_allowed",
-        note="Restates points_for and points_allowed.",
+        formula=None,
+        note=None,
     ),
     _overall(
         name="turnover_margin",
         label="TO Margin",
         full_name="Turnover Margin",
         description=(
-            "Takeaways minus giveaways. Positive means the team won the turnover battle "
-            "across the season."
+            "Takeaways minus giveaways: interceptions made and opponent fumbles recovered, minus "
+            "interceptions thrown and fumbles lost."
         ),
         shape="count",
         polarity="higher",
@@ -195,8 +204,8 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         label="Points/Off Snap",
         full_name="Points Per Offensive Snap",
         description=(
-            "Points scored divided by offensive snaps — scoring efficiency that does not "
-            "reward teams simply for running more plays."
+            "Points scored per offensive snap (each run or pass play), counting every score, "
+            "including defensive and special-teams touchdowns."
         ),
         shape="rate",
         polarity="higher",
@@ -206,11 +215,11 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
     ),
     _overall(
         name="points_allowed_per_defensive_snap",
-        label="Points Allowed/Def Snap",
+        label="Pts Allowed/Snap",
         full_name="Points Allowed Per Defensive Snap",
         description=(
-            "Points given up divided by defensive snaps — defensive scoring efficiency that "
-            "does not punish defenses simply for facing more plays."
+            "Points given up per defensive snap (each run or pass play faced), counting every "
+            "score by the other side."
         ),
         shape="rate",
         polarity="lower",
@@ -222,7 +231,10 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         name="total_yards_differential",
         label="Total Yds Diff",
         full_name="Total Yards Differential",
-        description="Yards gained minus yards allowed across the season.",
+        description=(
+            "Passing plus rushing yards gained minus passing plus rushing yards allowed. Passing "
+            "yards are counted before sack losses."
+        ),
         shape="count",
         polarity="higher",
         source="PBP",
@@ -232,7 +244,10 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         name="penalty_differential",
         label="Penalty Diff",
         full_name="Penalty Differential",
-        description="Opponent penalties minus the team's own penalties; positive is good.",
+        description=(
+            "Penalties drawn (called on the opponent) minus penalties committed, across offense, "
+            "defense, and special teams."
+        ),
         shape="count",
         polarity="higher",
         source="PBP",
@@ -242,7 +257,10 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         name="penalty_yards_differential",
         label="Pen Yds Diff",
         full_name="Penalty Yards Differential",
-        description="Opponent penalty yards minus the team's own penalty yards.",
+        description=(
+            "Penalty yards drawn (called on the opponent) minus penalty yards committed, across "
+            "offense, defense, and special teams."
+        ),
         shape="count",
         polarity="higher",
         source="PBP",
@@ -253,8 +271,9 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         label="EPA Margin/Play",
         full_name="EPA Margin Per Play",
         description=(
-            "Offensive expected points added per play minus defensive EPA allowed per play "
-            "— the single best play-level summary of team strength."
+            "Offensive EPA per play minus defensive EPA per play allowed, not adjusted for "
+            "opponents. EPA (expected points added) measures how much a play changed the offense's "
+            "expected points."
         ),
         shape="rate",
         polarity="higher",
@@ -267,8 +286,8 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         label="Success Margin",
         full_name="Success Rate Margin",
         description=(
-            "Offensive success rate minus defensive success rate allowed. Success means a "
-            "play that improved the team's expected points."
+            "Share of the offense's plays that succeeded minus the share that succeeded against "
+            "the defense. A play succeeds when it raises the offense's expected points."
         ),
         shape="rate",
         polarity="higher",
@@ -282,9 +301,8 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         label="Unit",
         full_name="Play Unit",
         description=(
-            "Which plays a win-probability bin row counts: scrimmage plays (the team's offense "
-            "against the opponent's defense) or special-teams plays where the team had "
-            "possession."
+            "Which plays this row counts: the team's runs and passes (scrimmage), or the kicking "
+            "plays where it had the ball (special teams)."
         ),
         shape="id",
         polarity="neutral",
@@ -296,24 +314,26 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         label="WP Bin",
         full_name="Win-Probability Bin",
         description=(
-            "How far from decided the game was before the snap, in whole percentage points: "
-            "the smaller of the offense's win probability and its chance of losing, rounded "
-            "down. 0 means one side was already more than 99% to win; 50 means a toss-up. Plays "
-            "without a win probability have no bin and are kept by every garbage-time filter."
+            "How close the game was before the snap: the underdog's chance of winning at that "
+            "moment, in whole percentage points, rounded down. 50 is a toss-up; 0 means one side "
+            "was over 99% likely to win."
         ),
         shape="id",
         polarity="neutral",
         source="PBP",
         since=1999,
-        formula="floor(round(100 * min(wp, 1 - wp), 9))",
+        formula=(
+            "100 x the smaller of the offense's win probability and 1 minus it, rounded down. "
+            "Plays without a win probability get no bin, and every filter keeps them."
+        ),
     ),
     _overall(
         name="wp_kept_play_share",
         label="Kept Plays",
         full_name="Share of Plays the Filter Keeps",
         description=(
-            "The share of this team's scrimmage and special-teams plays (with the ball) that the "
-            "chosen garbage-time filter keeps. 1.00 means no play was left out."
+            "Share of the team's own plays (runs, passes, and kicking plays with the ball) that "
+            "the garbage-time filter keeps at the chosen setting. 100% means no play was dropped."
         ),
         shape="rate",
         polarity="neutral",
@@ -327,8 +347,8 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         label="Plays",
         full_name="Plays in Win-Probability Bin",
         description=(
-            "Plays this team ran in one game, unit, and win-probability bin. Summed over every "
-            "bin they equal the game's scrimmage plays or special-teams plays."
+            "Plays the team ran with the ball in one game, play unit, and win-probability bin. "
+            "Added up over all bins, they equal the game's total for that unit."
         ),
         shape="count",
         polarity="neutral",
@@ -340,8 +360,9 @@ OVERALL_METRICS: tuple[MetricDef, ...] = (
         label="EPA",
         full_name="EPA in Win-Probability Bin",
         description=(
-            "Expected points added on this team's plays in one game, unit, and win-probability "
-            "bin. Summed over every bin it equals the game's scrimmage EPA or special-teams EPA."
+            "Expected points added on the team's plays with the ball in one game, play unit, and "
+            "win-probability bin. Added up over all bins, it equals the game's total for that "
+            "unit."
         ),
         shape="count",
         polarity="higher",

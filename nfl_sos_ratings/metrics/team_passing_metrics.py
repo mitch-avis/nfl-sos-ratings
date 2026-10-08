@@ -24,8 +24,8 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         label="Pass Yds",
         full_name="Passing Yards",
         description=(
-            "Gross passing yards on completions. Sack yardage is not subtracted here — see "
-            "net passing yards for the NFL.com team convention."
+            "Yards gained on completed passes, before taking away yards lost on sacks. Net Passing "
+            "Yards subtracts sacks, as the NFL's official team stats do."
         ),
         shape="count",
         polarity="higher",
@@ -35,10 +35,11 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
     _off_pass(
         name="passing_epa",
         label="Pass EPA",
-        full_name="Passing EPA",
+        full_name="Passing Expected Points Added",
         description=(
-            "Expected points added on dropbacks. Positive means the passing game moved the "
-            "team toward scoring more than an average offense would have."
+            "EPA (expected points added) on pass attempts and sacks; scrambles count as runs. EPA "
+            "is how much a play raised or lowered the offense's expected points, given down, "
+            "distance, and field position."
         ),
         shape="count",
         polarity="higher",
@@ -59,7 +60,10 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         name="passing_first_downs",
         label="Pass 1Ds",
         full_name="Passing First Downs",
-        description="First downs gained through the air.",
+        description=(
+            "First downs gained by completed passes. Scrambles count as runs, and first downs "
+            "awarded by penalty are left out."
+        ),
         shape="count",
         polarity="higher",
         source="PBP +TS",
@@ -70,21 +74,25 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         label="Pass CPOE",
         full_name="Completion Percentage Above Expectation",
         description=(
-            "How much higher the team's completion rate was than the difficulty of its "
-            "throws would predict, in percentage points. Positive means more accurate than "
-            "expected."
+            "Completion percentage compared with what an average passer would complete on the same "
+            "throws, given how hard each was, in percentage points: 0 is as expected, +3 is 3 "
+            "points above."
         ),
         shape="avg",
         polarity="higher",
         source="PBP +TS",
         denominator="pass attempts (model-expected completions)",
         since=2006,
+        formula=(
+            "Actual minus expected completion chance on each pass attempt, averaged over the "
+            "attempts, in percentage points"
+        ),
     ),
     _off_pass(
         name="sacks_suffered",
         label="Sacks Taken",
         full_name="Sacks Suffered",
-        description="Times the team's quarterbacks were sacked. Fewer is better.",
+        description="Times the team's quarterbacks were sacked.",
         shape="count",
         polarity="lower",
         source="PBP +TS",
@@ -94,7 +102,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         name="passing_interceptions",
         label="INTs Thrown",
         full_name="Interceptions Thrown",
-        description="Passes intercepted by the defense. Fewer is better.",
+        description="Passes the defense intercepted.",
         shape="count",
         polarity="lower",
         source="PBP +TS",
@@ -115,14 +123,14 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         label="Att",
         full_name="Pass Attempts",
         description=(
-            "Official pass attempts. Excludes sacks and two-point conversion tries, "
-            "matching the league's official counting."
+            "Official pass attempts: every throw, complete or not, including interceptions and "
+            "spikes. Sacks and two-point tries are left out, as in the league's official stats."
         ),
         shape="count",
         polarity="neutral",
         source="PBP +TS",
         since=1999,
-        formula="pass_attempt - sack, excluding two_point_attempt",
+        formula=None,
     ),
     _off_pass(
         name="completions",
@@ -151,23 +159,20 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         label="Net Pass Yds",
         full_name="Net Passing Yards",
         description=(
-            "Passing yards minus yards lost to sacks — the NFL.com team convention for "
-            "passing offense."
+            "Passing yards minus the yards lost on sacks. This is how the NFL's official team "
+            "stats count passing yards."
         ),
         shape="count",
         polarity="higher",
         source="PBP",
         since=1999,
-        formula="passing_yards - sack_yards_lost (positive magnitude)",
+        formula=None,
     ),
     _off_pass(
         name="dropbacks",
         label="Dropbacks",
         full_name="Dropbacks",
-        description=(
-            "Pass attempts plus sacks plus scrambles — every play that started as a pass. "
-            "The natural denominator for passing efficiency."
-        ),
+        description=("Every play that started as a pass: pass attempts, sacks, and scrambles."),
         shape="count",
         polarity="neutral",
         source="PBP",
@@ -177,12 +182,12 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         name="sack_yards_lost",
         label="Sack Yds Lost",
         full_name="Sack Yards Lost",
-        description="Yards lost on sacks, shown as a positive number. Fewer is better.",
+        description="Yards lost on sacks, shown as a positive number.",
         shape="count",
         polarity="lower",
         source="PBP +TS",
         since=1999,
-        note="team_stats stores this negative upstream; the ETL normalizes the sign.",
+        note=None,
     ),
     _off_pass(
         name="sack_rate_per_dropback",
@@ -200,7 +205,9 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         name="scrambles",
         label="Scrambles",
         full_name="QB Scrambles",
-        description="Dropbacks on which the quarterback took off and ran.",
+        description=(
+            "Times the quarterback dropped back to pass and then ran with the ball instead."
+        ),
         shape="count",
         polarity="neutral",
         source="PBP",
@@ -268,7 +275,10 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         name="yards_per_attempt",
         label="Y/A",
         full_name="Yards Per Attempt",
-        description="Passing yards divided by official pass attempts.",
+        description=(
+            "Average passing yards per pass attempt. Sacks don't count as attempts, and their lost "
+            "yards are not subtracted."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -280,37 +290,42 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         label="NY/A",
         full_name="Net Yards Per Attempt",
         description=(
-            "Passing yards minus sack yards, divided by attempts plus sacks — yards per "
-            "dropback-style efficiency that charges the offense for sacks."
+            "Yards per pass play with sacks counted: each sack adds a play, and its lost yards "
+            "come off the total."
         ),
         shape="rate",
         polarity="higher",
         source="PBP",
         denominator="pass attempts + sacks",
         since=1999,
-        formula="(passing_yards - sack_yards_lost) / (attempts + sacks)",
+        formula="(Passing yards - sack yards lost) ÷ (pass attempts + sacks)",
     ),
     _off_pass(
         name="adjusted_net_yards_per_attempt",
         label="ANY/A",
         full_name="Adjusted Net Yards Per Attempt",
         description=(
-            "The best single conventional passing stat: yards per attempt with a +20-yard "
-            "bonus per touchdown, a -45-yard penalty per interception, and sacks counted "
-            "against."
+            "Net yards per attempt with a 20-yard bonus for each touchdown pass and a 45-yard "
+            "charge for each interception, so scoring and turnovers count along with yards."
         ),
         shape="rate",
         polarity="higher",
         source="PBP",
         denominator="pass attempts + sacks",
         since=1999,
-        formula="(yards + 20*TD - 45*INT - sack_yards) / (attempts + sacks)",
+        formula=(
+            "(Passing yards + 20 x TD passes - 45 x interceptions - sack yards lost) ÷ (pass "
+            "attempts + sacks)"
+        ),
     ),
     _off_pass(
         name="yards_per_dropback",
-        label="Yds/DB",
+        label="Yds/Dropback",
         full_name="Yards Per Dropback",
-        description="Passing yards divided by dropbacks, so sacks and scrambles count.",
+        description=(
+            "Passing yards per dropback. Sacks and scrambles count as dropbacks but add no passing "
+            "yards, and sack losses are not subtracted."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -319,9 +334,13 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_pass(
         name="epa_per_dropback",
-        label="EPA/DB",
+        label="EPA/Dropback",
         full_name="EPA Per Dropback",
-        description="Passing expected points added per dropback — passing efficiency.",
+        description=(
+            "Average EPA per dropback, scrambles included: the core measure of passing efficiency. "
+            "EPA is how much a play raised or lowered the offense's expected points. Team seasons "
+            "mostly run -0.2 to +0.25."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -332,7 +351,10 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         name="pass_success_rate",
         label="Pass Success %",
         full_name="Passing Success Rate",
-        description="The share of dropbacks that improved the team's expected points.",
+        description=(
+            "The share of dropbacks with positive EPA, meaning the play left the offense better "
+            "placed to score than before. It rewards steady gains, not just big plays."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -345,14 +367,19 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         label="Passer Rating",
         full_name="Team Passer Rating",
         description=(
-            "The classic NFL passer-rating formula (0 to 158.3) computed on the team's "
-            "combined passing totals."
+            "The NFL's official passer rating formula (scale 0 to 158.3), built from completion %, "
+            "yards, touchdowns, and interceptions per attempt, applied to all the team's passes."
         ),
         shape="rate",
         polarity="higher",
         source="PBP",
         denominator="official NFL formula over attempts",
         since=1999,
+        formula=(
+            "Four parts, each held between 0 and 2.375: (completions ÷ attempts - 0.3) x 5, (yards "
+            "÷ attempts - 3) x 0.25, TD passes ÷ attempts x 20, and 2.375 - interceptions ÷ "
+            "attempts x 25. Rating = their sum ÷ 6 x 100."
+        ),
     ),
     _off_pass(
         name="passing_td_rate_per_attempt",
@@ -382,7 +409,7 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         name="explosive_pass_rate",
         label="Explosive Pass %",
         full_name="Explosive Pass Rate",
-        description="Completions of 20+ yards divided by dropbacks.",
+        description="The share of dropbacks that produced a completion of 20 or more yards.",
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -394,7 +421,10 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
         name="deep_attempt_rate",
         label="Deep Att %",
         full_name="Deep Attempt Rate",
-        description="The share of attempts thrown deep (16+ air yards). A style stat.",
+        description=(
+            "The share of pass attempts thrown 16 or more yards past the line of scrimmage. It "
+            "shows how often a team throws deep, not how well."
+        ),
         shape="rate",
         polarity="neutral",
         source="PBP",
@@ -404,9 +434,12 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_pass(
         name="longest_pass",
-        label="Long Pass",
+        label="Longest Pass",
         full_name="Longest Completed Pass",
-        description="The team's longest completed pass of the season, in yards.",
+        description=(
+            "The longest completed pass, in yards: the season's longest in season tables, that "
+            "game's longest in game logs."
+        ),
         shape="max",
         polarity="higher",
         source="PBP",
@@ -424,8 +457,8 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_pass(
         name="passing_2pt_conversions",
-        label="2-Pt Passes",
-        full_name="Two-Point Conversion Passes",
+        label="2-Pt Pass Conv",
+        full_name="Passing Two-Point Conversions",
         description="Successful two-point conversions thrown.",
         shape="count",
         polarity="higher",
@@ -435,10 +468,11 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
     _off_pass(
         name="air_epa_total",
         label="Air EPA",
-        full_name="Air EPA",
+        full_name="Expected Points Added Through the Air",
         description=(
-            "The share of passing EPA created by the throw itself (distance and placement) "
-            "rather than the run after the catch."
+            "EPA credited to the distance each pass traveled in the air, summed over every pass "
+            "attempt. Incompletions and interceptions count the value the pass would have added if "
+            "caught."
         ),
         shape="count",
         polarity="higher",
@@ -448,20 +482,24 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
     _off_pass(
         name="yac_epa_total",
         label="YAC EPA",
-        full_name="Yards-After-Catch EPA",
-        description="The share of passing EPA created after the catch by the receivers.",
+        full_name="Expected Points Added After the Catch",
+        description=(
+            "EPA added after the catch on completed passes: the value receivers created with the "
+            "ball in their hands."
+        ),
         shape="count",
         polarity="higher",
         source="PBP",
         since=2006,
+        formula="Sum over completed passes of the play's EPA minus its air EPA",
     ),
     _off_pass(
         name="xyac_per_completion",
-        label="xYAC/Comp",
+        label="Exp YAC/Comp",
         full_name="Expected Yards After Catch Per Completion",
         description=(
-            "How many yards after the catch an average receiver would have gained on the "
-            "same catches, per the nflverse model."
+            "The yards after the catch an average receiver would be expected to gain on the same "
+            "catches, from nflverse's expected-yards model."
         ),
         shape="avg",
         polarity="neutral",
@@ -471,9 +509,12 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_pass(
         name="yac_over_expected_per_completion",
-        label="YAC +/-",
+        label="YAC Over Exp",
         full_name="Yards After Catch Over Expected",
-        description="Actual minus expected yards after catch per completion.",
+        description=(
+            "How many more yards after the catch the team gained per catch than an average "
+            "receiver would on the same catches. Zero means as expected."
+        ),
         shape="avg",
         polarity="higher",
         source="PBP",
@@ -513,8 +554,8 @@ OFFENSE_RECEIVING_METRICS: tuple[MetricDef, ...] = (
         label="Rec Yds",
         full_name="Receiving Yards",
         description=(
-            "Team receiving yards. At team level this equals gross passing yards exactly "
-            "(verified against nflverse data)."
+            "Yards gained on catches, including yards after the catch; the same number as passing "
+            "yards."
         ),
         shape="count",
         polarity="higher",
@@ -537,7 +578,10 @@ OFFENSE_RECEIVING_METRICS: tuple[MetricDef, ...] = (
         name="receiving_air_yards",
         label="Rec Air Yds",
         full_name="Receiving Air Yards",
-        description="Air yards on targets — the same number as passing air yards.",
+        description=(
+            "How far past the line of scrimmage passes were thrown, summed over every attempt; the "
+            "same number as passing air yards."
+        ),
         shape="count",
         polarity="neutral",
         source="PBP +TS",
@@ -548,7 +592,9 @@ OFFENSE_RECEIVING_METRICS: tuple[MetricDef, ...] = (
         name="receiving_yards_after_catch",
         label="Rec YAC",
         full_name="Receiving Yards After Catch",
-        description="Yards gained after the catch — receiving-side view of team YAC.",
+        description=(
+            "Yards receivers gained after the catch; the same number as passing yards after catch."
+        ),
         shape="count",
         polarity="higher",
         source="PBP +TS",
@@ -580,7 +626,7 @@ OFFENSE_RECEIVING_METRICS: tuple[MetricDef, ...] = (
         name="receiving_fumbles_lost",
         label="Rec Fum Lost",
         full_name="Receiving Fumbles Lost",
-        description="Fumbles lost to the defense after a catch.",
+        description="Receivers' fumbles after the catch that the defense recovered.",
         shape="count",
         polarity="lower",
         source="PBP +TS",
@@ -590,7 +636,10 @@ OFFENSE_RECEIVING_METRICS: tuple[MetricDef, ...] = (
         name="catch_rate",
         label="Catch %",
         full_name="Catch Rate",
-        description="Receptions divided by targets — the receiving view of completion rate.",
+        description=(
+            "The share of targets that were caught. Throwaways and spikes are not targets, so "
+            "unlike completion percentage they do not count as misses."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",

@@ -79,27 +79,38 @@ bottom; update the status boxes in the same change set as the work.
    `team_metrics.py` assembles `TEAM_METRICS` in the same order. Characterization: the catalog
    drift test (shown to fail when one description changes) and the registry payload, whose JSON was
    identical before and after; `nfl-sos-ratings catalog` left both catalogs unchanged.
-5. [ ] P5 Tooltip and glossary audit (maintainer request): every registry label, description, and
+5. [x] P5 Tooltip and glossary audit (maintainer request): every registry label, description, and
    formula, the affix rules, the app's own hint text, and a glossary rebuilt from the registry
    (search, categories, a "Start here" section, the methodology linked on GitHub). Tooltips gain a
    generated direction line and a "How it's computed" line. Drafts by six read-only subagents in
-   `/tmp/tooltip-audit/` (style brief there), verified and applied centrally. Done on
-   `feat/glossary`: the glossary (U18) and the hint format (`MetricHint`: full name, sentence,
-   generated direction line, and the registry formula for a base metric), with the twelve
-   descriptions that stated a direction trimmed so it reads once. Left: the registry text rewrite
-   itself (labels, descriptions, formulas from the reviewed drafts), after the season-rate and
-   missing-data fixes land, since both touch the registry.
+   `/tmp/tooltip-audit/` (style brief there), verified and applied centrally. Done in three pull
+   requests. `feat/glossary` (#34): the glossary (U18) and the hint format (`MetricHint`: full
+   name, sentence, generated direction line, and the registry formula for a base metric), with the
+   twelve descriptions that stated a direction trimmed so it reads once. `fix/app-copy` (#37): the
+   app's own explanatory text. `fix/registry-text`: the reviewed registry labels, full names,
+   descriptions, and formulas (column keys unchanged; season rates described as pooled, after
+   #36), the affix rules' wording (garbage-time filter, opponent and faced-defense averages,
+   vs-season, per-snap, change, and the rank-range percentiles, whose note takes its count from
+   `rating_ranges.BOOTSTRAP_RESAMPLES`), and the category descriptions, with both catalogs
+   regenerated. Not done, by choice: composing `filtered_` and percentile columns without the base
+   description, a draft idea to shorten those hints that changes how the registry composes text;
+   it waits for a request. Waiting on the maintainer: `air_epa_total` polarity (recommend neutral,
+   like the other air-yards columns: in a scratch check it tracked throwing depth more than
+   quality), removing `player_id` and `player_display_name` from the registry (no file in `data/`
+   has them; `ui_data._build_qb_payload` lists them only if present), and accepting nine labels of
+   19-20 characters.
 6. [ ] P6 Preseason prior for the team fit: the team fit shrinks toward a regressed previous-season
    rating that fades out early in the season (the maintainer expects the prior gone by mid-season
    or earlier; the fade point is for the pre-registered test to settle). Protocol first, then code
    (test-first), an independent review, the check run (approved), the decision, and a `data/`
    rebuild only with a fresh yes. Teams first; QBs as a separate later test. Protocol, reviewed
    and pre-registered: section "P6. Preseason prior for the team fit".
-7. [ ] P7 Index pages: U5-U8.
-8. [ ] P8 Detail pages: U9-U12.
+7. [x] P7 Index pages: U5-U8, on `feat/index-layout` (#29) and `feat/index-table` (#30).
+8. [x] P8 Detail pages: U9-U12, on `feat/detail-layout` (#31).
 9. [x] P9 Charts: U13-U14, with R3's early weeks (chart starts once every team has 3 games;
    approved), on `feat/chart-polish`.
-10. [ ] P10 Color semantics: U15-U17.
+10. [ ] P10 Color semantics: U15-U17. U15 and U16 done on `feat/color-semantics` (#33); U17 waits
+    on the maintainer.
 11. [x] P11 Palette menu as a division grid (U19), on `feat/palette-grid`; U18 lands with P5.
 12. [x] P12 Refresh button (maintainer idea, 2026-10-08), on `feat/refresh-button`: `web
     --allow-refresh` (off by default; only when the server serves the repository's `data/`) runs
@@ -1125,7 +1136,7 @@ Index pages (layout):
   column and Rank range 168 px, so SRS fits at 1440 px. Not done literally: a page-level sticky
   header cannot coexist with the table's sideways scroll in one box, so the box keeps its own
   scroll at full height.
-- [ ] U7 Noise: the "32 rows / 7 columns / 0 compared" and "6 columns / 110 columns" pills, the
+- [x] U7 Noise: the "32 rows / 7 columns / 0 compared" and "6 columns / 110 columns" pills, the
   "USE FIRST" eyebrow, the card title repeating the page title, and the rank-range readout box
   ("Tap a row for its numbers.") that looks like an empty input. The floating scroll buttons cover
   the table's last column at the bottom right. Done on `feat/index-layout`: the index pills, the

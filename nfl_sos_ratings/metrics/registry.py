@@ -19,7 +19,11 @@ from nfl_sos_ratings.metrics.schema import (
     ResolvedColumn,
     SuffixRule,
 )
-from nfl_sos_ratings.rating_ranges import RANGE_QUANTILES, quantile_suffix
+from nfl_sos_ratings.rating_ranges import (
+    BOOTSTRAP_RESAMPLES,
+    RANGE_QUANTILES,
+    quantile_suffix,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -31,20 +35,44 @@ class RegistryValidationError(ValueError):
 
 # A layman description shorter than this is a label, not a sentence.
 _MIN_DESCRIPTION_LENGTH = 20
+# The quantile level of a rank range's middle value.
+_MEDIAN_LEVEL = 0.5
+
+
+def _percent(share: float) -> str:
+    """Return a share as a percentage without trailing zeros: 0.025 is ``2.5``."""
+    return f"{round(share * 100, 1):g}"
 
 
 def _quantile_suffix_rule(level: float) -> SuffixRule:
-    """Return the suffix rule for one rank-range quantile column, such as ``_q025``."""
-    percent = f"{round(level * 100, 1):g}"
+    """Return the suffix rule for one rank-range quantile column, such as ``_q025``.
+
+    The note names the range the quantile bounds (the middle 95% for ``_q025`` and ``_q975``) and
+    the share of resampled results beyond it, counted among the resamples the team or quarterback
+    is in.
+    """
+    percent = _percent(level)
+    redrawn = (
+        f"in {BOOTSTRAP_RESAMPLES:,} seasons redrawn from the real games (picked at random, "
+        "repeats allowed)"
+    )
+    if level == _MEDIAN_LEVEL:
+        note = f"The middle result: {redrawn}, half of the results came out smaller."
+    else:
+        middle = _percent(1 - 2 * min(level, 1 - level))
+        end, side, tail = (
+            ("Low", "smaller", percent)
+            if level < _MEDIAN_LEVEL
+            else ("High", "larger", _percent(1 - level))
+        )
+        note = (
+            f"{end} end of the middle {middle}%: {redrawn}, {tail}% of the results came out {side}."
+        )
     return SuffixRule(
         suffix=quantile_suffix(level),
-        label_template=f"{{label}} ({percent}th pct)",
-        full_name_template=f"{{full_name}}, {percent}th percentile",
-        description_note=(
-            f"Shown as the {percent}th percentile across game-bootstrap resamples of the season: "
-            f"{percent}% of resampled seasons came out at or below it. The spread reflects "
-            "which games happened to be played, not whether the model is right."
-        ),
+        label_template=f"{{label}} ({percent}th %ile)",
+        full_name_template=f"{{full_name}}, {percent}th Percentile",
+        description_note=note,
     )
 
 
@@ -55,10 +83,9 @@ DEFAULT_PREFIX_RULES: tuple[PrefixRule, ...] = (
         label_template="Filtered {label}",
         full_name_template="{full_name}, Garbage-Time Filtered",
         description_note=(
-            "Refit on only the plays the chosen garbage-time filter keeps: plays where the "
-            "offense's win probability before the snap was between the threshold and 100% minus "
-            "it, plus plays without a win probability, with the season's ridge penalties and "
-            "per-game scale. This is an unvalidated exploration view, not a published rating."
+            "Recalculated using only the plays the garbage-time filter keeps: it drops plays "
+            "where either team's chance of winning was below the cutoff you set. Exploration "
+            "only: in testing, filtering did not improve predictions."
         ),
     ),
     PrefixRule(
@@ -66,9 +93,8 @@ DEFAULT_PREFIX_RULES: tuple[PrefixRule, ...] = (
         label_template="Opp {label}",
         full_name_template="Faced Defenses: {full_name}",
         description_note=(
-            "This is season-long context about the defenses this quarterback actually "
-            "faced — what those defenses allowed to all other passers — not a grade of the "
-            "quarterback."
+            "Average over the defenses this quarterback faced, each measured in its games against "
+            "other teams."
         ),
         contextual=True,
         invert_polarity_for_qb=True,
@@ -78,18 +104,17 @@ DEFAULT_PREFIX_RULES: tuple[PrefixRule, ...] = (
         label_template="Opp {label}",
         full_name_template="Opponents Faced: {full_name}",
         description_note=(
-            "This is season-long context about the opponents actually faced (averaged with "
-            "head-to-head games excluded), not a grade of the selected team."
+            "Average over the opponents faced, each measured in its games against other teams."
         ),
         contextual=True,
     ),
     PrefixRule(
         prefix="season_delta_",
         label_template="{label} vs Season",
-        full_name_template="{full_name} vs. Season Baseline",
+        full_name_template="{full_name} vs. Season Average",
         description_note=(
-            "This compares the average in these matchups with the subject's full-season "
-            "average on the same stat."
+            "The average in the games against this opponent minus the full-season average on the "
+            "same stat."
         ),
     ),
 )
@@ -107,25 +132,19 @@ DEFAULT_SUFFIX_RULES: tuple[SuffixRule, ...] = (
         suffix="_per_offensive_snap",
         label_template="{label}/Off Snap",
         full_name_template="{full_name} Per Offensive Snap",
-        description_note=(
-            "Shown per offensive snap, so teams with different play volumes compare fairly."
-        ),
+        description_note="Shown per offensive snap (each run or pass play).",
     ),
     SuffixRule(
         suffix="_per_defensive_snap",
         label_template="{label}/Def Snap",
         full_name_template="{full_name} Per Defensive Snap",
-        description_note=(
-            "Shown per defensive snap, so teams with different play volumes compare fairly."
-        ),
+        description_note="Shown per defensive snap (each run or pass play faced).",
     ),
     SuffixRule(
         suffix="_change",
         label_template="{label} Change",
         full_name_template="Change in {full_name}",
-        description_note=(
-            "The filtered value minus the same calculation with no plays filtered out (0%)."
-        ),
+        description_note="The filtered value minus the same calculation with every play kept.",
         # How far the filter moves a value shows sensitivity to it, not quality.
         polarity="neutral",
     ),

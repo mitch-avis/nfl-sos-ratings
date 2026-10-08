@@ -25,54 +25,56 @@ play), `score` model outputs on their own scale, `flag` booleans, and `id` ident
 
 ## Schedule-Adjusted Ratings
 
-The project's own quarterback ratings, adjusted for the defenses each quarterback actually faced.
-Start here when ranking QBs.
+The project's own quarterback ratings, in EPA per dropback adjusted for the defenses each
+quarterback actually faced, plus their ranks and how firm those ranks are. Start here when ranking
+QBs.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `adj_qb_epa_per_dropback` | Adj EPA/DB | rate | dropbacks | 1999 | D | The quarterback's expected points added per dropback after adjusting for the pass defenses he faced. It reads on the same scale as raw EPA per dropback, and small samples are pulled toward the league average. |
-| `qb_faced_pass_defense` | Faced Pass D | rate | dropbacks | 1999 | D | The average quality of the pass defenses this quarterback faced, weighted by his dropbacks, in EPA per dropback prevented. Each defense is rated without its games against this quarterback. Positive means tougher defenses. Early in a season, defenses that have faced no other passer yet are left out. Context, not a QB grade. |
-| `qb_rank` | Rank | score | - | 1999 | D | The quarterback's place among eligible quarterbacks by Adjusted EPA Per Dropback, 1 for the best. Quarterbacks with equal ratings share the better rank. |
-| `qb_rank_missing_share` | No-Dropback Share | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the quarterback had no dropbacks and so no rank. A quarterback who played only part of the season is missing more often, and the rank quantiles come only from the resamples that include him. |
-| `qb_rank_top5_probability` | Top-5 Chance | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the quarterback ranked in the top five eligible quarterbacks by Adjusted EPA Per Dropback. It shows how much the ranking depends on which games happened to be played. |
-| `qb_rank_top10_probability` | Top-10 Chance | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats) in which the quarterback ranked in the top ten eligible quarterbacks by Adjusted EPA Per Dropback. It shows how much the ranking depends on which games happened to be played. |
-| `qb_rank_probabilities` | Rank Chances | rate | bootstrap resamples | 1999 | D | A list giving, for each rank from 1 down, the share of game-bootstrap resamples of the season in which the quarterback finished at exactly that rank among eligible quarterbacks. |
-| `other_qb_id` | Compared QB ID | id | - | - | D | The canonical GSIS player identifier of the other quarterback in a head-to-head comparison. The two need not have faced each other. |
-| `qb_rated_above_probability` | Rated-Above Chance | rate | bootstrap resamples with both quarterbacks | 1999 | D | The share of game-bootstrap resamples of the season (its games redrawn at random, with repeats), among those including both quarterbacks, in which this quarterback's Adjusted EPA Per Dropback came out above the compared quarterback's. A tie counts as half. |
-| `qb_rating_gap` | Rating Gap | score | - | 1999 | D | How much this quarterback's Adjusted EPA Per Dropback exceeds the compared quarterback's in a game-bootstrap resample of the season; published as percentiles across the resamples including both. |
-| `qb_pair_share` | Both-QBs Share | rate | bootstrap resamples | 1999 | D | The share of game-bootstrap resamples of the season that include games by both quarterbacks, so the comparison could be made. A backup who played little is missing from many resamples. |
+| `adj_qb_epa_per_dropback` | Adj EPA/Dropback | rate | dropbacks | 1999 | D | Expected points added (how much each play raised or lowered the offense's expected points) per dropback, adjusted for the pass defenses faced. Same scale as raw EPA/Dropback; every rating is pulled toward average, small samples most. Formula: One fit over every passer-game, weighted by dropbacks: EPA per dropback = league average + passer strength - defense strength + home field. Shown: league average + passer strength. |
+| `qb_faced_pass_defense` | Pass Defense Faced | rate | dropbacks | 1999 | D | How strong the pass defenses faced were, in EPA per dropback they held passers below average, weighted by the quarterback's dropbacks against each. Higher means tougher defenses; 0 is average. Formula: Dropback-weighted average of each opponent's pass-defense strength, each from a refit that leaves out this quarterback's dropbacks; defenses that have faced no other passer yet are skipped. |
+| `qb_rank` | Rank | score | - | 1999 | D | The quarterback's place among qualifying quarterbacks (14 pass attempts per team game) by Adjusted EPA Per Dropback; 1 is best. Tied ratings share the better rank. |
+| `qb_rank_missing_share` | No-Dropback Share | rate | bootstrap resamples | 1999 | D | How often the quarterback had no dropbacks, and so no rank, across 1,000 redrawn seasons (the season's games drawn at random, with repeats). Part-time starters miss more often; his rank range uses only the seasons he appears in. |
+| `qb_rank_top5_probability` | Top-5 Chance | rate | bootstrap resamples | 1999 | D | How often the quarterback ranked in the top five qualifying quarterbacks across 1,000 redrawn seasons (the season's games drawn at random, with repeats). Shows how much the ranking rests on which games were played. |
+| `qb_rank_top10_probability` | Top-10 Chance | rate | bootstrap resamples | 1999 | D | How often the quarterback ranked in the top ten qualifying quarterbacks across 1,000 redrawn seasons (the season's games drawn at random, with repeats). Shows how much the ranking rests on which games were played. |
+| `qb_rank_probabilities` | Rank Chances | rate | bootstrap resamples | 1999 | D | For each rank from 1 down, how often the quarterback finished exactly there among qualifying quarterbacks across 1,000 redrawn seasons (the season's games drawn at random, with repeats). Adds to under 100% when he is missing from some. |
+| `other_qb_id` | Compared QB ID | id | - | - | D | The league's player ID for the other quarterback in the comparison. The two need not have faced each other. |
+| `qb_rated_above_probability` | Rated-Above Chance | rate | bootstrap resamples with both quarterbacks | 1999 | D | Among 1,000 redrawn seasons (the season's games drawn at random, with repeats) that include both quarterbacks, the share in which this one's Adjusted EPA Per Dropback beat the other's. A tie counts half. |
+| `qb_rating_gap` | Rating Gap | score | - | 1999 | D | This quarterback's Adjusted EPA Per Dropback minus the compared quarterback's, in each redrawn season that includes both. Negative means the other was rated higher; EPA per dropback values are small decimals (about -0.3 to +0.3). |
+| `qb_pair_share` | Both-QBs Share | rate | bootstrap resamples | 1999 | D | Share of 1,000 redrawn seasons that include games by both quarterbacks, so they could be compared. Only qualifying quarterbacks are paired, so it drops below 1 mainly early in a season. |
 
 ## Identity & Availability
 
-Who the quarterback is and how much he played.
+Who the quarterback is, how much he played, and whether he played enough to be ranked.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `qb_id` | QB ID | id | - | - | PBP | The canonical GSIS player identifier for this quarterback. |
+| `qb_id` | QB ID | id | - | - | PBP | The league's official player ID for this quarterback (for example 00-0023459), used to link his rows across tables. If that ID is missing, another source's ID or his name stands in. |
 | `qb_name` | QB | id | - | - | PBP | The quarterback's display name. |
-| `player_id` | Player ID | id | - | - | PLS | The GSIS player identifier used to join across data sources. |
-| `player_display_name` | QB | id | - | - | PLS | The quarterback's display name from the official player feed. |
-| `qb_games_played` | QB Games | count | - | 1999 | PBP | Games in which this quarterback recorded a dropback. |
-| `qb_offense_snaps` | QB Snaps | count | - | 2013 | SNP | Offensive snaps the quarterback played, from snap-count data. Empty before 2013: nflverse's 2012 snap-count file has no rows. |
-| `qb_dropbacks` | Dropbacks | count | - | 1999 | PBP | Pass attempts plus sacks plus scrambles — every play that began as a pass. The natural denominator for QB efficiency stats. |
-| `qb_is_eligible` | Eligible | flag | - | - | D | Whether the quarterback has the qualifying number of pass attempts (14 for every game his team has played) to be ranked on the league-wide QBs page. |
-| `qb_attempt_qualifier` | Qualifier Att | count | - | - | D | The pass attempts this quarterback needs to be ranked: 14 for every game his team has played so far (his main team, for a quarterback who changed teams). |
+| `player_id` | Player ID | id | - | - | PLS | The league's player ID as carried in the official weekly stats, used to match rows across data sources. |
+| `player_display_name` | Player Name | id | - | - | PLS | The quarterback's name as given in the official weekly stats. |
+| `qb_games_played` | QB Games | count | - | 1999 | PBP | Games in which the quarterback dropped back at least once or, in seasons with snap counts, played at least one offensive snap. Per-game stats divide by this count. |
+| `qb_offense_snaps` | QB Snaps | count | - | 2013 | SNP | Offensive snaps the quarterback was on the field for, from the league's snap counts, which this data has from 2013 on. Empty before 2013: nflverse's 2012 snap-count file has no rows. |
+| `qb_dropbacks` | Dropbacks | count | - | 1999 | PBP | Pass attempts plus sacks: the plays where the quarterback dropped back and threw or went down. Scrambles are not counted here; they count as carries. Formula: Pass attempts (two-point tries included, spikes left out) + sacks |
+| `qb_is_eligible` | Qualified | flag | - | - | D | Whether the quarterback has enough pass attempts to be ranked: 14 for every game his team has played (his main team, if he changed teams). Below that he is listed but unranked. |
+| `qb_attempt_qualifier` | Att to Qualify | count | - | - | D | The pass attempts the quarterback needs to be ranked: 14 for every game his team has played so far (the team he played the most games for, if he changed teams). Formula: 14 x team games played (238 in a 17-game season) |
 
 ## Passing Volume
 
-Raw passing production: attempts, completions, yards, and scores.
+Raw passing production (attempts, completions, yards, touchdowns, interceptions, and passing EPA),
+plus the win-probability data behind the garbage-time filter.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | `qb_attempts` | Att | count | - | 1999 | PLS | Official pass attempts (sacks and two-point tries excluded). |
 | `qb_completions` | Comp | count | - | 1999 | PLS | Passes completed to a teammate. |
-| `qb_pass_yards` | Pass Yds | count | - | 1999 | PLS | Gross passing yards on completions (sack yardage not subtracted). |
+| `qb_pass_yards` | Pass Yds | count | - | 1999 | PLS | Yards gained on completed passes, including yards after the catch. Yards lost on sacks are not subtracted. |
 | `qb_pass_touchdowns` | Pass TDs | count | - | 1999 | PLS | Touchdown passes thrown. |
-| `qb_interceptions` | INTs | count | - | 1999 | PLS | Passes intercepted by the defense. Fewer is better. |
-| `qb_passing_epa` | Pass EPA | count | - | 1999 | PLS | Total expected points added on this quarterback's dropbacks. EPA credits down, distance, and field position — not just raw yards. |
-| `wp_kept_dropback_share` | Kept Dropbacks | rate | dropbacks | 1999 | D | The share of this quarterback's dropbacks that the chosen garbage-time filter keeps. 1.00 means no dropback was left out. |
-| `qb_wp_bin_dropbacks` | Dropbacks | count | - | 1999 | PBP | This quarterback's dropbacks in one game and win-probability bin. Summed over every bin they equal his dropbacks in that game. |
-| `qb_wp_bin_epa` | Pass EPA | count | - | 1999 | PBP | Expected points added credited to this quarterback on his dropbacks in one game and win-probability bin, summed from play-by-play. |
+| `qb_interceptions` | INTs | count | - | 1999 | PLS | Passes intercepted by the defense. |
+| `qb_passing_epa` | Pass EPA | count | - | 1999 | PLS | Expected points added (how much each play raised or lowered the offense's expected points) on pass attempts and sacks. Scrambles count in rushing EPA instead. |
+| `wp_kept_dropback_share` | Kept Dropbacks | rate | dropbacks | 1999 | D | The share of the quarterback's dropbacks the garbage-time filter keeps: those where the offense's chance to win before the snap was between the threshold and 100% minus it. 100% means none were dropped. |
+| `qb_wp_bin_dropbacks` | WP Bin Dropbacks | count | - | 1999 | PBP | The quarterback's dropbacks in one game within one 1-point band of win probability (how far from decided the game was before the snap). Added across all bands, they equal his dropbacks in that game. |
+| `qb_wp_bin_epa` | WP Bin Pass EPA | count | - | 1999 | PBP | Play-by-play passing EPA on the quarterback's dropbacks in one game within one 1-point band of win probability. The garbage-time filter adds up the bands it keeps. |
 
 ## Passing Efficiency
 
@@ -80,12 +82,12 @@ Quality per play: the rates that separate good QBs from busy ones.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `qb_epa_per_dropback` | EPA/DB | rate | dropbacks | 1999 | D | Expected points added per dropback — the single best play-level measure of quarterback efficiency. League average sits near zero. |
-| `qb_pass_yards_per_dropback` | Pass Yds/DB | rate | dropbacks | 1999 | D | Passing yards divided by dropbacks, so sacks and scrambles count. |
-| `qb_td_int_margin_rate` | TD-INT Margin/DB | rate | dropbacks | 1999 | D | Touchdown passes minus interceptions, divided by dropbacks. Formula: (pass_touchdowns - interceptions) / dropbacks |
-| `qb_any_a` | ANY/A | rate | pass attempts + sacks | 1999 | D | The best single conventional passing stat: yards per attempt with a +20-yard bonus per touchdown, a -45-yard penalty per interception, and sacks counted against. Formula: (yards + 20*TD - 45*INT - sack_yards) / (attempts + sacks) Overlaps the TD-INT and sack pool members; accepted, frozen overlap. |
-| `qb_completion_percentage_above_expectation` | CPOE | avg | pass attempts (model-expected completions) | 2006 | PLS | How much higher the quarterback's completion rate was than the difficulty of the throws would predict, in percentage points. Positive means more accurate than expected. |
-| `qb_passer_rating` | Passer Rating | rate | official NFL formula over attempts | 1999 | D | The classic NFL passer-rating formula (0 to 158.3), built from completion rate, yards, touchdowns, and interceptions per attempt. Restates comp%, Y/A, TD%, and INT%; kept in the pool as a frozen exception. |
+| `qb_epa_per_dropback` | EPA/Dropback | rate | dropbacks | 1999 | D | Expected points added (how much each play raised or lowered the offense's expected points) per dropback, before any adjustment for opponents. League average is usually a little above 0. Formula: Passing EPA ÷ dropbacks (pass attempts + sacks) |
+| `qb_pass_yards_per_dropback` | Pass Yds/Dropback | rate | dropbacks | 1999 | D | Passing yards per dropback. Unlike yards per attempt, it counts each sack as a play with no gain; the yards lost on sacks are not subtracted. Formula: Passing yards ÷ (pass attempts + sacks) |
+| `qb_td_int_margin_rate` | TD-INT/Dropback | rate | dropbacks | 1999 | D | Touchdown passes minus interceptions, per dropback: a per-play version of TD-INT differential. Typical qualifying starters land between 0 and +0.03. Formula: (TD passes - interceptions) ÷ (pass attempts + sacks) |
+| `qb_any_a` | ANY/A | rate | pass attempts + sacks | 1999 | D | Yards per pass play with bonuses and penalties: +20 yards for each touchdown pass, -45 for each interception, and sacks counted as plays with their lost yards subtracted. Formula: (Passing yards + 20 x TD passes - 45 x interceptions - sack yards lost) ÷ (pass attempts + sacks) |
+| `qb_completion_percentage_above_expectation` | CPOE | avg | pass attempts (model-expected completions) | 2006 | PLS | How much higher the completion rate was than an average passer's on the same throws, given how hard each was, in percentage points (0 = as expected). Formula: Actual minus expected completion chance on each pass attempt, averaged over the attempts, in percentage points |
+| `qb_passer_rating` | Passer Rating | rate | official NFL formula over attempts | 1999 | D | The NFL's passer rating (0 to 158.3), built from completion %, yards, touchdowns, and interceptions per attempt. Formula: Four parts, each held between 0 and 2.375: (completions ÷ attempts - 0.3) x 5, (yards ÷ attempts - 3) x 0.25, TD passes ÷ attempts x 20, and 2.375 - interceptions ÷ attempts x 25. Rating = their sum ÷ 6 x 100. |
 | `qb_yards_per_attempt` | Y/A | rate | pass attempts | 1999 | D | Passing yards divided by official pass attempts. |
 | `qb_touchdown_rate` | TD % | rate | pass attempts | 1999 | D | The share of pass attempts that scored touchdowns. |
 | `qb_interception_rate` | INT % | rate | pass attempts | 1999 | D | The share of pass attempts that were intercepted. |
@@ -93,15 +95,15 @@ Quality per play: the rates that separate good QBs from busy ones.
 
 ## Pressure, Sacks & Pocket
 
-Sacks taken, pressure faced, and how the quarterback handled it.
+Sacks taken, the yards and fumbles lost on them, and how often the quarterback scrambled.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | `qb_sacks` | Sacks | count | - | 1999 | PLS | Times the quarterback was sacked. Avoiding sacks is a QB skill. |
-| `qb_sack_yards_lost` | Sack Yds Lost | count | - | 1999 | PLS | Yards lost on sacks, shown as a positive number. Stored negative upstream; the ETL normalizes the sign. |
-| `qb_sack_rate` | Sack Rate | rate | dropbacks | 1999 | D | The share of dropbacks that ended in a sack. Sack avoidance tracks quarterbacks more than offensive lines. |
-| `qb_sack_fumbles_lost` | Sack Fum Lost | count | - | 1999 | PLS | Strip-sack fumbles the defense recovered. |
-| `qb_scramble_rate` | Scramble % | rate | dropbacks | 1999 | PBP | Scrambles divided by dropbacks — the escape-and-run tendency. |
+| `qb_sack_yards_lost` | Sack Yds Lost | count | - | 1999 | PLS | Yards lost on sacks, shown as a positive number. |
+| `qb_sack_rate` | Sack Rate | rate | dropbacks | 1999 | D | The share of dropbacks (pass attempts plus sacks) that ended in a sack. Sack avoidance tracks quarterbacks more than offensive lines. |
+| `qb_sack_fumbles_lost` | Sack Fumbles Lost | count | - | 1999 | PLS | Strip-sack fumbles the defense recovered. |
+| `qb_scramble_rate` | Scramble % | rate | dropbacks | 1999 | PBP | How often the quarterback took off running on a called pass play: scrambles per dropback. Formula: Scrambles ÷ (pass attempts + sacks) |
 
 ## Rushing
 
@@ -110,22 +112,22 @@ Quarterback runs: designed carries, scrambles, and their value.
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | `qb_carries` | Carries | count | - | 1999 | PLS | Official rushing attempts, including scrambles and kneel-downs. |
-| `qb_rushing_yards` | Rush Yds | count | - | 1999 | PLS | Rushing yards gained, including scramble yardage. |
-| `qb_yards_per_carry` | Y/C | rate | carries | 1999 | D | Rushing yards divided by carries. |
+| `qb_rushing_yards` | Rush Yds | count | - | 1999 | PLS | Rushing yards, scrambles and kneel-downs included. |
+| `qb_yards_per_carry` | Rush Yds/Carry | rate | carries | 1999 | D | Rushing yards per carry, scrambles and kneel-downs included, so clock-killing kneels pull it down. |
 | `qb_rushing_tds` | Rush TDs | count | - | 1999 | PLS | Touchdowns scored on the ground. |
-| `qb_rushing_first_downs` | Rush 1Ds | count | - | 1999 | PLS | First downs gained on quarterback runs. |
-| `qb_rushing_epa` | Rush EPA | count | - | 1999 | PLS | Expected points added on this quarterback's runs. |
-| `qb_epa_per_carry` | EPA/Carry | rate | carries | 1999 | D | Rushing expected points added per carry. |
-| `qb_designed_carries` | Designed Carries | count | - | 1999 | PBP | Called quarterback runs, excluding scrambles and kneel-downs. |
-| `qb_designed_rush_yards` | Designed Rush Yds | count | - | 1999 | PBP | Yards gained on called quarterback runs. |
-| `qb_designed_rush_epa` | Designed Rush EPA | count | - | 1999 | PBP | Expected points added on called quarterback runs, excluding scrambles and kneels. Formula: sum(epa on rush plays where rusher_player_id == qb_id and qb_scramble == 0 and qb_kneel == 0) |
-| `qb_designed_yards_per_carry` | Designed Yds/Carry | rate | designed carries | 1999 | D | Designed-run rushing yards divided by designed carries. |
-| `qb_designed_epa_per_carry` | Designed EPA/Carry | rate | designed carries | 1999 | D | Designed-run expected points added divided by designed carries. |
-| `qb_scrambles` | Scrambles | count | - | 1999 | PBP | Dropbacks on which the quarterback took off and ran. |
+| `qb_rushing_first_downs` | Rush 1st Downs | count | - | 1999 | PLS | First downs gained on quarterback runs, scrambles included. |
+| `qb_rushing_epa` | Rush EPA | count | - | 1999 | PLS | Expected points added on runs, scrambles and kneel-downs included. A quarterback's scrambling value shows up here, not in passing EPA. |
+| `qb_epa_per_carry` | EPA/Carry | rate | carries | 1999 | D | Rushing EPA per carry, scrambles and kneel-downs included. |
+| `qb_designed_carries` | Designed Carries | count | - | 1999 | PBP | Runs called for the quarterback, such as sneaks and option keepers. Scrambles, kneel-downs, and two-point tries are left out. |
+| `qb_designed_rush_yards` | Designed Rush Yds | count | - | 1999 | PBP | Yards gained on runs called for the quarterback (scrambles, kneel-downs, and two-point tries left out). |
+| `qb_designed_rush_epa` | Designed Rush EPA | count | - | 1999 | PBP | Expected points added on runs called for the quarterback (scrambles, kneel-downs, and two-point tries left out). |
+| `qb_designed_yards_per_carry` | Designed Yds/Carry | rate | designed carries | 1999 | D | Average yards on runs called for the quarterback (scrambles and kneel-downs left out). |
+| `qb_designed_epa_per_carry` | Designed EPA/Carry | rate | designed carries | 1999 | D | Average EPA on runs called for the quarterback (scrambles and kneel-downs left out). |
+| `qb_scrambles` | Scrambles | count | - | 1999 | PBP | Pass plays on which the quarterback took off and ran instead of throwing. |
 | `qb_scramble_yards` | Scramble Yds | count | - | 1999 | PBP | Yards gained on scrambles. |
 | `qb_yards_per_scramble` | Yds/Scramble | rate | scrambles | 1999 | PBP | Average yards gained per scramble. |
 | `qb_kneels` | Kneels | count | - | 1999 | PBP | Kneel-downs to run out the clock. Counted in carries and the per-carry rates, left out of the designed-run stats. |
-| `qb_rushing_2pt_conversions` | 2-Pt Rushes | count | - | 1999 | PLS | Successful two-point conversions run in. |
+| `qb_rushing_2pt_conversions` | 2-Pt Rush Conv | count | - | 1999 | PLS | Successful two-point conversions run in. |
 
 ## Scoring, Clutch & Outcomes
 
@@ -134,21 +136,22 @@ feed the performance ratings.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `qb_wins` | QB Wins | count | - | 1999 | D | Wins in games where this quarterback was the primary passer. A team outcome, shown for context — never a rating input. |
-| `qb_losses` | QB Losses | count | - | 1999 | D | Losses in games where this quarterback was the primary passer. |
-| `qb_ties` | QB Ties | count | - | 1999 | D | Ties in games where this quarterback was the primary passer. |
+| `qb_wins` | QB Wins | count | - | 1999 | D | Team wins in games where he was the main quarterback (most snaps, or most dropbacks before snap counts). A team result shown for context; it never feeds a rating. |
+| `qb_losses` | QB Losses | count | - | 1999 | D | Team losses in games where he was the main quarterback (most snaps, or most dropbacks before snap counts). |
+| `qb_ties` | QB Ties | count | - | 1999 | D | Ties in games where he was the main quarterback (most snaps, or most dropbacks before snap counts). |
 | `qb_win_pct` | QB Win % | rate | primary-QB games | 1999 | D | Share of primary-QB games won, counting a tie as half a win; empty for a quarterback who was never the primary passer. A team outcome, shown for context — never a rating input. |
-| `qb_fourth_quarter_comeback` | 4QC | count | - | 1999 | D | Credit for a game in which the quarterback's team trailed in the fourth quarter and he led it to a win. |
-| `qb_fourth_quarter_comebacks` | 4QC | count | - | 1999 | D | Games in which the quarterback's team trailed in the fourth quarter and he led it to a win. |
-| `qb_game_winning_drive` | GWD | count | - | 1999 | D | Credit for leading a drive that put the team ahead for good in the fourth quarter or overtime of a win. |
-| `qb_game_winning_drives` | GWD | count | - | 1999 | D | Drives led that put the team ahead for good in the fourth quarter or overtime of games the team won. |
+| `qb_fourth_quarter_comeback` | 4th-Qtr Comeback | count | - | 1999 | D | 1 if the team trailed in the fourth quarter or overtime and came back to win; the credit goes to the game's main quarterback. Any deficit counts, not just one score. |
+| `qb_fourth_quarter_comebacks` | 4th-Qtr Comebacks | count | - | 1999 | D | Wins in which the team trailed in the fourth quarter or overtime, counted in games where he was the main quarterback. Any deficit counts, not just one score. |
+| `qb_game_winning_drive` | Game-Winning Drive | count | - | 1999 | D | 1 if the team, in a game it won, scored to go from tied or behind to ahead in the fourth quarter or overtime; the credit goes to the game's main quarterback. |
+| `qb_game_winning_drives` | Game-Winning Drives | count | - | 1999 | D | Wins in which the team scored to go from tied or behind to ahead in the fourth quarter or overtime, counted in games where he was the main quarterback. |
 
 ## Turnovers & Ball Security
 
-Interceptions, fumbles, and how costly the giveaways were.
+Fumbles on quarterback runs and the touchdown-minus-interception margin. Interceptions are under
+Passing Volume, and sack fumbles under Pressure, Sacks & Pocket.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | `qb_td_int_differential` | TD-INT Diff | count | - | 1999 | D | Touchdown passes minus interceptions across the season. |
 | `qb_rushing_fumbles` | Rush Fumbles | count | - | 1999 | PLS | Fumbles on quarterback runs, whether or not lost. |
-| `qb_rushing_fumbles_lost` | Rush Fum Lost | count | - | 1999 | PLS | Fumbles lost on quarterback runs. |
+| `qb_rushing_fumbles_lost` | Rush Fumbles Lost | count | - | 1999 | PLS | Fumbles on quarterback runs that the defense recovered. |

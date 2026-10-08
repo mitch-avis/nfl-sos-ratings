@@ -18,9 +18,8 @@ def _unit_rank(unit: str, label: str, rating_label: str) -> MetricDef:
         label=f"{label} Rank",
         full_name=f"{rating_label} Rank",
         description=(
-            f"The team's place in the league by {rating_label}, 1 for the best. Its rank range "
-            "percentiles come from the same game-bootstrap resamples as the Team Rating's, but "
-            "the units' percentiles do not add up to the Team Rating's."
+            f"The team's place in the league by {rating_label}, 1 for the best. Teams with equal "
+            "ratings share the better rank."
         ),
         shape="score",
         polarity="lower",

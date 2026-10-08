@@ -20,19 +20,26 @@ TEAM_CATEGORIES: tuple[CategoryDef, ...] = (
         name="Schedule-Adjusted Ratings",
         entity="team",
         description=(
-            "The project's own ratings: how good each team was after accounting for the "
-            "opponents it actually played. Start here when ranking teams."
+            "The project's own ratings, in points per game against an average team and adjusted "
+            "for the opponents each team actually played, plus their ranks and how firm those "
+            "ranks are. Start here when ranking teams."
         ),
     ),
     CategoryDef(
         name="Overall",
         entity="team",
-        description="Season identity and whole-game outcomes: record, points, and margins.",
+        description=(
+            "Who played whom and how games turned out: record, points, and whole-team margins, "
+            "plus the win-probability data behind the garbage-time filter."
+        ),
     ),
     CategoryDef(
         name="Offense",
         entity="team",
-        description="Everything the team did with the ball.",
+        description=(
+            "What the offense did with the ball: passing, rushing, receiving, scoring, "
+            "conversions, drives, turnovers, and penalties."
+        ),
         subcategories=(
             "Total",
             "Passing",
@@ -74,19 +81,25 @@ QB_CATEGORIES: tuple[CategoryDef, ...] = (
         name="Schedule-Adjusted Ratings",
         entity="qb",
         description=(
-            "The project's own quarterback ratings, adjusted for the defenses each "
-            "quarterback actually faced. Start here when ranking QBs."
+            "The project's own quarterback ratings, in EPA per dropback adjusted for the defenses "
+            "each quarterback actually faced, plus their ranks and how firm those ranks are. "
+            "Start here when ranking QBs."
         ),
     ),
     CategoryDef(
         name="Identity & Availability",
         entity="qb",
-        description="Who the quarterback is and how much he played.",
+        description=(
+            "Who the quarterback is, how much he played, and whether he played enough to be ranked."
+        ),
     ),
     CategoryDef(
         name="Passing Volume",
         entity="qb",
-        description="Raw passing production: attempts, completions, yards, and scores.",
+        description=(
+            "Raw passing production (attempts, completions, yards, touchdowns, interceptions, and "
+            "passing EPA), plus the win-probability data behind the garbage-time filter."
+        ),
     ),
     CategoryDef(
         name="Passing Efficiency",
@@ -96,7 +109,10 @@ QB_CATEGORIES: tuple[CategoryDef, ...] = (
     CategoryDef(
         name="Pressure, Sacks & Pocket",
         entity="qb",
-        description="Sacks taken, pressure faced, and how the quarterback handled it.",
+        description=(
+            "Sacks taken, the yards and fumbles lost on them, and how often the quarterback "
+            "scrambled."
+        ),
     ),
     CategoryDef(
         name="Rushing",
@@ -114,7 +130,11 @@ QB_CATEGORIES: tuple[CategoryDef, ...] = (
     CategoryDef(
         name="Turnovers & Ball Security",
         entity="qb",
-        description="Interceptions, fumbles, and how costly the giveaways were.",
+        description=(
+            "Fumbles on quarterback runs and the touchdown-minus-interception margin. "
+            "Interceptions are under Passing Volume, and sack fumbles under Pressure, Sacks & "
+            "Pocket."
+        ),
     ),
 )
 
