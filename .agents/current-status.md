@@ -65,8 +65,8 @@ history (the composite-rating era and its experiments) is in git, before commit 
 6. Smaller open items in the roadmap's "Data notes", each a `data/` change: the extra-point drive
    after a return touchdown, the near-duplicate
    yards-per-snap columns, `opp_longest_*` averaging per-game maxima, `fourth_down_aggressiveness`
-   at 2.0 in two 2000 games, play-by-play as a 2003-2011 source for tackles for loss, kneel-downs
-   under-recorded in 2000 and 2001, and JAX's 2001-2002 QB official stats.
+   at 2.0 in two 2000 games, play-by-play as a 2003-2011 source for tackles for loss, and
+   kneel-downs under-recorded in 2000 and 2001.
 
 ## State before 2026-10-08
 
