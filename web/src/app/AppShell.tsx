@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 
 import { BrandMark } from '@/components/common/BrandMark'
+import { Notice } from '@/components/common/Notice'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -41,6 +42,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getPageJumpSlots, type ScrollPositionState } from '@/domain/detailUi'
+import { unavailableSeasonFromState } from '@/domain/pageViewState'
 import { paletteGroups, paletteName } from '@/domain/teamPalettes'
 import { cn } from '@/utils/cn'
 
@@ -276,6 +278,22 @@ function PaletteStripe() {
   )
 }
 
+/** Says so when the `?season=` asked for has no data, and which season shows instead. */
+function SeasonNotice() {
+  const { season, unavailable } = useSeason()
+  const location = useLocation()
+  // The index pages rewrite the URL to the season shown and carry the asked-for one in state.
+  const asked = unavailable ?? unavailableSeasonFromState(location.state)
+  if (asked === null || season === null) return null
+  return (
+    <div className="mb-4">
+      <Notice>
+        Season {asked} is not available; showing {season}.
+      </Notice>
+    </div>
+  )
+}
+
 /** Sidebar + header + routed content. */
 export function AppShell() {
   return (
@@ -293,6 +311,7 @@ export function AppShell() {
           </div>
         </header>
         <main className="min-w-0 flex-1 px-3 py-4 sm:px-6 sm:py-6 safe-bottom">
+          <SeasonNotice />
           <Outlet />
         </main>
       </SidebarInset>

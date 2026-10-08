@@ -5,6 +5,7 @@ import { useRankRanges } from '@/api/queries'
 import type { EntityKind, SeasonDataset } from '@/api/types'
 import { useEntityPageState } from '@/app/EntityViewStateProvider'
 import { ErrorState } from '@/components/common/ErrorState'
+import { Notice } from '@/components/common/Notice'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ComparisonPanel } from '@/components/entity/ComparisonPanel'
 import { EntityTable } from '@/components/entity/EntityTable'
@@ -19,6 +20,7 @@ import { getEntityConfig } from '@/domain/entityConfig'
 import {
   canResetPageView,
   reconcileCompareIds,
+  seasonRedirectState,
   toggleCompareId,
   toggleSubcategoryPatch,
 } from '@/domain/pageViewState'
@@ -65,14 +67,24 @@ function useCompareQuerySync(
     else params.delete('compare')
     if (params.toString() !== searchParams.toString()) {
       hydratedKey.current = `${kind}:${dataset.season}:${compareIds.join(',')}`
-      navigate(`${location.pathname}?${params.toString()}`, { replace: true })
+      navigate(`${location.pathname}?${params.toString()}`, {
+        replace: true,
+        state: seasonRedirectState(location.state, searchParams.get('season'), dataset.season),
+      })
     }
-  }, [compareIds, dataset, kind, location.pathname, navigate, searchParams, setCompareIds])
+  }, [compareIds, dataset, kind, location.pathname, location.state, navigate, searchParams, setCompareIds])
+}
+
+/** The id a team or QB page could not find, passed along when it sent the reader back here. */
+function notFoundId(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null || !('notFound' in state)) return null
+  return typeof state.notFound === 'string' ? state.notFound : null
 }
 
 /** The Teams or QBs index: guidance, summary tiles, comparison, and the main table. */
 export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: SeasonDataset }) {
   const config = getEntityConfig(kind)
+  const notFound = notFoundId(useLocation().state)
   const state = useEntityPageState(kind)
   const table = dataset[kind]
   const compareIds = useMemo(() => reconcileCompareIds(kind, table, state.compareIds), [kind, state.compareIds, table])
@@ -112,7 +124,7 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
   }, [config.compareColumns, config.identityColumns, kind, seasonView.selectedColumns])
   const { viewState } = state
   const season = dataset.season
-  const gamesSoFar = getInProgressGames(season, dataset.teams.rows)
+  const gamesSoFar = getInProgressGames(dataset)
 
   return (
     <div className="flex flex-col gap-5">
@@ -120,6 +132,12 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
         title={`${config.title} · ${season}`}
         description="Every rating and stat compares each subject with the opponents it actually faced. Sort, filter, and switch views; open a row for its game-by-game detail."
       />
+
+      {notFound !== null ? (
+        <Notice>
+          No {kind === 'teams' ? 'team' : 'quarterback'} {notFound} in {season}.
+        </Notice>
+      ) : null}
 
       {gamesSoFar !== null ? (
         <Alert>

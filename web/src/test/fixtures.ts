@@ -64,6 +64,7 @@ const RATING_LABELS: Record<string, string> = {
 
 export const SEASON_2025: SeasonDataset = {
   season: 2025,
+  in_progress: false,
   teams: table(
     [
       {

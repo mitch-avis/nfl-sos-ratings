@@ -30,7 +30,7 @@ import {
   enrichGameLogsWithOpponentRatings,
 } from '@/domain/detailAnalytics'
 import { getEntityConfig, getEntityRow, getFullTeamName } from '@/domain/entityConfig'
-import { humanizeGroup } from '@/domain/format'
+import { countLabel, humanizeGroup } from '@/domain/format'
 import { getGroupDescription } from '@/domain/metricMetadata'
 import { canResetPageView, toggleSubcategoryPatch } from '@/domain/pageViewState'
 import {
@@ -109,11 +109,14 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
     [enrichedGameLogs, kind, row, viewState],
   )
 
-  if (!row) return <Navigate to={`/${kind}?season=${season}`} replace />
+  if (!row) return <Navigate to={`/${kind}?season=${season}`} replace state={{ notFound: entityId }} />
 
   const rawLabel = String(row[config.labelKey] ?? row[config.identityKey] ?? '')
-  const label =
-    kind === 'teams' ? getFullTeamName(rawLabel) : `${rawLabel} - ${getFullTeamName(String(row.team ?? ''))}`
+  const label = kind === 'teams' ? getFullTeamName(rawLabel) : rawLabel
+  const subtitle =
+    kind === 'teams'
+      ? `Team detail · ${season} regular season`
+      : `Quarterback · ${getFullTeamName(String(row.team ?? ''))} · ${season} regular season`
   const metricColumns = seasonView.table.visible_columns.filter((column) => !config.identityColumns.includes(column))
 
   return (
@@ -121,7 +124,7 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
       <PageHeader
         title={label}
         titleMark={<TeamChip team={kind === 'teams' ? rawLabel : String(row.team ?? '')} className="size-4" />}
-        description={`${config.singularLabel} detail · ${season} regular season`}
+        description={subtitle}
         actions={
           <Button asChild variant="outline" size="sm">
             <Link to={`/${kind}?season=${season}`}>
@@ -150,7 +153,7 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
             <CardTitle className="text-base">{humanizeGroup(viewState.primaryView)}</CardTitle>
             <CardDescription>{getGroupDescription(kind, viewState.primaryView)}</CardDescription>
           </div>
-          <Badge variant="secondary">{metricColumns.length} columns</Badge>
+          <Badge variant="secondary">{countLabel(metricColumns.length, 'column')}</Badge>
         </CardHeader>
         <CardContent>
           <MetricSections
@@ -236,8 +239,8 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
           </div>
           {gameLogsQuery.data && gameLogSelection ? (
             <div className="flex gap-1.5">
-              <Badge variant="secondary">{gameLogsQuery.data.rows.length} games</Badge>
-              <Badge variant="secondary">{gameLogSelection.columns.length} columns</Badge>
+              <Badge variant="secondary">{countLabel(gameLogsQuery.data.rows.length, 'game')}</Badge>
+              <Badge variant="secondary">{countLabel(gameLogSelection.columns.length, 'column')}</Badge>
             </div>
           ) : null}
         </CardHeader>
@@ -277,8 +280,8 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
               <CardDescription>{opponentBreakdown.description}</CardDescription>
             </div>
             <div className="flex gap-1.5">
-              <Badge variant="secondary">{opponentBreakdown.rows.length} opponents</Badge>
-              <Badge variant="secondary">{opponentBreakdown.columns.length} columns</Badge>
+              <Badge variant="secondary">{countLabel(opponentBreakdown.rows.length, 'opponent')}</Badge>
+              <Badge variant="secondary">{countLabel(opponentBreakdown.columns.length, 'column')}</Badge>
             </div>
           </CardHeader>
           <CardContent>

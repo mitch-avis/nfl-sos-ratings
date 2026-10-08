@@ -63,7 +63,8 @@ The app never recomputes methodology. The backend (`nfl_sos_ratings/ui_data.py` 
 - `GET /api/metadata`: the metric registry (labels, descriptions, polarity) for headers and
   tooltips
 - `GET /api/seasons`: seasons with a complete contract
-- `GET /api/seasons/{season}`: team and QB rows for one season
+- `GET /api/seasons/{season}`: team and QB rows for one season, and `in_progress` (true only for
+  the season being played, `config.SEASON`, while a team still has regular-season games left)
 - `GET /api/seasons/{season}/teams/{team}/game-logs` and
   `GET /api/seasons/{season}/qbs/{qb_id}/game-logs`
 - `GET /api/seasons/{season}/teams/{team}/rating-history` and

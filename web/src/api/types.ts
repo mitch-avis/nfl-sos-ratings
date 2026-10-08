@@ -56,6 +56,8 @@ export interface WpRatingsPayload extends TablePayload {
 
 export interface SeasonDataset {
   season: number;
+  /** True only for the season being played while a team still has games left (the API decides). */
+  in_progress: boolean;
   teams: TablePayload;
   qbs: TablePayload;
 }

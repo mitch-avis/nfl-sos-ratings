@@ -23,7 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { csvFileName, toCsv } from '@/domain/csv'
-import { formatFixed, formatValue } from '@/domain/format'
+import { countLabel, formatFixed, formatValue } from '@/domain/format'
 import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
 import {
   belowQualifierDetail,
@@ -329,8 +329,8 @@ export function EntityTable({
       <CardHeader className="flex flex-wrap items-start justify-between gap-3">
         <CardTitle className="text-base">{config.title}</CardTitle>
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <Badge variant="secondary">{filteredRows.length} rows</Badge>
-          <Badge variant="secondary">{selectedColumns.length} columns</Badge>
+          <Badge variant="secondary">{countLabel(filteredRows.length, 'row')}</Badge>
+          <Badge variant="secondary">{countLabel(selectedColumns.length, 'column')}</Badge>
           <Badge variant="secondary">{compareIds.length} compared</Badge>
           <CsvExportButton
             fileName={csvFileName(config.kind, season)}

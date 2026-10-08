@@ -185,6 +185,7 @@ describe('season in progress', () => {
     const partial = {
       ...SEASON_2025,
       season: 2026,
+      in_progress: true,
       teams: {
         ...SEASON_2025.teams,
         rows: SEASON_2025.teams.rows.map((row) => ({ ...row, games_played: 3 })),
@@ -207,6 +208,7 @@ describe('season in progress', () => {
     const partial = {
       ...SEASON_2025,
       season: 2026,
+      in_progress: true,
       teams: {
         ...SEASON_2025.teams,
         rows: SEASON_2025.teams.rows.map((row) => ({ ...row, games_played: 3 })),
@@ -230,6 +232,7 @@ describe('season in progress', () => {
     // Arrange
     const lastWeek = {
       ...SEASON_2025,
+      in_progress: true,
       teams: {
         ...SEASON_2025.teams,
         rows: SEASON_2025.teams.rows.map((row, index) => ({ ...row, games_played: index === 0 ? 16 : 17 })),
@@ -242,6 +245,25 @@ describe('season in progress', () => {
 
     // Assert
     expect(await screen.findByText(/Season in progress/)).toHaveTextContent('up to 17 games')
+  })
+
+  it('shows no notice for a completed season with a team short of a full season', async () => {
+    // Arrange
+    const missingGame = {
+      ...SEASON_2025,
+      teams: {
+        ...SEASON_2025.teams,
+        rows: SEASON_2025.teams.rows.map((row, index) => ({ ...row, games_played: index === 0 ? 16 : 17 })),
+      },
+    }
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025': missingGame }))
+
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    expect(await screen.findByRole('heading', { name: /Team Ratings Index · 2025/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Season in progress/)).not.toBeInTheDocument()
   })
 
   it('shows no notice for a completed season', async () => {
@@ -434,6 +456,23 @@ describe('team detail', () => {
 
     // Assert
     await waitFor(() => expect(router.state.location.pathname).toBe('/teams'))
+  })
+
+  it('says which team was not found on returning to the index', async () => {
+    // Act
+    renderApp('/teams/NOPE?season=2025')
+
+    // Assert
+    expect(await screen.findByText('No team NOPE in 2025.')).toHaveAttribute('role', 'status')
+  })
+
+  it('says when the requested season is not available', async () => {
+    // Act
+    renderApp('/teams?season=1990')
+
+    // Assert
+    expect(await screen.findByRole('heading', { name: /Team Ratings Index · 2025/ })).toBeInTheDocument()
+    expect(screen.getByText('Season 1990 is not available; showing 2025.')).toHaveAttribute('role', 'status')
   })
 })
 

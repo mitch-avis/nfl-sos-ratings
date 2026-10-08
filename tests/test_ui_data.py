@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 import pytest
 
+from nfl_sos_ratings import config
 from nfl_sos_ratings.rating_ranges import (
     QB_RANGE_COLUMNS,
     TEAM_RANGE_COLUMNS,
@@ -25,6 +26,7 @@ from nfl_sos_ratings.ui_data import (
     load_team_rating_history_payload,
     load_team_rating_ranges_payload,
     load_team_wp_ratings_payload,
+    season_in_progress,
 )
 from tests.wp_league import LOPSIDED_BIN, write_wp_season
 
@@ -715,3 +717,79 @@ def test_team_wp_ratings_follow_a_rebuilt_bins_file(tmp_path: Path) -> None:
     # Assert
     assert {row["wp_kept_play_share"] for row in after} == {1.0}
     assert {row["wp_kept_play_share"] for row in before} != {1.0}
+
+
+def _write_minimal_season(data_dir: Path, season: int, games_played: tuple[int, ...]) -> None:
+    """Write the six contract files for ``season`` with one team row per ``games_played`` entry."""
+    teams = [f"T{index}" for index in range(len(games_played))]
+    rows = "\n".join(f"{team},{games},1.0" for team, games in zip(teams, games_played, strict=True))
+    _write_table(data_dir / f"{season}_team_per_game_stats.parquet", "team,points_for", "T0,20")
+    _write_table(
+        data_dir / f"{season}_qb_per_game_stats.parquet", "player_id,player_display_name", "qb,Q"
+    )
+    _write_table(data_dir / f"{season}_combined.parquet", "team,games_played,team_rating", rows)
+    _write_table(data_dir / f"{season}_ratings.parquet", "team,games_played,team_rating", rows)
+    _write_table(
+        data_dir / f"{season}_qb_combined.parquet",
+        "player_id,player_display_name,adj_qb_epa_per_dropback",
+        "qb,Q,0.1",
+    )
+    _write_table(
+        data_dir / f"{season}_qb_ratings.parquet", "player_id,adj_qb_epa_per_dropback", "qb,0.1"
+    )
+
+
+@pytest.mark.parametrize(
+    ("season", "games_played", "expected"),
+    [
+        (2026, (4, 3), True),
+        (2026, (17, 17), False),
+        (2022, (17, 16), False),
+        (1999, (16, 15), False),
+    ],
+    ids=["season-being-played", "season-finished", "cancelled-game", "missing-game"],
+)
+def test_load_season_ui_dataset_flags_only_the_season_being_played(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    season: int,
+    games_played: tuple[int, ...],
+    *,
+    expected: bool,
+) -> None:
+    # Arrange
+    monkeypatch.setattr(config, "SEASON", 2026)
+    _write_minimal_season(tmp_path, season, games_played)
+
+    # Act
+    dataset = load_season_ui_dataset(tmp_path, season)
+
+    # Assert
+    assert dataset["in_progress"] is expected
+
+
+@pytest.mark.parametrize(
+    "team_frame",
+    [
+        pl.DataFrame({"team": ["T0"]}),
+        pl.DataFrame(
+            {"team": [], "games_played": []}, schema={"team": pl.String, "games_played": pl.Int64}
+        ),
+        pl.DataFrame(
+            {"team": ["T0"], "games_played": [None]},
+            schema={"team": pl.String, "games_played": pl.Int64},
+        ),
+    ],
+    ids=["no-games-column", "no-teams", "no-counts"],
+)
+def test_season_in_progress_counts_the_season_being_played_without_game_counts(
+    monkeypatch: pytest.MonkeyPatch, team_frame: pl.DataFrame
+) -> None:
+    # Arrange
+    monkeypatch.setattr(config, "SEASON", 2026)
+
+    # Act
+    in_progress = season_in_progress(2026, team_frame)
+
+    # Assert
+    assert in_progress is True

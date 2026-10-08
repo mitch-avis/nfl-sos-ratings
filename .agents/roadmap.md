@@ -72,7 +72,7 @@ bottom; update the status boxes in the same change set as the work.
 2. [x] P2 Test and pipeline speed (S5): `POLARS_MAX_THREADS=1` by default in the front door and the
    test suite; `pytest -m published_data` works without `--no-cov` (conftest hook, approved).
    Done on `perf/single-thread-polars`; timings in S5.
-3. [ ] P3 Bugs and copy (U1-U4).
+3. [x] P3 Bugs and copy (U1-U4), on `fix/season-notice-and-copy`.
 4. [ ] P4 Split `nfl_sos_ratings/metrics/team_metrics.py` by category (approved), catalogs
    byte-identical as the characterization check.
 5. [ ] P5 Tooltip and glossary audit (maintainer request): every registry label, description, and
@@ -927,16 +927,19 @@ as pull requests, in the recommended order.
 
 Bugs and copy (first):
 
-- [ ] U1 The "Season in progress" notice shows on three completed seasons, 1999, 2000, and 2022,
+- [x] U1 The "Season in progress" notice shows on three completed seasons, 1999, 2000, and 2022,
   because `seasonRules.getInProgressGames` treats any team below 16 or 17 games as unfinished (see
   "Data notes"); the QB qualifier text then says "so far". Let the API say which season is in
   progress (`config.SEASON` while its games are still being played) instead of counting games.
-- [ ] U2 Plurals: "1 games" and "1 opponents" badges on detail pages; "How often this qb was rated"
+  Done: the season payload's `in_progress` (`ui_data.season_in_progress`) drives the notice.
+- [x] U2 Plurals: "1 games" and "1 opponents" badges on detail pages; "How often this qb was rated"
   (`HeadToHeadCard`); QB titles use a hyphen ("Brock Purdy - San Francisco 49ers"); the glossary
   says "used throughout the current shell" (`metricMetadata.ts`) and lists QB EPA Per Dropback twice.
-- [ ] U3 An unknown team (`/teams/XYZ`) or season (`?season=1990`) silently lands on the current
-  index; say what was not found.
-- [ ] U4 "no games in 1%" / "no dropbacks in 2%" in rank-range summaries is opaque; say "missing
+  Done except the glossary items, which move to P5 with the glossary rebuild.
+- [x] U3 An unknown team (`/teams/XYZ`) or season (`?season=1990`) silently lands on the current
+  index; say what was not found. Done: a notice names the missing team or QB, and an unavailable
+  season says which season shows instead (carried through the index page's URL rewrite).
+- [x] U4 "no games in 1%" / "no dropbacks in 2%" in rank-range summaries is opaque; say "missing
   from 1% of resampled seasons".
 
 Index pages (layout):
