@@ -675,3 +675,48 @@ def test_rank_history_for_an_unknown_entity_or_season_returns_not_found(
 
     # Assert
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("path", "rank_column"),
+    [
+        ("/api/seasons/2024/teams/DET/rank-history", "team_rank"),
+        ("/api/seasons/2024/qbs/qb-1/rank-history", "qb_rank"),
+    ],
+)
+def test_rank_history_starts_once_every_team_has_played_three_games(
+    tmp_path: Path, path: str, rank_column: str
+) -> None:
+    # Arrange
+    _seed_rank_history(tmp_path)
+    pl.DataFrame(
+        {
+            "week": [1, 1, 2, 2],
+            "team": ["DET", "GB", "DET", "GB"],
+            "games_played": [2, 1, 3, 3],
+        }
+    ).write_parquet(tmp_path / "2024_ratings_by_week.parquet")
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get(path)
+
+    # Assert
+    assert [row["week"] for row in response.json()["rows"]] == [2]
+    assert rank_column in response.json()["visible_columns"]
+
+
+def test_rank_history_is_empty_before_every_team_has_played_three_games(tmp_path: Path) -> None:
+    # Arrange
+    _seed_rank_history(tmp_path)
+    pl.DataFrame({"week": [1, 2], "team": ["DET", "DET"], "games_played": [1, 2]}).write_parquet(
+        tmp_path / "2024_ratings_by_week.parquet"
+    )
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get("/api/seasons/2024/teams/DET/rank-history")
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json()["rows"] == []
