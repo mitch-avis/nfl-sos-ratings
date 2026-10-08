@@ -1,8 +1,10 @@
 import { ArrowDown, ArrowUp, Moon, Palette, Sun, SunMoon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
+import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
 
 import { BrandMark } from '@/components/common/BrandMark'
+import { TeamChip } from '@/components/common/TeamChip'
 import { Notice } from '@/components/common/Notice'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,7 +12,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
-  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -86,9 +87,10 @@ function focusWhenOpened(item: HTMLDivElement | null): (() => void) | undefined 
 }
 
 /**
- * The palette menu: the switch for team colors on team and QB pages, the default palette, then
- * every team's, grouped by division. It opens with the chosen palette focused and scrolled into
- * view, so stepping through the teams in order takes one key press each.
+ * The palette menu: the switch for team colors on team and QB pages, the default palette, then every
+ * team's as a compact grid, one row of four per division (each team's chip and abbreviation, its
+ * full name as the accessible name), so all 32 fit on a phone screen. It opens with the chosen
+ * palette focused, so stepping through the teams in order takes one key press each.
  */
 function PalettePicker() {
   const { palette, setPalette, teamPageColors, setTeamPageColors } = useTheme()
@@ -105,7 +107,7 @@ function PalettePicker() {
         </TooltipTrigger>
         <TooltipContent>Palette: {name}</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="end" className="max-h-[70vh] w-64 overflow-y-auto">
+      <DropdownMenuContent align="end" className="w-80 max-w-[calc(100vw-1rem)]">
         <DropdownMenuCheckboxItem
           checked={teamPageColors}
           onCheckedChange={(checked) => setTeamPageColors(checked === true)}
@@ -118,19 +120,28 @@ function PalettePicker() {
           <DropdownMenuRadioItem value="classic" ref={palette === 'classic' ? focusWhenOpened : undefined}>
             Default
           </DropdownMenuRadioItem>
+          <DropdownMenuSeparator />
           {paletteGroups().map((group) => (
-            <DropdownMenuGroup key={group.division}>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">{group.division}</DropdownMenuLabel>
+            <DropdownMenuGroup
+              key={group.division}
+              aria-label={group.division}
+              className="grid grid-cols-[4.25rem_repeat(4,minmax(0,1fr))] items-center gap-1 px-1 py-0.5"
+            >
+              <span aria-hidden className="text-xs text-muted-foreground">
+                {group.division}
+              </span>
               {group.teams.map((team) => (
-                <DropdownMenuRadioItem key={team.id} value={team.id} ref={team.id === palette ? focusWhenOpened : undefined}>
-                  <span aria-hidden className="flex gap-0.5">
-                    {team.colors.map((color) => (
-                      <span key={color} className="size-2.5 rounded-full ring-1 ring-border" style={{ background: color }} />
-                    ))}
-                  </span>
-                  {team.name}
-                </DropdownMenuRadioItem>
+                <DropdownMenuPrimitive.RadioItem
+                  key={team.id}
+                  value={team.id}
+                  aria-label={team.name}
+                  title={team.name}
+                  ref={team.id === palette ? focusWhenOpened : undefined}
+                  className="flex cursor-default items-center justify-center gap-1 rounded-sm px-1 py-1.5 text-xs font-medium outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground data-[state=checked]:ring-1 data-[state=checked]:ring-primary"
+                >
+                  <TeamChip team={team.id} />
+                  {team.id}
+                </DropdownMenuPrimitive.RadioItem>
               ))}
             </DropdownMenuGroup>
           ))}

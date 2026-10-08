@@ -94,7 +94,7 @@ bottom; update the status boxes in the same change set as the work.
 9. [x] P9 Charts: U13-U14, with R3's early weeks (chart starts once every team has 3 games;
    approved), on `feat/chart-polish`.
 10. [ ] P10 Color semantics: U15-U17.
-11. [ ] P11 Palette menu as a division grid (U19); U18 lands with P5.
+11. [x] P11 Palette menu as a division grid (U19), on `feat/palette-grid`; U18 lands with P5.
 12. [ ] P12 Refresh button (maintainer idea, 2026-10-08): an opt-in server flag, one refresh at a
     time, a confirmation dialog in the app, progress, then the `diff-data` summary and the data
     checks; the app refetches its data when done.
@@ -1007,7 +1007,7 @@ Glossary and navigation:
 - [ ] U18 The glossary covers about a dozen metrics, points at a repository path instead of linking
   the methodology, and explains neither rank ranges, head-to-head chances, the garbage-time filter,
   nor what positive SoS means. Build it from the registry with search and categories.
-- [ ] U19 The palette menu is a 33-item scrolling list; an eight-division grid of team chips would
+- [x] U19 The palette menu is a 33-item scrolling list; an eight-division grid of team chips would
   be faster, especially on a phone.
 
 ## Ideas parking lot (not approved yet)
