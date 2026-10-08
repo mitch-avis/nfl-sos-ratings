@@ -1,5 +1,5 @@
 import { formatValue } from './format';
-import { getMetricMetadata } from './metricMetadata';
+import { getMetricMetadata, SEASON_DELTA_PREFIX } from './metricMetadata';
 import type { EntityKind, RowValue, TablePayload } from '@/api/types';
 
 type DataRow = Record<string, RowValue>;
@@ -685,7 +685,7 @@ export function buildOpponentBreakdown(
   }
 
   const summaryColumns = uniqueColumns([spec.difficultyMetric, ...spec.groupColumns]);
-  const deltaColumn = spec.deltaMetric ? `season_delta_${spec.deltaMetric}` : undefined;
+  const deltaColumn = spec.deltaMetric ? `${SEASON_DELTA_PREFIX}${spec.deltaMetric}` : undefined;
   const rows: DataRow[] = Array.from(groupedRows.entries()).map(
     ([opponentTeam, rowsForOpponent]) => {
       const summary = Object.fromEntries(

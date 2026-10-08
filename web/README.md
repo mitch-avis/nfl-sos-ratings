@@ -64,7 +64,8 @@ The app never recomputes methodology. The backend (`nfl_sos_ratings/ui_data.py` 
 
 - `GET /api/health`
 - `GET /api/metadata`: the metric registry (labels, descriptions, polarity) for headers and
-  tooltips
+  tooltips, plus its prefix rules, which the app applies to the `season_delta_` columns it derives
+  in the unique-opponent table
 - `GET /api/seasons`: seasons with a complete contract
 - `GET /api/seasons/{season}`: team and QB rows for one season, and `in_progress` (true only for
   the season being played, `config.SEASON`, while a team still has regular-season games left)

@@ -31,9 +31,22 @@ export interface RegistryCategoryPayload {
   subcategories: string[];
 }
 
+/** How a column prefix changes a metric's label, name, description, and meaning. */
+export interface PrefixRulePayload {
+  prefix: string;
+  /** `{label}` stands for the base column's label. */
+  label_template: string;
+  /** `{full_name}` stands for the base column's full name. */
+  full_name_template: string;
+  description_note: string;
+  contextual: boolean;
+  invert_polarity_for_qb: boolean;
+}
+
 export interface MetricRegistryPayload {
   entities: Record<'team' | 'qb', { categories: RegistryCategoryPayload[] }>;
   metrics: Record<string, ColumnMetadataPayload>;
+  prefix_rules: PrefixRulePayload[];
 }
 
 export interface TablePayload {

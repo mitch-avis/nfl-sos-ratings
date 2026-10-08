@@ -287,6 +287,18 @@ def test_payload_survives_a_json_round_trip(registry: MetricRegistry) -> None:
     ]
 
 
+def test_payload_serves_the_prefix_rules(registry: MetricRegistry) -> None:
+    """The web app labels the season_delta_ columns it derives with the registry's own rule."""
+    # Act
+    payload = json.loads(json.dumps(registry.payload()))
+
+    # Assert
+    rules = {rule["prefix"]: rule for rule in payload["prefix_rules"]}
+    assert list(rules) == [rule.prefix for rule in DEFAULT_PREFIX_RULES]
+    assert rules["season_delta_"]["label_template"] == "{label} vs Season"
+    assert rules["qopp_"]["invert_polarity_for_qb"] is True
+
+
 def test_column_metadata_carries_label_and_description(registry: MetricRegistry) -> None:
     # Act
     metadata = registry.column_metadata(["team_rating", "opp_passing_yards"])
@@ -520,6 +532,25 @@ def test_every_suffix_rule_resolves_a_real_column(
     needing_rule = [
         column for column in _OUTPUT_COLUMN_SAMPLES if without_rule.resolve_column(column) is None
     ]
+
+    # Assert
+    assert needing_rule != []
+
+
+@pytest.mark.parametrize(
+    "rule", DEFAULT_PREFIX_RULES, ids=[rule.prefix for rule in DEFAULT_PREFIX_RULES]
+)
+def test_every_prefix_rule_resolves_a_real_column(
+    registry: MetricRegistry, rule: PrefixRule
+) -> None:
+    """The web app's unique-opponent table derives season_delta_ columns from game-log stats."""
+    # Arrange
+    others = [other for other in DEFAULT_PREFIX_RULES if other is not rule]
+    without_rule = _registry_with_rules(registry, others, DEFAULT_SUFFIX_RULES)
+    columns = [*_OUTPUT_COLUMN_SAMPLES, "season_delta_passing_epa"]
+
+    # Act
+    needing_rule = [column for column in columns if without_rule.resolve_column(column) is None]
 
     # Assert
     assert needing_rule != []

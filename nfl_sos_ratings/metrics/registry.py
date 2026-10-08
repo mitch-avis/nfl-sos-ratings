@@ -213,7 +213,7 @@ class MetricRegistry:
         return metadata
 
     def payload(self) -> dict[str, object]:
-        """Return the full registry as a JSON-safe API payload."""
+        """Return the registry as a JSON-safe API payload: categories, metrics, and prefix rules."""
         return {
             "entities": {
                 entity: {
@@ -248,6 +248,19 @@ class MetricRegistry:
                 }
                 for metric in self.metrics.values()
             },
+            # The web app applies a rule itself to the columns it derives from a metric, such as
+            # the unique-opponent table's season_delta_ columns.
+            "prefix_rules": [
+                {
+                    "prefix": rule.prefix,
+                    "label_template": rule.label_template,
+                    "full_name_template": rule.full_name_template,
+                    "description_note": rule.description_note,
+                    "contextual": rule.contextual,
+                    "invert_polarity_for_qb": rule.invert_polarity_for_qb,
+                }
+                for rule in self._prefix_rules
+            ],
         }
 
     def _resolve_core(self, core: str) -> tuple[MetricDef, SuffixRule | None] | None:

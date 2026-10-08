@@ -1,5 +1,11 @@
 import { humanizeColumn } from './format';
-import type { ColumnMetadataPayload, EntityKind, MetricRegistryPayload, MetricShape } from '@/api/types';
+import type {
+  ColumnMetadataPayload,
+  EntityKind,
+  MetricRegistryPayload,
+  MetricShape,
+  PrefixRulePayload,
+} from '@/api/types';
 
 export type MetricPolarity = 'higher' | 'lower' | 'neutral';
 
@@ -23,6 +29,15 @@ export interface MetricMetadata {
 // registry snapshot; the local inference below is only a fallback for
 // columns that have not been hydrated yet.
 const REGISTRY_METADATA = new Map<string, MetricMetadata>();
+
+/**
+ * The prefix of the columns the unique-opponent table derives (`detailAnalytics.ts`): a stat's
+ * average against one opponent minus its full-season value.
+ */
+export const SEASON_DELTA_PREFIX = 'season_delta_';
+
+// The registry's prefix rules, by prefix, for the columns the app derives itself from a metric.
+const PREFIX_RULES = new Map<string, PrefixRulePayload>();
 
 interface CategoryOrderEntry {
   rank: number;
@@ -82,6 +97,40 @@ export function hydrateMetricRegistry(registry: MetricRegistryPayload): void {
       });
     });
   }
+  for (const rule of registry.prefix_rules) {
+    PREFIX_RULES.set(rule.prefix, rule);
+  }
+}
+
+/**
+ * Metadata for a column the app derives from a hydrated column (`season_delta_` ones), composed as
+ * the registry composes a prefixed column: the rule's label and name templates around the base
+ * column's, the base description followed by the rule's note, and the base polarity and category.
+ * Undefined until the registry's rule and the base column are both hydrated.
+ */
+function buildDerivedMetricMetadata(column: string): MetricMetadata | undefined {
+  if (!column.startsWith(SEASON_DELTA_PREFIX)) {
+    return undefined;
+  }
+  const rule = PREFIX_RULES.get(SEASON_DELTA_PREFIX);
+  const baseColumn = column.slice(SEASON_DELTA_PREFIX.length);
+  const base = REGISTRY_METADATA.get(baseColumn);
+  if (!rule || !base) {
+    return undefined;
+  }
+  const detail = `${base.detail} ${rule.description_note}`;
+  return {
+    ...base,
+    label: rule.label_template.replace('{label}', base.label),
+    fullName: rule.full_name_template.replace('{full_name}', base.fullName),
+    shortDescription: detail,
+    detail,
+    polarity:
+      rule.invert_polarity_for_qb && baseColumn.startsWith('qb_')
+        ? invertMetricPolarity(base.polarity)
+        : base.polarity,
+    contextual: Boolean(base.contextual) || rule.contextual,
+  };
 }
 
 function toMetricMetadata(payload: ColumnMetadataPayload): MetricMetadata {
@@ -211,7 +260,11 @@ export const GLOSSARY_SECTIONS: Array<{ title: string; description: string; metr
 ];
 
 export function getMetricMetadata(column: string): MetricMetadata {
-  return REGISTRY_METADATA.get(column) ?? buildFallbackMetricMetadata(column);
+  return (
+    REGISTRY_METADATA.get(column)
+    ?? buildDerivedMetricMetadata(column)
+    ?? buildFallbackMetricMetadata(column)
+  );
 }
 
 export function getMetricTooltip(column: string): string {
