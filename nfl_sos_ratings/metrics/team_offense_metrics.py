@@ -24,8 +24,9 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         label="Off Snaps",
         full_name="Offensive Snaps",
         description=(
-            "Scrimmage plays run by the offense: dropbacks, rushes, kneels, and spikes. The "
-            "denominator for per-offensive-snap rates."
+            "Plays the offense ran from scrimmage: dropbacks (pass attempts, sacks, and "
+            "scrambles), designed runs, kneel-downs, and spikes. Punts, kicks, and kickoffs are "
+            "not included."
         ),
         shape="count",
         polarity="neutral",
@@ -36,29 +37,36 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         name="total_yards",
         label="Total Yds",
         full_name="Total Yards",
-        description="Passing yards plus rushing yards gained by the offense.",
+        description=(
+            "Passing yards plus rushing yards. Yards lost on sacks are not subtracted, so this "
+            "runs higher than the NFL's official total yards."
+        ),
         shape="count",
         polarity="higher",
         source="PBP +TS",
         since=1999,
-        note="Sums passing_yards and rushing_yards.",
+        note=None,
     ),
     _off_total(
         name="yards_per_offensive_snap",
         label="Yds/Off Snap",
         full_name="Yards Per Offensive Snap",
-        description="Total yards divided by offensive snaps — overall offensive efficiency.",
+        description=(
+            "Average yards gained per offensive snap, the simplest measure of how well an offense "
+            "moves the ball."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
         denominator="offensive snaps",
         since=1999,
+        formula="(Passing yards + rushing yards) ÷ offensive snaps; sack losses are not subtracted",
     ),
     _off_total(
         name="first_downs",
         label="First Downs",
         full_name="First Downs",
-        description="First downs gained by rush, pass, or opponent penalty.",
+        description="First downs gained by run, pass, or a penalty on the defense.",
         shape="count",
         polarity="higher",
         source="PBP",
@@ -77,11 +85,11 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
     _off_total(
         name="offensive_epa",
         label="Off EPA",
-        full_name="Offensive EPA",
+        full_name="Offensive Expected Points Added",
         description=(
-            "Total expected points added on offensive plays. EPA measures how much each "
-            "play changed the team's expected score, so it credits down, distance, and "
-            "field position — not just raw yards."
+            "EPA (expected points added) on the offense's snaps. EPA measures how much a play "
+            "raised or lowered the offense's expected points, given down, distance, and field "
+            "position, so it credits the situation, not just yards."
         ),
         shape="count",
         polarity="higher",
@@ -91,8 +99,11 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
     _off_total(
         name="epa_per_offensive_snap",
         label="EPA/Off Snap",
-        full_name="EPA Per Offensive Snap",
-        description="Offensive expected points added per snap — the core efficiency stat.",
+        full_name="Expected Points Added Per Offensive Snap",
+        description=(
+            "Average EPA (expected points added) per offensive snap, the core measure of offensive "
+            "efficiency. Team seasons usually fall between about -0.2 and +0.1."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -104,8 +115,9 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         label="Success %",
         full_name="Offensive Success Rate",
         description=(
-            "The share of offensive plays that improved the team's expected points. A "
-            "consistency measure that ignores how big each gain was."
+            "Share of offensive snaps with positive EPA, meaning the play left the offense better "
+            "placed to score than before. It rewards consistency and ignores how big each gain "
+            "was."
         ),
         shape="rate",
         polarity="higher",
@@ -119,8 +131,8 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         label="Explosive %",
         full_name="Explosive Play Rate",
         description=(
-            "The share of snaps gaining 20+ passing yards or 10+ rushing yards — the "
-            "big-play component of offense."
+            "Share of offensive snaps that were big plays: completions of 20 or more yards, or "
+            "carries of 10 or more yards with scrambles included."
         ),
         shape="rate",
         polarity="higher",
@@ -128,12 +140,13 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         denominator="offensive snaps",
         since=1999,
         percent=True,
+        formula="(Completions of 20+ yards + carries of 10+ yards) ÷ offensive snaps",
     ),
     _off_total(
         name="no_huddle_rate",
         label="No-Huddle %",
         full_name="No-Huddle Rate",
-        description="The share of offensive snaps run without a huddle. A style stat.",
+        description="Share of offensive snaps run without a huddle. A style stat, not a grade.",
         shape="rate",
         polarity="neutral",
         source="PBP",
@@ -150,7 +163,9 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         name="shotgun_rate",
         label="Shotgun %",
         full_name="Shotgun Rate",
-        description="The share of offensive snaps taken from the shotgun. A style stat.",
+        description=(
+            "Share of offensive snaps taken from the shotgun formation. A style stat, not a grade."
+        ),
         shape="rate",
         polarity="neutral",
         source="PBP",
@@ -162,7 +177,10 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         name="pass_rate",
         label="Pass %",
         full_name="Pass Rate",
-        description="Dropbacks divided by scrimmage snaps — how pass-heavy the offense is.",
+        description=(
+            "Share of offensive snaps that were dropbacks (pass attempts, sacks, and scrambles): "
+            "how pass-heavy the offense is."
+        ),
         shape="rate",
         polarity="neutral",
         source="PBP",
@@ -175,8 +193,8 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         label="Early-Down Pass %",
         full_name="Early-Down Pass Rate",
         description=(
-            "Dropbacks on first and second down divided by early-down snaps. Passing early "
-            "is the analytics-favored tendency signal."
+            "Share of first- and second-down snaps that were dropbacks: how pass-first the "
+            "play-calling is before third down."
         ),
         shape="rate",
         polarity="neutral",
@@ -187,25 +205,31 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_total(
         name="pass_rate_over_expected",
-        label="PROE",
+        label="Pass Rate Over Exp",
         full_name="Pass Rate Over Expected",
         description=(
-            "How much more (or less) often the team passes than the game situations would "
-            "predict. Positive means more pass-heavy than expected."
+            "How much more (or less) often the offense dropped back to pass than a model expects "
+            "for the situation (down, distance, field position, score, and time), in percentage "
+            "points. Available from 2006."
         ),
         shape="avg",
         polarity="neutral",
         source="PBP",
         denominator="offensive snaps (model-expected pass rate)",
         since=2006,
+        formula=(
+            "Average over offensive snaps of 100 x (1 for a dropback, else 0, minus the model's "
+            "dropback chance)"
+        ),
     ),
     _off_total(
         name="offensive_wpa",
-        label="Off WPA",
+        label="Off Win Prob Added",
         full_name="Offensive Win Probability Added",
         description=(
-            "How much the offense's plays moved the team's chance of winning, summed over "
-            "the season. Weighted toward high-leverage moments."
+            "Change in the team's chance of winning from its offensive snaps, as a fraction: +0.10 "
+            "means 10 percentage points of win probability gained. Plays late in close games move "
+            "it most."
         ),
         shape="count",
         polarity="higher",
@@ -219,7 +243,7 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         name="rushing_yards",
         label="Rush Yds",
         full_name="Rushing Yards",
-        description="Yards gained on the ground, including quarterback runs.",
+        description="Yards gained on carries, including quarterback scrambles and kneel-downs.",
         shape="count",
         polarity="higher",
         source="PBP +TS",
@@ -228,10 +252,11 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
     _off_rush(
         name="rushing_epa",
         label="Rush EPA",
-        full_name="Rushing EPA",
+        full_name="Rushing Expected Points Added",
         description=(
-            "Expected points added on rushing plays. Rushing EPA is usually negative "
-            "league-wide, so closer to zero (or positive) is good."
+            "EPA (expected points added) on carries, including quarterback scrambles and "
+            "kneel-downs. Most teams finish below zero, because the average run loses a little "
+            "expected value."
         ),
         shape="count",
         polarity="higher",
@@ -250,7 +275,7 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_rush(
         name="rushing_first_downs",
-        label="Rush 1Ds",
+        label="Rush 1st Downs",
         full_name="Rushing First Downs",
         description="First downs gained on the ground.",
         shape="count",
@@ -260,7 +285,7 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_rush(
         name="rushing_fumbles_lost",
-        label="Rush Fum Lost",
+        label="Rush Fumbles Lost",
         full_name="Rushing Fumbles Lost",
         description="Fumbles lost to the defense on rushing plays.",
         shape="count",
@@ -282,7 +307,9 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         name="designed_carries",
         label="Designed Carries",
         full_name="Designed Carries",
-        description="Rushing attempts excluding scrambles and kneel-downs — called runs.",
+        description=(
+            "Called running plays: carries that were not quarterback scrambles or kneel-downs."
+        ),
         shape="count",
         polarity="neutral",
         source="PBP",
@@ -290,9 +317,9 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_rush(
         name="yards_per_carry",
-        label="Y/C",
+        label="Yds/Carry",
         full_name="Yards Per Carry",
-        description="Rushing yards divided by carries.",
+        description="Average yards per carry, including quarterback scrambles and kneel-downs.",
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -302,8 +329,11 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
     _off_rush(
         name="epa_per_carry",
         label="EPA/Carry",
-        full_name="EPA Per Carry",
-        description="Rushing expected points added per carry — rushing efficiency.",
+        full_name="Expected Points Added Per Carry",
+        description=(
+            "Average EPA (expected points added) per carry, scrambles and kneel-downs included: "
+            "how much value the running game produced per attempt."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -314,7 +344,10 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         name="rush_success_rate",
         label="Rush Success %",
         full_name="Rushing Success Rate",
-        description="The share of designed runs that improved the team's expected points.",
+        description=(
+            "Share of called running plays with positive EPA, meaning the run left the offense "
+            "better placed to score. Scrambles and kneel-downs are left out."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -326,7 +359,7 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         name="explosive_rush_rate",
         label="Explosive Rush %",
         full_name="Explosive Rush Rate",
-        description="Runs of 10+ yards divided by carries.",
+        description="Share of carries that gained 10 or more yards, scrambles included.",
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -358,9 +391,12 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_rush(
         name="longest_rush",
-        label="Long Rush",
+        label="Longest Rush",
         full_name="Longest Rush",
-        description="The team's longest run of the season, in yards.",
+        description=(
+            "Longest single carry, in yards, scrambles included. Game logs show the game's "
+            "longest; the season table shows the season's longest."
+        ),
         shape="max",
         polarity="higher",
         source="PBP",
@@ -368,8 +404,8 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_rush(
         name="rushing_2pt_conversions",
-        label="2-Pt Rushes",
-        full_name="Two-Point Conversion Rushes",
+        label="2-Pt Rush Conv",
+        full_name="Rushing Two-Point Conversions",
         description="Successful two-point conversions run in.",
         shape="count",
         polarity="higher",
@@ -383,7 +419,7 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
         name="total_tds",
         label="Total TDs",
         full_name="Total Touchdowns",
-        description="All touchdowns scored: offense, defense, and special teams.",
+        description="All touchdowns the team scored: offense, defense, and special teams.",
         shape="count",
         polarity="higher",
         source="PBP",
@@ -404,7 +440,10 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
         name="points_per_drive",
         label="Pts/Drive",
         full_name="Points Per Drive",
-        description="Offensive points divided by offensive possessions.",
+        description=(
+            "Average points the offense scored per drive, counting the extra point or two-point "
+            "try after a touchdown."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -413,9 +452,9 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_score(
         name="red_zone_trips",
-        label="RZ Trips",
+        label="Red Zone Trips",
         full_name="Red Zone Trips",
-        description="Drives that reached the opponent's 20-yard line.",
+        description="Drives that got inside the opponent's 20-yard line.",
         shape="count",
         polarity="higher",
         source="PBP",
@@ -423,9 +462,12 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_score(
         name="red_zone_td_pct",
-        label="RZ TD %",
+        label="Red Zone TD %",
         full_name="Red Zone Touchdown Percentage",
-        description="The share of red-zone trips that ended in a touchdown.",
+        description=(
+            "Share of red-zone trips (drives that got inside the opponent's 20) that ended in a "
+            "touchdown."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -435,9 +477,12 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_score(
         name="points_per_red_zone_trip",
-        label="Pts/RZ Trip",
+        label="Pts/Red Zone Trip",
         full_name="Points Per Red Zone Trip",
-        description="Points scored on red-zone drives divided by red-zone trips.",
+        description=(
+            "Average points scored on drives that got inside the opponent's 20, counting the extra "
+            "point or two-point try."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -446,9 +491,12 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_score(
         name="goal_to_go_td_pct",
-        label="G2G TD %",
-        full_name="Goal-To-Go Touchdown Percentage",
-        description="Touchdowns divided by goal-to-go situations.",
+        label="Goal-to-Go TD %",
+        full_name="Goal-to-Go Touchdown Percentage",
+        description=(
+            "Share of goal-to-go series (first-and-goal and the downs after it) that ended in a "
+            "touchdown."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -480,7 +528,7 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
         name="two_pt_conversion_rate",
         label="2-Pt %",
         full_name="Two-Point Conversion Rate",
-        description="Successful two-point tries divided by attempts.",
+        description="Share of two-point tries that succeeded.",
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -493,9 +541,9 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
 OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
     _off_downs(
         name="first_downs_penalty",
-        label="Penalty 1Ds",
+        label="Penalty 1st Downs",
         full_name="First Downs by Penalty",
-        description="First downs awarded via defensive penalties.",
+        description="First downs the offense gained because of a penalty on the defense.",
         shape="count",
         polarity="higher",
         source="PBP",
@@ -525,7 +573,7 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         name="third_down_pct",
         label="3rd Down %",
         full_name="Third Down Conversion Percentage",
-        description="Third downs converted divided by third downs faced.",
+        description="Share of third downs the offense converted into a first down or touchdown.",
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -538,8 +586,8 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         label="3rd Down Dist",
         full_name="Average Third Down Distance",
         description=(
-            "Average yards to go on third down. Shorter means the offense stays on "
-            "schedule on early downs."
+            "Average yards to go on third down. A short third down usually means the offense "
+            "gained good yardage on first and second down."
         ),
         shape="avg",
         polarity="lower",
@@ -551,7 +599,10 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         name="fourth_down_attempts",
         label="4th Down Att",
         full_name="Fourth Down Attempts",
-        description="Fourth downs the offense went for.",
+        description=(
+            "Fourth downs on which the offense ran a play instead of punting or kicking a field "
+            "goal."
+        ),
         shape="count",
         polarity="neutral",
         source="PBP",
@@ -561,7 +612,7 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         name="fourth_down_conversions",
         label="4th Down Conv",
         full_name="Fourth Down Conversions",
-        description="Fourth-down tries converted.",
+        description="Fourth-down tries that gained a first down or touchdown.",
         shape="count",
         polarity="higher",
         source="PBP",
@@ -571,7 +622,7 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         name="fourth_down_pct",
         label="4th Down %",
         full_name="Fourth Down Conversion Percentage",
-        description="Fourth-down tries converted divided by tries.",
+        description="Share of fourth-down tries the offense converted.",
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -584,8 +635,8 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         label="4th Down Go %",
         full_name="Fourth Down Go Rate",
         description=(
-            "How often the team went for it on fourth down instead of kicking. An "
-            "aggressiveness style stat."
+            "How often the offense went for it on fourth down instead of punting or kicking a "
+            "field goal. A coaching-style stat, not a grade."
         ),
         shape="rate",
         polarity="neutral",
@@ -593,14 +644,15 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         denominator="fourth downs faced",
         since=1999,
         percent=True,
+        formula="Fourth-down tries ÷ fourth downs faced (tries, punts, and field-goal attempts)",
     ),
     _off_downs(
         name="fourth_down_aggressiveness",
-        label="4th Down Aggr",
-        full_name="Fourth Down Aggressiveness",
+        label="4th & Short Go %",
+        full_name="Fourth-and-Short Go-for-It Rate",
         description=(
-            "Go-for-it rate on fourth-and-short (2 yards or less), where analytics usually "
-            "favors going for it."
+            "How often the offense went for it on fourth down with 2 or fewer yards to go. "
+            "Analytics research generally favors going for it in these spots."
         ),
         shape="rate",
         polarity="higher",
@@ -608,12 +660,18 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         denominator="fourth-and-short situations",
         since=1999,
         percent=True,
+        formula=(
+            "Fourth-down tries with 2 or fewer yards to go ÷ fourth downs faced with 2 or fewer "
+            "yards to go (tries, punts, and field-goal attempts)"
+        ),
     ),
     _off_downs(
         name="series",
         label="Series",
         full_name="Offensive Series",
-        description="First-down series the offense ran (each new set of downs).",
+        description=(
+            "Sets of downs the offense started: each possession and each new first down begins one."
+        ),
         shape="count",
         polarity="neutral",
         source="PBP",
@@ -624,8 +682,8 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         label="Series Conv %",
         full_name="Series Conversion Rate",
         description=(
-            "The share of first-down series that gained another first down or scored — a "
-            "steadier version of third-down percentage."
+            "Share of the offense's sets of downs that earned a new first down or a touchdown. "
+            "Steadier than third-down rate because every set of downs counts."
         ),
         shape="rate",
         polarity="higher",
@@ -638,7 +696,7 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         name="three_and_out_rate",
         label="3-and-Out %",
         full_name="Three-and-Out Rate",
-        description="The share of drives that went three plays and punted.",
+        description="Share of drives that ended in a punt without gaining a first down.",
         shape="rate",
         polarity="lower",
         source="PBP",
@@ -648,7 +706,7 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_downs(
         name="turnovers_on_downs",
-        label="TO on Downs",
+        label="Turnovers on Downs",
         full_name="Turnovers on Downs",
         description="Failed fourth-down tries that handed the ball over.",
         shape="count",
@@ -663,7 +721,10 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
         name="drives",
         label="Drives",
         full_name="Offensive Drives",
-        description="Offensive possessions. The denominator for per-drive rates.",
+        description=(
+            "Possessions the offense had, from taking over the ball until it scored, gave the ball "
+            "up, or the half ended."
+        ),
         shape="count",
         polarity="neutral",
         source="PBP",
@@ -673,7 +734,10 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
         name="yards_per_drive",
         label="Yds/Drive",
         full_name="Yards Per Drive",
-        description="Net yards gained per offensive possession.",
+        description=(
+            "Average net yards per drive, counting yards lost on sacks and yards gained or lost "
+            "through penalties."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -684,7 +748,7 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
         name="plays_per_drive",
         label="Plays/Drive",
         full_name="Plays Per Drive",
-        description="Average number of plays run per possession.",
+        description="Average number of offensive plays per drive.",
         shape="avg",
         polarity="neutral",
         source="PBP",
@@ -695,7 +759,7 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
         name="time_per_drive",
         label="Time/Drive",
         full_name="Time Per Drive",
-        description="Average clock time used per possession.",
+        description="Average game-clock time per drive, in seconds (180 = 3 minutes).",
         shape="avg",
         polarity="neutral",
         source="PBP",
@@ -704,7 +768,7 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_drives(
         name="first_downs_per_drive",
-        label="1Ds/Drive",
+        label="1st Downs/Drive",
         full_name="First Downs Per Drive",
         description="Average first downs gained per possession.",
         shape="avg",
@@ -717,7 +781,7 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
         name="score_pct_per_drive",
         label="Score %/Drive",
         full_name="Scoring Rate Per Drive",
-        description="The share of possessions ending in any score.",
+        description="Share of drives that ended in a touchdown or field goal.",
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -729,7 +793,7 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
         name="punt_pct_per_drive",
         label="Punt %/Drive",
         full_name="Punt Rate Per Drive",
-        description="The share of possessions ending in a punt.",
+        description="Share of drives that ended in a punt.",
         shape="rate",
         polarity="lower",
         source="PBP",
@@ -739,9 +803,12 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_drives(
         name="turnover_pct_per_drive",
-        label="TO %/Drive",
+        label="Turnover %/Drive",
         full_name="Turnover Rate Per Drive",
-        description="The share of possessions ending in a giveaway.",
+        description=(
+            "Share of drives that ended in a giveaway: an interception or a lost fumble, including "
+            "those returned for a touchdown."
+        ),
         shape="rate",
         polarity="lower",
         source="PBP",
@@ -751,11 +818,11 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_drives(
         name="avg_starting_field_position",
-        label="Avg Start",
+        label="Avg Drive Start",
         full_name="Average Starting Field Position",
         description=(
-            "Where drives started on average, in yards from the team's own goal line. "
-            "Higher means shorter fields to score."
+            "Average yard line where drives started, counted from the team's own goal line: 25 "
+            "means its own 25, 50 means midfield, 60 means the opponent's 40."
         ),
         shape="avg",
         polarity="higher",
@@ -767,7 +834,10 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
         name="long_field_score_pct",
         label="Long-Field Score %",
         full_name="Long-Field Scoring Rate",
-        description="Scoring rate on drives that started inside the team's own 25.",
+        description=(
+            "Share of drives starting at or inside the team's own 25 that ended in a touchdown or "
+            "field goal."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
@@ -777,8 +847,8 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_drives(
         name="drive_penalty_yards",
-        label="Drive Pen Yds",
-        full_name="Drive Penalty Yards",
+        label="Net Drive Pen Yds",
+        full_name="Net Penalty Yards on Drives",
         description=(
             "Net penalty yards on the team's drives: yards the defense's fouls gave the offense "
             "minus yards its own fouls cost it."
@@ -795,7 +865,7 @@ OFFENSE_TURNOVER_METRICS: tuple[MetricDef, ...] = (
         name="giveaways",
         label="Giveaways",
         full_name="Giveaways",
-        description="Interceptions thrown plus fumbles lost.",
+        description="Interceptions thrown plus fumbles lost on offensive snaps.",
         shape="count",
         polarity="lower",
         source="PBP",
@@ -824,8 +894,8 @@ OFFENSE_TURNOVER_METRICS: tuple[MetricDef, ...] = (
     _off_to(
         name="giveaway_rate_per_offensive_snap",
         label="Giveaway %",
-        full_name="Giveaway Rate",
-        description="Giveaways divided by offensive snaps.",
+        full_name="Giveaways Per Offensive Snap",
+        description="Share of offensive snaps that ended in an interception or lost fumble.",
         shape="rate",
         polarity="lower",
         source="PBP",
@@ -837,7 +907,7 @@ OFFENSE_TURNOVER_METRICS: tuple[MetricDef, ...] = (
         name="giveaways_per_drive",
         label="Giveaways/Drive",
         full_name="Giveaways Per Drive",
-        description="Giveaways divided by possessions.",
+        description="Average giveaways per drive.",
         shape="rate",
         polarity="lower",
         source="PBP",
@@ -846,17 +916,18 @@ OFFENSE_TURNOVER_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_to(
         name="turnover_epa",
-        label="TO EPA",
-        full_name="Turnover EPA",
+        label="Turnover EPA",
+        full_name="Expected Points Added on Giveaways",
         description=(
-            "Expected points lost on giveaway plays — how costly the turnovers were, not "
-            "just how many there were."
+            "EPA (expected points added) on the team's interceptions and lost fumbles, "
+            "kickoff-return fumbles included: how costly its giveaways were, not just how many. "
+            "Almost always negative."
         ),
         shape="count",
         polarity="higher",
         source="PBP",
         since=1999,
-        note="Values are negative; closer to zero means cheaper turnovers.",
+        note=None,
     ),
 )
 
@@ -865,7 +936,7 @@ OFFENSE_PENALTY_METRICS: tuple[MetricDef, ...] = (
         name="penalties",
         label="Penalties",
         full_name="Penalties",
-        description="Penalties committed by the team across all units.",
+        description="Accepted penalties called on the team on offense, defense, and special teams.",
         shape="count",
         polarity="lower",
         source="PBP +TS",
@@ -875,7 +946,9 @@ OFFENSE_PENALTY_METRICS: tuple[MetricDef, ...] = (
         name="penalty_yards",
         label="Penalty Yds",
         full_name="Penalty Yards",
-        description="Yards assessed against the team on its penalties.",
+        description=(
+            "Yards marked off against the team on its accepted penalties, across all units."
+        ),
         shape="count",
         polarity="lower",
         source="PBP +TS",
@@ -912,8 +985,8 @@ OFFENSE_PENALTY_METRICS: tuple[MetricDef, ...] = (
         label="Pre-Snap Pen %",
         full_name="Pre-Snap Penalty Rate",
         description=(
-            "False starts, delays of game, and similar self-inflicted penalties per "
-            "offensive snap. A discipline measure."
+            "False starts and delay-of-game penalties per offensive snap, a measure of pre-snap "
+            "discipline. Other pre-snap fouls, such as illegal formation, are not counted."
         ),
         shape="rate",
         polarity="lower",

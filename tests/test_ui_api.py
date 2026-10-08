@@ -266,7 +266,7 @@ def test_get_metadata_returns_registry_payload(tmp_path: Path) -> None:
     assert team_categories[0] == "Schedule-Adjusted Ratings"
     assert qb_categories[0] == "Schedule-Adjusted Ratings"
     assert payload["metrics"]["qb_sack_rate"]["polarity"] == "lower"
-    assert "points per game" in payload["metrics"]["team_rating"]["description"]
+    assert "points per game" in payload["metrics"]["team_rating"]["description"].lower()
     assert "pools" not in payload
 
 
