@@ -642,6 +642,27 @@ describe('team palettes', () => {
     expect(document.documentElement.style.getPropertyValue('--primary')).toBe('oklch(0.554 0.188 36.5)')
   })
 
+  it("marks the top of the header with a team palette's colors", async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'KC')
+
+    // Act
+    const { container } = renderApp('/teams?season=2025')
+
+    // Assert
+    await screen.findByRole('button', { name: 'Palette: Kansas City Chiefs' })
+    expect(container.querySelector('header [data-palette-stripe]')).not.toBeNull()
+  })
+
+  it('leaves the header unmarked with the default palette', async () => {
+    // Act
+    const { container } = renderApp('/teams?season=2025')
+
+    // Assert
+    await screen.findByRole('button', { name: 'Palette: Default' })
+    expect(container.querySelector('[data-palette-stripe]')).toBeNull()
+  })
+
   it("clears a team palette's tinted surfaces on switching back to the default", async () => {
     // Arrange
     window.localStorage.setItem('nfl-sos-palette', 'KC')
@@ -655,6 +676,37 @@ describe('team palettes', () => {
     // Assert
     await waitFor(() => expect(document.documentElement.dataset.palette).toBe('classic'))
     expect(document.documentElement.style.getPropertyValue('--background')).toBe('')
+  })
+})
+
+describe('team colors', () => {
+  it("shows each team's colors beside its name in the index", async () => {
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    const link = await screen.findByRole('link', { name: 'DEN' })
+    expect(link.querySelector('[data-team-chip="DEN"]')).not.toBeNull()
+  })
+
+  it("shows each quarterback's team colors in the QB index", async () => {
+    // Act
+    const { container } = renderApp('/qbs?season=2025')
+
+    // Assert
+    await screen.findByRole('link', { name: 'Bo Nix' })
+    expect(container.querySelector('tbody [data-team-chip="DEN"]')).not.toBeNull()
+  })
+
+  it("shows the team's colors beside the detail page title and each opponent", async () => {
+    // Act
+    const { container } = renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    const heading = await screen.findByRole('heading', { name: 'Denver Broncos' })
+    expect(heading.querySelector('[data-team-chip="DEN"]')).not.toBeNull()
+    await screen.findByRole('link', { name: '2025_02_DEN_IND' })
+    expect(container.querySelector('tbody [data-team-chip="IND"]')).not.toBeNull()
   })
 })
 

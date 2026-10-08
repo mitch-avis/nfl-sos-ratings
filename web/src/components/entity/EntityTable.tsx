@@ -17,6 +17,7 @@ import { Hint } from '@/components/common/Hint'
 import { InfoTooltip } from '@/components/common/InfoTooltip'
 import { MetricLabel } from '@/components/common/MetricLabel'
 import { SortableHeader } from '@/components/common/SortableHeader'
+import { TeamChip } from '@/components/common/TeamChip'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -117,6 +118,9 @@ function RankRangeCell({
     </Hint>
   )
 }
+
+/** The column holding a team abbreviation, which gets the team's color chip. */
+const TEAM_COLUMN = 'team'
 
 /**
  * The index table: search, view controls, sortable heat-mapped columns, sticky identity columns,
@@ -262,10 +266,25 @@ export function EntityTable({
           })(),
           cell: ({ getValue, row }) => {
             const value = getValue() as RowValue
-            if (column !== config.labelKey) return formatFixed(value, columnDecimals[column] ?? null)
+            const chip = column === TEAM_COLUMN && typeof value === 'string' ? <TeamChip team={value} /> : null
+            if (column !== config.labelKey) {
+              const text = formatFixed(value, columnDecimals[column] ?? null)
+              return chip ? (
+                <span className="inline-flex items-center gap-1.5">
+                  {chip}
+                  {text}
+                </span>
+              ) : (
+                text
+              )
+            }
             const entityId = String(row.original[config.identityKey] ?? '')
             return (
-              <Link className="font-medium text-primary hover:underline" to={`${basePath}/${encodeURIComponent(entityId)}?season=${season}`}>
+              <Link
+                className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline"
+                to={`${basePath}/${encodeURIComponent(entityId)}?season=${season}`}
+              >
+                {chip}
                 {formatValue(value)}
               </Link>
             )

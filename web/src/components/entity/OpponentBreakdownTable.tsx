@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { useTheme } from '@/app/ThemeProvider'
 import { SortableHeader } from '@/components/common/SortableHeader'
+import { TeamChip } from '@/components/common/TeamChip'
 import type { OpponentBreakdownTable as Breakdown } from '@/domain/detailAnalytics'
 import { compareDetailCellValues, formatDetailCellValue } from '@/domain/detailUi'
 import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
@@ -87,7 +88,14 @@ export function OpponentBreakdownTable({ breakdown }: { breakdown: Breakdown }) 
                     className="px-2 py-1.5 whitespace-nowrap"
                     style={getHeatCellStyle(column.id, value, stats, theme, palette)}
                   >
-                    {formatDetailCellValue(column.id, value, decimals[column.id] ?? null)}
+                    {column.id === 'opponent_team' && typeof value === 'string' ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <TeamChip team={value} />
+                        {value}
+                      </span>
+                    ) : (
+                      formatDetailCellValue(column.id, value, decimals[column.id] ?? null)
+                    )}
                   </td>
                 )
               })}

@@ -7,6 +7,7 @@ import type { EntityKind, SeasonDataset } from '@/api/types'
 import { useEntityPageState } from '@/app/EntityViewStateProvider'
 import { ErrorState } from '@/components/common/ErrorState'
 import { PageHeader } from '@/components/common/PageHeader'
+import { TeamChip } from '@/components/common/TeamChip'
 import { StatTile } from '@/components/common/StatTile'
 import { GameLogTable } from '@/components/entity/GameLogTable'
 import { HeadToHeadCard } from '@/components/entity/HeadToHeadCard'
@@ -115,6 +116,7 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
     <div className="flex flex-col gap-5">
       <PageHeader
         title={label}
+        titleMark={<TeamChip team={kind === 'teams' ? rawLabel : String(row.team ?? '')} className="size-4" />}
         description={`${config.singularLabel} detail · ${season} regular season`}
         actions={
           <Button asChild variant="outline" size="sm">

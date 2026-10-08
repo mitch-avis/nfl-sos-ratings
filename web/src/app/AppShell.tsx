@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, Moon, Palette, Sun, SunMoon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 
+import { BrandMark } from '@/components/common/BrandMark'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -198,7 +199,7 @@ function AppSidebar() {
     <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-1 py-1">
-          <img src="/favicon.svg" alt="" className="size-8 shrink-0 rounded-lg" />
+          <BrandMark />
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
             <div className="truncate text-sm font-semibold leading-tight">NFL SOS Ratings</div>
             <div className="truncate text-xs text-muted-foreground">Schedule-adjusted ratings</div>
@@ -233,6 +234,23 @@ function AppSidebar() {
   )
 }
 
+/**
+ * A team palette's mark along the top of the header: its accent, then its second chart color, both
+ * already fitted to read on the current theme. The default palette leaves the header plain.
+ */
+function PaletteStripe() {
+  const { palette } = useTheme()
+  if (palette === 'classic') return null
+  return (
+    <div
+      aria-hidden="true"
+      data-palette-stripe
+      className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
+      style={{ background: 'linear-gradient(90deg, var(--primary) 0 72%, var(--chart-2) 72% 100%)' }}
+    />
+  )
+}
+
 /** Sidebar + header + routed content. */
 export function AppShell() {
   return (
@@ -240,6 +258,7 @@ export function AppShell() {
       <AppSidebar />
       <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur sm:px-4">
+          <PaletteStripe />
           <SidebarTrigger aria-label="Toggle navigation" />
           <Separator orientation="vertical" className="mr-1 h-5" />
           <SeasonSelect />
