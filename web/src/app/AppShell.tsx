@@ -206,13 +206,14 @@ function PageJumpButtons() {
   const slots = getPageJumpSlots(position)
   if (slots.length === 0) return null
   return (
-    <div className="fixed right-4 bottom-4 z-30 flex flex-col gap-2" aria-label="Page navigation shortcuts">
+    <div className="fixed right-3 bottom-3 z-30 flex flex-col gap-1.5" aria-label="Page navigation shortcuts">
       {slots.map((slot) => (
         <Button
           key={slot.direction}
           variant="secondary"
           size="icon"
-          className={cn('shadow-md', !slot.visible && 'invisible')}
+          // Small and translucent: the buttons sit over the corner of whatever is below them.
+          className={cn('size-8 opacity-70 shadow-md hover:opacity-100 focus-visible:opacity-100', !slot.visible && 'invisible')}
           aria-hidden={!slot.visible}
           tabIndex={slot.visible ? 0 : -1}
           aria-label={slot.direction === 'up' ? 'Scroll to top' : 'Scroll to bottom'}
