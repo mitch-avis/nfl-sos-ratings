@@ -1030,23 +1030,40 @@ Proposal (one small pull request after the current one merges):
   1999 2025` counts what nflverse fills: play-by-play has no air yards, air or YAC EPA, or
   expected YAC before 2006, yards after catch on 337 of 9,522 completions and pass depth on 344 of
   16,651 passes in 1999 and on none in 2000-2005, a QB-hit flag on no play in 2003-2005 (969 to
-  1,048 a season in 1999-2002, all but 7 of them sacks), and no drive penalty yards in 1999-2000;
-  weekly player stats credit 0 tackles for loss in 2003-2011 (1 in 2006) and 0 QB hits in
-  2003-2005. The loaders blank those fields for those seasons (`_PBP_FIELD_GAPS` and
-  `_PLAYER_STAT_GAPS` in `data_loader.py`), the stats built on them are null for every team, and
-  the registry's `since` moves to 2006 (YAC, air and YAC EPA, deep attempts) and 2001 (drive
-  penalty yards), with gap notes on tackles for loss, QB hits, and the pressure-events rate.
+  1,048 a season in 1999-2002, all but 7 of them sacks), no drive penalty yards in 1999-2000, and
+  a no-huddle flag on 1, 0, 0, and 22 dropbacks and runs in 1999-2002; weekly player stats credit
+  0 tackles for loss in 2003-2011 (1 in 2006) and 0 QB hits in 2003-2005. The loaders blank those
+  fields for those seasons (`_PBP_FIELD_GAPS` and `_PLAYER_STAT_GAPS` in `data_loader.py`), the
+  stats built on them are null for every team, and the registry's `since` moves to 2006 (YAC, air
+  and YAC EPA, deep attempts), 2003 (no-huddle rate), and 2001 (drive penalty yards), with gap
+  notes on tackles for loss, QB hits, the pressure-events rate, and the no-huddle rate.
+- No-huddle from 2003 on stays as recorded: the same command counts 275 to 506 flagged dropbacks
+  and runs a season in 2003-2005 and 1,139 to 4,318 from 2006, but also the flagged share of a
+  trailing offense's snaps in the last two minutes of a half, where a hurry-up offense almost
+  never huddles: 0.0% in 1999-2001, 0.2% in 2002, 3.9-5.1% in 2003-2005, 7.7-13.7% in 2006-2012,
+  and 15.5-21.0% since 2013. The flag follows the play text, which marks no-huddle snaps less
+  often the older the season, so 2003-2005 cannot be told apart from low usage; the registry note
+  says to compare teams within a season. Not fixed, from the same command: nflverse flags 26
+  kneel-downs in 2000 and in 2001 against 232 to 434 in every other season, so most kneel-downs of
+  those two seasons count as designed carries and stuffs.
 - Tests: seven loader tests read real nflverse files, alone by download and in the full suite
   from the on-disk nflreadpy cache the front-door test switches to (the two weekly team stats
   tests through `load_team_stats`, four QB tests through `load_player_stats`, a playoff QB test
   through `load_rosters_weekly`). They are stubbed, and `tests/conftest.py` makes nflreadpy's
-  downloader raise in every test.
+  downloader and `urllib.request.urlopen` (the ESPN QBR release assets) raise in every test.
+  Guards: a test fails for a team rate without hidden parts or a formula, another for a QB rate
+  outside `QB_RATES` without parts, and two `published_data` tests check that their fixtures build
+  every rate column the team and QB game logs in `data/` carry.
+- Passer rating ties round half up (78.75 shows as 78.8): the rating rounded half-to-even after
+  floating-point noise, so a tie could land either way, and the QB opponent-profile rating changed
+  with how many pairs were computed together.
 - Checks of that branch: scratch `season` builds of 1999, 2004, 2010, 2025, and 2026 from
   `origin/main` and from the branch, compared with `nfl-sos-ratings diff-data --before <before>
   --after <after> --season <season>`, changed no rating, rating history, rank range, weekly rank
-  range, pair, win-probability bin, or QB game-log file; the team game logs changed only in the
-  blanked columns of 1999, 2004, and 2010; the season-stat, combined, and opponent-profile files
-  changed in rate columns and the blanked ones. Next, each ask-first: rebuild `data/`, then rerun
+  range, pair, or win-probability bin file; the QB game logs changed only in `qb_passer_rating`,
+  by 0.1 on 4 to 14 tie games a season; the team game logs changed only in the blanked columns of
+  1999, 2004, and 2010; the season-stat, combined, and opponent-profile files changed in rate
+  columns and the blanked ones. Next, each ask-first: rebuild `data/`, then rerun
   `validate`, whose QB passer-rating stability (0.464 in `docs/methodology.md`) came from passer
   ratings averaged over games. Left as they are: the walk-forward `RawEPA` baseline averages game
   EPA margins per play (`_raw_epa_snapshot` in `validation/walk_forward.py`; changing it moves the

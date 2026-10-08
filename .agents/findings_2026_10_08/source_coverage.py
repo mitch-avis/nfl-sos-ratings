@@ -9,6 +9,10 @@ row per season:
   depth; completions and how many carry yards after catch, YAC EPA, and expected YAC;
 - plays flagged as QB hits, and how many of them are sacks;
 - plays with drive penalty yards (non-null);
+- scrimmage snaps flagged no-huddle, and the flagged share of a trailing offense's snaps in the
+  last two minutes of a half (a hurry-up offense, which almost never huddles), so a season that
+  records the flag less often shows a lower share;
+- plays flagged as kneel-downs;
 - tackles for loss and QB hits credited in the weekly player stats (season totals).
 
 Run from the repository root:
@@ -28,6 +32,8 @@ from nfl_sos_ratings.data_loader import use_disk_cache_unless_configured
 PASS_FIELDS = ("air_yards", "air_epa", "pass_length")
 CATCH_FIELDS = ("yards_after_catch", "yac_epa", "xyac_mean_yardage")
 PLAYER_FIELDS = ("def_tackles_for_loss", "def_qb_hits")
+# The end of a half: a trailing offense's snaps in its last two minutes.
+TWO_MINUTES = 120
 
 
 def _non_null(frame: pl.DataFrame, column: str) -> int:
@@ -56,6 +62,17 @@ def season_row(season: int) -> dict[str, int]:
     row["qb_hit_plays"] = hits.height
     row["qb_hit_sacks"] = hits.filter(_flag("sack")).height
     row["drive_penalty_plays"] = _non_null(pbp, "drive_yards_penalized")
+    snaps = pbp.filter((_flag("qb_dropback") | _flag("rush")) & ~_flag("qb_kneel"))
+    hurry_up = snaps.filter(
+        pl.col("qtr").cast(pl.Int64).is_in([2, 4])
+        & (pl.col("half_seconds_remaining") <= TWO_MINUTES)
+        & (pl.col("score_differential") < 0)
+    )
+    row["no_huddle_snaps"] = snaps.filter(_flag("no_huddle")).height
+    row["two_minute_no_huddle_pct"] = round(
+        100 * hurry_up.filter(_flag("no_huddle")).height / max(hurry_up.height, 1), 1
+    )
+    row["kneel_plays"] = pbp.filter(_flag("qb_kneel")).height
     row |= {f"credited_{field}": int(players.get_column(field).sum()) for field in PLAYER_FIELDS}
     return row
 
