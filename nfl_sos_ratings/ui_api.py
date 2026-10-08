@@ -5,16 +5,18 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, TypedDict
+from urllib.parse import urlsplit
 
 import uvicorn
-from fastapi import APIRouter, FastAPI, HTTPException, Query
+from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from nfl_sos_ratings.config import DATA_DIR
 from nfl_sos_ratings.metrics import get_registry
+from nfl_sos_ratings.refresh_runner import RefreshRunner, RefreshState
 from nfl_sos_ratings.ui_data import (
     MissingEntityRowsError,
     MissingSeasonContractError,
@@ -44,6 +46,13 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8080
 # `--data-dir` reaches the app factory through this variable when `--reload` is on.
 DATA_DIR_ENV = "NFL_SOS_DATA_DIR"
+# Set to 1 by ``web --reload --allow-refresh`` so the reloading app factory allows refreshes too.
+ALLOW_REFRESH_ENV = "NFL_SOS_ALLOW_REFRESH"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+REFRESH_SCRIPT = REPO_ROOT / "scripts" / "refresh-season.sh"
+# The app sends this header with every refresh request; a cross-site form or image cannot.
+REFRESH_HEADER = "X-Requested-With"
+REFRESH_HEADER_VALUE = "nfl-sos-ratings"
 
 # The garbage-time filter's query parameter: a whole percentage, 0 (no filter) to 30.
 type WpThreshold = Annotated[
@@ -229,8 +238,100 @@ def _wp_ratings_router(data_dir: Path) -> APIRouter:
     return router
 
 
-def create_app(data_dir: Path | None = None, *, web_dist: Path | None = None) -> FastAPI:
-    """Create the analyst API, plus the built web app from ``web_dist`` (default ``web/dist``)."""
+class RefreshPayload(TypedDict):
+    """The refresh button's view of the server: whether refreshing is on, and the runner's state."""
+
+    allowed: bool
+    state: RefreshState
+    started_at: str | None
+    finished_at: str | None
+    exit_code: int | None
+    summary: str | None
+    log_tail: list[str]
+
+
+def refresh_runner_for(data_dir: Path) -> RefreshRunner:
+    """Return the runner for ``scripts/refresh-season.sh``, which rebuilds the repository data.
+
+    Raises:
+        ValueError: If ``data_dir`` is not the repository's ``data/``, which the script rebuilds; a
+            refresh would then change files the server does not serve.
+
+    """
+    if data_dir.resolve() != (REPO_ROOT / "data").resolve():
+        msg = (
+            f"--allow-refresh rebuilds {REPO_ROOT / 'data'}, but the server serves {data_dir}; "
+            "serve the repository's data/ to allow refreshes"
+        )
+        raise ValueError(msg)
+    return RefreshRunner([str(REFRESH_SCRIPT)], cwd=REPO_ROOT)
+
+
+def _same_origin(request: Request) -> bool:
+    """Return whether the request has no ``Origin`` header or one naming this server's host."""
+    origin = request.headers.get("origin")
+    return origin is None or urlsplit(origin).netloc == request.headers.get("host")
+
+
+def _refresh_router(refresh: RefreshRunner | None) -> APIRouter:
+    """Return the refresh status and start routes (start is refused unless refreshing is on)."""
+    router = APIRouter()
+
+    def payload() -> RefreshPayload:
+        """Return the runner's status, or an idle status that says refreshing is off."""
+        if refresh is None:
+            return {
+                "allowed": False,
+                "state": "idle",
+                "started_at": None,
+                "finished_at": None,
+                "exit_code": None,
+                "summary": None,
+                "log_tail": [],
+            }
+        status = refresh.status()
+        return {
+            "allowed": True,
+            "state": status.state,
+            "started_at": status.started_at,
+            "finished_at": status.finished_at,
+            "exit_code": status.exit_code,
+            "summary": status.summary,
+            "log_tail": status.log_tail,
+        }
+
+    @router.get("/api/refresh")
+    def refresh_status() -> RefreshPayload:
+        """Return whether refreshing is on and the last or running refresh's progress."""
+        return payload()
+
+    @router.post("/api/refresh", status_code=202)
+    def start_refresh(request: Request) -> RefreshPayload:
+        """Start a refresh of the season in progress, unless one is running."""
+        if refresh is None:
+            raise HTTPException(
+                status_code=403,
+                detail="Refreshing is off; start the server with --allow-refresh.",
+            )
+        if request.headers.get(REFRESH_HEADER) != REFRESH_HEADER_VALUE or not _same_origin(request):
+            raise HTTPException(status_code=403, detail="Refreshes start only from this app.")
+        if not refresh.start():
+            raise HTTPException(status_code=409, detail="A refresh is already running.")
+        return payload()
+
+    return router
+
+
+def create_app(
+    data_dir: Path | None = None,
+    *,
+    web_dist: Path | None = None,
+    refresh: RefreshRunner | None = None,
+) -> FastAPI:
+    """Create the analyst API, plus the built web app from ``web_dist`` (default ``web/dist``).
+
+    ``refresh`` turns on the refresh button's ``POST /api/refresh``; without it, the route refuses.
+    """
     resolved_data_dir = data_dir or Path(DATA_DIR)
     app = FastAPI(
         title="NFL SOS Ratings UI API",
@@ -273,13 +374,16 @@ def create_app(data_dir: Path | None = None, *, web_dist: Path | None = None) ->
     app.include_router(_rating_ranges_router(resolved_data_dir))
     app.include_router(_rating_pairs_router(resolved_data_dir))
     app.include_router(_wp_ratings_router(resolved_data_dir))
+    app.include_router(_refresh_router(refresh))
     mount_frontend(app, web_dist or DEFAULT_WEB_DIST)
     return app
 
 
 def create_app_from_environment() -> FastAPI:
     """Create the app for ``uvicorn --reload``, reading the data directory from the environment."""
-    return create_app(Path(os.environ.get(DATA_DIR_ENV, DATA_DIR)))
+    data_dir = Path(os.environ.get(DATA_DIR_ENV, DATA_DIR))
+    allow = os.environ.get(ALLOW_REFRESH_ENV) == "1"
+    return create_app(data_dir, refresh=refresh_runner_for(data_dir) if allow else None)
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -300,14 +404,28 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--reload", action="store_true", help="Restart on Python file changes (development)."
     )
+    parser.add_argument(
+        "--allow-refresh",
+        action="store_true",
+        help=(
+            "Let the app's refresh button run scripts/refresh-season.sh, which rebuilds the season "
+            "in progress in the repository's data/ (anyone who can reach the server can start one)."
+        ),
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> None:
     """Serve the analyst web app and API with uvicorn."""
     args = _parse_args(argv)
+    data_dir = Path(args.data_dir)
+    try:
+        refresh = refresh_runner_for(data_dir) if args.allow_refresh else None
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
     if args.reload:
         os.environ[DATA_DIR_ENV] = args.data_dir
+        os.environ[ALLOW_REFRESH_ENV] = "1" if refresh is not None else "0"
         uvicorn.run(
             "nfl_sos_ratings.ui_api:create_app_from_environment",
             factory=True,
@@ -316,11 +434,17 @@ def main(argv: list[str] | None = None) -> None:
             reload=True,
         )
         return
-    uvicorn.run(create_app(Path(args.data_dir)), host=args.host, port=args.port)
+    uvicorn.run(create_app(data_dir, refresh=refresh), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
     main()
 
 
-__all__ = ["create_app", "create_app_from_environment", "main", "mount_frontend"]
+__all__ = [
+    "create_app",
+    "create_app_from_environment",
+    "main",
+    "mount_frontend",
+    "refresh_runner_for",
+]

@@ -28,7 +28,18 @@ async function toApiError(response: Response): Promise<ApiError> {
 
 /** GET a JSON payload from `/api/...`. */
 export async function apiFetch<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(path, { signal })
+  return readJson<T>(await fetch(path, { signal }), path)
+}
+
+/**
+ * POST to `/api/...` with the header the server asks of the app's own requests (a page on another
+ * site cannot send it without the server's consent), and return the JSON reply.
+ */
+export async function apiPost<T>(path: string): Promise<T> {
+  return readJson<T>(await fetch(path, { method: 'POST', headers: { 'X-Requested-With': 'nfl-sos-ratings' } }), path)
+}
+
+async function readJson<T>(response: Response, path: string): Promise<T> {
   if (!response.ok) {
     throw await toApiError(response)
   }

@@ -1,12 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { hydrateColumnMetadata, hydrateMetricRegistry } from '@/domain/metricMetadata'
+import { refreshPollInterval } from '@/domain/refresh'
 
-import { apiFetch } from './client'
+import { apiFetch, apiPost } from './client'
 import type {
   EntityKind,
   MetricRegistryPayload,
   RankRangesPayload,
+  RefreshStatus,
   SeasonDataset,
   SeasonsResponse,
   TablePayload,
@@ -147,5 +149,32 @@ export function useWpRatings(kind: EntityKind, season: number, threshold: number
       hydrateColumnMetadata(payload.column_metadata)
       return payload
     },
+  })
+}
+
+const REFRESH_KEY = ['refresh'] as const
+
+/** Whether every query but the refresh status itself should refetch after a refresh. */
+export function isDataQuery(queryKey: readonly unknown[]): boolean {
+  return queryKey[0] !== REFRESH_KEY[0]
+}
+
+/** Whether the server allows refreshing, and the last or running refresh; polls while one runs. */
+export function useRefreshStatus() {
+  return useQuery({
+    queryKey: REFRESH_KEY,
+    queryFn: ({ signal }) => apiFetch<RefreshStatus>('/api/refresh', signal),
+    refetchInterval: (query) => refreshPollInterval(query.state.data),
+    staleTime: 0,
+    retry: false,
+  })
+}
+
+/** Start a refresh; the reply becomes the refresh status, so polling starts at once. */
+export function useStartRefresh() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiPost<RefreshStatus>('/api/refresh'),
+    onSuccess: (status) => queryClient.setQueryData(REFRESH_KEY, status),
   })
 }

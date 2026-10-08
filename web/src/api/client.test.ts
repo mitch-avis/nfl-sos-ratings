@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiError, apiFetch } from './client'
+import { ApiError, apiFetch, apiPost } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -36,5 +36,28 @@ describe('apiFetch', () => {
 
     // Act & Assert
     await expect(apiFetch('/api/seasons')).rejects.toThrow(/is nfl-sos-ratings web running/)
+  })
+})
+
+describe('apiPost', () => {
+  it("posts with the app's header and returns parsed JSON", async () => {
+    // Arrange
+    const fetchSpy = vi.fn(async () => new Response('{"state":"running"}', { status: 202, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchSpy)
+
+    // Act
+    const body = await apiPost('/api/refresh')
+
+    // Assert
+    expect(body).toEqual({ state: 'running' })
+    expect(fetchSpy).toHaveBeenCalledWith('/api/refresh', { method: 'POST', headers: { 'X-Requested-With': 'nfl-sos-ratings' } })
+  })
+
+  it("surfaces the backend's detail message", async () => {
+    // Arrange
+    respond('{"detail":"A refresh is already running."}', { status: 409, headers: { 'content-type': 'application/json' } })
+
+    // Act & Assert
+    await expect(apiPost('/api/refresh')).rejects.toEqual(new ApiError(409, 'A refresh is already running.'))
   })
 })

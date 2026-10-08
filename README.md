@@ -126,6 +126,13 @@ schtasks /Create /TN "nfl-sos-ratings weekly refresh" /SC WEEKLY /D TUE /ST 09:0
 
 `schtasks /Delete /TN "nfl-sos-ratings weekly refresh"` removes it.
 
+The app can start the same refresh: `nfl-sos-ratings web --allow-refresh` adds a refresh button to
+the app's header that runs `scripts/refresh-season.sh` on the server and follows its progress.
+When the run ends, every page refetches its data, so the new numbers appear without restarting the
+server or rebuilding the app (the server reads `data/` on each request). The flag works only when
+the server serves the repository's `data/`, and anyone who can reach the server can start a
+refresh, so use it only on a network you trust.
+
 Progress messages go to stderr and data a command prints for the reader (such as the season's
 ratings table, or the `diff-data` and check reports) to stdout. `nfl-sos-ratings --verbose
 <command>` (or `-v`) adds debug detail on stderr, such as each file written.
