@@ -48,6 +48,51 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
   `.venv/bin/pytest -m published_data` passes on it.
 - The maintainer runs `nfl-sos-ratings web --host 0.0.0.0 --port 8081` to view the app on a phone.
   Never stop it; use port 8090 for agent checks.
+- 2026-10-08: the maintainer's dependency refresh (`72cc113`, Polars 1.44.2 to 2.0.0) was checked
+  for parity (S5 records how); F7's open Broncos decision was settled and team palettes deepened
+  (F7, "Palette depth"); a fresh UX audit opened workstream U; S5 (test and pipeline speed) waits
+  on one maintainer decision.
+
+## Session plan (from 2026-10-08)
+
+Maintainer decisions of 2026-10-08, in force for this plan: every recommendation in the
+2026-10-08 handoff is approved; the agent may merge each pull request itself (merge commit, delete
+the branch) once `scripts/gate.sh --web` passes locally and CI is green, then branch the next item
+from the updated `main`; the preseason-prior check may be run when built (a `data/` rebuild still
+needs a fresh yes); no scheduled refresh task (the maintainer refreshes by hand). Work top to
+bottom; update the status boxes in the same change set as the work.
+
+1. [ ] P1 Team colors (`feat/team-color-depth`, F7 follow-up). Done on the branch: generated
+   Broncos palette, team heat scales, team chips, logo, header stripe. Maintainer changes of
+   2026-10-08: page surfaces stay the default neutral in every page and palette (only light or dark
+   changes them); accents, charts, heat scale, stripe, logo, and tooltips follow the chosen palette
+   on the Teams, Quarterbacks, and Glossary pages; a team or QB page switches to that team's
+   palette automatically, with a "Use each team's colors on its page" switch (on by default) in the
+   palette menu; the palette menu opens at the chosen team.
+2. [ ] P2 Test and pipeline speed (S5): `POLARS_MAX_THREADS=1` by default in the front door and the
+   test suite; `pytest -m published_data` works without `--no-cov` (conftest hook, approved).
+3. [ ] P3 Bugs and copy (U1-U4).
+4. [ ] P4 Split `nfl_sos_ratings/metrics/team_metrics.py` by category (approved), catalogs
+   byte-identical as the characterization check.
+5. [ ] P5 Tooltip and glossary audit (maintainer request): every registry label, description, and
+   formula, the affix rules, the app's own hint text, and a glossary rebuilt from the registry
+   (search, categories, a "Start here" section, the methodology linked on GitHub). Tooltips gain a
+   generated direction line and a "How it's computed" line. Drafts by six read-only subagents in
+   `/tmp/tooltip-audit/` (style brief there), verified and applied centrally.
+6. [ ] P6 Preseason prior for the team fit: the team fit shrinks toward a regressed previous-season
+   rating that fades out early in the season (the maintainer expects the prior gone by mid-season
+   or earlier; the fade point is for the pre-registered test to settle). Protocol first, then code
+   (test-first), an independent review, the check run (approved), the decision, and a `data/`
+   rebuild only with a fresh yes. Teams first; QBs as a separate later test.
+7. [ ] P7 Index pages: U5-U8.
+8. [ ] P8 Detail pages: U9-U12.
+9. [ ] P9 Charts: U13-U14, with R3's early weeks (chart starts once every team has 3 games;
+   approved).
+10. [ ] P10 Color semantics: U15-U17.
+11. [ ] P11 Palette menu as a division grid (U19); U18 lands with P5.
+12. [ ] P12 Refresh button (maintainer idea, 2026-10-08): an opt-in server flag, one refresh at a
+    time, a confirmation dialog in the app, progress, then the `diff-data` summary and the data
+    checks; the app refetches its data when done.
 
 ## Recommended order
 
@@ -66,6 +111,8 @@ rules and their results, the retired-metric list), and `.agents/frontend-ui-kick
 | 11 | F1-F7 Frontend follow-ups | Detail pages, opponent context, compare layout, export, team palettes |
 | 12 | S4 Project logger | Touches many modules; any quiet stretch works |
 | 13 | M1 Retired stats, one at a time | On request; each needs its own verification |
+| 14 | S5 Test and pipeline speed | Single-threaded Polars: a season build 32.7 s to 4.8 s (scratch) |
+| 15 | U UX audit (2026-10-08) | Bugs first (U1-U4), then layout, detail page, charts, color semantics |
 
 ## Settled background the workstreams build on
 
@@ -743,6 +790,46 @@ pinned on phones, fixed decimals per column.
     ATL, CAR, NO, TB in both modes, and WAS in dark mode only.
   - A team's good end uses its accent hue, so for some teams red means better (KC, NE); the
     hand-tuned Broncos scale already worked that way (orange good, navy bad).
+  - Settled 2026-10-08: the maintainer approved replacing the hand-tuned Broncos palette with the
+    generated one (nflverse's `#002244` and `#FB4F14`; light accent `oklch(0.554 0.188 36.5)`), so
+    the DEN light exemption in the palette test is gone.
+
+### F7 follow-up: palette depth (2026-10-08)
+
+The maintainer asked for more of every team's colors on all pages without overdoing it, clean and
+legible for every palette in both modes, and for team heat scales in place of the green-to-red
+fallback (suggesting the darkest official color in light mode and the lightest in dark mode).
+Built on branch `feat/team-color-depth` (`nfl_sos_ratings/team_palettes.py`, rules in its module
+docstring):
+
+- Surfaces: a first version tinted page surfaces with each team's base color (dark mode up to 0.022
+  chroma); after seeing it the maintainer chose neutral page surfaces in every palette (2026-10-08),
+  so moving between teams changes only accents, never backgrounds or panels. Removed before merge.
+- Hover and selected backgrounds (`accent`, `sidebar_accent`) and tooltips (the hint card,
+  `hint` and `hint_border`) are tints of the accent hue, the card bordered in the accent; the app
+  logo is drawn in the team's colors (`mark` in the palette file); a 3 px two-color stripe marks the
+  top of the header under a team palette.
+- Team and QB pages show that team's palette (a QB's team that season), the chosen palette applying
+  to the Teams, Quarterbacks, and Glossary pages; the palette menu's "Use each team's colors on its
+  page" switch (on by default, stored) turns it off (maintainer request, 2026-10-08). The menu opens
+  with the chosen palette focused and scrolled into view.
+- Heat scales for all 32 teams in both modes. The literal suggestion was tried against every team
+  (scratch renders, 2026-10-08): with black as the darkest color, it makes the team hue the bad
+  end in light mode for eight teams (NYJ, CIN, ATL, CAR, TB, LV, PHI, DET), inverting the brand.
+  Adopted instead: the accent hue always marks better; when the second color is black, white,
+  silver, or its tint looks like the accent's, the bad end is a muted gray of it (a muted gray of
+  another listed color when that separates the ends better); the Raiders, with no hue at all, get
+  the suggested lightness scale (darker better in light mode, lighter in dark mode).
+- Team chips (independent of the palette): a two-color dot beside every team abbreviation in the
+  index tables, game log, opponent table, comparison, filtered table, and detail-page title.
+- Checks: `is_readable` now covers body text on every tinted surface (hover, selected, and hint
+  card), secondary text and links on the hint card, the accent surfaces' own text, the hint
+  border, and heat-scale ends at least 3 OKLab units from the card; every committed palette passes
+  in both modes, and every team has a heat scale. The heat scale's better end uses the same team
+  color in both modes (the light-mode accent's), so the Packers' better cells are green by day and
+  night (an independent review found 9 teams swapping between modes before this).
+  Visual check: all 32 palettes, both modes, index and detail pages, screenshotted with headless
+  Chrome against a scratch build (`vite build --outDir /tmp/...`, so `web/dist` was untouched).
 
 ## S4. Project logger
 
@@ -779,6 +866,135 @@ verify every self-computed metric); `nfl-sos-ratings catalog`; the web app picks
 category. Ask the maintainer which group to start with (special-teams detail and QBR/NGS joins
 are the largest).
 
+## S5. Test and pipeline speed (proposed 2026-10-08)
+
+Background: the maintainer found `pytest` slow (about a minute on their run). Measured 2026-10-08
+(scratch timings, not citable): the suite took 133 s wall with 6 min 15 s of system time, the same
+under Polars 1.44.2 and 2.0.0, and 17 s with `POLARS_MAX_THREADS=1`. Polars starts a 24-thread
+pool for each of thousands of tiny frames, and the threads spend their time waking each other. The
+same holds for real builds: `nfl-sos-ratings season --season 2025` took 32.7 s wall (105 s system)
+with default threads and 4.8 s with one thread; `diff-data --tolerance 1e-9` between the two
+builds reported "19 unchanged" (without a tolerance, four descriptive opponent-profile files differ
+by at most 8.5e-14, float summation order).
+
+Proposal (one small pull request after the current one merges):
+
+- [ ] `cli.limit_blas_threads` also defaults `POLARS_MAX_THREADS` to 1 (before any command imports
+  Polars), with a test like the BLAS ones; `tests/conftest.py` sets the same default before the
+  test modules import Polars. Record before and after timings of `pytest` and `pipeline`.
+- [ ] **Decision for the maintainer:** `pytest -m published_data` (the checks of the generated
+  files in `data/` after a rebuild: row order, bins adding up, pair files, eligible passers) fails
+  on the coverage floor because `addopts` always measures coverage and those 6 tests touch little
+  code. Options: (a, recommended) a `tests/conftest.py` hook that lifts the coverage floor only
+  when every selected test is a `published_data` one, so the documented command just works and
+  every run that includes code tests keeps the floor; (b) a `scripts/gate.sh --data` step that runs
+  it with `--no-cov`, leaving the bare command as it is; (c) moving the floor from
+  `[tool.coverage.report]` to the gate's pytest call, which stops a bare `pytest` from enforcing it.
+  (a) and (c) touch coverage behavior, which is ask-first.
+
+## Data notes (2026-10-08)
+
+- nflverse play-by-play has no rows for three regular-season games, so the team game logs lack
+  them: `1999_01_BAL_STL`, `2000_03_SD_KC`, and `2000_06_BUF_MIA`, from `POLARS_MAX_THREADS=1
+  .venv/bin/python .agents/findings_2026_10_08/missing_pbp_games.py 1999 2000 2022` (nflverse's
+  schedule against `data/{season}_team_game_logs.parquet`; play-by-play rows for the missing games:
+  0). BAL and LAR (1999) and KC, LAC, BUF, and MIA (2000) are rated on 15 games. 2022 BUF and CIN
+  have 16 games because their game was cancelled; the same command lists no missing 2022 game.
+- The 2026 Broncos question (maintainer, 2026-10-08): through week 4, DEN's head-to-head-excluded
+  `sos` (5.28, `data/2026_ratings.parquet`) is the hardest in 2026 and above every completed
+  season's (2009 TB, 2.83, from `nfl-sos-ratings schedules`), yet `team_rating` is -0.37 (15th).
+  `POLARS_MAX_THREADS=1 .venv/bin/python .agents/findings_2026_10_08/den_rating_split.py --season
+  2026 --team DEN` refits `data/2026_team_game_logs.parquet` with 2025's cross-validated penalty
+  (316): before adjustment DEN was 23rd by point margin (-5.00 per game) and by EPA (-6.55); fully
+  adjusted with no penalty it would be +6.19 (8th), a schedule credit of about 12.7 points that
+  rests on 4-game estimates of SF, KC, JAX, and LAR; the penalty keeps 43% of DEN's offensive
+  evidence and 46% of its defensive (the shrink factors), schedule credit included; the 95% rank
+  range is 5th-30th. Nothing is wrong with the fit; the ratings know nothing about 2025 (LAR 1st,
+  JAX 4th, DEN 6th in `data/2025_ratings.parquet`), which P6 tests. The same command's prior sketch:
+  DEN +1.01 (12th), +1.51 (10th), and +2.43 (9th) with priors at 33%, 45%, and 67% of 2025, and
+  +0.32 (13th) at 45% without DEN's own prior.
+
+## U. UX audit (2026-10-08)
+
+A fresh audit of the whole app, as a newcomer and as a frontend developer: every page in both
+themes at 1440 px and 390 px, all 32 palettes, edge states (a QB below the qualifier, a QB without
+dropbacks, an unknown team or season, 1999). Each item names where it lives; the groups are sized
+as pull requests, in the recommended order.
+
+Bugs and copy (first):
+
+- [ ] U1 The "Season in progress" notice shows on three completed seasons, 1999, 2000, and 2022,
+  because `seasonRules.getInProgressGames` treats any team below 16 or 17 games as unfinished (see
+  "Data notes"); the QB qualifier text then says "so far". Let the API say which season is in
+  progress (`config.SEASON` while its games are still being played) instead of counting games.
+- [ ] U2 Plurals: "1 games" and "1 opponents" badges on detail pages; "How often this qb was rated"
+  (`HeadToHeadCard`); QB titles use a hyphen ("Brock Purdy - San Francisco 49ers"); the glossary
+  says "used throughout the current shell" (`metricMetadata.ts`) and lists QB EPA Per Dropback twice.
+- [ ] U3 An unknown team (`/teams/XYZ`) or season (`?season=1990`) silently lands on the current
+  index; say what was not found.
+- [ ] U4 "no games in 1%" / "no dropbacks in 2%" in rank-range summaries is opaque; say "missing
+  from 1% of resampled seasons".
+
+Index pages (layout):
+
+- [ ] U5 The table starts far below the fold: the season notice, the "Use first" card, and the
+  garbage-time filter put it at about 700 px on desktop and 1,170 px on a 390 px phone, so a phone's
+  first screen has no data. Fold the notice and the primary-rank note into one line under the title,
+  move "Reading notes" into a hint or the glossary, and make the garbage-time filter a toolbar
+  control beside the views.
+- [ ] U6 Nested scrolling: the table scrolls inside the scrolling page (`max-h-[75vh]`), so the
+  wheel gets captured, and at 1440 px the SRS column hides behind a horizontal scroll while the
+  Compare column (108 px for a checkbox) and Rank range (196 px) take room. Let the page scroll
+  with a sticky table header and tighten those widths.
+- [ ] U7 Noise: the "32 rows / 7 columns / 0 compared" and "6 columns / 110 columns" pills, the
+  "USE FIRST" eyebrow, the card title repeating the page title, and the rank-range readout box
+  ("Tap a row for its numbers.") that looks like an empty input. The floating scroll buttons cover
+  the table's last column at the bottom right.
+- [ ] U8 Comparison: the panel appears above the table, so ticking a box pushes the row under the
+  cursor down; with two picks every heat cell is fully green or red (min-max over two values). Show
+  a "N selected, compare" bar and the panel below or in a drawer, and shade cells against the
+  season's range, not the picks'.
+
+Detail pages:
+
+- [ ] U9 The view tabs sit above the whole page but only change the Ratings tiles and the game-log
+  columns; put them on the sections they drive.
+- [ ] U10 The stat tiles show bare values: add each one's rank ("-0.37, 15th of 32") and the
+  unadjusted counterpart (team EPA margin, QB raw EPA per dropback) so the schedule adjustment is
+  visible, the question the 2026 Broncos raised. The QB Ratings view (index and detail) leaves out
+  raw EPA per dropback and dropbacks.
+- [ ] U11 The garbage-time filter card sits mid-page (and shows for a QB without dropbacks); move
+  it to the end as an exploration section, collapsed.
+- [ ] U12 "Game by game" tiles (Peak week, Recent 3-game, Closing form, Schedule edge) use jargon
+  and a secondary stat (Points/Off Snap, EPA/DB); retire them or base them on the rating's own
+  stat with plain labels.
+
+Charts:
+
+- [ ] U13 The weekly chart draws smoothed lines (`type="monotone"`) that overshoot between games,
+  and defaults to the first numeric column (Pass Yds on team pages, 4QC on QB pages) instead of the
+  rating's per-play stat. Straight segments, and a rating-first default.
+- [ ] U14 Axis ticks: Rating by week uses uneven ticks (-3.60, -2.70, ...); Rank by week crowds
+  25th and 32nd. Round ticks from a nice-number step. Settle R3's early-week decision with it.
+
+Color semantics:
+
+- [ ] U15 Schedule strength (SoS, Faced Pass D) is heat-mapped as good or bad, so a hard schedule
+  is green; it is context, not quality. Give context columns a single-hue or no heat scale, from
+  registry metadata (the backend defines meaning).
+- [ ] U16 The unique-opponent table heat-maps raw counts against one opponent (completions,
+  attempts); shade rates only.
+- [ ] U17 The default palette's green-to-red heat scale is hard to read with red-green color
+  blindness (about 1 in 12 men); consider blue to orange for the default.
+
+Glossary and navigation:
+
+- [ ] U18 The glossary covers about a dozen metrics, points at a repository path instead of linking
+  the methodology, and explains neither rank ranges, head-to-head chances, the garbage-time filter,
+  nor what positive SoS means. Build it from the registry with search and categories.
+- [ ] U19 The palette menu is a 33-item scrolling list; an eight-division grid of team chips would
+  be faster, especially on a phone.
+
 ## Ideas parking lot (not approved yet)
 
 - Rank ranges at a WP threshold, once WP4 has run.
@@ -786,3 +1002,7 @@ are the largest).
 - Season-over-season rank change on the detail page.
 - A CI job that runs `scripts/gate.sh --quick` on every commit of a pull request (needs approval:
   CI changes are ask-first).
+- A preseason prior for the team fit (from the 2026 Broncos question): pull early-season ratings
+  toward a regressed previous-season rating instead of toward zero, so a schedule of last year's
+  strong teams counts as strong from week 1. A methodology change: needs a pre-registered
+  walk-forward test (weeks 2-8 especially) and the maintainer's approval before any code.

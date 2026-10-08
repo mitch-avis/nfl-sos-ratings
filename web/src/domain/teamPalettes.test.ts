@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  activePalette,
+  brandMark,
   heatPaletteFor,
   normalizePalette,
   paletteCssVariables,
   paletteGroups,
   paletteName,
+  teamColors,
 } from './teamPalettes'
 
 describe('paletteGroups', () => {
@@ -31,6 +34,7 @@ describe('normalizePalette', () => {
     ['KC', 'KC'],
     ['classic', 'classic'],
     ['nonsense', 'classic'],
+    ['toString', 'classic'],
     [null, 'classic'],
   ])('reads a stored %s as %s', (stored, expected) => {
     // Act
@@ -42,14 +46,25 @@ describe('normalizePalette', () => {
 })
 
 describe('paletteCssVariables', () => {
-  it('keeps the hand-tuned Broncos accent', () => {
+  it('builds the Broncos palette from nflverse colors like every other team', () => {
     // Act
     const variables = paletteCssVariables('DEN', 'light')
 
     // Assert
-    expect(variables['--primary']).toBe('oklch(0.66 0.2 40)')
-    expect(variables['--chart-2']).toBe('oklch(0.35 0.09 255)')
-    expect('--sidebar-primary-foreground' in variables).toBe(false)
+    expect(variables['--primary']).toBe('oklch(0.554 0.188 36.5)')
+    expect(variables['--sidebar-primary-foreground']).toBe(variables['--primary-foreground'])
+  })
+
+  it('colors the hint cards and hover backgrounds but leaves the page surfaces alone', () => {
+    // Act
+    const variables = paletteCssVariables('GB', 'dark')
+
+    // Assert
+    expect(Object.keys(variables)).toEqual(
+      expect.arrayContaining(['--accent', '--accent-foreground', '--sidebar-accent', '--hint', '--hint-border']),
+    )
+    expect(Object.keys(variables)).not.toEqual(expect.arrayContaining(['--background']))
+    expect(Object.keys(variables)).not.toEqual(expect.arrayContaining(['--card']))
   })
 
   it('sets the sidebar text color for generated palettes', () => {
@@ -70,13 +85,61 @@ describe('paletteCssVariables', () => {
 })
 
 describe('heatPaletteFor', () => {
-  it("returns a team's heat scale, or null when it falls back to the default", () => {
+  it('gives every team its own heat scale in both modes', () => {
+    // Arrange
+    const teams = paletteGroups().flatMap((group) => group.teams.map((team) => team.id))
+
     // Act
-    const scales = [heatPaletteFor('DEN', 'dark'), heatPaletteFor('LV', 'light'), heatPaletteFor('classic', 'light')]
+    const missing = teams.flatMap((team) =>
+      (['light', 'dark'] as const).filter((mode) => heatPaletteFor(team, mode) === null).map((mode) => `${team} ${mode}`),
+    )
 
     // Assert
-    expect(scales[0]).toEqual({ good: [124, 51, 24], bad: [15, 48, 84], mid: [22, 27, 34] })
-    expect(scales.slice(1)).toEqual([null, null])
+    expect(missing).toEqual([])
+  })
+
+  it('leaves the default palette on the default heat scale', () => {
+    // Act
+    const scale = heatPaletteFor('classic', 'light')
+
+    // Assert
+    expect(scale).toBeNull()
+  })
+})
+
+describe('teamColors', () => {
+  it("returns a team's two main colors", () => {
+    // Act
+    const colors = teamColors('KC')
+
+    // Assert
+    expect(colors).toEqual(['#E31837', '#FFB612'])
+  })
+
+  it('returns null for a team without colors', () => {
+    // Act
+    const colors = teamColors('XYZ')
+
+    // Assert
+    expect(colors).toBeNull()
+  })
+})
+
+describe('brandMark', () => {
+  it('draws the default logo for the default palette', () => {
+    // Act
+    const mark = brandMark('classic')
+
+    // Assert
+    expect(mark).toEqual({ background: '#1f3a8a', line: '#fb923c', dot: '#ffffff' })
+  })
+
+  it("draws a team palette's logo in the team's colors", () => {
+    // Act
+    const mark = brandMark('DEN')
+
+    // Assert
+    expect(mark).toEqual({ background: '#002244', line: '#FB4F14', dot: '#FFFFFF' })
   })
 })
 
@@ -87,5 +150,22 @@ describe('paletteName', () => {
 
     // Assert
     expect(names).toEqual(['Default', 'Denver Broncos'])
+  })
+})
+
+describe('activePalette', () => {
+  it.each([
+    ['KC', 'DEN', true, 'DEN'],
+    ['classic', 'DEN', true, 'DEN'],
+    ['KC', 'DEN', false, 'KC'],
+    ['KC', null, true, 'KC'],
+    ['KC', 'XYZ', true, 'KC'],
+    ['KC', 'toString', true, 'KC'],
+  ] as const)('with %s chosen, a page for %s, and team colors %s, shows %s', (chosen, pageTeam, teamColors, expected) => {
+    // Act
+    const palette = activePalette(chosen, pageTeam, teamColors)
+
+    // Assert
+    expect(palette).toBe(expected)
   })
 })

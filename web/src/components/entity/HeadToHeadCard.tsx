@@ -3,6 +3,7 @@ import { useId, useMemo, useState } from 'react'
 import { useRatingPairs } from '@/api/queries'
 import type { EntityKind, RowValue } from '@/api/types'
 import { ErrorState } from '@/components/common/ErrorState'
+import { TeamChip } from '@/components/common/TeamChip'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getEntityConfig, getEntityId, getEntityLabel } from '@/domain/entityConfig'
@@ -77,6 +78,7 @@ export function HeadToHeadCard({
           <SelectContent>
             {options.map((option) => (
               <SelectItem key={option.otherId} value={option.otherId}>
+                {kind === 'teams' ? <TeamChip team={option.otherId} /> : null}
                 {labelOf(option.otherId)}
               </SelectItem>
             ))}

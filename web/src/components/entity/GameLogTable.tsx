@@ -1,5 +1,6 @@
 import type { RowValue } from '@/api/types'
 import { MetricLabel } from '@/components/common/MetricLabel'
+import { TeamChip } from '@/components/common/TeamChip'
 import { RankIntervalTrack } from '@/components/entity/RankInterval'
 import { detailHeaderLabel } from '@/domain/detailSections'
 import { buildGameOverviewUrl, formatDetailCellValue } from '@/domain/detailUi'
@@ -14,10 +15,16 @@ export interface OpponentRanges {
 
 function OpponentCell({ team, opponents }: { team: string; opponents?: OpponentRanges }) {
   const range = opponents?.ranges.get(team)
-  if (!opponents || !range) return team
+  const name = (
+    <span className="inline-flex items-center gap-1.5">
+      <TeamChip team={team} />
+      {team}
+    </span>
+  )
+  if (!opponents || !range) return name
   return (
     <span className="inline-flex items-center gap-2">
-      {team}
+      {name}
       <span className="text-xs text-muted-foreground">{middleRankText(range)}</span>
       <span className="inline-block w-14">
         <RankIntervalTrack range={range} count={opponents.count} size="mini" />

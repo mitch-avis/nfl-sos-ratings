@@ -5,8 +5,10 @@ import { Link, Navigate, useParams } from 'react-router'
 import { useEntityGameLogs, useRankRanges, useRatingHistory } from '@/api/queries'
 import type { EntityKind, SeasonDataset } from '@/api/types'
 import { useEntityPageState } from '@/app/EntityViewStateProvider'
+import { useTeamPageColors } from '@/app/useTeamPageColors'
 import { ErrorState } from '@/components/common/ErrorState'
 import { PageHeader } from '@/components/common/PageHeader'
+import { TeamChip } from '@/components/common/TeamChip'
 import { StatTile } from '@/components/common/StatTile'
 import { GameLogTable } from '@/components/entity/GameLogTable'
 import { HeadToHeadCard } from '@/components/entity/HeadToHeadCard'
@@ -57,6 +59,9 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
   const entityId = decodeURIComponent(useParams().entityId ?? '')
   const seasonView = useMemo(() => buildSeasonViewTable(kind, dataset[kind], viewState), [dataset, kind, viewState])
   const row = getEntityRow(seasonView.table, kind, entityId)
+  // A QB page shows his team's palette (team pages set theirs from the route, `router.tsx`).
+  const qbTeam = kind === 'qbs' && row ? String(row.team ?? '') : ''
+  useTeamPageColors(qbTeam === '' ? null : qbTeam)
   const gameLogsQuery = useEntityGameLogs(kind, season, row ? entityId : '')
   const ratingHistoryQuery = useRatingHistory(kind, season, row ? entityId : '')
   const rankRangesQuery = useRankRanges(kind, season)
@@ -115,6 +120,7 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
     <div className="flex flex-col gap-5">
       <PageHeader
         title={label}
+        titleMark={<TeamChip team={kind === 'teams' ? rawLabel : String(row.team ?? '')} className="size-4" />}
         description={`${config.singularLabel} detail · ${season} regular season`}
         actions={
           <Button asChild variant="outline" size="sm">
@@ -236,7 +242,7 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
           ) : null}
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {gameLogsQuery.isLoading ? <Skeleton className="h-64" /> : null}
+          {gameLogsQuery.isLoading ? <Skeleton className="h-64 bg-muted" /> : null}
           {gameLogsQuery.isError ? <ErrorState error={gameLogsQuery.error} title="Could not load the weekly log" /> : null}
           {enrichedGameLogs && gameLogSelection ? (
             <>

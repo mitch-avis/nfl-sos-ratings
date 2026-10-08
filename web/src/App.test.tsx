@@ -16,6 +16,7 @@ import {
   TEAM_RANK_RANGES,
   TEAM_WP_RATINGS,
 } from '@/test/fixtures'
+import { PALETTE_CSS_VARIABLES, paletteCssVariables } from '@/domain/teamPalettes'
 import { renderApp } from '@/test/renderApp'
 
 const API = {
@@ -612,7 +613,85 @@ describe('rank by week', () => {
 describe('team palettes', () => {
   afterEach(() => {
     window.localStorage.removeItem('nfl-sos-palette')
+    window.localStorage.removeItem('nfl-sos-team-page-colors')
     document.documentElement.removeAttribute('style')
+  })
+
+  it("shows a team page in that team's colors", async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'KC')
+
+    // Act
+    renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    await screen.findByRole('heading', { name: 'Denver Broncos' })
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('DEN'))
+    expect(document.documentElement.style.getPropertyValue('--primary')).toBe(
+      paletteCssVariables('DEN', 'light')['--primary'],
+    )
+  })
+
+  it("shows a QB page in his team's colors", async () => {
+    // Act
+    renderApp('/qbs/qb-1?season=2025')
+
+    // Assert
+    await screen.findByRole('heading', { name: /Bo Nix/ })
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('DEN'))
+  })
+
+  it('returns to the chosen palette on leaving a team page', async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'KC')
+    const { router } = renderApp('/teams/DEN?season=2025')
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('DEN'))
+
+    // Act
+    await router.navigate('/teams?season=2025')
+
+    // Assert
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('KC'))
+  })
+
+  it('keeps the chosen palette on team pages when team colors are switched off', async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'KC')
+    window.localStorage.setItem('nfl-sos-team-page-colors', 'off')
+
+    // Act
+    renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    await screen.findByRole('heading', { name: 'Denver Broncos' })
+    expect(document.documentElement.dataset.palette).toBe('KC')
+  })
+
+  it('switches team-page colors off from the palette menu', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    renderApp('/teams?season=2025')
+    await user.click(await screen.findByRole('button', { name: 'Palette: Default' }))
+
+    // Act
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: "Use each team's colors on its page" }))
+
+    // Assert
+    expect(window.localStorage.getItem('nfl-sos-team-page-colors')).toBe('off')
+  })
+
+  it('opens the palette menu at the chosen team', async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'SEA')
+    const user = userEvent.setup()
+    renderApp('/teams?season=2025')
+
+    // Act
+    await user.click(await screen.findByRole('button', { name: 'Palette: Seattle Seahawks' }))
+
+    // Assert
+    const chosen = await screen.findByRole('menuitemradio', { name: 'Seattle Seahawks' })
+    await waitFor(() => expect(chosen).toHaveFocus())
   })
 
   it('switches to a team palette from the palette menu', async () => {
@@ -639,7 +718,106 @@ describe('team palettes', () => {
 
     // Assert
     expect(await screen.findByRole('button', { name: 'Palette: Denver Broncos' })).toBeInTheDocument()
-    expect(document.documentElement.style.getPropertyValue('--primary')).toBe('oklch(0.66 0.2 40)')
+    expect(document.documentElement.style.getPropertyValue('--primary')).toBe(paletteCssVariables('DEN', 'light')['--primary'])
+  })
+
+  it("marks the top of the header with a team palette's colors", async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'KC')
+
+    // Act
+    const { container } = renderApp('/teams?season=2025')
+
+    // Assert
+    await screen.findByRole('button', { name: 'Palette: Kansas City Chiefs' })
+    expect(container.querySelector('header [data-palette-stripe]')).not.toBeNull()
+  })
+
+  it('leaves the header unmarked with the default palette', async () => {
+    // Act
+    const { container } = renderApp('/teams?season=2025')
+
+    // Assert
+    await screen.findByRole('button', { name: 'Palette: Default' })
+    expect(container.querySelector('[data-palette-stripe]')).toBeNull()
+  })
+
+  it("clears every team palette color on switching back to the default", async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'KC')
+    const user = userEvent.setup()
+    renderApp('/teams?season=2025')
+    await user.click(await screen.findByRole('button', { name: 'Palette: Kansas City Chiefs' }))
+
+    // Act
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Default' }))
+
+    // Assert
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('classic'))
+    expect(PALETTE_CSS_VARIABLES.filter((name) => document.documentElement.style.getPropertyValue(name) !== '')).toEqual([])
+  })
+
+  it('returns a team page to the chosen palette when team colors are switched off there', async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'KC')
+    const user = userEvent.setup()
+    renderApp('/teams/DEN?season=2025')
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('DEN'))
+    await user.click(await screen.findByRole('button', { name: 'Palette: Kansas City Chiefs' }))
+
+    // Act
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: "Use each team's colors on its page" }))
+
+    // Assert
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('KC'))
+  })
+
+  it("keeps a team page in its team's colors while another season loads", async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'KC')
+    const loaded = stubApi({ ...API, '/api/seasons': { seasons: [2025, 2024] } })
+    vi.stubGlobal('fetch', ((input: RequestInfo | URL) =>
+      String(input).endsWith('/api/seasons/2024') ? new Promise<Response>(() => {}) : loaded(input)) as typeof fetch)
+    const { router } = renderApp('/teams/DEN?season=2025')
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('DEN'))
+
+    // Act
+    await router.navigate('/teams/DEN?season=2024')
+
+    // Assert
+    await screen.findByText(/Loading season data/)
+    expect(document.documentElement.dataset.palette).toBe('DEN')
+  })
+})
+
+describe('team colors', () => {
+  it("shows each team's colors beside its name in the index", async () => {
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    const link = await screen.findByRole('link', { name: 'DEN' })
+    expect(link.querySelector('[data-team-chip="DEN"]')).not.toBeNull()
+  })
+
+  it("shows each quarterback's team colors in the QB index", async () => {
+    // Act
+    const { container } = renderApp('/qbs?season=2025')
+
+    // Assert
+    await screen.findByRole('link', { name: 'Bo Nix' })
+    expect(container.querySelector('tbody [data-team-chip="DEN"]')).not.toBeNull()
+  })
+
+  it("shows the team's colors beside the detail page title and each opponent", async () => {
+    // Act
+    const { container } = renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    const heading = await screen.findByRole('heading', { name: 'Denver Broncos' })
+    expect(heading.querySelector('[data-team-chip="DEN"]')).not.toBeNull()
+    await screen.findByRole('link', { name: '2025_02_DEN_IND' })
+    expect(container.querySelector('tbody [data-team-chip="IND"]')).not.toBeNull()
   })
 })
 

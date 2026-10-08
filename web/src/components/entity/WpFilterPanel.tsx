@@ -7,6 +7,7 @@ import { useWpThreshold } from '@/app/useWpThreshold'
 import { ErrorState } from '@/components/common/ErrorState'
 import { SortableHeader } from '@/components/common/SortableHeader'
 import { StatTile } from '@/components/common/StatTile'
+import { TeamChip } from '@/components/common/TeamChip'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -118,13 +119,21 @@ function WpRatingsTable({
               <td className="py-1.5 pr-3 tabular font-semibold">{row.filteredRank ?? '—'}</td>
               <td className="py-1.5 pr-3">
                 <Link
-                  className="font-medium text-primary hover:underline"
+                  className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline"
                   to={withWpThreshold(`/${kind}/${encodeURIComponent(row.id)}?season=${season}`, threshold)}
                 >
+                  {kind === 'teams' ? <TeamChip team={row.id} /> : null}
                   {row.label}
                 </Link>
               </td>
-              {kind === 'qbs' ? <td className="py-1.5 pr-3 text-muted-foreground">{row.team ?? '—'}</td> : null}
+              {kind === 'qbs' ? (
+                <td className="py-1.5 pr-3 text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    {row.team ? <TeamChip team={row.team} /> : null}
+                    {row.team ?? '—'}
+                  </span>
+                </td>
+              ) : null}
               <td className="py-1.5 pr-3 text-right tabular">{formatFixed(row.filteredRating, decimals)}</td>
               <td className="py-1.5 pr-3 text-right tabular">{formatSignedChange(row.ratingChange, decimals)}</td>
               <td className="py-1.5 pr-3 text-muted-foreground">{formatRankChange(row.rankChange)}</td>
@@ -258,7 +267,7 @@ export function WpFilterPanel({ kind, season, entityId }: { kind: EntityKind; se
               payload={query.data}
             />
           ) : (
-            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full bg-muted" />
           )}
         </>
       )}

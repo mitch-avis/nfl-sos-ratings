@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import type { EntityConfig, RowValue, TablePayload } from '@/api/types'
 import { useTheme } from '@/app/ThemeProvider'
 import { MetricLabel } from '@/components/common/MetricLabel'
+import { TeamChip } from '@/components/common/TeamChip'
 import { HeadToHeadSentence } from '@/components/entity/HeadToHeadCard'
 import { RankIntervalTrack } from '@/components/entity/RankInterval'
 import { Button } from '@/components/ui/button'
@@ -40,7 +41,7 @@ export function ComparisonPanel({
   rankRanges,
   onRemove,
 }: ComparisonPanelProps) {
-  const { resolved: theme, palette } = useTheme()
+  const { resolved: theme, activePalette: palette } = useTheme()
   const titleId = useId()
   const compareRows = compareIds
     .map((entityId) => table.rows.find((row) => String(row[config.identityKey] ?? '') === entityId))
@@ -94,8 +95,9 @@ export function ComparisonPanel({
                       <div className="flex items-center justify-between gap-2">
                         <Link
                           to={`/${config.kind}/${encodeURIComponent(entity.id)}?season=${season}`}
-                          className="inline-flex items-center gap-1 text-primary hover:underline"
+                          className="inline-flex items-center gap-1.5 text-primary hover:underline"
                         >
+                          <TeamChip team={config.kind === 'teams' ? entity.id : String(entity.row.team ?? '')} />
                           {entity.label}
                           <ExternalLink className="size-3" />
                         </Link>

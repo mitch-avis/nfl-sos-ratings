@@ -14,13 +14,14 @@ import {
   type RankRange,
 } from '@/domain/rankRanges'
 import { useHasHover } from '@/hooks/use-has-hover'
+import { TeamChip } from '@/components/common/TeamChip'
 import { cn } from '@/utils/cn'
 
 import { RankIntervalKey, RankIntervalTrack } from './RankInterval'
 
 // One label width per kind keeps every row's track aligned: team codes are short, QB names long.
 const ROW_GRID: Record<EntityKind, string> = {
-  teams: 'grid grid-cols-[2.75rem_minmax(0,1fr)] items-center gap-x-2',
+  teams: 'grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-2',
   qbs: 'grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-2 sm:grid-cols-[9rem_minmax(0,1fr)]',
 }
 const ROW_CLASS = 'w-full rounded-sm px-1 py-1 text-left hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-ring'
@@ -87,7 +88,10 @@ export function RankRangeChart({ kind, season, ranges }: { kind: EntityKind; sea
         {rankRangesByMedian(ranges).map((range) => {
           const row = (
             <>
-              <span className="truncate text-sm font-medium">{range.label}</span>
+              <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                {kind === 'teams' ? <TeamChip team={range.id} /> : null}
+                <span className="truncate">{range.label}</span>
+              </span>
               <RankIntervalTrack range={range} count={count} ticks={ticks} />
             </>
           )

@@ -4,7 +4,30 @@ The handoff document for the repo's current state: what is done, what is open, a
 agent should do first. Update it in the same change set whenever any of that changes. Earlier
 history (the composite-rating era and its experiments) is in git, before commit `21c5290`.
 
-## Current state (2026-10-05)
+## Current state (2026-10-08)
+
+- `main` = `origin/main` = `72cc113`, the maintainer's dependency refresh (Polars 1.44.2 to 2.0.0,
+  a major version, plus fastapi, filelock, ty, and others). Polars 2.0 parity, checked 2026-10-08
+  in a worktree of `3b5946f` (Polars 1.44.2) against `main`: no deprecation warnings in the suite
+  (`pytest -W default::DeprecationWarning`); the package has no lazy queries (2.0's streaming
+  default reorders lazy joins and group-bys); scratch `season` builds of 1999, 2006, 2016, 2025,
+  and 2026 under each version gave bit-identical ratings, ranges, pairs, histories, bins, and game
+  logs, with the four descriptive opponent-profile files per season differing by float rounding
+  only (`diff-data --tolerance 1e-9`: all unchanged); the 1.44.2 builds of the four completed
+  seasons matched `data/` exactly; Polars 2.0 is deterministic run to run; `.venv/bin/python
+  .agents/findings_2026_10_08/api_parity.py http://127.0.0.1:8090 http://127.0.0.1:8092 1999 2012
+  2025 2026` (a server on each version) reported 1,203 payloads compared and 0 differing; and
+  `check-additivity` and `check-in-season-penalty` printed identical output.
+- Pull request #17 (`feat/team-color-depth`): the generated Broncos palette (maintainer
+  approval), neutral page surfaces, team-colored accents, hover backgrounds, tooltips, logo, and
+  header stripe, team heat scales for all 32 teams, team color chips, and team pages in their
+  team's colors (`.agents/roadmap.md`, F7 follow-up).
+- New since the last handoff, all in the roadmap: S5 (Polars single-threaded by default for tests
+  and builds, plus the `published_data` coverage decision), "Data notes" (three 1999-2000 games
+  missing from nflverse play-by-play; the 2026 Broncos rating explained), workstream U (the
+  2026-10-08 UX audit), and a parked preseason-prior idea.
+
+## State before 2026-10-08
 
 - `main` (pushed, `18c8aaa`) holds the points-based ratings, the follow-up work, previous-season
   ridge penalties for the team fit, the rank ranges, QB data fixes, and UX audit described below
