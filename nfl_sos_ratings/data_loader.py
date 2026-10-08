@@ -10,8 +10,13 @@ import polars as pl
 from nflreadpy.config import CacheMode, update_config
 
 from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
-from nfl_sos_ratings.qb_stats import compute_qb_game_stats_from_pbp
-from nfl_sos_ratings.team_stats import compute_team_game_stats_from_pbp
+from nfl_sos_ratings.qb_stats import (
+    CPOE_PARTS,
+    QB_PASSING_TOTALS,
+    compute_qb_game_stats_from_pbp,
+    qb_passer_rating_expr,
+)
+from nfl_sos_ratings.team_stats import add_per_snap_rates, compute_team_game_stats_from_pbp
 from nfl_sos_ratings.wp_bins import compute_qb_wp_bins, compute_team_wp_bins
 
 if TYPE_CHECKING:
@@ -789,7 +794,7 @@ def _override_team_game_stats_with_official_weekly(
         pl.col("official_passing_cpoe").alias("official_passing_cpoe_allowed"),
     )
 
-    return (
+    overridden = (
         team_df.join(official_offense, on=["game_id", "week", "team", "opponent_team"], how="left")
         .join(official_allowed, on=["game_id", "week", "team", "opponent_team"], how="left")
         .with_columns(
@@ -876,96 +881,6 @@ def _override_team_game_stats_with_official_weekly(
                 [pl.col("official_passing_cpoe_allowed"), pl.col("passing_cpoe_allowed")]
             ).alias("passing_cpoe_allowed"),
         )
-        .with_columns(
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("total_yards") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("total_yards_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("passing_yards") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("passing_yards_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("rushing_yards") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_yards_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("passing_epa") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("passing_epa_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("rushing_epa") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_epa_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("passing_tds") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("passing_tds_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("rushing_tds") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_tds_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("sacks_suffered") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("sacks_suffered_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("passing_interceptions") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("passing_interceptions_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("sack_fumbles_lost") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("sack_fumbles_lost_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("rushing_fumbles_lost") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_fumbles_lost_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("passing_first_downs") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("passing_first_downs_per_offensive_snap"),
-            pl.when(pl.col("offensive_snaps") > 0)
-            .then(pl.col("rushing_first_downs") / pl.col("offensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_first_downs_per_offensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("total_yards_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("total_yards_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("passing_yards_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("passing_yards_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("rushing_yards_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_yards_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("passing_epa_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("passing_epa_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("rushing_epa_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_epa_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("passing_tds_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("passing_tds_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("rushing_tds_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_tds_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("passing_first_downs_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("passing_first_downs_allowed_per_defensive_snap"),
-            pl.when(pl.col("defensive_snaps") > 0)
-            .then(pl.col("rushing_first_downs_allowed") / pl.col("defensive_snaps"))
-            .otherwise(None)
-            .alias("rushing_first_downs_allowed_per_defensive_snap"),
-        )
         .drop(
             [
                 "official_passing_yards",
@@ -995,6 +910,8 @@ def _override_team_game_stats_with_official_weekly(
             ]
         )
     )
+    # The per-snap rates divide the official totals now, with their parts beside them.
+    return add_per_snap_rates(overridden)
 
 
 def load_weekly_team_stats(season: int) -> pl.DataFrame:
@@ -1069,27 +986,8 @@ def _build_qb_stats(
     official_qb_stats_df = _load_official_weekly_qb_stats(weekly_player_stats_df, qb_identity_df)
     qb_df = _override_qb_game_stats_with_official_weekly(qb_df, official_qb_stats_df)
 
-    attempts = pl.col("qb_attempts").cast(pl.Float64)
-    completions = pl.col("qb_completions").cast(pl.Float64)
-    passing_yards = pl.col("qb_pass_yards").cast(pl.Float64)
-    touchdowns = pl.col("qb_pass_touchdowns").cast(pl.Float64)
-    interceptions = pl.col("qb_interceptions").cast(pl.Float64)
-
-    passer_rating = (
-        pl.when(attempts > 0)
-        .then(
-            (
-                (
-                    (((completions / attempts) - 0.3) * 5).clip(0.0, 2.375)
-                    + (((passing_yards / attempts) - 3.0) * 0.25).clip(0.0, 2.375)
-                    + (((touchdowns / attempts) * 20.0).clip(0.0, 2.375))
-                    + ((2.375 - ((interceptions / attempts) * 25.0)).clip(0.0, 2.375))
-                )
-                / 6.0
-                * 100.0
-            ).round(1)
-        )
-        .otherwise(None)
+    passer_rating = qb_passer_rating_expr(
+        *(pl.col(column).cast(pl.Float64) for column in QB_PASSING_TOTALS)
     )
 
     return qb_df.with_columns(
@@ -1121,7 +1019,7 @@ def _build_qb_stats(
             "qb_any_a",
             "qb_fourth_quarter_comeback",
             "qb_game_winning_drive",
-            "qb_completion_percentage_above_expectation",
+            *CPOE_PARTS,
             "qb_passer_rating",
         ]
         + [

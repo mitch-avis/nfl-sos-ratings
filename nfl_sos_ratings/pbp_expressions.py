@@ -1,7 +1,8 @@
-"""Shared play-by-play Polars expressions used by the team stat builders.
+"""Shared Polars expressions used by the team and QB stat builders.
 
 These definitions are correctness invariants: the scrimmage-snap definition
-here is the single definition of an offensive snap for the whole project.
+here is the single definition of an offensive snap for the whole project, and
+the passer-rating formula the single definition of passer rating.
 """
 
 import polars as pl
@@ -39,11 +40,22 @@ def value_expr(columns: list[str], column: str, default: float = 0) -> pl.Expr:
     return pl.lit(default)
 
 
-def rate_expr(numerator: str, denominator: str, output: str) -> pl.Expr:
-    """Return a null-safe rate expression for a numerator and denominator pair."""
-    return (
-        pl.when(pl.col(denominator) > 0)
-        .then(pl.col(numerator) / pl.col(denominator))
-        .otherwise(None)
-        .alias(output)
-    )
+def passer_rating_from_rates(
+    completion_rate: pl.Expr,
+    yards_per_attempt: pl.Expr,
+    touchdown_rate: pl.Expr,
+    interception_rate: pl.Expr,
+) -> pl.Expr:
+    """Return the official NFL passer rating from its four per-attempt rates.
+
+    Null when any rate is null (no attempts).
+    """
+
+    def _clamp(component: pl.Expr) -> pl.Expr:
+        return component.clip(0.0, 2.375)
+
+    a = _clamp((completion_rate - 0.3) * 5.0)
+    b = _clamp((yards_per_attempt - 3.0) * 0.25)
+    c = _clamp(touchdown_rate * 20.0)
+    d = _clamp(2.375 - (interception_rate * 25.0))
+    return (a + b + c + d) / 6.0 * 100.0

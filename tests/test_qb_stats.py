@@ -4,6 +4,7 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings import qb_stats
+from nfl_sos_ratings.pooled_rates import denominator_column, numerator_column
 
 
 def test_compute_qb_season_stats_includes_volume_and_eligibility() -> None:
@@ -449,7 +450,11 @@ def test_compute_qb_game_volumes_from_pbp_combines_dropbacks_and_snap_counts() -
 
 
 def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
-    """Verify PBP-derived QB game stats carry dropbacks, snaps, and core passing metrics."""
+    """Verify PBP-derived QB game stats carry dropbacks, snaps, and core passing metrics.
+
+    CPOE carries its hidden parts: the CPOE summed over the passer's plays that have one, and
+    their count.
+    """
     # Arrange
     pbp = pl.DataFrame(
         {
@@ -524,6 +529,8 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": -6.0,
+            numerator_column(qb_stats.CPOE_COLUMN): -6.0,
+            denominator_column(qb_stats.CPOE_COLUMN): 1,
         },
         {
             "game_id": "2025_01_DEN_KC",
@@ -561,6 +568,8 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": None,
+            numerator_column(qb_stats.CPOE_COLUMN): None,
+            denominator_column(qb_stats.CPOE_COLUMN): None,
         },
         {
             "game_id": "2025_01_DEN_KC",
@@ -598,6 +607,8 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": 1.0,
+            numerator_column(qb_stats.CPOE_COLUMN): 2.0,
+            denominator_column(qb_stats.CPOE_COLUMN): 2,
         },
     ]
 
@@ -1260,3 +1271,54 @@ def test_compute_qb_game_stats_from_pbp_keeps_one_row_when_a_passers_name_varies
     assert result.select("qb_id", "qb_attempts").to_dicts() == [
         {"qb_id": "GSIS_P", "qb_attempts": 3}
     ]
+
+
+def _two_uneven_games() -> pl.DataFrame:
+    """Return one passer's 10-attempt and 40-attempt games, with CPOE's hidden parts.
+
+    Game 1: 9 of 10, 100 yards, 1 TD, CPOE +5.0 over 8 plays with a completion probability.
+    Game 2: 20 of 40, 300 yards, 1 TD, 3 INT, CPOE -1.25 over 32 such plays.
+    """
+    cpoe = "qb_completion_percentage_above_expectation"
+    return pl.DataFrame(
+        {
+            "game_id": ["g1", "g2"],
+            "week": [1, 2],
+            "team_abbr": ["DEN", "DEN"],
+            "qb_id": ["qb-1", "qb-1"],
+            "qb_name": ["John Doe", "John Doe"],
+            "qb_dropbacks": [11, 42],
+            "qb_attempts": [10, 40],
+            "qb_completions": [9, 20],
+            "qb_pass_yards": [100.0, 300.0],
+            "qb_pass_touchdowns": [1, 1],
+            "qb_interceptions": [0, 3],
+            "qb_sacks": [1, 2],
+            "qb_sack_yards_lost": [5.0, 12.0],
+            "qb_passing_epa": [6.0, -8.0],
+            cpoe: [5.0, -1.25],
+            "qb_passer_rating": [135.4, 51.0],
+            numerator_column(cpoe): [40.0, -40.0],
+            denominator_column(cpoe): [8, 32],
+        }
+    )
+
+
+def test_compute_qb_season_stats_rates_the_season_totals_not_the_mean_game() -> None:
+    # Arrange
+    qb_df = _two_uneven_games()
+
+    # Act
+    row = qb_stats.compute_qb_season_stats(qb_df).row(0, named=True)
+
+    # Assert
+    # Passer rating of 29 of 50, 400 yards, 2 TD, 3 INT, not the mean of 135.4 and 51.0.
+    completion = min(max((29 / 50 - 0.3) * 5, 0.0), 2.375)
+    yards = min(max((400 / 50 - 3.0) * 0.25, 0.0), 2.375)
+    touchdowns = min(max(2 / 50 * 20, 0.0), 2.375)
+    interceptions = min(max(2.375 - 3 / 50 * 25, 0.0), 2.375)
+    expected = round((completion + yards + touchdowns + interceptions) / 6 * 100, 1)
+    assert row["qb_passer_rating"] == pytest.approx(expected)
+    # CPOE over all 40 plays with a completion probability: (40 - 40) / 40.
+    assert row["qb_completion_percentage_above_expectation"] == pytest.approx(0.0)
+    assert not [column for column in row if column.startswith("_")]

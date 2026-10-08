@@ -183,6 +183,11 @@ game (`row_order.data_file_row_order`).
 - `team_per_game_stats`, `qb_per_game_stats`, `opponent_profiles`, `qb_opponent_profiles`: the
   intermediate tables behind `combined` and `qb_combined`.
 
+Season rows give counts per game and every rate over the season: its summed numerator over its
+summed denominator (completions over attempts, points over drives), not the mean of the game
+rates, so a 40-attempt game weighs four times a 10-attempt one. An opponent profile averages,
+over the opponents faced, each opponent's rates over its games against everyone else.
+
 A stat nflverse lacks in a season (air yards before 2006, tackles for loss in 2003-2011) is
 blank, not 0; the catalogs' Since column and notes give each stat's coverage.
 

@@ -4,6 +4,8 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings import qb_opponent_stats
+from nfl_sos_ratings.pooled_rates import denominator_column, numerator_column
+from nfl_sos_ratings.qb_stats import CPOE_COLUMN
 
 
 def test_compute_qb_opponent_profiles_excludes_head_to_head() -> None:
@@ -371,40 +373,44 @@ def _weekly(rows: list[tuple[str, str, int]]) -> pl.DataFrame:
     )
 
 
-def test_allowed_stats_for_a_defense_without_other_games_is_none() -> None:
+# KC's defense, profiled without its games against DEN.
+_KC_WITHOUT_DEN = pl.DataFrame({"team": ["KC"], "excluded_opponent": ["DEN"]})
+
+
+def test_allowed_stats_for_a_defense_without_other_games_is_empty() -> None:
     # Arrange
     weekly = _weekly([("DEN", "KC", 1), ("KC", "DEN", 1)])
     qb_df = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_attempts": [30]})
 
     # Act
-    allowed = qb_opponent_stats._compute_qb_allowed_stats_excluding_team(weekly, qb_df, "KC", "DEN")
+    allowed = qb_opponent_stats._qb_allowed_stats_by_pair(weekly, qb_df, _KC_WITHOUT_DEN)
 
     # Assert
-    assert allowed is None
+    assert allowed.is_empty()
 
 
-def test_allowed_stats_without_matching_qb_rows_is_none() -> None:
+def test_allowed_stats_without_matching_qb_rows_is_empty() -> None:
     # Arrange
     weekly = _weekly([("BUF", "KC", 2), ("KC", "BUF", 2)])
     qb_df = pl.DataFrame({"team_abbr": ["DEN"], "week": [1], "qb_attempts": [30]})
 
     # Act
-    allowed = qb_opponent_stats._compute_qb_allowed_stats_excluding_team(weekly, qb_df, "KC", "DEN")
+    allowed = qb_opponent_stats._qb_allowed_stats_by_pair(weekly, qb_df, _KC_WITHOUT_DEN)
 
     # Assert
-    assert allowed is None
+    assert allowed.is_empty()
 
 
-def test_allowed_stats_without_numeric_qb_columns_is_none() -> None:
+def test_allowed_stats_without_numeric_qb_columns_is_empty() -> None:
     # Arrange
     weekly = _weekly([("BUF", "KC", 2), ("KC", "BUF", 2)])
     qb_df = pl.DataFrame({"team_abbr": ["BUF"], "week": [2], "qb_name": ["Bills QB"]})
 
     # Act
-    allowed = qb_opponent_stats._compute_qb_allowed_stats_excluding_team(weekly, qb_df, "KC", "DEN")
+    allowed = qb_opponent_stats._qb_allowed_stats_by_pair(weekly, qb_df, _KC_WITHOUT_DEN)
 
     # Assert
-    assert allowed is None
+    assert allowed.is_empty()
 
 
 @pytest.mark.parametrize(
@@ -517,3 +523,61 @@ def test_select_primary_qb_games_breaks_a_tie_the_same_way_in_any_row_order(
 
     # Assert
     assert selected.get_column("qb_id").to_list() == ["QB_A"]
+
+
+def test_compute_qb_opponent_profiles_pools_every_rate_over_the_defenses_games() -> None:
+    """Verify each faced defense's rates are pooled over its other games, not averaged per game.
+
+    KC (DEN's opponent) faced LV's passer (5 of 10, 2 of 2 carries for 10 yards, CPOE +6.0 over 9
+    plays) and MIA's (24 of 40, 3 of 6 carries for 9 yards, CPOE -1.5 over 36 plays).
+    """
+    # Arrange
+    cpoe = CPOE_COLUMN
+    weekly_df = pl.DataFrame(
+        {
+            "team": ["DEN", "LV", "MIA", "KC", "KC"],
+            "opponent_team": ["KC", "KC", "KC", "LV", "MIA"],
+            "week": [1, 2, 3, 2, 3],
+            "points_allowed": [20, 24, 21, 24, 21],
+        }
+    )
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["DEN", "LV", "MIA"],
+            "week": [1, 2, 3],
+            "qb_id": ["QB_DEN", "QB_LV", "QB_MIA"],
+            "qb_name": ["Denver QB", "Raiders QB", "Miami QB"],
+            "qb_attempts": [25, 10, 40],
+            "qb_completions": [15, 5, 24],
+            "qb_pass_yards": [200.0, 60.0, 340.0],
+            "qb_pass_touchdowns": [1, 0, 3],
+            "qb_interceptions": [0, 1, 1],
+            "qb_completion_pct": [0.6, 0.5, 0.6],
+            "qb_passer_rating": [95.0, 29.6, 99.4],
+            "qb_carries": [3, 2, 6],
+            "qb_rushing_yards": [12.0, 10.0, 9.0],
+            "qb_yards_per_carry": [4.0, 5.0, 1.5],
+            cpoe: [1.0, 6.0, -1.5],
+            numerator_column(cpoe): [10.0, 54.0, -54.0],
+            denominator_column(cpoe): [10, 9, 36],
+        }
+    )
+    qb_season_df = pl.DataFrame({"qb_id": ["QB_DEN"], "qb_name": ["Denver QB"], "team": ["DEN"]})
+
+    # Act
+    profiles, _ = qb_opponent_stats.compute_qb_opponent_profiles(weekly_df, qb_df, qb_season_df)
+
+    # Assert
+    assert profiles is not None
+    row = profiles.row(0, named=True)
+    assert row["qopp_qb_completion_pct"] == pytest.approx(29 / 50)
+    assert row["qopp_qb_yards_per_carry"] == pytest.approx(19 / 8)
+    assert row[f"qopp_{cpoe}"] == pytest.approx(0.0)
+    # Passer rating of 29 of 50, 400 yards, 3 TD, 2 INT.
+    completion = min(max((29 / 50 - 0.3) * 5, 0.0), 2.375)
+    yards = min(max((400 / 50 - 3.0) * 0.25, 0.0), 2.375)
+    touchdowns = min(max(3 / 50 * 20, 0.0), 2.375)
+    interceptions = min(max(2.375 - 2 / 50 * 25, 0.0), 2.375)
+    rating = round((completion + yards + touchdowns + interceptions) / 6 * 100, 1)
+    assert row["qopp_qb_passer_rating"] == pytest.approx(rating)
+    assert not [column for column in row if "_num_" in column or "_den_" in column]

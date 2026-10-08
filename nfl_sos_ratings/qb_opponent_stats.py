@@ -4,8 +4,9 @@ import polars as pl
 
 from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
 from nfl_sos_ratings.opponent_stats import is_division_opponent
-from nfl_sos_ratings.qb_stats import select_primary_qb_rows
-from nfl_sos_ratings.team_stats import compute_team_stats_excluding_opponent
+from nfl_sos_ratings.pooled_rates import is_rate_part, pooled_rate, rate_parts
+from nfl_sos_ratings.qb_stats import QB_RATES, qb_rate_exprs, select_primary_qb_rows
+from nfl_sos_ratings.team_stats import compute_team_stats_excluding_opponents
 
 DEFENSIVE_CONTEXT_COLS: list[str] = [
     "points_allowed",
@@ -16,16 +17,17 @@ DEFENSIVE_CONTEXT_COLS: list[str] = [
     "def_qb_hits",
 ]
 
-_DERIVED_QB_RATE_COLS = {
+# Rates a QB game row lacks or derives, appended after the per-game columns, in this order.
+_ALLOWED_RATES_APPENDED = (
     "qb_yards_per_attempt",
     "qb_touchdown_rate",
     "qb_interception_rate",
     "qb_epa_per_dropback",
     "qb_pass_yards_per_dropback",
-    "qb_td_int_margin_rate",
     "qb_sack_rate",
+    "qb_td_int_margin_rate",
     "qb_any_a",
-}
+)
 
 
 def _normalize_team_abbreviations(df: pl.DataFrame, columns: list[str]) -> pl.DataFrame:
@@ -38,116 +40,84 @@ def _normalize_team_abbreviations(df: pl.DataFrame, columns: list[str]) -> pl.Da
     return df.with_columns(exprs) if exprs else df
 
 
+def _summed(column: str) -> pl.Expr:
+    """Return the total of one QB game-row column over the games a defense faced."""
+    return pl.col(column).sum()
+
+
 def _qb_allowed_rate_exprs(columns: set[str]) -> list[pl.Expr]:
-    """Return the defense-allowed rate aggregations whose inputs are present, in output order."""
-    exprs: list[pl.Expr] = []
-    rate_inputs = [
-        ("qb_pass_yards", "qopp_qb_yards_per_attempt"),
-        ("qb_pass_touchdowns", "qopp_qb_touchdown_rate"),
-        ("qb_interceptions", "qopp_qb_interception_rate"),
+    """Return the defense-allowed rates a QB game row lacks or derives, pooled over its games.
+
+    Each is rebuilt from the totals of its inputs (``QB_RATES``); one whose inputs are absent is
+    left out.
+    """
+    return [
+        expr.alias(f"qopp_{expr.meta.output_name()}")
+        for expr in qb_rate_exprs(columns, _summed, _ALLOWED_RATES_APPENDED)
     ]
-    if "qb_attempts" in columns:
-        attempts_sum = pl.col("qb_attempts").sum()
-        for numerator_col, output_col in rate_inputs:
-            if numerator_col in columns:
-                exprs.append(
-                    pl.when(attempts_sum > 0)
-                    .then(pl.col(numerator_col).sum() / attempts_sum)
-                    .otherwise(None)
-                    .alias(output_col)
-                )
-    if "qb_dropbacks" in columns:
-        dropbacks_sum = pl.col("qb_dropbacks").sum()
-        if "qb_passing_epa" in columns:
-            exprs.append(
-                pl.when(dropbacks_sum > 0)
-                .then(pl.col("qb_passing_epa").sum() / dropbacks_sum)
-                .otherwise(None)
-                .alias("qopp_qb_epa_per_dropback")
-            )
-        if "qb_pass_yards" in columns:
-            exprs.append(
-                pl.when(dropbacks_sum > 0)
-                .then(pl.col("qb_pass_yards").sum() / dropbacks_sum)
-                .otherwise(None)
-                .alias("qopp_qb_pass_yards_per_dropback")
-            )
-        if "qb_sacks" in columns:
-            exprs.append(
-                pl.when(dropbacks_sum > 0)
-                .then(pl.col("qb_sacks").sum() / dropbacks_sum)
-                .otherwise(None)
-                .alias("qopp_qb_sack_rate")
-            )
-        if {"qb_pass_touchdowns", "qb_interceptions"}.issubset(columns):
-            exprs.append(
-                pl.when(dropbacks_sum > 0)
-                .then(
-                    (pl.col("qb_pass_touchdowns").sum() - pl.col("qb_interceptions").sum())
-                    / dropbacks_sum
-                )
-                .otherwise(None)
-                .alias("qopp_qb_td_int_margin_rate")
-            )
-    if {
-        "qb_pass_yards",
-        "qb_pass_touchdowns",
-        "qb_interceptions",
-        "qb_sack_yards_lost",
-        "qb_sacks",
-    }.issubset(columns):
-        denominator = pl.col("qb_attempts").sum() + pl.col("qb_sacks").sum()
-        exprs.append(
-            pl.when(denominator > 0)
-            .then(
-                (
-                    pl.col("qb_pass_yards").sum()
-                    + (20.0 * pl.col("qb_pass_touchdowns").sum())
-                    - (45.0 * pl.col("qb_interceptions").sum())
-                    - pl.col("qb_sack_yards_lost").sum()
-                )
-                / denominator
-            )
-            .otherwise(None)
-            .alias("qopp_qb_any_a")
-        )
-    return exprs
 
 
-def _compute_qb_allowed_stats_excluding_team(
-    weekly_df: pl.DataFrame,
-    qb_df: pl.DataFrame,
-    defense_team: str,
-    evaluated_team: str,
-) -> pl.DataFrame | None:
-    """Compute QB stats allowed by `defense_team`, excluding games versus `evaluated_team`."""
-    defense_games = weekly_df.filter(
-        (pl.col("opponent_team") == defense_team) & (pl.col("team") != evaluated_team)
-    )
-    if defense_games.is_empty():
-        return None
+def _allowed_stat_expr(column: str, columns: set[str], with_parts: set[str]) -> pl.Expr:
+    """Return one QB stat over the games a defense faced.
 
-    qb_allowed = defense_games.join(
-        qb_df,
-        left_on=["team", "week"],
-        right_on=["team_abbr", "week"],
-        how="inner",
-    )
-    if qb_allowed.is_empty():
-        return None
+    A rate is pooled over the games: one in ``with_parts`` (CPOE) through its hidden parts, any
+    other through the totals of its inputs among ``columns`` (``QB_RATES``). A count is averaged
+    per game.
+    """
+    if column in with_parts:
+        return pooled_rate(column)
+    rate = QB_RATES.get(column)
+    if rate is not None and columns.issuperset(rate.inputs):
+        return rate.build(_summed)
+    return pl.col(column).mean()
 
+
+_PAIR_KEYS = ["opponent", "excluded_opponent"]
+
+
+def _qb_allowed_stats_by_pair(
+    weekly_df: pl.DataFrame, qb_df: pl.DataFrame, pairs: pl.DataFrame
+) -> pl.DataFrame:
+    """Return the QB stats each defense allowed in its games not against the team it is paired with.
+
+    ``pairs`` holds the defense as ``team`` and the evaluated team as ``excluded_opponent``. The
+    result has one row per pair whose defense faced a passer in ``qb_df`` in such a game, keyed
+    ``opponent`` (the defense) and ``excluded_opponent``: counts per game, rates pooled over the
+    games (``_allowed_stat_expr``).
+    """
     qb_stat_cols = [
         col
         for col, dtype in zip(qb_df.columns, qb_df.dtypes, strict=True)
-        if dtype.is_numeric() and col != "week" and col not in _DERIVED_QB_RATE_COLS
+        if dtype.is_numeric()
+        and col != "week"
+        and col not in _ALLOWED_RATES_APPENDED
+        and not is_rate_part(col)
     ]
+    empty = pl.DataFrame(schema=dict.fromkeys(_PAIR_KEYS, pl.String))
     if not qb_stat_cols:
-        return None
+        return empty
 
-    agg_exprs = [pl.col(col).mean().alias(f"qopp_{col}") for col in qb_stat_cols]
-    agg_exprs.extend(_qb_allowed_rate_exprs(set(qb_allowed.columns)))
+    faced = weekly_df.select(
+        pl.col("opponent_team").alias("opponent"), pl.col("team").alias("offense"), "week"
+    )
+    qb_allowed = (
+        pairs.select(pl.col("team").alias("opponent"), "excluded_opponent")
+        .unique(maintain_order=True)
+        .join(faced, on="opponent", how="inner")
+        .filter(pl.col("offense") != pl.col("excluded_opponent"))
+        .join(qb_df, left_on=["offense", "week"], right_on=["team_abbr", "week"], how="inner")
+    )
+    if qb_allowed.is_empty():
+        return empty
 
-    return qb_allowed.select([pl.lit(defense_team).alias("opponent"), *agg_exprs])
+    columns = set(qb_allowed.columns)
+    with_parts = set(rate_parts(qb_allowed.columns))
+    agg_exprs = [
+        _allowed_stat_expr(column, columns, with_parts).alias(f"qopp_{column}")
+        for column in qb_stat_cols
+    ]
+    agg_exprs.extend(_qb_allowed_rate_exprs(columns))
+    return qb_allowed.group_by(_PAIR_KEYS, maintain_order=True).agg(agg_exprs)
 
 
 def _select_primary_qb_games(qb_df: pl.DataFrame) -> pl.DataFrame:
@@ -184,41 +154,34 @@ def _qb_identity_filter(qb_row: dict[str, object], qb_keys: list[str]) -> pl.Exp
 
 
 def _qb_opponent_rows(
-    weekly_df: pl.DataFrame,
-    primary_qb_df: pl.DataFrame,
+    team_rows: pl.DataFrame,
+    allowed_rows: pl.DataFrame,
     opponents: list[str],
     evaluated_team: str,
-) -> tuple[list[pl.DataFrame], list[dict[str, str | bool | int]]]:
-    """Return one head-to-head-excluded profile row per faced opponent, plus detail records."""
-    opp_rows: list[pl.DataFrame] = []
-    team_details: list[dict[str, str | bool | int]] = []
-    for opponent_value in opponents:
-        opponent = str(opponent_value)
-        opp_stats = compute_team_stats_excluding_opponent(weekly_df, opponent, evaluated_team)
-        games_included = (
-            int(opp_stats.select("games_included").item()) if opp_stats is not None else 0
-        )
-        team_details.append(
-            {
-                "opponent": opponent,
-                "division": is_division_opponent(evaluated_team, opponent),
-                "games_included": games_included,
-            }
-        )
-        if opp_stats is None:
-            continue
+) -> tuple[pl.DataFrame, list[dict[str, str | bool | int]]]:
+    """Return one head-to-head-excluded profile row per faced opponent, plus detail records.
 
-        opp_qb_allowed = _compute_qb_allowed_stats_excluding_team(
-            weekly_df, primary_qb_df, opponent, evaluated_team
-        )
-        opp_row = opp_stats.rename({"team": "opponent"}).with_columns(
-            pl.lit(evaluated_team).alias("team"),
-            pl.lit(opponent).alias("opponent"),
-        )
-        if opp_qb_allowed is not None:
-            opp_row = opp_row.join(opp_qb_allowed, on="opponent", how="left")
-        opp_rows.append(opp_row)
-    return opp_rows, team_details
+    ``team_rows`` and ``allowed_rows`` are keyed by ``opponent`` and ``excluded_opponent``: each
+    opponent's own stats, and the QB stats it allowed, in its games not against the evaluated
+    team. An opponent without such games gets a detail record and no row.
+    """
+    faced = pl.DataFrame(
+        {"opponent": opponents, "excluded_opponent": [evaluated_team] * len(opponents)},
+        schema=dict.fromkeys(_PAIR_KEYS, pl.String),
+    )
+    rows = faced.join(team_rows, on=_PAIR_KEYS, how="inner", maintain_order="left").join(
+        allowed_rows, on=_PAIR_KEYS, how="left", maintain_order="left"
+    )
+    games = dict(rows.select("opponent", "games_included").iter_rows())
+    team_details: list[dict[str, str | bool | int]] = [
+        {
+            "opponent": opponent,
+            "division": is_division_opponent(evaluated_team, opponent),
+            "games_included": int(games.get(opponent, 0)),
+        }
+        for opponent in opponents
+    ]
+    return rows, team_details
 
 
 def _qb_profile_agg_exprs(combined: pl.DataFrame) -> list[pl.Expr]:
@@ -261,24 +224,35 @@ def compute_qb_opponent_profiles(
         how="inner",
     )
 
+    faced: list[tuple[dict[str, object], str, str, list[str]]] = []
     for qb_row in qb_rows:
         team_label = str(qb_row.get("team", ""))
         qb_label = _details_key(qb_row, qb_keys, team_label)
-        qb_filter = _qb_identity_filter(qb_row, qb_keys)
+        qb_games = qb_games_with_opponents.filter(_qb_identity_filter(qb_row, qb_keys))
+        faced.append((qb_row, team_label, qb_label, _get_faced_opponents(qb_games)))
 
-        qb_games = qb_games_with_opponents.filter(qb_filter)
+    # Every (opponent, evaluated team) pair at once: each opponent profiled without its games
+    # against the passer's team, as its own stats and as the passing it allowed.
+    pairs = pl.DataFrame(
+        [(opponent, team) for _, team, _, opponents in faced for opponent in opponents],
+        schema={"team": pl.String, "excluded_opponent": pl.String},
+        orient="row",
+    )
+    team_rows = compute_team_stats_excluding_opponents(weekly_df, pairs).rename(
+        {"team": "opponent"}
+    )
+    allowed_rows = _qb_allowed_stats_by_pair(weekly_df, primary_qb_df, pairs)
 
-        opponents = _get_faced_opponents(qb_games)
+    for qb_row, team_label, qb_label, opponents in faced:
         if not opponents:
             details[qb_label] = []
             continue
 
-        opp_rows, team_details = _qb_opponent_rows(weekly_df, primary_qb_df, opponents, team_label)
+        combined, team_details = _qb_opponent_rows(team_rows, allowed_rows, opponents, team_label)
         details[qb_label] = team_details
 
-        if not opp_rows:
+        if combined.is_empty():
             continue
-        combined = pl.concat(opp_rows)
         agg_exprs = _qb_profile_agg_exprs(combined)
         if not agg_exprs:
             continue

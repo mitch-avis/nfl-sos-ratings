@@ -12,7 +12,7 @@ from typing import TypedDict
 import polars as pl
 
 from nfl_sos_ratings.config import TEAM_TO_DIVISION
-from nfl_sos_ratings.team_stats import compute_team_stats_excluding_opponent
+from nfl_sos_ratings.team_stats import compute_team_stats_excluding_opponents
 
 type OpponentDetail = dict[str, str | bool | int]
 
@@ -37,6 +37,46 @@ def is_division_opponent(team: str, opponent: str) -> bool:
     return TEAM_TO_DIVISION.get(team) == TEAM_TO_DIVISION.get(opponent)
 
 
+def _opponent_pairs(team: str, opponents: list[str]) -> pl.DataFrame:
+    """Return ``team``'s opponents, each paired with ``team`` as the opponent to leave out."""
+    return pl.DataFrame(
+        {"team": opponents, "excluded_opponent": [team] * len(opponents)},
+        schema={"team": pl.String, "excluded_opponent": pl.String},
+    )
+
+
+def _profile_from_rows(
+    team: str, opponents: list[str], opponent_rows: pl.DataFrame
+) -> OpponentProfile:
+    """Return ``team``'s averaged profile from its opponents' rows without head-to-head games.
+
+    ``opponent_rows`` holds one row per opponent with games left
+    (``compute_team_stats_excluding_opponents``); each counts once in the average.
+    """
+    games = dict(opponent_rows.select("team", "games_included").iter_rows())
+    details: list[OpponentDetail] = [
+        {
+            "opponent": opponent,
+            "division": is_division_opponent(team, opponent),
+            "games_included": int(games.get(opponent, 0)),
+        }
+        for opponent in opponents
+    ]
+
+    averaged = None
+    if not opponent_rows.is_empty():
+        combined = opponent_rows.drop("excluded_opponent").sort("team")
+        numeric = [
+            column
+            for column, dtype in combined.schema.items()
+            if dtype.is_numeric() and column != "games_included"
+        ]
+        averaged = combined.select(
+            pl.lit(team).alias("team"), *[pl.col(column).mean() for column in numeric]
+        )
+    return {"team_stats": averaged, "opponents": opponents, "opponent_details": details}
+
+
 def compute_opponent_profile(
     weekly_df: pl.DataFrame, team: str, schedule_df: pl.DataFrame
 ) -> OpponentProfile:
@@ -53,45 +93,31 @@ def compute_opponent_profile(
 
     """
     opponents = get_opponents(schedule_df, team)
-    rows: list[pl.DataFrame] = []
-    details: list[OpponentDetail] = []
-    for opponent in opponents:
-        profile = compute_team_stats_excluding_opponent(weekly_df, opponent, exclude_opponent=team)
-        games = 0
-        if profile is not None:
-            rows.append(profile)
-            games = int(profile.get_column("games_included").item())
-        details.append(
-            {
-                "opponent": opponent,
-                "division": is_division_opponent(team, opponent),
-                "games_included": games,
-            }
-        )
-
-    averaged = None
-    if rows:
-        combined = pl.concat(rows)
-        numeric = [
-            column
-            for column, dtype in combined.schema.items()
-            if dtype.is_numeric() and column != "games_included"
-        ]
-        averaged = combined.select(
-            pl.lit(team).alias("team"), *[pl.col(column).mean() for column in numeric]
-        )
-    return {"team_stats": averaged, "opponents": opponents, "opponent_details": details}
+    rows = compute_team_stats_excluding_opponents(weekly_df, _opponent_pairs(team, opponents))
+    return _profile_from_rows(team, opponents, rows)
 
 
 def compute_all_opponent_profiles(
     weekly_df: pl.DataFrame, schedule_df: pl.DataFrame
 ) -> tuple[pl.DataFrame | None, dict[str, list[OpponentDetail]]]:
-    """Return every team's averaged opponent profile plus per-team opponent details."""
-    rows: list[pl.DataFrame] = []
+    """Return every team's averaged opponent profile plus per-team opponent details.
+
+    Every opponent is profiled without its games against each team it played in one aggregation.
+    """
+    teams = sorted(weekly_df.get_column("team").unique().cast(pl.String).to_list())
+    opponents = {team: get_opponents(schedule_df, team) for team in teams}
+    pairs = pl.concat(
+        [_opponent_pairs(team, opponents[team]) for team in teams],
+        how="vertical",
+    )
+    rows = compute_team_stats_excluding_opponents(weekly_df, pairs)
+    profiles: list[pl.DataFrame] = []
     details: dict[str, list[OpponentDetail]] = {}
-    for team in sorted(weekly_df.get_column("team").unique().cast(pl.String).to_list()):
-        profile = compute_opponent_profile(weekly_df, team, schedule_df)
+    for team in teams:
+        profile = _profile_from_rows(
+            team, opponents[team], rows.filter(pl.col("excluded_opponent") == team)
+        )
         if profile["team_stats"] is not None:
-            rows.append(profile["team_stats"])
+            profiles.append(profile["team_stats"])
         details[team] = profile["opponent_details"]
-    return (pl.concat(rows).sort("team") if rows else None), details
+    return (pl.concat(profiles).sort("team") if profiles else None), details

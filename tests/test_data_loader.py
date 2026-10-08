@@ -5,6 +5,7 @@ import pytest
 
 from nfl_sos_ratings import data_loader
 from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
+from nfl_sos_ratings.pooled_rates import denominator_column, numerator_column
 from tests.stubs import stub
 
 
@@ -146,11 +147,8 @@ def test_load_weekly_team_stats_normalizes_rams_alias(monkeypatch: pytest.Monkey
     assert result.select("opponent_team").item() == "SEA"
 
 
-def test_load_weekly_team_stats_prefers_official_team_stats_for_published_splits(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Verify official weekly team stats replace published split columns and mirrors."""
-    # Arrange
+def _stub_official_team_stats_sources(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub one DEN-KC game whose official team stats differ from its play-by-play totals."""
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC", "2025_01_DEN_KC", "2025_01_DEN_KC"],
@@ -231,6 +229,14 @@ def test_load_weekly_team_stats_prefers_official_team_stats_for_published_splits
     monkeypatch.setattr(data_loader.nfl, "load_team_stats", stub(lambda: team_stats))
     monkeypatch.setattr(data_loader.nfl, "load_schedules", stub(lambda: schedule))
 
+
+def test_load_weekly_team_stats_prefers_official_team_stats_for_published_splits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify official weekly team stats replace published split columns and mirrors."""
+    # Arrange
+    _stub_official_team_stats_sources(monkeypatch)
+
     # Act
     result = data_loader.load_weekly_team_stats(2025).sort("team")
 
@@ -258,6 +264,23 @@ def test_load_weekly_team_stats_prefers_official_team_stats_for_published_splits
     assert den.select("passing_cpoe_allowed").item() == -1.5
     assert den.select("passing_epa_per_offensive_snap").item() == pytest.approx(5.5 / 2.0)
     assert den.select("passing_epa_allowed_per_defensive_snap").item() == pytest.approx(1.7)
+
+
+def test_load_weekly_team_stats_pools_per_snap_rates_over_the_official_totals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify each per-snap rate's hidden numerator is the official total the rate divides."""
+    # Arrange
+    _stub_official_team_stats_sources(monkeypatch)
+
+    # Act
+    result = data_loader.load_weekly_team_stats(2025)
+
+    # Assert
+    den = result.filter(pl.col("team") == "DEN").row(0, named=True)
+    rate = "passing_yards_per_offensive_snap"
+    assert den[numerator_column(rate)] == 250.0
+    assert den[rate] == pytest.approx(den[numerator_column(rate)] / den[denominator_column(rate)])
 
 
 def test_load_schedule_filters_regular_season(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -774,6 +797,8 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
         "qb_fourth_quarter_comeback",
         "qb_game_winning_drive",
         "qb_completion_percentage_above_expectation",
+        numerator_column("qb_completion_percentage_above_expectation"),
+        denominator_column("qb_completion_percentage_above_expectation"),
         "qb_passer_rating",
         "qb_completion_pct",
         "qb_carries",
@@ -824,6 +849,8 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": -6.0,
+            numerator_column("qb_completion_percentage_above_expectation"): -6.0,
+            denominator_column("qb_completion_percentage_above_expectation"): 1,
             "qb_passer_rating": 0.0,
             "qb_completion_pct": 0.0,
             "qb_carries": 0,
@@ -873,6 +900,8 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": None,
+            numerator_column("qb_completion_percentage_above_expectation"): None,
+            denominator_column("qb_completion_percentage_above_expectation"): None,
             "qb_passer_rating": None,
             "qb_completion_pct": None,
             "qb_carries": 0,
@@ -922,6 +951,8 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": 1.0,
+            numerator_column("qb_completion_percentage_above_expectation"): 2.0,
+            denominator_column("qb_completion_percentage_above_expectation"): 2,
             "qb_passer_rating": 125.0,
             "qb_completion_pct": 0.5,
             "qb_carries": 0,
@@ -971,6 +1002,8 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_fourth_quarter_comeback": 0,
             "qb_game_winning_drive": 0,
             "qb_completion_percentage_above_expectation": 1.5,
+            numerator_column("qb_completion_percentage_above_expectation"): 1.5,
+            denominator_column("qb_completion_percentage_above_expectation"): 1,
             "qb_passer_rating": 118.8,
             "qb_completion_pct": 1.0,
             "qb_carries": 0,
@@ -2170,3 +2203,46 @@ def test_load_weekly_player_stats_blanks_stats_nflverse_lacks_that_season(
         column for column in result.columns if result.get_column(column).is_null().all()
     } == blank
     assert result.get_column("def_sacks").to_list() == [1.0, 0.5]
+
+
+def test_load_qb_stats_keeps_what_pools_cpoe_over_games(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify QB game rows carry CPOE's hidden parts.
+
+    The parts are the CPOE summed over the plays that have one and their count (a throwaway has
+    none).
+    """
+    # Arrange
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2010_01_DEN_JAX"] * 3,
+            "season_type": ["REG"] * 3,
+            "week": [1] * 3,
+            "posteam": ["DEN"] * 3,
+            "passer_player_id": ["00-0031234"] * 3,
+            "passer_player_name": ["John Doe"] * 3,
+            "qb_dropback": [1, 1, 1],
+            "pass": [1, 1, 1],
+            "complete_pass": [1, 0, 0],
+            "passing_yards": [10.0, 0.0, 0.0],
+            "pass_touchdown": [0, 0, 0],
+            "interception": [0, 0, 0],
+            "sack": [0, 0, 0],
+            "fumble_lost": [0, 0, 0],
+            "qb_epa": [0.7, -0.4, -0.3],
+            "cpoe": [30.0, -10.0, None],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_snap_counts", stub(pl.DataFrame))
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(pl.DataFrame))
+    monkeypatch.setattr(data_loader.nfl, "load_players", pl.DataFrame)
+    monkeypatch.setattr(data_loader.nfl, "load_rosters_weekly", stub(pl.DataFrame))
+    cpoe = "qb_completion_percentage_above_expectation"
+
+    # Act
+    result = data_loader.load_qb_stats(2010)
+
+    # Assert
+    assert result.select(cpoe, numerator_column(cpoe), denominator_column(cpoe)).rows() == [
+        (10.0, 20.0, 2)
+    ]

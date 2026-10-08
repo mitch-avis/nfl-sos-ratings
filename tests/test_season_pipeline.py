@@ -9,6 +9,8 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings import main
+from nfl_sos_ratings.pooled_rates import denominator_column, is_rate_part, numerator_column
+from nfl_sos_ratings.qb_stats import CPOE_COLUMN
 from nfl_sos_ratings.row_order import data_file_row_order
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
@@ -16,6 +18,7 @@ from nfl_sos_ratings.team_rating import (
     fit_team_ratings,
     fit_team_ratings_with_previous_penalties,
 )
+from nfl_sos_ratings.team_stats import add_per_snap_rates
 from tests.stubs import stub
 
 _TEAMS = ("BUF", "MIA", "NE", "NYJ")
@@ -58,7 +61,8 @@ def _weekly_df() -> pl.DataFrame:
                     "st_epa": 0.05 if is_home else -0.05,
                 }
             )
-    return pl.DataFrame(rows)
+    # The loaders build per-snap rates with their hidden numerators and denominators.
+    return add_per_snap_rates(pl.DataFrame(rows))
 
 
 def _qb_df() -> pl.DataFrame:
@@ -77,6 +81,10 @@ def _qb_df() -> pl.DataFrame:
                 "qb_attempts": 35,
                 "qb_passing_epa": epa * 38,
                 "qb_epa_per_dropback": epa,
+                # The loaders give CPOE its hidden numerator and denominator.
+                CPOE_COLUMN: 2.0,
+                numerator_column(CPOE_COLUMN): 60.0,
+                denominator_column(CPOE_COLUMN): 30,
             }
         )
     return pl.DataFrame(rows)
@@ -832,3 +840,33 @@ def test_main_wraps_stdout_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
     # Assert
     assert seasons == [2024]
     assert isinstance(main.sys.stdout, io.StringIO)
+
+
+def test_run_season_writes_no_hidden_rate_parts(season_outputs: Path) -> None:
+    # Act
+    columns = {
+        path.name: [column for column in pl.read_parquet_schema(path) if is_rate_part(column)]
+        for path in sorted(season_outputs.glob("2025_*.parquet"))
+    }
+
+    # Assert
+    assert columns
+    assert {name: parts for name, parts in columns.items() if parts} == {}
+
+
+def test_run_season_pools_a_season_rate_over_the_teams_games(season_outputs: Path) -> None:
+    # Arrange
+    games = _weekly_df()
+    expected = dict(
+        games.group_by("team")
+        .agg((pl.col("points_for").sum() / pl.col("offensive_snaps").sum()).alias("rate"))
+        .rows()
+    )
+
+    # Act
+    season = pl.read_parquet(season_outputs / "2025_team_per_game_stats.parquet")
+
+    # Assert
+    assert dict(season.select("team", "points_per_offensive_snap").rows()) == pytest.approx(
+        expected
+    )

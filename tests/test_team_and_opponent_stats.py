@@ -4,6 +4,7 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings import opponent_stats, team_stats
+from nfl_sos_ratings.pooled_rates import denominator_column, numerator_column
 
 
 def _weekly_df() -> pl.DataFrame:
@@ -878,3 +879,192 @@ def test_opponent_profiles_of_a_stat_the_season_lacks_stay_blank() -> None:
     # Assert
     assert profiles is not None
     assert profiles.get_column("def_tackles_for_loss").to_list() == [None] * 3
+
+
+def _pooled_weekly_df() -> pl.DataFrame:
+    """Return game rows carrying rates with their numerators and denominators, as built.
+
+    DEN completes 1 of 1 passes in week 1 and 1 of 9 in week 2 (season 2 of 10); KC completes 3 of
+    4 against DEN and 6 of 6 against LAC; LAC completes 5 of 10 against KC.
+    """
+    completions = [1, 1, 3, 6, 5]
+    attempts = [1, 9, 4, 6, 10]
+    return pl.DataFrame(
+        {
+            "team": ["DEN", "DEN", "KC", "KC", "LAC"],
+            "opponent_team": ["KC", "KC", "DEN", "LAC", "KC"],
+            "week": [1, 2, 1, 3, 3],
+            "completions": completions,
+            "attempts": attempts,
+            "completion_pct": [c / a for c, a in zip(completions, attempts, strict=True)],
+            numerator_column("completion_pct"): completions,
+            denominator_column("completion_pct"): attempts,
+        }
+    )
+
+
+def test_compute_all_teams_per_game_pools_each_rate_over_the_season() -> None:
+    # Arrange
+    weekly = _pooled_weekly_df()
+
+    # Act
+    per_game = team_stats.compute_all_teams_per_game(weekly)
+
+    # Assert
+    den = per_game.filter(pl.col("team") == "DEN").row(0, named=True)
+    # Season 2 of 10, not the mean of the game rates (1.0 and 0.111).
+    assert den["completion_pct"] == pytest.approx(0.2)
+    assert den["completions"] == 1.0
+    assert not [column for column in per_game.columns if column.startswith("_")]
+
+
+def test_compute_team_stats_excluding_opponent_pools_the_remaining_games() -> None:
+    # Arrange
+    weekly = pl.concat(
+        [
+            _pooled_weekly_df(),
+            _pooled_weekly_df()
+            .filter(pl.col("team") == "KC")
+            .with_columns(
+                pl.lit(4, dtype=pl.Int64).alias("week"), pl.lit("BUF").alias("opponent_team")
+            ),
+        ]
+    )
+
+    # Act
+    kc = team_stats.compute_team_stats_excluding_opponent(weekly, "KC", "DEN")
+
+    # Assert
+    assert kc is not None
+    # Without DEN: 6 of 6 against LAC and 3 of 4 plus 6 of 6 against BUF, 15 of 16.
+    assert kc.row(0, named=True)["completion_pct"] == pytest.approx(15 / 16)
+    assert kc.row(0, named=True)["games_included"] == 3
+
+
+def test_opponent_profile_pools_each_opponents_rate_over_its_other_games() -> None:
+    # Arrange
+    completions = [2, 3, 1, 1]
+    attempts = [4, 4, 1, 9]
+    weekly = pl.DataFrame(
+        {
+            "team": ["DEN", "KC", "KC", "KC"],
+            "opponent_team": ["KC", "DEN", "LAC", "BUF"],
+            "week": [1, 1, 2, 3],
+            "completion_pct": [c / a for c, a in zip(completions, attempts, strict=True)],
+            numerator_column("completion_pct"): completions,
+            denominator_column("completion_pct"): attempts,
+        }
+    )
+    schedule = pl.DataFrame({"home_team": ["DEN"], "away_team": ["KC"]})
+
+    # Act
+    profile = opponent_stats.compute_opponent_profile(weekly, "DEN", schedule)
+
+    # Assert
+    # DEN's one opponent, KC, without the DEN game: 1 of 1 and 1 of 9, so 2 of 10.
+    assert profile["team_stats"] is not None
+    assert profile["team_stats"].row(0, named=True)["completion_pct"] == pytest.approx(0.2)
+
+
+def test_season_rates_built_from_other_rates_use_the_pooled_inputs() -> None:
+    # Arrange
+    rates = {
+        "completion_pct": ([1, 1], [1, 9]),
+        "yards_per_attempt": ([20, 30], [1, 9]),
+        "passing_td_rate_per_attempt": ([1, 0], [1, 9]),
+        "int_rate_per_attempt": ([0, 1], [1, 9]),
+        "epa_per_offensive_snap": ([3.0, -2.0], [10, 40]),
+        "epa_per_defensive_snap_allowed": ([1.0, 4.0], [20, 30]),
+    }
+    columns: dict[str, list[object]] = {"team": ["DEN", "DEN"], "week": [1, 2]}
+    for rate, (numerators, denominators) in rates.items():
+        columns[rate] = [n / d for n, d in zip(numerators, denominators, strict=True)]
+        columns[numerator_column(rate)] = list(numerators)
+        columns[denominator_column(rate)] = list(denominators)
+    columns["team_passer_rating"] = [158.3, 0.0]
+    columns["epa_margin_per_play"] = [0.25, -0.18]
+    weekly = pl.DataFrame(columns)
+
+    # Act
+    den = team_stats.compute_all_teams_per_game(weekly).row(0, named=True)
+
+    # Assert
+    # Season: 2 of 10 complete, 5.0 yards, 1 TD, and 1 INT per 10 attempts.
+    completion = min(max((0.2 - 0.3) * 5, 0.0), 2.375)
+    yards = min(max((5.0 - 3.0) * 0.25, 0.0), 2.375)
+    touchdowns = min(max(0.1 * 20, 0.0), 2.375)
+    interceptions = min(max(2.375 - 0.1 * 25, 0.0), 2.375)
+    expected_rating = (completion + yards + touchdowns + interceptions) / 6 * 100
+    assert den["team_passer_rating"] == pytest.approx(expected_rating)
+    assert den["epa_margin_per_play"] == pytest.approx(1.0 / 50 - 5.0 / 50)
+
+
+def test_compute_all_teams_per_game_keeps_the_longest_play_of_the_season() -> None:
+    # Arrange
+    weekly = _weekly_df().with_columns(
+        pl.Series("longest_pass", [40.0, 72.0, 15.0, 33.0, 21.0, 18.0, 64.0])
+    )
+
+    # Act
+    per_game = team_stats.compute_all_teams_per_game(weekly)
+
+    # Assert
+    assert dict(per_game.select("team", "longest_pass").rows()) == {
+        "DEN": 72.0,
+        "KC": 33.0,
+        "LAC": 64.0,
+    }
+
+
+def test_a_rate_built_from_rates_without_their_parts_is_averaged_per_game() -> None:
+    # Arrange
+    weekly = pl.DataFrame(
+        {"team": ["DEN", "DEN"], "week": [1, 2], "team_passer_rating": [100.0, 80.0]}
+    )
+
+    # Act
+    per_game = team_stats.compute_all_teams_per_game(weekly)
+
+    # Assert
+    assert per_game.get_column("team_passer_rating").to_list() == [90.0]
+
+
+def test_compute_team_stats_excluding_opponents_matches_each_pair_alone() -> None:
+    # Arrange
+    weekly = _pooled_weekly_df()
+    pairs = pl.DataFrame(
+        {"team": ["KC", "KC", "DEN", "LAC"], "excluded_opponent": ["DEN", "LAC", "KC", "KC"]}
+    )
+
+    # Act
+    batch = team_stats.compute_team_stats_excluding_opponents(weekly, pairs)
+
+    # Assert
+    alone = [
+        single.with_columns(pl.lit(excluded).alias("excluded_opponent"))
+        for team, excluded in pairs.rows()
+        if (single := team_stats.compute_team_stats_excluding_opponent(weekly, team, excluded))
+        is not None
+    ]
+    expected = pl.concat(alone).select(batch.columns).sort("team", "excluded_opponent")
+    assert batch.sort("team", "excluded_opponent").equals(expected)
+    assert batch.select("team", "excluded_opponent").sort("team", "excluded_opponent").rows() == [
+        ("KC", "DEN"),
+        ("KC", "LAC"),
+    ]
+
+
+def test_opponent_rows_average_the_longest_play_per_game() -> None:
+    """Verify an opponent's longest play stays its per-game mean (season rows keep the maximum)."""
+    # Arrange
+    weekly = _weekly_df().with_columns(
+        pl.Series("longest_pass", [40.0, 72.0, 15.0, 33.0, 21.0, 18.0, 64.0])
+    )
+
+    # Act
+    kc = team_stats.compute_team_stats_excluding_opponent(weekly, "KC", "DEN")
+
+    # Assert
+    assert kc is not None
+    # KC without DEN: 33 against BUF and 21 against LAC.
+    assert kc.get_column("longest_pass").item() == 27.0

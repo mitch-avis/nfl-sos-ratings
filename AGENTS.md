@@ -122,9 +122,10 @@ hand-edit `uv.lock` or any generated `requirements*.txt` export.
   ratings are `team_rating` and `qb_rating`, both on the shared solver in `ridge`; `srs` is the
   score-based reference, and `rating_ranges` summarizes game-bootstrap refits of both into rank
   ranges and head-to-head chances. `opponent_stats` and `qb_opponent_stats` build the descriptive
-  head-to-head-excluded opponent profiles. `main` runs one season, `pipeline` runs them all, and
-  `cli` is the `nfl-sos-ratings` front door. `ui_data` and `ui_api` serve the web app's JSON API
-  and its built files.
+  head-to-head-excluded opponent profiles, and `pooled_rates` pools rates over games for them and
+  the season rows. `main` runs one season, `pipeline` runs them all, and `cli` is the
+  `nfl-sos-ratings` front door. `ui_data` and `ui_api` serve the web app's JSON API and its built
+  files.
 - `nfl_sos_ratings/metrics/`: the metric registry and the catalog generator;
   `nfl_sos_ratings/validation/`: the walk-forward validation and its report. Read the module you
   are changing rather than assuming it.
@@ -187,6 +188,13 @@ These are correctness invariants specific to this project. Linters will not catc
   comparisons and averaged opponent profiles use per-game and per-play rates (teams: often
   per-snap; QBs: per-dropback, per-attempt, or per-carry by subcategory). Keep raw totals only as
   display columns on a subject's own profile.
+- **Pool rates over games; never average game rates.** A rate over several games (a season row,
+  an opponent's games without the head-to-head ones) is its summed numerator over its summed
+  denominator, and a mean over events (yards per drive) its summed values over their count. A new
+  game-level rate carries its numerator and denominator as hidden `_num_<rate>` and
+  `_den_<rate>` columns (`pooled_rates`), or, if it is a formula of other rates (passer rating, a
+  margin), an entry in `TEAM_FORMULA_RATES` or `QB_RATES`; a test fails for a team rate with
+  neither. Writers drop the hidden columns.
 - **A stat the source lacks is null, not 0.** When nflverse has no value for a field in a season
   (air yards before 2006, QB hits in 2003-2005), the loaders blank it (`_PBP_FIELD_GAPS`,
   `_PLAYER_STAT_GAPS` in `data_loader`), stats built on it stay null for every team, and a
