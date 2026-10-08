@@ -1025,9 +1025,26 @@ Proposal (one small pull request after the current one merges):
   from 11th to 8th (0.102 to 0.149). Counting them changes a published rating, so it needs a
   protocol here before any code. Until then `qb_scramble_rate` divides scrambles by dropbacks that
   leave them out.
-- Not fixed: nflverse's weekly player stats give JAX's 2001-2002 home games the opponent's team
-  code, so those QB games find no official row and keep the play-by-play fallback, whose
-  `qb_attempts` counts sacks as attempts (`pass`) and whose passing EPA is play-by-play `qb_epa`.
+- Jacksonville's 2001-2002 home games (branch `fix/jax-team-codes`; `data/` not rebuilt). In these
+  16 games nflverse credits every player to the visiting team: the play-by-play player team columns
+  (`td_team`, `penalty_team`, `fumbled_1_team`, recoveries, tackles), the weekly player stats, and
+  the weekly team stats, which have one row holding both teams' totals (nflverse-pbp issue 92,
+  open; `posteam`, `defteam`, and EPA are right). So JAX's touchdowns, penalties, and fumbles went
+  to the opponent, the official-stat override put both teams' totals in the visitor's offense and
+  JAX's defense allowed, JAX's defenders' sacks and tackles went to the visitor, and JAX's QBs found
+  no official row. `POLARS_MAX_THREADS=1 .venv/bin/python
+  .agents/findings_2026_10_08/one_team_games.py 1999 2025` lists the same 16 games in both
+  sources and no others. The loaders now find such games (`player_team_repair.one_team_games`),
+  rebuild each player's team from the season roster restricted to the game's two teams (2002's
+  roster writes league codes such as HST and CLV, mapped in `data_loader`), take a penalty with no
+  player from the play text, blank `return_team` and `timeout_team` there, and leave those games
+  out of the official team stats so the play-by-play values stand. Scratch 2001 and 2002 builds
+  from `main` and the branch, compared with `nfl-sos-ratings diff-data --before <main> --after
+  <branch> --season <season> --tolerance 1e-9`, changed the team game logs, per-game stats,
+  combined, opponent-profile, and QB stat files; no team rating, range, pair, history, or
+  win-probability file changed, and in the QB ratings file only `qb_attempts_total`, for one
+  passer a season (sacks no longer counted as attempts). JAX's passing yards allowed per game fell
+  from 347.0 to 234.8 in 2001 and from 303.6 to 218.0 in 2002 (the `combined` files).
 - App and registry fixes from the P5 audit (branch `fix/app-stat-display`; no `data/` change):
   Raw Total Stats multiplied `longest_pass` and `longest_rush` by games played (they now have the
   registry shape `max`); the detail page's "vs Season" column compared per-game matchup averages

@@ -2259,3 +2259,135 @@ def test_load_qb_stats_keeps_what_pools_cpoe_over_games(monkeypatch: pytest.Monk
     assert result.select(cpoe, numerator_column(cpoe), denominator_column(cpoe)).rows() == [
         (10.0, 20.0, 2)
     ]
+
+
+def _broken_game_pbp() -> pl.DataFrame:
+    """Return 2001 PIT-at-JAX plays crediting every tackle to PIT, as nflverse writes them.
+
+    jax_1 plays for JAX and pit_1 for PIT; nflverse names PIT for both.
+    """
+    tacklers = ["jax_1", "pit_1"] * 10
+    return pl.DataFrame(
+        {
+            "game_id": ["2001_01_PIT_JAX"] * 20,
+            "season_type": ["REG"] * 20,
+            "posteam": ["PIT", "JAX"] * 10,
+            "defteam": ["JAX", "PIT"] * 10,
+            "solo_tackle_1_team": ["PIT"] * 20,
+            "solo_tackle_1_player_id": tacklers,
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "roster_codes",
+    [["JAC", "PIT"], ["JAX", "PIT"]],
+    ids=["nflverse codes", "codes already normalized"],
+)
+def test_load_pbp_data_repairs_player_teams_in_games_credited_to_one_team(
+    monkeypatch: pytest.MonkeyPatch, roster_codes: list[str]
+) -> None:
+    # Arrange
+    rosters = pl.DataFrame({"gsis_id": ["jax_1", "pit_1"], "team": roster_codes})
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(_broken_game_pbp))
+    monkeypatch.setattr(data_loader.nfl, "load_rosters", stub(lambda: rosters))
+
+    # Act
+    result = data_loader.load_pbp_data(2001)
+
+    # Assert
+    assert result.get_column("solo_tackle_1_team").to_list() == ["JAX", "PIT"] * 10
+
+
+def test_load_pbp_data_reads_no_roster_when_every_game_credits_both_teams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    pbp = _broken_game_pbp().with_columns(pl.Series("solo_tackle_1_team", ["JAX", "PIT"] * 10))
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+    monkeypatch.setattr(data_loader.nfl, "load_rosters", _unexpected_roster_call)
+
+    # Act
+    result = data_loader.load_pbp_data(2001)
+
+    # Assert
+    assert result.get_column("solo_tackle_1_team").to_list() == ["JAX", "PIT"] * 10
+
+
+def _unexpected_roster_call(*_args: object, **_kwargs: object) -> pl.DataFrame:
+    """Fail when a loader reads a roster it does not need."""
+    msg = "roster loaded without a game credited to one team"
+    raise AssertionError(msg)
+
+
+def test_load_weekly_player_stats_repairs_teams_in_games_credited_to_one_team(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    player_stats = pl.DataFrame(
+        {
+            "season_type": ["REG"] * 20,
+            "game_id": ["2001_01_PIT_JAX"] * 20,
+            "player_id": ["jax_1", "pit_1"] * 10,
+            "team": ["PIT"] * 20,
+            "opponent_team": ["JAX"] * 20,
+        }
+    )
+    rosters = pl.DataFrame({"gsis_id": ["jax_1", "pit_1"], "team": ["JAX", "PIT"]})
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(lambda: player_stats))
+    monkeypatch.setattr(data_loader.nfl, "load_rosters", stub(lambda: rosters))
+
+    # Act
+    result = data_loader.load_weekly_player_stats(2001)
+
+    # Assert
+    assert result.select("team", "opponent_team").unique().sort("team").rows() == [
+        ("JAX", "PIT"),
+        ("PIT", "JAX"),
+    ]
+
+
+def test_load_official_weekly_team_stats_drops_games_credited_to_one_team(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    team_stats = pl.DataFrame(
+        {
+            "season_type": ["REG"] * 3,
+            "game_id": ["2001_01_PIT_JAX", "2001_01_DEN_KC", "2001_01_DEN_KC"],
+            "team": ["PIT", "DEN", "KC"],
+            "opponent_team": ["JAX", "KC", "DEN"],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_team_stats", stub(lambda: team_stats))
+
+    # Act
+    result = data_loader.load_official_weekly_team_stats(2001)
+
+    # Assert
+    assert result.get_column("team").to_list() == ["DEN", "KC"]
+
+
+def test_load_weekly_player_stats_reads_the_league_codes_older_rosters_use(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The 2002 roster writes league codes (HST for Houston, CLV for Cleveland, BLT, ARZ, SL)."""
+    # Arrange
+    player_stats = pl.DataFrame(
+        {
+            "season_type": ["REG"] * 20,
+            "game_id": ["2002_08_HOU_JAX"] * 20,
+            "player_id": ["jax_1", "hou_1"] * 10,
+            "team": ["HOU"] * 20,
+            "opponent_team": ["JAX"] * 20,
+        }
+    )
+    rosters = pl.DataFrame({"gsis_id": ["jax_1", "hou_1"], "team": ["JAX", "HST"]})
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(lambda: player_stats))
+    monkeypatch.setattr(data_loader.nfl, "load_rosters", stub(lambda: rosters))
+
+    # Act
+    result = data_loader.load_weekly_player_stats(2002)
+
+    # Assert
+    assert result.get_column("team").to_list() == ["JAX", "HOU"] * 10
