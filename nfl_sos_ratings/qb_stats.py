@@ -859,7 +859,7 @@ def _passer_rating(total: TotalOf) -> pl.Expr:
     return qb_passer_rating_expr(*(total(column) for column in QB_PASSING_TOTALS))
 
 
-# Every quarterback stat rebuilt from totals for a row covering several games (a season row, or
+# Every quarterback rate rebuilt from totals for a row covering several games (a season row, or
 # the passers a defense faced), so each is its season numerator over its season denominator. The
 # order fixes the season row's column order for the ones a game row lacks.
 QB_RATES: dict[str, QbRate] = {
@@ -875,9 +875,6 @@ QB_RATES: dict[str, QbRate] = {
     "qb_scramble_rate": _ratio("qb_scrambles", "qb_dropbacks"),
     "qb_epa_per_dropback": _ratio("qb_passing_epa", "qb_dropbacks"),
     "qb_pass_yards_per_dropback": _ratio("qb_pass_yards", "qb_dropbacks"),
-    "qb_td_int_differential": QbRate(
-        ("qb_pass_touchdowns", "qb_interceptions"), _td_int_differential
-    ),
     "qb_td_int_margin_rate": QbRate(
         ("qb_pass_touchdowns", "qb_interceptions", "qb_dropbacks"), _td_int_margin_rate
     ),
@@ -897,6 +894,15 @@ QB_RATES: dict[str, QbRate] = {
 }
 
 
+# Season-row totals built from other totals, after the rates in the season row's column order.
+# Kept out of ``QB_RATES``, which the QB opponent profiles publish per game.
+_QB_SEASON_TOTALS: dict[str, QbRate] = {
+    "qb_td_int_differential": QbRate(
+        ("qb_pass_touchdowns", "qb_interceptions"), _td_int_differential
+    ),
+}
+
+
 def qb_rate_exprs(available: set[str], total: TotalOf, rates: tuple[str, ...]) -> list[pl.Expr]:
     """Return each of ``rates`` whose game-row inputs are all ``available``, in order.
 
@@ -910,14 +916,19 @@ def qb_rate_exprs(available: set[str], total: TotalOf, rates: tuple[str, ...]) -
 
 
 def _qb_season_rate_exprs(columns: set[str]) -> list[pl.Expr]:
-    """Return every season rate whose totals are present, in output-column order."""
+    """Return every season rate and derived total whose totals are present, in column order."""
     totals = {source: total for source, (total, _) in _QB_TOTAL_COLUMNS.items()}
     available = {source for source, total in totals.items() if total in columns}
 
     def season_total(column: str) -> pl.Expr:
         return pl.col(totals[column])
 
-    return qb_rate_exprs(available, season_total, tuple(QB_RATES))
+    stats = {**QB_RATES, **_QB_SEASON_TOTALS}
+    return [
+        stats[name].build(season_total).alias(name)
+        for name in stats
+        if available.issuperset(stats[name].inputs)
+    ]
 
 
 def _known_total(column: str) -> pl.Expr:

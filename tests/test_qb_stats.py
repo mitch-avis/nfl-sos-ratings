@@ -1509,3 +1509,15 @@ def test_the_qb_rate_guard_builds_every_rate_the_published_game_logs_carry() -> 
     # Assert
     assert files
     assert {name: columns for name, columns in missing.items() if columns} == {}
+
+
+def test_every_qb_stat_rebuilt_from_totals_for_a_defense_is_a_rate() -> None:
+    """Verify QB_RATES holds rates only, as the QB opponent profiles publish them per game."""
+    # Arrange
+    registry = get_registry()
+
+    # Act
+    shapes = {name: registry.metrics[name].shape for name in qb_stats.QB_RATES}
+
+    # Assert
+    assert {name: shape for name, shape in shapes.items() if shape not in {"rate", "avg"}} == {}
