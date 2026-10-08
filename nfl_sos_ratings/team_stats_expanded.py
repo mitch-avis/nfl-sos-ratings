@@ -90,7 +90,12 @@ _DEFENSE_MIRROR_RENAMES = {
 
 
 def compute_expanded_team_game_stats(pbp_df: pl.DataFrame) -> pl.DataFrame:
-    """Derive the expanded Tier 1 metric surface, one row per team-game."""
+    """Derive the expanded Tier 1 metric surface, one row per team-game.
+
+    Expects play-by-play as ``data_loader`` loads it, every team code normalized: the penalty,
+    touchdown, and drive-start credits compare ``penalty_team``, ``td_team``, and the team in
+    ``drive_start_yard_line`` with ``posteam`` and ``defteam``.
+    """
     if pbp_df.is_empty() or not {"posteam", "defteam"}.issubset(pbp_df.columns):
         return pl.DataFrame(schema={"team": pl.String, "opponent_team": pl.String})
 

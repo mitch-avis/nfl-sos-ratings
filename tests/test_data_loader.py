@@ -4,6 +4,7 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings import data_loader
+from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
 from tests.stubs import stub
 
 
@@ -1103,6 +1104,244 @@ def test_load_playoff_pbp_data_filters_postseason_and_normalizes_teams(
     assert result.select("week").item() == 20
     assert result.select("posteam").item() == "DEN"
     assert result.select("defteam").item() == "KC"
+
+
+# Every play-by-play column that holds a team code in the nflverse files for 1999-2026: plain
+# codes, then yard lines written "<team> <yards>". nflverse writes the Rams as LA in each.
+_PBP_TEAM_CODE_COLUMNS = (
+    "posteam",
+    "defteam",
+    "home_team",
+    "away_team",
+    "side_of_field",
+    "timeout_team",
+    "td_team",
+    "return_team",
+    "penalty_team",
+    "fumbled_1_team",
+    "fumbled_2_team",
+    "fumble_recovery_1_team",
+    "fumble_recovery_2_team",
+    "forced_fumble_player_1_team",
+    "forced_fumble_player_2_team",
+    "solo_tackle_1_team",
+    "solo_tackle_2_team",
+    "assist_tackle_1_team",
+    "assist_tackle_2_team",
+    "assist_tackle_3_team",
+    "assist_tackle_4_team",
+    "tackle_with_assist_1_team",
+    "tackle_with_assist_2_team",
+)
+_PBP_YARD_LINE_COLUMNS = ("yrdln", "drive_start_yard_line", "drive_end_yard_line", "end_yard_line")
+
+
+def _play_with_team_codes(season_type: str, team: str) -> dict[str, str]:
+    """Return one play whose every team-code column names ``team``, yard lines at its 25."""
+    return {
+        "season_type": season_type,
+        **dict.fromkeys(_PBP_TEAM_CODE_COLUMNS, team),
+        **dict.fromkeys(_PBP_YARD_LINE_COLUMNS, f"{team} 25"),
+    }
+
+
+@pytest.mark.parametrize(("alias", "canonical"), sorted(TEAM_ABBR_ALIASES.items()))
+def test_load_pbp_data_normalizes_every_team_code_column(
+    monkeypatch: pytest.MonkeyPatch, alias: str, canonical: str
+) -> None:
+    """Verify every column holding a team code is normalized, yard-line text included.
+
+    A raw ``LA`` left in ``penalty_team``, ``td_team``, or ``drive_start_yard_line`` never matches
+    the normalized ``posteam`` (``LAR``), which zeroed the Rams' penalty and touchdown counts.
+    """
+    # Arrange
+    pbp = pl.DataFrame([_play_with_team_codes("REG", alias)])
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+
+    # Act
+    result = data_loader.load_pbp_data(2025)
+
+    # Assert
+    assert result.to_dicts() == [_play_with_team_codes("REG", canonical)]
+
+
+def test_load_playoff_pbp_data_normalizes_every_team_code_column(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify the playoff loader normalizes the same team-code columns as the season loader."""
+    # Arrange
+    pbp = pl.DataFrame([_play_with_team_codes("POST", "LA")])
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+
+    # Act
+    result = data_loader.load_playoff_pbp_data(2025)
+
+    # Assert
+    assert result.to_dicts() == [_play_with_team_codes("POST", "LAR")]
+
+
+def test_load_pbp_data_rewrites_only_the_team_code_in_yard_lines(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify yard lines keep their yards and leave midfield, nulls, and other codes alone.
+
+    Each shape occurs in nflverse yard lines: ``50`` and ``MID 50`` at midfield, ``LAC 30`` (a
+    code that starts like the alias ``LA``), and 2002's ``LA -10`` end yard line.
+    """
+    # Arrange
+    pbp = pl.DataFrame(
+        {
+            "season_type": ["REG"] * 6,
+            "yrdln": ["LA 25", "LAC 30", "50", "MID 50", "LA -10", None],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+
+    # Act
+    result = data_loader.load_pbp_data(2025)
+
+    # Assert
+    assert result.get_column("yrdln").to_list() == [
+        "LAR 25",
+        "LAC 30",
+        "50",
+        "MID 50",
+        "LAR -10",
+        None,
+    ]
+
+
+def test_load_weekly_team_stats_credits_rams_penalties_touchdowns_and_drive_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify Rams team-games count their penalties, touchdowns, and drive starts.
+
+    nflverse writes the Rams as ``LA`` in ``penalty_team``, ``td_team``, and yard lines, not only
+    in ``posteam``. Fixture, SEA at LA: the Rams false-start, run 5 yards, and score on a 70-yard
+    run, a drive from their own 25. Seattle's drive from its own 30 draws Rams pass interference
+    (20 yards), then ends in a fumble the Rams return for a touchdown.
+    """
+    # Arrange
+    game = {"game_id": "2025_01_SEA_LA", "season": 2025, "season_type": "REG", "week": 1}
+    rams_drive = {
+        **game,
+        "posteam": "LA",
+        "defteam": "SEA",
+        "fixed_drive": 1,
+        "fixed_drive_result": "Touchdown",
+        "drive_start_yard_line": "LA 25",
+    }
+    seattle_drive = {
+        **game,
+        "posteam": "SEA",
+        "defteam": "LA",
+        "fixed_drive": 2,
+        "fixed_drive_result": "Opp touchdown",
+        "drive_start_yard_line": "SEA 30",
+    }
+    quiet = {
+        "pass": 0,
+        "rush": 0,
+        "qb_dropback": 0,
+        "rushing_yards": 0.0,
+        "fumble": 0,
+        "fumble_lost": 0,
+        "touchdown": 0,
+        "td_team": None,
+        "penalty": 0,
+        "penalty_team": None,
+        "penalty_type": None,
+        "penalty_yards": None,
+    }
+    pbp = pl.DataFrame(
+        [
+            {
+                **rams_drive,
+                **quiet,
+                "penalty": 1,
+                "penalty_team": "LA",
+                "penalty_type": "False Start",
+                "penalty_yards": 5.0,
+            },
+            {**rams_drive, **quiet, "rush": 1, "rushing_yards": 5.0},
+            {
+                **rams_drive,
+                **quiet,
+                "rush": 1,
+                "rushing_yards": 70.0,
+                "touchdown": 1,
+                "td_team": "LA",
+            },
+            {
+                **seattle_drive,
+                **quiet,
+                "pass": 1,
+                "qb_dropback": 1,
+                "penalty": 1,
+                "penalty_team": "LA",
+                "penalty_type": "Defensive Pass Interference",
+                "penalty_yards": 20.0,
+            },
+            {
+                **seattle_drive,
+                **quiet,
+                "rush": 1,
+                "fumble": 1,
+                "fumble_lost": 1,
+                "touchdown": 1,
+                "td_team": "LA",
+            },
+        ]
+    )
+    schedule = pl.DataFrame(
+        {
+            "game_id": ["2025_01_SEA_LA"],
+            "game_type": ["REG"],
+            "week": [1],
+            "home_team": ["LA"],
+            "away_team": ["SEA"],
+            "home_score": [14],
+            "away_score": [0],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(pl.DataFrame))
+    monkeypatch.setattr(data_loader.nfl, "load_schedules", stub(lambda: schedule))
+    monkeypatch.setattr(data_loader.nfl, "load_team_stats", stub(pl.DataFrame))
+    rams_columns = {
+        "penalties": 2,
+        "penalty_yards": 25.0,
+        "offensive_penalties": 1,
+        "offensive_penalty_yards": 5.0,
+        "defensive_penalties": 1,
+        "defensive_penalty_yards": 20.0,
+        "defensive_pass_interference": 1,
+        # One false start and one penalty over the Rams' two snaps.
+        "presnap_penalty_rate": 0.5,
+        "penalty_rate_per_offensive_snap": 0.5,
+        "penalty_differential": -2,
+        "penalty_yards_differential": -25.0,
+        "def_tds": 1,
+        "fumble_recovery_tds": 1,
+        "total_tds": 2,
+        "avg_starting_field_position": 25.0,
+        "long_field_score_pct": 1.0,
+        "avg_starting_field_position_allowed": 30.0,
+    }
+    seattle_columns = {
+        "penalty_differential": 2,
+        "avg_starting_field_position": 30.0,
+        "avg_starting_field_position_allowed": 25.0,
+    }
+
+    # Act
+    result = data_loader.load_weekly_team_stats(2025)
+
+    # Assert
+    rams = result.filter(pl.col("team") == "LAR").select(list(rams_columns)).to_dicts()
+    seattle = result.filter(pl.col("team") == "SEA").select(list(seattle_columns)).to_dicts()
+    assert rams == [rams_columns]
+    assert seattle == [seattle_columns]
 
 
 def test_load_weekly_player_stats_filters_regular_season_and_normalizes_teams(

@@ -37,6 +37,36 @@ _CACHE_MODE_VARIABLE = "NFLREADPY_CACHE"
 # Seconds to wait on an nflverse release download before failing instead of hanging.
 _RELEASE_DOWNLOAD_TIMEOUT_SECONDS = 60
 ROSTERS_WEEKLY_START_SEASON = 2002
+# Play-by-play columns that hold a team code. nflverse writes the Rams as LA in every one of them,
+# not only in posteam and defteam, so the loaders normalize them all before any code compares one
+# team column with another.
+_PBP_TEAM_COLUMNS = (
+    "posteam",
+    "defteam",
+    "home_team",
+    "away_team",
+    "side_of_field",
+    "timeout_team",
+    "td_team",
+    "return_team",
+    "penalty_team",
+    "fumbled_1_team",
+    "fumbled_2_team",
+    "fumble_recovery_1_team",
+    "fumble_recovery_2_team",
+    "forced_fumble_player_1_team",
+    "forced_fumble_player_2_team",
+    "solo_tackle_1_team",
+    "solo_tackle_2_team",
+    "assist_tackle_1_team",
+    "assist_tackle_2_team",
+    "assist_tackle_3_team",
+    "assist_tackle_4_team",
+    "tackle_with_assist_1_team",
+    "tackle_with_assist_2_team",
+)
+# Play-by-play yard lines, written "<team> <yards>" (LA 25), or 50 at midfield.
+_PBP_YARD_LINE_COLUMNS = ("yrdln", "drive_start_yard_line", "drive_end_yard_line", "end_yard_line")
 
 
 def use_disk_cache_unless_configured(environ: Mapping[str, str] = os.environ) -> None:
@@ -448,6 +478,33 @@ def _normalize_team_abbreviations(df: pl.DataFrame, columns: list[str]) -> pl.Da
     return df.with_columns(exprs) if exprs else df
 
 
+def _normalize_yard_line_teams(df: pl.DataFrame, columns: list[str]) -> pl.DataFrame:
+    """Normalize the team code that opens yard-line text such as ``LA 25``.
+
+    Code that reads a yard line compares its team with ``posteam`` to tell the offense's own half
+    from the opponent's, so the code has to match the normalized ``posteam``. Whatever follows the
+    code is kept as written (one 2002 end yard line reads ``LA -10``); midfield (``50`` or
+    ``MID 50``), other codes, and nulls pass through unchanged.
+    """
+    exprs: list[pl.Expr] = []
+    for column in columns:
+        if column not in df.columns:
+            continue
+        parts = pl.col(column).str.extract_groups(r"^(?<team>[A-Z]+) (?<rest>.+)$")
+        normalized = pl.concat_str(
+            [parts.struct.field("team").replace(TEAM_ABBR_ALIASES), parts.struct.field("rest")],
+            separator=" ",
+        )
+        exprs.append(pl.coalesce(normalized, pl.col(column)).alias(column))
+    return df.with_columns(exprs) if exprs else df
+
+
+def _normalize_pbp_teams(df: pl.DataFrame) -> pl.DataFrame:
+    """Normalize every team code in play-by-play: the team columns and the yard-line text."""
+    df = _normalize_team_abbreviations(df, list(_PBP_TEAM_COLUMNS))
+    return _normalize_yard_line_teams(df, list(_PBP_YARD_LINE_COLUMNS))
+
+
 def _filter_regular_season(df: pl.DataFrame) -> pl.DataFrame:
     """Filter a frame to regular-season rows when a season-type column is present."""
     for column in ("season_type", "game_type"):
@@ -501,7 +558,7 @@ def load_pbp_data(season: int) -> pl.DataFrame:
     """Load regular-season play-by-play data with normalized team abbreviations."""
     df = nfl.load_pbp(seasons=season)
     df = _filter_regular_season(df)
-    return _normalize_team_abbreviations(df, ["posteam", "defteam", "home_team", "away_team"])
+    return _normalize_pbp_teams(df)
 
 
 def load_wp_bins(season: int) -> tuple[pl.DataFrame, pl.DataFrame]:
@@ -527,7 +584,7 @@ def load_playoff_pbp_data(season: int) -> pl.DataFrame:
             break
     else:
         return pl.DataFrame(schema=df.schema)
-    return _normalize_team_abbreviations(df, ["posteam", "defteam", "home_team", "away_team"])
+    return _normalize_pbp_teams(df)
 
 
 def load_weekly_player_stats(season: int) -> pl.DataFrame:

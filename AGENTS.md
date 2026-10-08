@@ -167,9 +167,12 @@ the final report.
 These are correctness invariants specific to this project. Linters will not catch violations.
 
 - **Regular season only.** Filter to `season_type == "REG"` (or `game_type == "REG"`) on every load.
-- **Normalize team abbreviations before joining.** nflverse sources disagree (for example `LA`
-  versus `LAR`). Route abbreviations through the existing normalization first, or joins silently
-  drop rows.
+- **Normalize team abbreviations before joining or comparing.** nflverse sources disagree (for
+  example `LA` versus `LAR`), and play-by-play writes `LA` in every team column, yard-line text
+  (`LA 25`) included. Route abbreviations through the existing normalization first, or joins
+  silently drop rows and comparisons with `posteam` never match. `data_loader` lists and
+  normalizes every play-by-play team column and yard line; a team column missing from those lists
+  goes there before any code uses it.
 - **Group a player's plays by id, never by name.** Play-by-play tags one player several ways
   (`T.Pike` and `T.Pike (3rd QB)`) and leaves `posteam` empty (`""`) on non-plays, which the
   loader turns into null. Grouping by name or keeping `""` as a team duplicates rows downstream.
