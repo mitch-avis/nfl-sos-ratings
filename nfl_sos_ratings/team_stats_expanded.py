@@ -184,6 +184,9 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     def _count(condition: pl.Expr, name: str) -> pl.Expr:
         return condition.cast(pl.Int64).sum().alias(name)
 
+    def _if_charted(field: str, expr: pl.Expr, dtype: type[pl.DataType]) -> pl.Expr:
+        return _blank_unless_charted(plays, field, expr, dtype)
+
     # Targets are official attempts thrown to a named receiver (not throwaways or spikes).
     receiver_named = _target_receiver_expr(plays)
     targets = (
@@ -207,32 +210,48 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             .sum()
             .fill_null(0.0)
             .alias("scramble_yards"),
-            value_expr(columns, "air_yards", 0.0)
-            .filter(is_pass_attempt & ~is_two_point)
-            .sum()
-            .fill_null(0.0)
-            .alias("passing_air_yards"),
-            value_expr(columns, "yards_after_catch", 0.0)
-            .filter(is_complete)
-            .sum()
-            .fill_null(0.0)
-            .alias("passing_yards_after_catch"),
+            _if_charted(
+                "air_yards",
+                value_expr(columns, "air_yards", 0.0)
+                .filter(is_pass_attempt & ~is_two_point)
+                .sum()
+                .fill_null(0.0)
+                .alias("passing_air_yards"),
+                pl.Float64,
+            ),
+            _if_charted(
+                "yards_after_catch",
+                value_expr(columns, "yards_after_catch", 0.0)
+                .filter(is_complete)
+                .sum()
+                .fill_null(0.0)
+                .alias("passing_yards_after_catch"),
+                pl.Float64,
+            ),
             value_expr(columns, "passing_yards", 0.0)
             .filter(is_complete)
             .max()
             .alias("longest_pass"),
             _count((value_expr(columns, "fumble") > 0) & is_sack, "sack_fumbles"),
             _count(is_pass_attempt & two_pt_success & is_two_point, "passing_2pt_conversions"),
-            value_expr(columns, "air_epa", 0.0)
-            .filter(is_pass_attempt)
-            .sum()
-            .fill_null(0.0)
-            .alias("air_epa_total"),
-            value_expr(columns, "yac_epa", 0.0)
-            .filter(is_complete)
-            .sum()
-            .fill_null(0.0)
-            .alias("yac_epa_total"),
+            _if_charted(
+                "air_epa",
+                value_expr(columns, "air_epa", 0.0)
+                .filter(is_pass_attempt)
+                .sum()
+                .fill_null(0.0)
+                .alias("air_epa_total"),
+                pl.Float64,
+            ),
+            _if_charted(
+                "yac_epa",
+                value_expr(columns, "yac_epa", 0.0)
+                .filter(is_complete)
+                .sum()
+                .fill_null(0.0)
+                .alias("yac_epa_total"),
+                pl.Float64,
+            ),
             xyac.filter(is_complete).mean().alias("xyac_per_completion"),
             (yac - xyac).filter(is_complete).mean().alias("yac_over_expected_per_completion"),
             # Rushing (official carries exclude two-point tries).
@@ -282,11 +301,13 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             # A kneel-down is a carry but never a stuff, so stuff rate leaves kneel-downs out.
             _count(is_carry & ~is_kneel, "aux_carries_without_kneels"),
             _count(is_carry & ~is_kneel & (yards <= 0), "aux_stuffed_rushes"),
-            _count(
-                is_pass_attempt & ~is_two_point & (pl.col("pass_length") == "deep")
-                if "pass_length" in columns
-                else pl.lit(False),
-                "aux_deep_attempts",
+            _if_charted(
+                "pass_length",
+                _count(
+                    is_pass_attempt & ~is_two_point & (pl.col("pass_length") == "deep"),
+                    "aux_deep_attempts",
+                ),
+                pl.Int64,
             ),
             # Turnovers.
             _count((value_expr(columns, "fumble") > 0) & scrimmage, "fumbles"),
@@ -344,7 +365,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             .fill_null(0.0)
             .alias("aux_rush_epa"),
             _count(is_sack, "aux_sacks"),
-            _count(value_expr(columns, "qb_hit") > 0, "aux_qb_hits"),
+            _if_charted("qb_hit", _count(pl.col("qb_hit") > 0, "aux_qb_hits"), pl.Int64),
             (
                 _count(
                     (value_expr(columns, "tackled_for_loss") > 0)
@@ -395,6 +416,20 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
         )
         .rename({"posteam": "team", "defteam": "opponent_team"})
     )
+
+
+def _blank_unless_charted(
+    plays: pl.DataFrame, field: str, expr: pl.Expr, dtype: type[pl.DataType]
+) -> pl.Expr:
+    """Return ``expr``, or a null of ``dtype`` in its place when the season lacks ``field``.
+
+    ``plays`` is one season's play-by-play. A field nflverse did not chart that season (absent,
+    or null on every play, as ``data_loader`` leaves it) makes every stat built on it unknown,
+    not zero.
+    """
+    if field in plays.columns and plays.get_column(field).is_not_null().any():
+        return expr
+    return pl.lit(None, dtype=dtype).alias(expr.meta.output_name())
 
 
 def _receiver_fumbled_expr(columns: list[str]) -> pl.Expr:
@@ -552,7 +587,12 @@ def _aggregate_drive_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame
             .filter(pl.col("start_from_own_goal") <= _LONG_FIELD_START_YARDLINE)
             .mean()
             .alias("long_field_score_pct"),
-            pl.col("yards_penalized").sum().alias("drive_penalty_yards"),
+            _blank_unless_charted(
+                plays,
+                "drive_yards_penalized",
+                pl.col("yards_penalized").sum().alias("drive_penalty_yards"),
+                pl.Float64,
+            ),
         )
         .rename({"posteam": "team"})
     )

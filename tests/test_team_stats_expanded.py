@@ -752,3 +752,59 @@ def test_two_point_and_defensive_playmaking() -> None:
     assert kc["def_tds"] == 1
     assert kc["total_tds"] == 1
     assert den["total_tds"] == 0
+
+
+def test_fields_the_season_lacks_give_blank_stats_not_zero() -> None:
+    """Verify stats built on a field the season's play-by-play lacks are null, not zero.
+
+    Fixture: a 2004-style game, where the loader leaves air yards, yards after catch, their EPA
+    splits, pass depth, QB hits, and (as in 1999-2000) drive penalty yards null on every play.
+    """
+    # Arrange
+    missing = {
+        "air_yards": None,
+        "air_epa": None,
+        "yac_epa": None,
+        "yards_after_catch": None,
+        "pass_length": None,
+        "qb_hit": None,
+        "drive_yards_penalized": None,
+    }
+    plays = [
+        _play(
+            **{"pass": 1, **missing},
+            pass_attempt=1,
+            complete_pass=1,
+            qb_dropback=1,
+            passing_yards=15.0,
+            yards_gained=15.0,
+        ),
+        _play(**{"pass": 1, **missing}, pass_attempt=1, qb_dropback=1, sack=1, yards_gained=-6.0),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    den = _row(result, "DEN")
+    kc = _row(result, "KC")
+    blank_offense = [
+        "passing_air_yards",
+        "air_yards_per_attempt",
+        "passing_yards_after_catch",
+        "yac_per_completion",
+        "air_epa_total",
+        "yac_epa_total",
+        "deep_attempt_rate",
+        "drive_penalty_yards",
+    ]
+    blank_defense = [
+        "air_yards_allowed",
+        "yac_allowed",
+        "deep_attempt_rate_faced",
+        "qb_pressure_events_rate",
+    ]
+    assert {column: den[column] for column in blank_offense} == dict.fromkeys(blank_offense)
+    assert {column: kc[column] for column in blank_defense} == dict.fromkeys(blank_defense)
+    assert den["sack_rate_per_dropback"] == 0.5
+    assert kc["def_sack_rate_per_dropback"] == 0.5

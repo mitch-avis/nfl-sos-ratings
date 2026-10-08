@@ -788,3 +788,93 @@ def test_compute_all_opponent_profiles_without_any_other_games_is_none() -> None
     # Assert
     assert profiles is None
     assert sorted(details) == ["DEN", "KC"]
+
+
+def test_player_stats_the_season_lacks_stay_blank_for_every_team() -> None:
+    """Verify a defensive player stat the season lacks is null, not zero, for every team.
+
+    Fixture: a 2005-style game, where the loader leaves tackles for loss and QB hits null for every
+    player, and only DEN has player-stat rows (KC has none, so its sacks are 0).
+    """
+    # Arrange
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2005_01_DEN_KC"] * 2,
+            "season": [2005] * 2,
+            "season_type": ["REG"] * 2,
+            "week": [1] * 2,
+            "posteam": ["DEN", "KC"],
+            "defteam": ["KC", "DEN"],
+            "pass": [1, 1],
+            "rush": [0, 0],
+            "qb_dropback": [1, 1],
+            "qb_kneel": [0, 0],
+            "qb_spike": [0, 0],
+            "passing_yards": [20.0, 15.0],
+            "epa": [1.0, -0.5],
+        }
+    )
+    player_stats = pl.DataFrame(
+        {
+            "season": [2005],
+            "season_type": ["REG"],
+            "week": [1],
+            "team": ["DEN"],
+            "opponent_team": ["KC"],
+            "def_tackles_for_loss": [None],
+            "def_qb_hits": [None],
+            "def_sacks": [2.0],
+        },
+        schema_overrides={"def_tackles_for_loss": pl.Int64, "def_qb_hits": pl.Int64},
+    )
+    schedule = pl.DataFrame(
+        {
+            "game_id": ["2005_01_DEN_KC"],
+            "week": [1],
+            "home_team": ["DEN"],
+            "away_team": ["KC"],
+            "home_score": [24],
+            "away_score": [17],
+        }
+    )
+
+    # Act
+    result = team_stats.compute_team_game_stats_from_pbp(pbp, player_stats, schedule).sort("team")
+
+    # Assert
+    blank = [
+        "def_tackles_for_loss",
+        "def_qb_hits",
+        "def_tackles_for_loss_per_defensive_snap",
+        "def_qb_hits_per_defensive_snap",
+    ]
+    assert result.select(blank).to_dicts() == [dict.fromkeys(blank)] * 2
+    assert result.get_column("def_sacks").to_list() == [2.0, 0.0]
+
+
+def _weekly_df_without_tackles_for_loss() -> pl.DataFrame:
+    """Return the weekly fixture with tackles for loss null in every game, as in 2003-2011."""
+    return _weekly_df().with_columns(pl.lit(None, dtype=pl.Int64).alias("def_tackles_for_loss"))
+
+
+def test_season_rows_of_a_stat_the_season_lacks_stay_blank() -> None:
+    # Arrange
+    weekly = _weekly_df_without_tackles_for_loss()
+
+    # Act
+    per_game = team_stats.compute_all_teams_per_game(weekly)
+
+    # Assert
+    assert per_game.get_column("def_tackles_for_loss").to_list() == [None] * 3
+
+
+def test_opponent_profiles_of_a_stat_the_season_lacks_stay_blank() -> None:
+    # Arrange
+    weekly = _weekly_df_without_tackles_for_loss()
+
+    # Act
+    profiles, _ = opponent_stats.compute_all_opponent_profiles(weekly, _schedule_df())
+
+    # Assert
+    assert profiles is not None
+    assert profiles.get_column("def_tackles_for_loss").to_list() == [None] * 3

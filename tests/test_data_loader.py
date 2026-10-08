@@ -2071,3 +2071,102 @@ def test_load_wp_bins_bins_regular_season_plays_with_normalized_teams(
     assert qb_bins.select("game_id", "qb_id", "qb_wp_bin_dropbacks").rows() == [
         ("2025_01_LA_SF", "00-1", 1)
     ]
+
+
+# Fields nflverse play-by-play lacks before 2006 (null, or on a few 1999 games only).
+_PRE_2006_PBP_FIELDS = {
+    "air_yards",
+    "air_epa",
+    "pass_length",
+    "yards_after_catch",
+    "yac_epa",
+    "xyac_mean_yardage",
+}
+
+
+@pytest.mark.parametrize(
+    ("season", "blank"),
+    [
+        (1999, _PRE_2006_PBP_FIELDS | {"drive_yards_penalized"}),
+        (2004, _PRE_2006_PBP_FIELDS | {"qb_hit"}),
+        (2006, set[str]()),
+    ],
+)
+def test_load_pbp_data_blanks_fields_nflverse_lacks_that_season(
+    monkeypatch: pytest.MonkeyPatch, season: int, blank: set[str]
+) -> None:
+    """Verify a field the season's play-by-play lacks is null, not the zero nflverse may write.
+
+    nflverse writes ``qb_hit = 0`` on every 2003-2005 play and carries yards after catch and pass
+    depth on a few 1999 games only; the loader treats those seasons as having no value.
+    """
+    # Arrange
+    pbp = pl.DataFrame(
+        {
+            "season_type": ["REG"],
+            "week": [1],
+            "posteam": ["DEN"],
+            "defteam": ["KC"],
+            "air_yards": [12.0],
+            "air_epa": [0.9],
+            "pass_length": ["deep"],
+            "yards_after_catch": [4.0],
+            "yac_epa": [0.3],
+            "xyac_mean_yardage": [5.1],
+            "qb_hit": [0],
+            "drive_yards_penalized": [-5.0],
+            "epa": [1.2],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+
+    # Act
+    result = data_loader.load_pbp_data(season)
+
+    # Assert
+    assert {
+        column for column in result.columns if result.get_column(column).is_null().all()
+    } == blank
+    assert result.schema == pbp.schema
+
+
+@pytest.mark.parametrize(
+    ("season", "blank"),
+    [
+        (2002, set[str]()),
+        (2005, {"def_tackles_for_loss", "def_qb_hits"}),
+        (2010, {"def_tackles_for_loss"}),
+        (2012, set[str]()),
+    ],
+)
+def test_load_weekly_player_stats_blanks_stats_nflverse_lacks_that_season(
+    monkeypatch: pytest.MonkeyPatch, season: int, blank: set[str]
+) -> None:
+    """Verify a defensive stat nflverse credits to no one that season is null, not zero.
+
+    nflverse's weekly player stats write 0 tackles for loss for every player in 2003-2011 (one
+    in all of 2006) and 0 QB hits in 2003-2005.
+    """
+    # Arrange
+    player_stats = pl.DataFrame(
+        {
+            "season_type": ["REG", "REG"],
+            "week": [1, 1],
+            "player_id": ["P1", "P2"],
+            "team": ["DEN", "KC"],
+            "opponent_team": ["KC", "DEN"],
+            "def_tackles_for_loss": [0, 0],
+            "def_qb_hits": [0, 0],
+            "def_sacks": [1.0, 0.5],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(lambda: player_stats))
+
+    # Act
+    result = data_loader.load_weekly_player_stats(season)
+
+    # Assert
+    assert {
+        column for column in result.columns if result.get_column(column).is_null().all()
+    } == blank
+    assert result.get_column("def_sacks").to_list() == [1.0, 0.5]

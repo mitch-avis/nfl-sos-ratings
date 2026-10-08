@@ -183,6 +183,9 @@ game (`row_order.data_file_row_order`).
 - `team_per_game_stats`, `qb_per_game_stats`, `opponent_profiles`, `qb_opponent_profiles`: the
   intermediate tables behind `combined` and `qb_combined`.
 
+A stat nflverse lacks in a season (air yards before 2006, tackles for loss in 2003-2011) is
+blank, not 0; the catalogs' Since column and notes give each stat's coverage.
+
 Every column is defined in the metric registry (`nfl_sos_ratings/metrics/`), and the pipeline
 refuses to write a column the registry does not define. The human-readable lists are
 [docs/stats-catalog.md] and [docs/qb-stats-catalog.md], both generated from the registry.

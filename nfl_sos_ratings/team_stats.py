@@ -52,8 +52,24 @@ def _extract_points_per_team_game(schedule_df: pl.DataFrame) -> pl.DataFrame:
     return pl.concat([home, away])
 
 
+def _charted_defense_stats(frame: pl.DataFrame) -> list[str]:
+    """Return the defense-only player stats ``frame`` has any value for.
+
+    ``data_loader`` leaves a stat nflverse credits to no one that season null for every player,
+    and such a stat stays null for every team, never 0.
+    """
+    return [
+        column
+        for column in _DEFENSE_ONLY_PLAYER_STATS
+        if column in frame.columns and frame.get_column(column).is_not_null().any()
+    ]
+
+
 def _aggregate_defense_only_player_stats(player_stats_df: pl.DataFrame) -> pl.DataFrame:
-    """Aggregate defense-only player stats to one row per team-week-opponent."""
+    """Aggregate defense-only player stats to one row per team-week-opponent.
+
+    A stat with no value for any player (one the season lacks) stays null.
+    """
     if player_stats_df.is_empty():
         return pl.DataFrame(
             schema={"team": pl.String, "opponent_team": pl.String, "week": pl.Int64}
@@ -72,8 +88,14 @@ def _aggregate_defense_only_player_stats(player_stats_df: pl.DataFrame) -> pl.Da
         for key in ("season", "season_type", "week", "team", "opponent_team")
         if key in player_stats_df.columns
     ]
+    charted = _charted_defense_stats(player_stats_df)
     return player_stats_df.group_by(group_keys).agg(
-        [pl.col(column).fill_null(0).sum().alias(column) for column in defense_cols]
+        [
+            pl.col(column).fill_null(0).sum().alias(column)
+            if column in charted
+            else pl.lit(None, dtype=player_stats_df.schema[column]).alias(column)
+            for column in defense_cols
+        ]
     )
 
 
@@ -276,7 +298,8 @@ def compute_team_game_stats_from_pbp(
             "rushing_tds_allowed",
             "passing_first_downs_allowed",
             "rushing_first_downs_allowed",
-            *_DEFENSE_ONLY_PLAYER_STATS,
+            # A team without player-stat rows made none of a stat the season has.
+            *_charted_defense_stats(result),
         ]
         if column in result.columns
     ]

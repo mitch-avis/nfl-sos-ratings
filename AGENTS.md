@@ -187,6 +187,10 @@ These are correctness invariants specific to this project. Linters will not catc
   comparisons and averaged opponent profiles use per-game and per-play rates (teams: often
   per-snap; QBs: per-dropback, per-attempt, or per-carry by subcategory). Keep raw totals only as
   display columns on a subject's own profile.
+- **A stat the source lacks is null, not 0.** When nflverse has no value for a field in a season
+  (air yards before 2006, QB hits in 2003-2005), the loaders blank it (`_PBP_FIELD_GAPS`,
+  `_PLAYER_STAT_GAPS` in `data_loader`), stats built on it stay null for every team, and a
+  season row of only nulls stays null. Set the registry `since` (and `note` for a gap) to match.
 - **Views are not categories.** `Ratings` is a top-level view, not part of the team/QB stat
   taxonomies. The other five views (`Raw Total Stats`, `Per-Game Rates`, `Per-Play Rates`,
   `Opponent Per-Game Rates`, `Opponent Per-Play Rates`) reuse the same team categories or QB

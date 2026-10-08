@@ -69,6 +69,31 @@ _PBP_TEAM_COLUMNS = (
 )
 # Play-by-play yard lines, written "<team> <yards>" (LA 25), or 50 at midfield.
 _PBP_YARD_LINE_COLUMNS = ("yrdln", "drive_start_yard_line", "drive_end_yard_line", "end_yard_line")
+# The first season nflverse charts pass depth, air yards, and yards after catch, with their EPA
+# splits and expected yards after catch: before it they are null, apart from 1999's yards after
+# catch on 337 of 9,522 completions and pass depth on 344 of 16,651 passes.
+PASS_DEPTH_START_SEASON = 2006
+_BEFORE_PASS_DEPTH = range(PBP_START_SEASON, PASS_DEPTH_START_SEASON)
+# Seasons in which nflverse has no value for a play-by-play field, so every stat built on it is
+# unknown there: the loaders write nulls for them, including where nflverse writes 0. Play-by-play
+# records a QB hit on no play in 2003-2005 (before 2003 only on sacks) and has no drive penalty
+# yards before 2001.
+_PBP_FIELD_GAPS: dict[str, range] = {
+    "air_yards": _BEFORE_PASS_DEPTH,
+    "air_epa": _BEFORE_PASS_DEPTH,
+    "pass_length": _BEFORE_PASS_DEPTH,
+    "yards_after_catch": _BEFORE_PASS_DEPTH,
+    "yac_epa": _BEFORE_PASS_DEPTH,
+    "xyac_mean_yardage": _BEFORE_PASS_DEPTH,
+    "qb_hit": range(2003, 2006),
+    "drive_yards_penalized": range(PBP_START_SEASON, 2001),
+}
+# The same for weekly player stats, which credit every player with 0 tackles for loss in 2003-2011
+# (one in all of 2006) and 0 QB hits in 2003-2005.
+_PLAYER_STAT_GAPS: dict[str, range] = {
+    "def_tackles_for_loss": range(2003, 2012),
+    "def_qb_hits": range(2003, 2006),
+}
 
 
 def use_disk_cache_unless_configured(environ: Mapping[str, str] = os.environ) -> None:
@@ -509,6 +534,18 @@ def _normalize_pbp_teams(df: pl.DataFrame) -> pl.DataFrame:
     return _normalize_yard_line_teams(df, list(_PBP_YARD_LINE_COLUMNS))
 
 
+def _blank_fields_missing_in_season(
+    df: pl.DataFrame, season: int, gaps: Mapping[str, range]
+) -> pl.DataFrame:
+    """Return ``df`` with every field the season's source lacks (per ``gaps``) set to null."""
+    exprs = [
+        pl.lit(None, dtype=df.schema[column]).alias(column)
+        for column, seasons in gaps.items()
+        if column in df.columns and season in seasons
+    ]
+    return df.with_columns(exprs) if exprs else df
+
+
 def _filter_regular_season(df: pl.DataFrame) -> pl.DataFrame:
     """Filter a frame to regular-season rows when a season-type column is present."""
     for column in ("season_type", "game_type"):
@@ -559,9 +596,13 @@ def load_espn_qbr(
 
 
 def load_pbp_data(season: int) -> pl.DataFrame:
-    """Load regular-season play-by-play data with normalized team abbreviations."""
+    """Load regular-season play-by-play data with normalized team abbreviations.
+
+    Fields nflverse lacks in the season are null (``_PBP_FIELD_GAPS``).
+    """
     df = nfl.load_pbp(seasons=season)
     df = _filter_regular_season(df)
+    df = _blank_fields_missing_in_season(df, season, _PBP_FIELD_GAPS)
     return _normalize_pbp_teams(df)
 
 
@@ -592,9 +633,13 @@ def load_playoff_pbp_data(season: int) -> pl.DataFrame:
 
 
 def load_weekly_player_stats(season: int) -> pl.DataFrame:
-    """Load regular-season weekly player stats with normalized team abbreviations."""
+    """Load regular-season weekly player stats with normalized team abbreviations.
+
+    Stats nflverse credits to no one in the season are null (``_PLAYER_STAT_GAPS``).
+    """
     df = nfl.load_player_stats(seasons=season, summary_level="week")
     df = _filter_regular_season(df)
+    df = _blank_fields_missing_in_season(df, season, _PLAYER_STAT_GAPS)
     return _normalize_team_abbreviations(df, ["team", "opponent_team"])
 
 
