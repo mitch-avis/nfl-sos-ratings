@@ -279,12 +279,16 @@ describe('season in progress', () => {
       stubApi({ '/api/seasons': { seasons: [2026] }, '/api/metadata': REGISTRY, '/api/seasons/2026': partial }),
     )
 
-    // Act
+    const user = userEvent.setup()
     renderApp('/qbs?season=2026')
+    const about = await screen.findByRole('button', { name: 'About the qualifier' })
+
+    // Act
+    await user.hover(about)
 
     // Assert
-    expect(await screen.findByText(/14 pass attempts per game/)).toHaveTextContent(
-      'at least 14 pass attempts per game his team has played',
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'at least 14 pass attempts per game their team has played so far',
     )
   })
 
@@ -419,22 +423,30 @@ describe('rank column', () => {
 })
 
 describe('index header', () => {
-  it('keeps the reading notes folded away until asked for', async () => {
-    // Act
+  it('keeps the reading notes in a popover beside the ranking line', async () => {
+    // Arrange
+    const user = userEvent.setup()
     renderApp('/teams?season=2025')
+    const button = await screen.findByRole('button', { name: 'How to read this page' })
+
+    // Act
+    await user.click(button)
 
     // Assert
-    expect(await screen.findByText('Reading notes')).toBeVisible()
-    expect(screen.getByText(/SRS is the classic point-margin rating/)).not.toBeVisible()
+    expect(await screen.findByText(/SRS is the classic point-margin rating/)).toBeVisible()
   })
 
-  it('leaves out the summary tiles that repeat the table header', async () => {
+  it('starts with the title, the ranking line, and the table, without repeats or tallies', async () => {
     // Act
     renderApp('/teams?season=2025')
 
     // Assert
     expect(await screen.findByRole('heading', { name: /Team Ratings Index · 2025/ })).toBeInTheDocument()
-    expect(screen.queryByText('Rows shown')).not.toBeInTheDocument()
+    expect(screen.getByText(/Team Rating is points per game better than an average team/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Team Ratings Index/)).toHaveLength(1)
+    expect(screen.queryByText('Use first')).not.toBeInTheDocument()
+    expect(screen.queryByText('3 rows')).not.toBeInTheDocument()
+    expect(screen.queryByText(/compared$/)).not.toBeInTheDocument()
   })
 })
 
@@ -1088,6 +1100,28 @@ describe('seasons and glossary', () => {
 })
 
 describe('garbage-time filter', () => {
+  it('folds the exploration below the table until it is opened', async () => {
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    const slider = await screen.findByRole('slider', { name: 'Garbage-time filter' })
+    const mainTable = screen.getAllByRole('table')[0]
+    expect(slider).not.toBeVisible()
+    expect(mainTable.compareDocumentPosition(slider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('opens the exploration when a threshold is in the address', async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/teams/wp-ratings?threshold=10': TEAM_WP_RATINGS }))
+
+    // Act
+    renderApp('/teams?season=2025&wp=10')
+
+    // Assert
+    expect(await screen.findByRole('slider', { name: 'Garbage-time filter' })).toBeVisible()
+  })
+
   it('starts off, with every play counted and no filtered table', async () => {
     // Act
     renderApp('/teams?season=2025')

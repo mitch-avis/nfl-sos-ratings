@@ -1,3 +1,4 @@
+import { CalendarClock } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
@@ -5,14 +6,15 @@ import { useRankRanges } from '@/api/queries'
 import type { EntityKind, SeasonDataset } from '@/api/types'
 import { useEntityPageState } from '@/app/EntityViewStateProvider'
 import { ErrorState } from '@/components/common/ErrorState'
+import { InfoTooltip } from '@/components/common/InfoTooltip'
 import { Notice } from '@/components/common/Notice'
 import { PageHeader } from '@/components/common/PageHeader'
+import { ReadingNotes } from '@/components/common/ReadingNotes'
 import { ComparisonPanel } from '@/components/entity/ComparisonPanel'
 import { EntityTable } from '@/components/entity/EntityTable'
 import { RankRangeChart } from '@/components/entity/RankRangeChart'
 import { ViewControls } from '@/components/entity/ViewControls'
-import { WpFilterPanel } from '@/components/entity/WpFilterPanel'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { WpExploration } from '@/components/entity/WpExploration'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -81,7 +83,24 @@ function notFoundId(state: unknown): string | null {
   return typeof state.notFound === 'string' ? state.notFound : null
 }
 
-/** The Teams or QBs index: guidance, summary tiles, comparison, and the main table. */
+// How to use the table, ahead of the page's own reading notes.
+const TABLE_NOTE = 'Sort any column, search, and switch views; open a row for its game-by-game detail.'
+
+/** One line under the title while a season is under way: how far it is, and what that means. */
+function SeasonProgress({ games }: { games: number }) {
+  return (
+    <p className="-mt-6 flex max-w-prose items-start gap-2 text-sm text-muted-foreground">
+      <CalendarClock className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+      <span>
+        <span className="font-medium text-foreground">Season in progress: up to {games} games per team.</span>{' '}
+        Ratings use only the games played so far, so they lean toward the league average and will move
+        as the season goes on.
+      </span>
+    </p>
+  )
+}
+
+/** The Teams or QBs index: the ranking line, comparison, the table, rank ranges, and exploration. */
 export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: SeasonDataset }) {
   const config = getEntityConfig(kind)
   const notFound = notFoundId(useLocation().state)
@@ -130,63 +149,20 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
     <div className="flex flex-col gap-5">
       <PageHeader
         title={`${config.title} · ${season}`}
-        description="Every rating and stat compares each subject with the opponents it actually faced. Sort, filter, and switch views; open a row for its game-by-game detail."
+        description={
+          <>
+            {config.primaryRankingDescription} <ReadingNotes notes={[TABLE_NOTE, ...config.pageNotes]} />
+          </>
+        }
       />
+
+      {gamesSoFar !== null ? <SeasonProgress games={gamesSoFar} /> : null}
 
       {notFound !== null ? (
         <Notice>
           No {kind === 'teams' ? 'team' : 'quarterback'} {notFound} in {season}.
         </Notice>
       ) : null}
-
-      {gamesSoFar !== null ? (
-        <Alert>
-          <AlertTitle>Season in progress: up to {gamesSoFar} games per team</AlertTitle>
-          <AlertDescription>
-            Ratings use only the games played so far. With this few games they are pulled strongly
-            toward the league average and will move as the season goes on.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card className="gap-2 px-4 py-3">
-        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Use first</div>
-        <div className="font-semibold">{config.primaryRankingLabel}</div>
-        <p className="max-w-prose text-sm text-muted-foreground">{config.primaryRankingDescription}</p>
-        <details className="text-sm">
-          <summary className="w-fit cursor-pointer py-1 font-medium text-muted-foreground hover:text-foreground">
-            Reading notes
-          </summary>
-          <ul className="mt-1 max-w-prose list-disc space-y-1 pl-5 text-muted-foreground">
-            {config.pageNotes.map((note) => (
-              <li key={note}>{note}</li>
-            ))}
-          </ul>
-        </details>
-      </Card>
-
-      {kind === 'qbs' ? (
-        <Card className="px-4 py-3">
-          <CardContent className="flex flex-col gap-1 px-0">
-            <div className="flex items-center gap-2">
-              <Switch
-                id="show-unrated"
-                checked={state.showUnratedRows}
-                onCheckedChange={(checked) => update({ showUnratedRows: checked })}
-              />
-              <Label htmlFor="show-unrated">Show QBs below the qualifier</Label>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              The table ranks quarterbacks with at least 14 pass attempts per game his team has
-              played{gamesSoFar !== null ? ' so far, so teams that have had a bye need fewer' : ''}.
-              Switch on to list the passers below that mark too; they have no rank range. Each
-              quarterback&apos;s number is the Qualifier Att column in Raw Total Stats.
-            </p>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <WpFilterPanel kind={kind} season={season} />
 
       <ComparisonPanel
         compareColumns={compareColumns}
@@ -222,6 +198,22 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
         selectedColumns={seasonView.selectedColumns}
         sorting={state.sorting}
         table={displayTable}
+        toolbar={
+          kind === 'qbs' ? (
+            <div className="flex items-center gap-2">
+              <Switch
+                id="show-unrated"
+                checked={state.showUnratedRows}
+                onCheckedChange={(checked) => update({ showUnratedRows: checked })}
+              />
+              <Label htmlFor="show-unrated">Show QBs below the qualifier</Label>
+              <InfoTooltip
+                label="About the qualifier"
+                content={`The table ranks quarterbacks with at least 14 pass attempts per game their team has played${gamesSoFar !== null ? ' so far, so teams that have had a bye need fewer' : ''}. Switch on to list the passers below that mark too; they have no rank range. Each quarterback's number is the Qualifier Att column in Raw Total Stats.`}
+              />
+            </div>
+          ) : null
+        }
       />
 
       {rankRangesQuery.isError && !isMissingRankRanges(rankRangesQuery.error) ? (
@@ -243,6 +235,8 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
           </CardContent>
         </Card>
       ) : null}
+
+      <WpExploration kind={kind} season={season} />
     </div>
   )
 }

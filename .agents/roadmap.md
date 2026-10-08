@@ -1038,11 +1038,17 @@ Bugs and copy (first):
 
 Index pages (layout):
 
-- [ ] U5 The table starts far below the fold: the season notice, the "Use first" card, and the
+- [x] U5 The table starts far below the fold: the season notice, the "Use first" card, and the
   garbage-time filter put it at about 700 px on desktop and 1,170 px on a 390 px phone, so a phone's
   first screen has no data. Fold the notice and the primary-rank note into one line under the title,
   move "Reading notes" into a hint or the glossary, and make the garbage-time filter a toolbar
-  control beside the views.
+  control beside the views. Done on `feat/index-layout`: the ranking sentence is the page
+  description, the reading notes open from "How to read this page", a season in progress adds one
+  line under it, the QB qualifier switch joined the table toolbar (its explanation in a hint), and
+  the table starts at about 340 px (completed season) or 415 px (in progress) on desktop, with
+  data rows on a phone's first screen. Changed from the wording above: the garbage-time filter
+  moved below the rank ranges as a folded section (open when the address has `?wp=`), not into the
+  toolbar, because it shows its own table of filtered ratings rather than filtering the main one.
 - [ ] U6 Nested scrolling: the table scrolls inside the scrolling page (`max-h-[75vh]`), so the
   wheel gets captured, and at 1440 px the SRS column hides behind a horizontal scroll while the
   Compare column (108 px for a checkbox) and Rank range (196 px) take room. Let the page scroll
@@ -1050,7 +1056,10 @@ Index pages (layout):
 - [ ] U7 Noise: the "32 rows / 7 columns / 0 compared" and "6 columns / 110 columns" pills, the
   "USE FIRST" eyebrow, the card title repeating the page title, and the rank-range readout box
   ("Tap a row for its numbers.") that looks like an empty input. The floating scroll buttons cover
-  the table's last column at the bottom right.
+  the table's last column at the bottom right. Done on `feat/index-layout`: the index pills, the
+  eyebrow, the repeated title, and the readout box (plain text until a row is picked). Left for
+  the U6 change: the floating scroll buttons; the detail page's "6 columns / 110 columns" pills
+  go with P8.
 - [ ] U8 Comparison: the panel appears above the table, so ticking a box pushes the row under the
   cursor down; with two picks every heat cell is fully green or red (min-max over two values). Show
   a "N selected, compare" bar and the panel below or in a drawer, and shade cells against the
