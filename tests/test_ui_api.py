@@ -1,7 +1,7 @@
 """Tests for the local analyst UI API."""
 
 import io
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import polars as pl
 import pytest
@@ -15,11 +15,14 @@ from nfl_sos_ratings.rating_ranges import (
     summarize_rank_pairs,
     summarize_rank_ranges,
 )
+from nfl_sos_ratings.refresh_runner import RefreshRunner
 from nfl_sos_ratings.ui_api import create_app
 from tests.wp_league import write_wp_season
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from fastapi import FastAPI
 
 
 def _write_table(path: Path, header: str, row: str) -> None:
@@ -449,6 +452,7 @@ def test_web_command_with_reload_serves_the_app_factory(monkeypatch: pytest.Monk
 
     monkeypatch.setattr(ui_api.uvicorn, "run", fake_run)
     monkeypatch.delenv(ui_api.DATA_DIR_ENV, raising=False)
+    monkeypatch.delenv(ui_api.ALLOW_REFRESH_ENV, raising=False)
 
     # Act
     ui_api.main(["--reload", "--data-dir", "elsewhere"])
@@ -461,6 +465,25 @@ def test_web_command_with_reload_serves_the_app_factory(monkeypatch: pytest.Monk
         )
     ]
     assert ui_api.os.environ[ui_api.DATA_DIR_ENV] == "elsewhere"
+    assert ui_api.os.environ[ui_api.ALLOW_REFRESH_ENV] == "0"
+
+
+def test_web_command_with_reload_passes_allow_refresh_to_the_app_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    def fake_run(app: object, **kwargs: object) -> None:
+        """Stand in for uvicorn; the test reads the environment the factory would see."""
+
+    monkeypatch.setattr(ui_api.uvicorn, "run", fake_run)
+    monkeypatch.delenv(ui_api.DATA_DIR_ENV, raising=False)
+    monkeypatch.delenv(ui_api.ALLOW_REFRESH_ENV, raising=False)
+
+    # Act
+    ui_api.main(["--reload", "--allow-refresh", "--data-dir", str(ui_api.REPO_ROOT / "data")])
+
+    # Assert
+    assert ui_api.os.environ[ui_api.ALLOW_REFRESH_ENV] == "1"
 
 
 @pytest.mark.parametrize("entity", ["teams", "qbs"])
@@ -720,3 +743,131 @@ def test_rank_history_is_empty_before_every_team_has_played_three_games(tmp_path
     # Assert
     assert response.status_code == 200
     assert response.json()["rows"] == []
+
+
+def _refresh_script(tmp_path: Path, body: str) -> RefreshRunner:
+    """Return a refresh runner over a small Bash script with ``body``."""
+    script = tmp_path / "refresh.sh"
+    script.write_text(f"#!/usr/bin/env bash\n{body}\n", encoding="utf-8")
+    script.chmod(0o755)
+    return RefreshRunner([str(script)], cwd=tmp_path)
+
+
+_REFRESH_HEADERS = {"X-Requested-With": "nfl-sos-ratings"}
+
+
+def test_refresh_status_says_refreshing_is_off_by_default(tmp_path: Path) -> None:
+    # Arrange
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.get("/api/refresh")
+
+    # Assert
+    assert response.json()["allowed"] is False
+    assert response.json()["state"] == "idle"
+
+
+def test_starting_a_refresh_is_forbidden_when_it_is_off(tmp_path: Path) -> None:
+    # Arrange
+    client = TestClient(create_app(tmp_path))
+
+    # Act
+    response = client.post("/api/refresh", headers=_REFRESH_HEADERS)
+
+    # Assert
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [{}, {**_REFRESH_HEADERS, "Origin": "http://192.168.1.50:5173"}],
+    ids=["no-app-header", "other-origin"],
+)
+def test_starting_a_refresh_needs_the_app_header_and_the_same_origin(
+    tmp_path: Path, headers: dict[str, str]
+) -> None:
+    # Arrange
+    client = TestClient(create_app(tmp_path, refresh=_refresh_script(tmp_path, "exit 0")))
+
+    # Act
+    response = client.post("/api/refresh", headers=headers)
+
+    # Assert
+    assert response.status_code == 403
+
+
+def test_starting_a_refresh_runs_it_and_reports_progress(tmp_path: Path) -> None:
+    # Arrange
+    runner = _refresh_script(tmp_path, 'echo "Summary: 18 unchanged"')
+    client = TestClient(create_app(tmp_path, refresh=runner))
+
+    # Act
+    response = client.post(
+        "/api/refresh", headers={**_REFRESH_HEADERS, "Origin": "http://testserver"}
+    )
+
+    # Assert
+    assert response.status_code == 202
+    assert response.json()["allowed"] is True
+    assert response.json()["state"] in {"running", "succeeded"}
+
+
+def test_starting_a_second_refresh_while_one_runs_conflicts(tmp_path: Path) -> None:
+    # Arrange
+    client = TestClient(create_app(tmp_path, refresh=_refresh_script(tmp_path, "sleep 1")))
+    client.post("/api/refresh", headers=_REFRESH_HEADERS)
+
+    # Act
+    response = client.post("/api/refresh", headers=_REFRESH_HEADERS)
+
+    # Assert
+    assert response.status_code == 409
+
+
+def test_web_command_allows_refresh_only_for_the_repository_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    def fake_run(app: object, **kwargs: object) -> None:
+        """Stand in for uvicorn; this test fails before the server would start."""
+
+    monkeypatch.setattr(ui_api.uvicorn, "run", fake_run)
+
+    # Act & Assert
+    with pytest.raises(SystemExit, match="serve the repository's data/"):
+        ui_api.main(["--allow-refresh", "--data-dir", "elsewhere"])
+
+
+def test_web_command_with_allow_refresh_serves_a_refreshing_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    apps: list[object] = []
+
+    def fake_run(app: object, **kwargs: object) -> None:
+        apps.append(app)
+
+    monkeypatch.setattr(ui_api.uvicorn, "run", fake_run)
+    ui_api.main(["--allow-refresh", "--data-dir", str(ui_api.REPO_ROOT / "data")])
+
+    # Act
+    response = TestClient(cast("FastAPI", apps[0])).get("/api/refresh")
+
+    # Assert
+    assert response.json()["allowed"] is True
+
+
+def test_create_app_from_environment_allows_refresh_when_asked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    monkeypatch.setenv(ui_api.DATA_DIR_ENV, str(ui_api.REPO_ROOT / "data"))
+    monkeypatch.setenv(ui_api.ALLOW_REFRESH_ENV, "1")
+    client = TestClient(ui_api.create_app_from_environment())
+
+    # Act
+    response = client.get("/api/refresh")
+
+    # Assert
+    assert response.json()["allowed"] is True
