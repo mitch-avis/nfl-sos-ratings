@@ -20,7 +20,7 @@ booleans, and `id` identity fields.
 | PBP +TS | Computed from play-by-play and also published in nflverse weekly team stats, which serves as a cross-check. |
 | PLS | nflverse weekly player stats (`load_player_stats`). |
 | SCH | nflverse schedules and final scores (`load_schedules`). |
-| SNP | nflverse snap counts (`load_snap_counts`, 2012 onward). |
+| SNP | nflverse snap counts (`load_snap_counts`, 2013 onward; the 2012 file is empty). |
 | D | Derived by this project from the other columns, including every rating. |
 
 ## Schedule-Adjusted Ratings
@@ -53,7 +53,7 @@ Who the quarterback is and how much he played.
 | `player_id` | Player ID | id | - | - | PLS | The GSIS player identifier used to join across data sources. |
 | `player_display_name` | QB | id | - | - | PLS | The quarterback's display name from the official player feed. |
 | `qb_games_played` | QB Games | count | - | 1999 | PBP | Games in which this quarterback recorded a dropback. |
-| `qb_offense_snaps` | QB Snaps | count | - | 2012 | SNP | Offensive snaps the quarterback played, from snap-count data. |
+| `qb_offense_snaps` | QB Snaps | count | - | 2013 | SNP | Offensive snaps the quarterback played, from snap-count data. Empty before 2013: nflverse's 2012 snap-count file has no rows. |
 | `qb_dropbacks` | Dropbacks | count | - | 1999 | PBP | Pass attempts plus sacks plus scrambles — every play that began as a pass. The natural denominator for QB efficiency stats. |
 | `qb_is_eligible` | Eligible | flag | - | - | D | Whether the quarterback has the qualifying number of pass attempts (14 for every game his team has played) to be ranked on the league-wide QBs page. |
 | `qb_attempt_qualifier` | Qualifier Att | count | - | - | D | The pass attempts this quarterback needs to be ranked: 14 for every game his team has played so far (his main team, for a quarterback who changed teams). |

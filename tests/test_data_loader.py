@@ -1918,6 +1918,48 @@ def test_load_playoff_qb_stats_skips_snap_counts_before_their_first_season(
     assert result.select("qb_dropbacks", "qb_epa_per_dropback").rows() == [(1, 0.7)]
 
 
+def test_load_qb_stats_leaves_snaps_empty_before_snap_counts_exist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify QB snaps are unknown, not zero, in a season before nflverse snap counts."""
+
+    # Arrange
+    def _unexpected_snap_counts_call(seasons: int) -> pl.DataFrame:
+        msg = f"snap counts loader should not run for season {seasons}"
+        raise AssertionError(msg)
+
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2010_01_DEN_JAX"],
+            "season_type": ["REG"],
+            "week": [1],
+            "posteam": ["DEN"],
+            "passer_player_id": ["00-0031234"],
+            "passer_player_name": ["John Doe"],
+            "qb_dropback": [1],
+            "pass": [1],
+            "complete_pass": [1],
+            "passing_yards": [10.0],
+            "pass_touchdown": [0],
+            "interception": [0],
+            "sack": [0],
+            "fumble_lost": [0],
+            "qb_epa": [0.7],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_snap_counts", _unexpected_snap_counts_call)
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(pl.DataFrame))
+    monkeypatch.setattr(data_loader.nfl, "load_players", pl.DataFrame)
+    monkeypatch.setattr(data_loader.nfl, "load_rosters_weekly", stub(pl.DataFrame))
+
+    # Act
+    result = data_loader.load_qb_stats(2010)
+
+    # Assert
+    assert result.select("qb_dropbacks", "qb_offense_snaps").rows() == [(1, None)]
+
+
 def test_filter_postseason_without_a_season_type_column_keeps_no_rows() -> None:
     # Arrange
     frame = pl.DataFrame({"game_id": ["g1"], "team": ["NE"]})

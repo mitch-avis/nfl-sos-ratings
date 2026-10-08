@@ -1045,6 +1045,85 @@ def test_compute_qb_game_stats_from_pbp_without_cpoe_leaves_it_null() -> None:
     assert row["qb_epa_per_dropback"] == pytest.approx(0.8)
 
 
+# The typed empty frame the loader returns for a season before snap counts exist.
+_EMPTY_SNAP_COUNTS = pl.DataFrame(
+    schema={
+        "game_id": pl.String,
+        "week": pl.Int64,
+        "team": pl.String,
+        "player": pl.String,
+        "pfr_player_id": pl.String,
+        "position": pl.String,
+        "offense_snaps": pl.Float64,
+    }
+)
+
+
+@pytest.mark.parametrize("snap_counts", [None, _EMPTY_SNAP_COUNTS], ids=["absent", "empty"])
+def test_compute_qb_game_stats_from_pbp_leaves_snaps_empty_without_snap_counts(
+    snap_counts: pl.DataFrame | None,
+) -> None:
+    """Verify a season without snap-count data has unknown QB snaps, not zero snaps."""
+    # Act
+    games = qb_stats.compute_qb_game_stats_from_pbp(_one_dropback_pbp(), snap_counts)
+
+    # Assert
+    row = games.row(0, named=True)
+    assert row["qb_offense_snaps"] is None
+    assert row["qb_dropbacks"] == 1
+    assert games.schema["qb_offense_snaps"] == pl.Int64
+
+
+def test_compute_qb_season_stats_leaves_snap_totals_empty_when_snaps_are_unknown() -> None:
+    """Verify unknown game snaps give an unknown season snap total, not zero."""
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["DEN", "DEN"],
+            "week": [1, 2],
+            "qb_id": ["QB_A", "QB_A"],
+            "qb_name": ["QB A", "QB A"],
+            "qb_attempts": [30, 28],
+            "qb_dropbacks": [33, 31],
+            "qb_offense_snaps": pl.Series([None, None], dtype=pl.Int64),
+        }
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df)
+
+    # Assert
+    row = result.row(0, named=True)
+    assert row["qb_offense_snaps_total"] is None
+    assert row["qb_offense_snaps_per_game"] is None
+    assert row["qb_dropbacks_total"] == 64
+
+
+def test_compute_qb_season_stats_picks_the_primary_qb_by_dropbacks_when_snaps_are_unknown() -> None:
+    """Verify unknown snaps leave the primary-QB pick to dropbacks, as zero snaps did."""
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["ATL", "ATL"],
+            "week": [6, 6],
+            "qb_id": ["QB_A", "QB_B"],
+            "qb_name": ["QB A", "QB B"],
+            "qb_offense_snaps": pl.Series([None, None], dtype=pl.Int64),
+            "qb_dropbacks": [5, 30],
+            "qb_attempts": [4, 28],
+        }
+    )
+    weekly_df = pl.DataFrame(
+        {"team": ["ATL"], "week": [6], "points_for": [24], "points_allowed": [17]}
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
+
+    # Assert
+    assert result.filter(pl.col("qb_wins") == 1).get_column("qb_id").to_list() == ["QB_B"]
+
+
 def _tied_starters() -> pl.DataFrame:
     """Return one team-game where two passers tie on snaps, dropbacks, and attempts."""
     return pl.DataFrame(

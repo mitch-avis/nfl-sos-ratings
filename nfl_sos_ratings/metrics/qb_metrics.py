@@ -182,7 +182,8 @@ QB_IDENTITY_METRICS: tuple[MetricDef, ...] = (
         shape="count",
         polarity="neutral",
         source="SNP",
-        since=2012,
+        since=2013,
+        note="Empty before 2013: nflverse's 2012 snap-count file has no rows.",
     ),
     _identity(
         name="qb_dropbacks",
