@@ -161,8 +161,11 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   on quarterback pages.
 - For the season in progress, the detail page adds a `Rank by week` chart below `Rating by week`:
   the median rank with bands for the middle 50% and 95% of redraws, rank 1 at the top, a hover or
-  tap readout, and a text summary and hidden table for screen readers. The card says that the
-  first weeks' bands understate the uncertainty.
+  tap readout, and a text summary and hidden table for screen readers. It starts at the first week
+  in which every team has played three games (the API leaves out earlier weeks, whose bands would
+  understate the uncertainty); before then the card says when it will start.
+- Trend charts draw straight segments between games, on round axis ticks. The game-by-game chart
+  opens on a team's EPA margin per play or a QB's EPA per dropback when the view has them.
 - When a season has head-to-head files, the detail page adds a `Head to head` card: a `Compare
   with` picker, starting on the team or QB ranked just above (just below for the leader), and one
   sentence such as "NE rated above BUF in 38% of resampled seasons; difference -1.2 points, 95%:

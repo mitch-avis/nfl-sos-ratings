@@ -50,6 +50,12 @@ import {
 } from '@/domain/viewModel'
 import { buildColumnDecimals } from '@/domain/tableState'
 
+/** The game-by-game chart opens on the per-game form of what the rating measures. */
+const TREND_PREFERRED: Record<EntityKind, readonly string[]> = {
+  teams: ['epa_margin_per_play', 'point_margin'],
+  qbs: ['qb_epa_per_dropback'],
+}
+
 /** One team's or QB's season: current-view values, rating by week, weekly log, and opponents. */
 export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset: SeasonDataset }) {
   const config = getEntityConfig(kind)
@@ -265,7 +271,11 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
                   ))}
                 </div>
               ) : null}
-              <WeeklyTrendChart rows={enrichedGameLogs.rows} columns={gameLogSelection.metricColumns} />
+              <WeeklyTrendChart
+                rows={enrichedGameLogs.rows}
+                columns={gameLogSelection.metricColumns}
+                preferred={TREND_PREFERRED[kind]}
+              />
               <GameLogTable rows={enrichedGameLogs.rows} columns={gameLogSelection.columns} opponents={opponentRanges} />
             </>
           ) : null}

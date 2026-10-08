@@ -639,6 +639,22 @@ describe('rank by week', () => {
     expect(within(card).getByRole('table', { name: 'Rank by week' })).toBeInTheDocument()
   })
 
+  it('says when the chart starts while every team has fewer than three games', async () => {
+    // Arrange
+    vi.stubGlobal(
+      'fetch',
+      stubApi({ ...API, '/api/seasons/2025/teams/KC/rank-history': { ...KC_RANK_HISTORY, rows: [] } }),
+    )
+
+    // Act
+    renderApp('/teams/KC?season=2025')
+
+    // Assert
+    const card = await screen.findByRole('region', { name: 'Rank by week' })
+    expect(card).toHaveTextContent('starts once every team has played three games')
+    expect(within(card).queryByRole('table')).not.toBeInTheDocument()
+  })
+
   it('leaves the chart out for a season without weekly rank ranges', async () => {
     // Act
     renderApp('/teams/KC?season=2025')

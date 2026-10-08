@@ -46,6 +46,9 @@ REQUIRED_CONTRACT_SUFFIXES = (
 )
 # The first season with 17 regular-season games per team.
 FIRST_17_GAME_SEASON = 2021
+# The rank-by-week chart starts once every team has played this many games (game bootstraps of
+# fewer games understate the uncertainty).
+MIN_GAMES_FOR_RANK_HISTORY = 3
 TEAM_GAME_LOG_SUFFIX = "team_game_logs"
 QB_GAME_LOG_SUFFIX = "qb_game_logs"
 TEAM_RATING_HISTORY_SUFFIX = "ratings_by_week"
@@ -221,18 +224,60 @@ def load_qb_rating_ranges_payload(data_dir: Path, season: int) -> TablePayload:
     return _build_rating_ranges_payload(frame, ("qb_id", "qb_name", "team"), QB_RANGE_COLUMNS)
 
 
+def first_rank_history_week(data_dir: Path, season: int) -> int | None:
+    """Return the first week in which every team has played ``MIN_GAMES_FOR_RANK_HISTORY`` games.
+
+    Weekly rank ranges come from game bootstraps, which can only repeat or drop a team's games: with
+    one or two games per team they understate the uncertainty, so the rank-by-week chart starts once
+    every team has played three. Reads the season's weekly rating history; ``None`` when the season
+    has none (every week is then shown), and a week past the last when no week qualifies yet.
+    """
+    path = data_dir / f"{season}_{TEAM_RATING_HISTORY_SUFFIX}.parquet"
+    if not path.exists():
+        return None
+    weeks = (
+        pl.read_parquet(path, columns=["week", "games_played"])
+        .group_by("week")
+        .agg(pl.col("games_played").min())
+        .sort("week")
+    )
+    every_week: list[int] = weeks.get_column("week").to_list()
+    qualifying: list[int] = (
+        weeks.filter(pl.col("games_played") >= MIN_GAMES_FOR_RANK_HISTORY)
+        .get_column("week")
+        .to_list()
+    )
+    return min(qualifying) if qualifying else max(every_week, default=0) + 1
+
+
+def _from_first_rank_history_week(frame: pl.DataFrame, data_dir: Path, season: int) -> pl.DataFrame:
+    """Keep the weeks of a weekly rank-range frame from ``first_rank_history_week`` on."""
+    first = first_rank_history_week(data_dir, season)
+    return frame if first is None else frame.filter(pl.col("week") >= first)
+
+
 def load_team_rank_history_payload(data_dir: Path, season: int, team: str) -> TablePayload:
-    """Load one team's rank range as of each week (seasons in progress only), by week."""
+    """Load one team's rank range as of each week (seasons in progress only), by week.
+
+    Weeks before every team has played three games are left out (``first_rank_history_week``).
+    """
     frame = _load_season_file(data_dir, season, TEAM_RANK_HISTORY_SUFFIX)
     rows = _filter_entity_rows(frame, "team", team, season, "team rank-history")
-    return _build_rank_history_payload(rows, TEAM_RANGE_COLUMNS)
+    return _build_rank_history_payload(
+        _from_first_rank_history_week(rows, data_dir, season), TEAM_RANGE_COLUMNS
+    )
 
 
 def load_qb_rank_history_payload(data_dir: Path, season: int, qb_id: str) -> TablePayload:
-    """Load one eligible quarterback's rank range as of each week, by week."""
+    """Load one eligible quarterback's rank range as of each week, by week.
+
+    Weeks before every team has played three games are left out (``first_rank_history_week``).
+    """
     frame = _load_season_file(data_dir, season, QB_RANK_HISTORY_SUFFIX)
     rows = _filter_entity_rows(frame, "qb_id", qb_id, season, "QB rank-history")
-    return _build_rank_history_payload(rows, QB_RANGE_COLUMNS)
+    return _build_rank_history_payload(
+        _from_first_rank_history_week(rows, data_dir, season), QB_RANGE_COLUMNS
+    )
 
 
 def load_team_rating_pairs_payload(data_dir: Path, season: int, team: str) -> TablePayload:

@@ -144,7 +144,8 @@ the medians.
   penalties and resampled the same way; past seasons skip them, as they would add about half an
   hour to a full rebuild. In the first weeks, with one or two games per team, a resample can only
   repeat or drop a team's games, never change their results, so those weeks' ranges understate the
-  uncertainty.
+  uncertainty; the app's weekly rank chart therefore starts at the first week in which every team
+  has played three games (the files keep every week).
 
 ## Garbage-Time Filter (Exploration View)
 
