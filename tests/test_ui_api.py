@@ -385,7 +385,7 @@ def test_missing_frontend_build_explains_how_to_build_it(tmp_path: Path) -> None
 
     # Assert
     assert response.status_code == 503
-    assert "npm run build" in response.text
+    assert "pnpm run build" in response.text
 
 
 @pytest.mark.parametrize(

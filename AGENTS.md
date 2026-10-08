@@ -43,8 +43,8 @@ uv venv .venv && uv sync   # one-time setup
 scripts/gate.sh            # the gate: lock/sync checks, ruff format, ruff, ty, pyright, pytest,
                            # every nfl-sos-ratings command's --help, markdownlint
 scripts/gate.sh --quick    # static checks only, for iteration
-scripts/gate.sh --web      # also check web/ (npm ci, lint, typecheck, vitest, build); use when
-                           # web/ or the API payloads change
+scripts/gate.sh --web      # also check web/ (pnpm install, lint, typecheck, vitest,
+                           # build); use when web/ or the API payloads change
 .venv/bin/pre-commit install  # one-time: commit hygiene, ruff, commit-message check, and
                               # gate.sh --quick on pre-push
 ```
@@ -94,8 +94,8 @@ scripts/refresh-season.sh [--dry-run]          # rebuild the season in progress,
 
 The full validation run is `validate --data-dir data --start-season 1999 --end-season 2025
 --start-week 5 --report-path docs/validation-report.md`. `nfl-sos` and `nfl-sos-pipeline` remain
-as shortcuts for `season` and `pipeline`. `web` serves the built app, so run `npm run build` in
-`web/` first; the Vite dev server (`npm run dev`) runs on 5280 and proxies `/api` to 8080.
+as shortcuts for `season` and `pipeline`. `web` serves the built app, so run `pnpm run build` in
+`web/` first; the Vite dev server (`pnpm run dev`) runs on 5280 and proxies `/api` to 8080.
 
 `scripts/refresh-season.sh` rebuilds `data/` for the season in progress, so a real run is ask-first
 like `season`; `--dry-run` only prints the steps. The app's refresh button, which `web
@@ -294,7 +294,7 @@ package and the tests. Beyond that:
   - touching a neighboring repo (`../nfl-predictor` or any other);
   - anything the task says to decide with the user.
 - **Never:** weaken lint, type, or coverage settings, or skip or delete failing tests, to get a
-  pass; commit secrets; edit `data/`, `uv.lock`, `requirements*.txt`, `web/package-lock.json`, or
+  pass; commit secrets; edit `data/`, `uv.lock`, `requirements*.txt`, `web/pnpm-lock.yaml`, or
   `docs/validation-report.md` by hand (they are generated); route around a permission rule or hook
   that blocks an action (regenerate a blocked file with the command that owns it); write plan
   labels outside `.agents/`.

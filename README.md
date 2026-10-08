@@ -63,8 +63,8 @@ and Elo.
 
 ## Installation
 
-Requires Python 3.14+ and [uv](https://docs.astral.sh/uv/). Node.js and npm are needed only for
-the web app in `web/`.
+Requires Python 3.14+ and [uv](https://docs.astral.sh/uv/). Node.js and pnpm are needed only
+for the web app in `web/`.
 
 ```bash
 uv venv .venv
@@ -202,18 +202,18 @@ The app in `web/` (React, TypeScript, Vite, Tailwind) browses the Parquet output
 then serve the app and its JSON API on one port:
 
 ```bash
-cd web && npm ci && npm run build && cd ..
+cd web && pnpm install --frozen-lockfile && pnpm run build && cd ..
 .venv/bin/nfl-sos-ratings web   # http://127.0.0.1:8080
 ```
 
-For hot reload, keep `nfl-sos-ratings web` running and start `npm run dev` in `web/`
+For hot reload, keep `nfl-sos-ratings web` running and start `pnpm run dev` in `web/`
 (<http://127.0.0.1:5280>, proxying `/api` to port 8080). Details are in [web/README.md].
 
 ## Development
 
 `scripts/gate.sh` is the full check: lock and sync checks, ruff format and lint, ty, pyright,
 pytest, a `--help` check of every command, and markdownlint. `--quick` skips the tests, and `--web`
-adds the frontend checks (npm ci, lint, typecheck, Vitest, build). CI
+adds the frontend checks (pnpm install, lint, typecheck, Vitest, build). CI
 (`.github/workflows/validation.yml`) runs the gate and the frontend checks on every push and pull
 request; `.venv/bin/pre-commit install` adds the commit and pre-push hooks.
 
