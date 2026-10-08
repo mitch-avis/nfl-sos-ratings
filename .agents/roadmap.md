@@ -1321,13 +1321,44 @@ Tasks:
 - [x] Commit this protocol before any run (pre-registration): its own pull request, merged
   before any of the check's code.
 - [x] Independent review of the protocol (a fresh subagent, 2026-10-08), findings resolved here.
-- [ ] The prior construction (`o_prev`, slopes, fade, centering) in a new module, on the `ridge`
-  prior already built (`UnitPrior`); test-first as listed.
-- [ ] `check-team-prior` test-first; integrity checks run on real data before reading any result.
-- [ ] Independent code review; run the check (approved); record the results here with the command.
-- [ ] Maintainer decision; if adopted, the refits above, then ask before the `data/` rebuild, then
-  update the registry, `README.md`, `docs/methodology.md`, the validation report, and the
-  nfl-predictor note.
+- [x] The prior construction (`o_prev`, slopes, fade, centering) in a new module, on the `ridge`
+  prior already built (`UnitPrior`); test-first as listed. Done on `feat/team-prior`:
+  `nfl_sos_ratings/team_prior.py` (`PriorHistory`, `snapshot_fit`), `fit_team_ratings(...,
+  scrimmage_prior=...)`, and a prior that refuses to run without a fixed penalty.
+- [x] `check-team-prior` test-first; integrity checks run on real data before reading any result.
+  Done: `nfl_sos_ratings/validation/team_prior_check.py`.
+- [x] Independent code review (2026-10-08): 0 blockers, 1 major, 7 minors, all fixed before any run.
+  The major: no check read the prior the candidates use (swapping its offense and defense passed
+  every check); check 1 now rebuilds all four published columns from that prior, and a new check
+  recomputes the carryover slopes by exact least squares from the published files (tolerance
+  1e-5). The minors: the snapshot audit now checks the means each fit used (`snapshot_fit`),
+  compares teams without games with their prior, and runs the residual and limit checks on every
+  window snapshot rather than three seasons (a superset of checks 5 and 6); candidates must equal
+  today's fit in the seasons before a prior; duplicate rows are rejected before pairing; NaN
+  counts as a mismatch; the single-game bootstrap draws in chunks; and failure tests break the
+  production code (wrong means, a solver that drops the prior, a drifting warm-up).
+- [x] Run the check (approved), 2026-10-08, from commit `f274469` on `feat/team-prior`:
+  `POLARS_MAX_THREADS=1 .venv/bin/nfl-sos-ratings check-team-prior --data-dir data
+  --start-season 2003 --end-season 2025` (input fingerprint `1fe53e2b...16fa`, 53 files).
+  Integrity: every check passed (previous seasons' ratings rebuilt from each prior with gap 0;
+  slopes against the exact recompute 9.2e-10; fully faded rows equal today's on 10,941 rows;
+  1,119 audited snapshots, means 1.4e-17, residual form 2.1e-14; teams without games on 3
+  snapshots, 2017 week 2; limit 2.4e-10 on 373 snapshots; 23 information-set seasons; 27 seasons'
+  penalties). Results, MAE of predicted home margins, prediction weeks 2+ of 2003-2025 (5,600
+  games): today 10.750, 3 games 10.714, 6 games 10.685, 9 games 10.668. Paired differences,
+  98.33% season-bootstrap intervals: 3 games -0.036 (-0.053 to -0.017), 6 games -0.064 (-0.090 to
+  -0.038), 9 games -0.082 (-0.114 to -0.050). Every interval excluding zero favors the prior:
+  each horizon overall and in weeks 2-4 (3: -0.189; 6: -0.253; 9: -0.264), and 6 and 9 in weeks
+  5-8 (-0.069, -0.136); no band interval lies above zero, so the guard removes none. Decision
+  rule: all three qualify; the recommendation is the 9-game horizon (lowest MAE). Descriptive:
+  weeks 9+ are unchanged for every horizon; 17 games and no fade gain little more overall
+  (-0.095, -0.093) and are not adoptable; the fitted margin slope is about 0.89 for every
+  candidate (no rescaling); Elo by band 10.996 / 10.730 / 10.605; carryover slopes 0.68-0.82
+  (offense) and 0.38-0.47 (defense); 2026 DEN after week 4 -0.37 (15th) today, +0.96 (12th) at 9
+  games; week 1 by the prior alone MAE 10.341 against 10.689 for the home edge alone.
+- [ ] Maintainer decision on the 9-game horizon (asked 2026-10-08).
+- [ ] If adopted: the refits above, then ask before the `data/` rebuild, then update the registry,
+  `README.md`, `docs/methodology.md`, the validation report, and the nfl-predictor note.
 
 ## Ideas parking lot (not approved yet)
 

@@ -163,7 +163,7 @@ def _spearman(x_values: np.ndarray, y_values: np.ndarray) -> float:
     return _pearson(np.asarray(x_ranks, dtype=np.float64), np.asarray(y_ranks, dtype=np.float64))
 
 
-def _build_home_game_frame(game_logs: pl.DataFrame, season: int) -> pl.DataFrame:
+def build_home_game_frame(game_logs: pl.DataFrame, season: int) -> pl.DataFrame:
     """Return one row per home game with the realized home margin."""
     required = {"game_id", "week", "team", "opponent_team", "is_home", "point_margin"}
     missing = sorted(required - set(game_logs.columns))
@@ -202,7 +202,7 @@ def build_snapshot_feature_rows(
         One row per home game with the pregame rating gap and the realized home margin.
 
     """
-    home_games = _build_home_game_frame(game_logs, season)
+    home_games = build_home_game_frame(game_logs, season)
     frames: list[pl.DataFrame] = []
     for week in sorted(home_games.get_column("week").unique().to_list()):
         prior_games = game_logs.filter(pl.col("week") < week)
@@ -586,9 +586,7 @@ def run_walk_forward_backtest(
                 build_team_rating_feature_rows(game_logs, season, previous),
                 build_srs_feature_rows(game_logs, season),
                 build_raw_epa_feature_rows(game_logs, season),
-                build_elo_feature_rows(
-                    _build_home_game_frame(game_logs, season), config=elo_config
-                ),
+                build_elo_feature_rows(build_home_game_frame(game_logs, season), config=elo_config),
             ]
         )
     features = pl.concat(feature_frames) if feature_frames else pl.DataFrame(schema=_FEATURE_SCHEMA)
@@ -804,6 +802,7 @@ __all__ = [
     "QbrCorrelation",
     "TeamDecision",
     "build_elo_feature_rows",
+    "build_home_game_frame",
     "build_raw_epa_feature_rows",
     "build_snapshot_feature_rows",
     "build_srs_feature_rows",

@@ -15,13 +15,21 @@ the defenses it faced, and each of those defenses is judged against every offens
 
 The penalty is chosen by deterministic k-fold cross-validation with folds grouped by game, so the
 plays of one game never sit on both sides of a fold.
+
+An optional prior (``UnitPrior``) moves the penalty's target from zero to a mean per unit: the fit
+then minimizes the weighted squared error plus ``penalty * (effect - prior mean)^2``, so thin
+evidence leaves an effect near its prior instead of near average. A zero prior is the plain fit.
 """
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
 import polars as pl
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 type FloatArray = npt.NDArray[np.float64]
 
@@ -53,6 +61,18 @@ class UnitFit:
     ridge_lambda: float
     offense: dict[str, float]
     defense: dict[str, float]
+
+
+@dataclass(frozen=True, slots=True)
+class UnitPrior:
+    """Prior means for one fit's effects, in response units; a unit not listed has a mean of zero.
+
+    The penalty pulls each offense effect toward ``offense[unit]`` and each defense effect toward
+    ``defense[unit]`` instead of toward zero.
+    """
+
+    offense: Mapping[str, float]
+    defense: Mapping[str, float]
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,13 +170,37 @@ def _normal_equations(
     return weighted_design.T @ design, weighted_design.T @ response
 
 
-def _solve(gram: FloatArray, moment: FloatArray, penalty: FloatArray) -> FloatArray:
-    """Solve the penalized normal equations, falling back to least squares if singular."""
+def _prior_vector(system: UnitDesign, prior: UnitPrior | None) -> FloatArray | None:
+    """Return the prior mean of every design column (zero for the intercept and home field)."""
+    if prior is None:
+        return None
+    vector = np.zeros(system.design.shape[1], dtype=np.float64)
+    offense_start = 2 if system.has_home else 1
+    defense_start = offense_start + len(system.offense_labels)
+    for index, label in enumerate(system.offense_labels):
+        vector[offense_start + index] = prior.offense.get(label, 0.0)
+    for index, label in enumerate(system.defense_labels):
+        vector[defense_start + index] = prior.defense.get(label, 0.0)
+    return vector
+
+
+def _solve(
+    gram: FloatArray,
+    moment: FloatArray,
+    penalty: FloatArray,
+    prior: FloatArray | None = None,
+) -> FloatArray:
+    """Solve the penalized normal equations, falling back to least squares if singular.
+
+    With ``prior``, the penalty pulls each coefficient toward its prior mean instead of zero:
+    ``(X'WX + P) b = X'Wy + P m``.
+    """
     system = gram + np.diag(penalty)
+    target = moment if prior is None else moment + penalty * prior
     try:
-        return np.linalg.solve(system, moment)
+        return np.linalg.solve(system, target)
     except np.linalg.LinAlgError:
-        solution, *_ = np.linalg.lstsq(system, moment, rcond=None)
+        solution, *_ = np.linalg.lstsq(system, target, rcond=None)
         return solution
 
 
@@ -196,6 +240,7 @@ def fit_unit_ridge(
     *,
     ridge_lambda: float | None = None,
     candidate_lambdas: FloatArray | None = None,
+    prior: UnitPrior | None = None,
 ) -> UnitFit:
     """Fit offense, defense, intercept, and home-field effects for one response.
 
@@ -204,25 +249,31 @@ def fit_unit_ridge(
         columns: Column names for the fit.
         ridge_lambda: Fixed penalty; when ``None`` it is chosen by grouped cross-validation.
         candidate_lambdas: Penalty grid for cross-validation (default ``DEFAULT_RIDGE_LAMBDAS``).
+        prior: Prior means the penalty pulls the effects toward (zero when ``None``). It needs a
+            fixed ``ridge_lambda``: cross-validation sets the penalty for a prior of zero.
 
     Returns:
         The solved effects in response units.
 
     Raises:
-        ValueError: If no row has an offense, defense, and response.
+        ValueError: If no row has an offense, defense, and response, or a prior comes without a
+            fixed penalty.
 
     """
+    if prior is not None and ridge_lambda is None:
+        msg = "a prior needs a fixed penalty; cross-validation sets it for a prior of zero"
+        raise ValueError(msg)
     system = build_unit_design(rows, columns)
+    prior_vector = _prior_vector(system, prior)
     resolved_lambda = (
         ridge_lambda
         if ridge_lambda is not None
         else _cross_validated_lambda(
-            system,
-            DEFAULT_RIDGE_LAMBDAS if candidate_lambdas is None else candidate_lambdas,
+            system, DEFAULT_RIDGE_LAMBDAS if candidate_lambdas is None else candidate_lambdas
         )
     )
     gram, moment = _normal_equations(system.design, system.response, system.weights)
-    coefficients = _solve(gram, moment, system.penalized * resolved_lambda)
+    coefficients = _solve(gram, moment, system.penalized * resolved_lambda, prior_vector)
 
     offense_start = 2 if system.has_home else 1
     defense_start = offense_start + len(system.offense_labels)
@@ -241,7 +292,12 @@ def fit_unit_ridge(
     )
 
 
-def solve_unit_design(design: UnitDesign, ridge_lambda: float, multipliers: FloatArray) -> UnitFit:
+def solve_unit_design(
+    design: UnitDesign,
+    ridge_lambda: float,
+    multipliers: FloatArray,
+    prior: UnitPrior | None = None,
+) -> UnitFit:
     """Refit a prebuilt design with each row's weight scaled by ``multipliers``.
 
     With a fixed penalty, a row counted k times enters the fit exactly as one row with k times the
@@ -253,6 +309,7 @@ def solve_unit_design(design: UnitDesign, ridge_lambda: float, multipliers: Floa
         design: From :func:`build_unit_design`.
         ridge_lambda: The fixed penalty.
         multipliers: One non-negative factor per design row.
+        prior: Prior means the penalty pulls the effects toward (zero when ``None``).
 
     Returns:
         The solved effects for the units with weight.
@@ -260,7 +317,9 @@ def solve_unit_design(design: UnitDesign, ridge_lambda: float, multipliers: Floa
     """
     weights = design.weights * multipliers
     gram, moment = _normal_equations(design.design, design.response, weights)
-    coefficients = _solve(gram, moment, design.penalized * ridge_lambda)
+    coefficients = _solve(
+        gram, moment, design.penalized * ridge_lambda, _prior_vector(design, prior)
+    )
     column_weight = (design.design != 0.0).T.astype(np.float64) @ weights
     offense_start = 2 if design.has_home else 1
     defense_start = offense_start + len(design.offense_labels)
@@ -318,6 +377,7 @@ __all__ = [
     "UnitColumns",
     "UnitDesign",
     "UnitFit",
+    "UnitPrior",
     "build_unit_design",
     "fit_unit_ridge",
     "predict_unit",

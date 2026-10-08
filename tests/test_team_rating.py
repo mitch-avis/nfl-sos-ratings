@@ -6,6 +6,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from nfl_sos_ratings.ridge import UnitPrior
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
     TeamRatingResampler,
@@ -142,9 +143,8 @@ def test_compute_team_schedule_strength_ignores_the_subject_teams_own_games() ->
         .otherwise(pl.col("offensive_epa"))
         .alias("offensive_epa")
     )
-    lambdas = {"scrimmage_lambda": 10.0, "special_teams_lambda": 10.0}
-    baseline_fit = fit_team_ratings(game_logs, **lambdas)
-    blowout_fit = fit_team_ratings(blowouts, **lambdas)
+    baseline_fit = fit_team_ratings(game_logs, scrimmage_lambda=10.0, special_teams_lambda=10.0)
+    blowout_fit = fit_team_ratings(blowouts, scrimmage_lambda=10.0, special_teams_lambda=10.0)
 
     # Act
     baseline_sos = compute_team_schedule_strength(game_logs, baseline_fit)
@@ -163,9 +163,8 @@ def test_compute_team_schedule_strength_other_teams_see_the_changed_games() -> N
         .otherwise(pl.col("offensive_epa"))
         .alias("offensive_epa")
     )
-    lambdas = {"scrimmage_lambda": 10.0, "special_teams_lambda": 10.0}
-    baseline_fit = fit_team_ratings(game_logs, **lambdas)
-    blowout_fit = fit_team_ratings(blowouts, **lambdas)
+    baseline_fit = fit_team_ratings(game_logs, scrimmage_lambda=10.0, special_teams_lambda=10.0)
+    blowout_fit = fit_team_ratings(blowouts, scrimmage_lambda=10.0, special_teams_lambda=10.0)
 
     # Act
     baseline_sos = compute_team_schedule_strength(game_logs, baseline_fit)
@@ -406,3 +405,45 @@ def test_bootstrap_team_ratings_units_add_up_to_the_team_rating() -> None:
         pl.col("offense_rating") + pl.col("defense_rating") + pl.col("special_teams_rating")
     ).to_series()
     assert units.to_list() == pytest.approx(draws.get_column("team_rating").to_list())
+
+
+def test_fit_team_ratings_zero_scrimmage_prior_matches_the_plain_fit() -> None:
+    # Arrange
+    game_logs = _game_logs(_PARTIAL)
+    plain = fit_team_ratings(game_logs, scrimmage_lambda=40.0, special_teams_lambda=40.0)
+
+    # Act
+    fit = fit_team_ratings(
+        game_logs,
+        scrimmage_lambda=40.0,
+        special_teams_lambda=40.0,
+        scrimmage_prior=UnitPrior(offense={}, defense={}),
+    )
+
+    # Assert
+    assert fit.ratings.equals(plain.ratings)
+
+
+def test_fit_team_ratings_overwhelming_penalty_rates_scrimmage_at_the_prior() -> None:
+    """At a huge penalty each scrimmage rating is its per-play prior mean times plays per game."""
+    # Arrange
+    prior = UnitPrior(offense={"AAA": 0.04, "BBB": -0.04}, defense={"CCC": 0.02, "DDD": -0.02})
+
+    # Act
+    fit = fit_team_ratings(
+        _game_logs(), scrimmage_lambda=1e12, special_teams_lambda=40.0, scrimmage_prior=prior
+    )
+
+    # Assert
+    assert _rating(fit.ratings, "AAA", "offense_rating") == pytest.approx(
+        0.04 * _SCRIMMAGE_PLAYS, abs=1e-6
+    )
+    assert _rating(fit.ratings, "CCC", "defense_rating") == pytest.approx(
+        0.02 * _SCRIMMAGE_PLAYS, abs=1e-6
+    )
+
+
+def test_fit_team_ratings_scrimmage_prior_needs_a_fixed_penalty() -> None:
+    # Act & Assert
+    with pytest.raises(ValueError, match="fixed penalty"):
+        fit_team_ratings(_game_logs(), scrimmage_prior=UnitPrior(offense={}, defense={}))

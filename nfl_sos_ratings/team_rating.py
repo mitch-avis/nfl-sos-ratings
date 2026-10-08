@@ -41,6 +41,7 @@ from nfl_sos_ratings.ridge import (
     UnitColumns,
     UnitDesign,
     UnitFit,
+    UnitPrior,
     build_unit_design,
     fit_unit_ridge,
     solve_unit_design,
@@ -175,6 +176,7 @@ def fit_team_ratings(
     *,
     scrimmage_lambda: float | None = None,
     special_teams_lambda: float | None = None,
+    scrimmage_prior: UnitPrior | None = None,
 ) -> TeamRatingFit:
     """Fit points-based offense, defense, special-teams, and overall team ratings.
 
@@ -184,18 +186,24 @@ def fit_team_ratings(
             from the possession team's side.
         scrimmage_lambda: Fixed scrimmage ridge penalty; cross-validated when ``None``.
         special_teams_lambda: Fixed special-teams ridge penalty; cross-validated when ``None``.
+        scrimmage_prior: Per-play prior means the scrimmage penalty pulls the offense and defense
+            effects toward (``ridge.UnitPrior``; zero when ``None``). It needs a fixed
+            ``scrimmage_lambda``. The special-teams fit keeps a prior of zero.
 
     Returns:
         The ratings frame plus the penalties and per-game scales used to build it.
 
     Raises:
-        ValueError: If a required column is missing or no rows have plays.
+        ValueError: If a required column is missing, no rows have plays, or a scrimmage prior
+            comes without a fixed scrimmage penalty.
 
     """
     _require_columns(game_logs)
     scrimmage_rows = _unit_rows(game_logs, SCRIMMAGE_PLAYS_COLUMN, SCRIMMAGE_EPA_COLUMN)
     special_rows = _unit_rows(game_logs, SPECIAL_TEAMS_PLAYS_COLUMN, SPECIAL_TEAMS_EPA_COLUMN)
-    scrimmage = fit_unit_ridge(scrimmage_rows, TEAM_UNIT_COLUMNS, ridge_lambda=scrimmage_lambda)
+    scrimmage = fit_unit_ridge(
+        scrimmage_rows, TEAM_UNIT_COLUMNS, ridge_lambda=scrimmage_lambda, prior=scrimmage_prior
+    )
     special_teams = fit_unit_ridge(
         special_rows, TEAM_UNIT_COLUMNS, ridge_lambda=special_teams_lambda
     )

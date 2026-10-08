@@ -8,6 +8,7 @@ import pytest
 
 from nfl_sos_ratings.ridge import (
     UnitColumns,
+    UnitPrior,
     build_unit_design,
     fit_unit_ridge,
     predict_unit,
@@ -260,3 +261,90 @@ def test_solve_unit_design_leaves_out_units_without_weight() -> None:
     # Assert
     assert "AAA" not in fit.offense
     assert "AAA" not in fit.defense
+
+
+def _noisy_rows(seed: int) -> pl.DataFrame:
+    """Return one double round-robin of the known effects plus per-row noise."""
+    rows = _schedule_rows()
+    noise = np.random.default_rng(seed).normal(0.0, 0.05, rows.height)
+    return rows.with_columns(pl.col("epa_per_play") + pl.Series(noise))
+
+
+def test_fit_unit_ridge_zero_prior_matches_the_plain_fit() -> None:
+    # Arrange
+    rows = _noisy_rows(seed=1)
+    plain = fit_unit_ridge(rows, _COLUMNS, ridge_lambda=50.0)
+    zero = UnitPrior(offense=dict.fromkeys(_TEAMS, 0.0), defense=dict.fromkeys(_TEAMS, 0.0))
+
+    # Act
+    fit = fit_unit_ridge(rows, _COLUMNS, ridge_lambda=50.0, prior=zero)
+
+    # Assert
+    assert fit == plain
+
+
+def test_fit_unit_ridge_overwhelming_penalty_returns_the_prior() -> None:
+    # Arrange
+    prior = UnitPrior(offense={"AAA": 0.3, "BBB": -0.1}, defense={"CCC": 0.2})
+
+    # Act
+    fit = fit_unit_ridge(_noisy_rows(seed=2), _COLUMNS, ridge_lambda=1e12, prior=prior)
+
+    # Assert
+    assert fit.offense["AAA"] == pytest.approx(0.3, abs=1e-6)
+    assert fit.offense["BBB"] == pytest.approx(-0.1, abs=1e-6)
+    assert fit.offense["CCC"] == pytest.approx(0.0, abs=1e-6)
+    assert fit.defense["CCC"] == pytest.approx(0.2, abs=1e-6)
+
+
+def test_fit_unit_ridge_prior_equals_the_plain_fit_on_residuals_plus_the_prior() -> None:
+    # Arrange
+    rows = _noisy_rows(seed=3)
+    prior = UnitPrior(
+        offense={"AAA": 0.06, "BBB": 0.02, "CCC": -0.03}, defense={"BBB": 0.05, "DDD": -0.02}
+    )
+    residual = rows.with_columns(
+        pl.col("epa_per_play")
+        - pl.col("team").replace_strict(dict(prior.offense), default=0.0)
+        + pl.col("opponent_team").replace_strict(dict(prior.defense), default=0.0)
+    )
+    plain = fit_unit_ridge(residual, _COLUMNS, ridge_lambda=40.0)
+
+    # Act
+    fit = fit_unit_ridge(rows, _COLUMNS, ridge_lambda=40.0, prior=prior)
+
+    # Assert
+    for team in _TEAMS:
+        assert fit.offense[team] == pytest.approx(
+            plain.offense[team] + prior.offense.get(team, 0.0), abs=1e-12
+        )
+        assert fit.defense[team] == pytest.approx(
+            plain.defense[team] + prior.defense.get(team, 0.0), abs=1e-12
+        )
+    assert fit.intercept == pytest.approx(plain.intercept, abs=1e-12)
+    assert fit.home_field == pytest.approx(plain.home_field, abs=1e-12)
+
+
+def test_solve_unit_design_with_a_prior_matches_fit_unit_ridge() -> None:
+    # Arrange
+    rows = _noisy_rows(seed=4)
+    prior = UnitPrior(offense={"AAA": 0.05}, defense={"DDD": -0.03})
+    design = build_unit_design(rows, _COLUMNS)
+    expected = fit_unit_ridge(rows, _COLUMNS, ridge_lambda=30.0, prior=prior)
+
+    # Act
+    fit = solve_unit_design(design, 30.0, np.ones(rows.height), prior=prior)
+
+    # Assert
+    assert fit.offense == pytest.approx(expected.offense, abs=1e-12)
+    assert fit.defense == pytest.approx(expected.defense, abs=1e-12)
+
+
+def test_fit_unit_ridge_refuses_a_prior_without_a_fixed_penalty() -> None:
+    """Cross-validation sets the penalty for a prior of zero, so it never sees a prior."""
+    # Arrange
+    prior = UnitPrior(offense=dict(_OFFENSE), defense=dict(_DEFENSE))
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="fixed penalty"):
+        fit_unit_ridge(_noisy_rows(seed=5), _COLUMNS, prior=prior)
