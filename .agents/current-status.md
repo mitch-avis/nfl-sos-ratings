@@ -14,12 +14,14 @@ history (the composite-rating era and its experiments) is in git, before commit 
   and 2026 under each version gave bit-identical ratings, ranges, pairs, histories, bins, and game
   logs, with the four descriptive opponent-profile files per season differing by float rounding
   only (`diff-data --tolerance 1e-9`: all unchanged); the 1.44.2 builds of the four completed
-  seasons matched `data/` exactly; Polars 2.0 is deterministic run to run; 1,203 API payloads were
-  identical between servers on each version; and `check-additivity` and
-  `check-in-season-penalty` printed identical output.
-- Branch `feat/team-color-depth` (2026-10-08, not yet pushed): the generated Broncos palette
-  (maintainer approval), tinted surfaces, accent backgrounds, team logo and header stripe, team
-  heat scales for all 32 teams, and team color chips (`.agents/roadmap.md`, F7 follow-up).
+  seasons matched `data/` exactly; Polars 2.0 is deterministic run to run; `.venv/bin/python
+  .agents/findings_2026_10_08/api_parity.py http://127.0.0.1:8090 http://127.0.0.1:8092 1999 2012
+  2025 2026` (a server on each version) reported 1,203 payloads compared and 0 differing; and
+  `check-additivity` and `check-in-season-penalty` printed identical output.
+- Pull request #17 (`feat/team-color-depth`): the generated Broncos palette (maintainer
+  approval), neutral page surfaces, team-colored accents, hover backgrounds, tooltips, logo, and
+  header stripe, team heat scales for all 32 teams, team color chips, and team pages in their
+  team's colors (`.agents/roadmap.md`, F7 follow-up).
 - New since the last handoff, all in the roadmap: S5 (Polars single-threaded by default for tests
   and builds, plus the `published_data` coverage decision), "Data notes" (three 1999-2000 games
   missing from nflverse play-by-play; the 2026 Broncos rating explained), workstream U (the

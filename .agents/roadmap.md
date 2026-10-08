@@ -822,9 +822,12 @@ docstring):
   the suggested lightness scale (darker better in light mode, lighter in dark mode).
 - Team chips (independent of the palette): a two-color dot beside every team abbreviation in the
   index tables, game log, opponent table, comparison, filtered table, and detail-page title.
-- Checks: `is_readable` now covers body and secondary text on every tinted surface (hover,
-  selected, and hint card), the accent surfaces' own text, and the hint border; every committed
-  palette passes in both modes, and every team has a heat scale.
+- Checks: `is_readable` now covers body text on every tinted surface (hover, selected, and hint
+  card), secondary text and links on the hint card, the accent surfaces' own text, the hint
+  border, and heat-scale ends at least 3 OKLab units from the card; every committed palette passes
+  in both modes, and every team has a heat scale. The heat scale's better end uses the same team
+  color in both modes (the light-mode accent's), so the Packers' better cells are green by day and
+  night (an independent review found 9 teams swapping between modes before this).
   Visual check: all 32 palettes, both modes, index and detail pages, screenshotted with headless
   Chrome against a scratch build (`vite build --outDir /tmp/...`, so `web/dist` was untouched).
 
@@ -892,20 +895,24 @@ Proposal (one small pull request after the current one merges):
 ## Data notes (2026-10-08)
 
 - nflverse play-by-play has no rows for three regular-season games, so the team game logs lack
-  them: `1999_01_BAL_STL`, `2000_03_SD_KC`, and `2000_06_BUF_MIA` (scratch check:
-  `nflreadpy.load_schedules` versus the game ids in `data/{season}_team_game_logs.parquet`, and
-  `load_pbp` returned no rows for them). BAL and LAR (1999) and KC, LAC, BUF, and MIA (2000) are
-  rated on 15 games. 2022 BUF and CIN have 16 games because their game was cancelled.
+  them: `1999_01_BAL_STL`, `2000_03_SD_KC`, and `2000_06_BUF_MIA`, from `POLARS_MAX_THREADS=1
+  .venv/bin/python .agents/findings_2026_10_08/missing_pbp_games.py 1999 2000 2022` (nflverse's
+  schedule against `data/{season}_team_game_logs.parquet`; play-by-play rows for the missing games:
+  0). BAL and LAR (1999) and KC, LAC, BUF, and MIA (2000) are rated on 15 games. 2022 BUF and CIN
+  have 16 games because their game was cancelled; the same command lists no missing 2022 game.
 - The 2026 Broncos question (maintainer, 2026-10-08): through week 4, DEN's head-to-head-excluded
-  `sos` (5.28) is the hardest in 2026 and above every completed season's (2009 TB, 2.83, from
-  `nfl-sos-ratings schedules`), yet `team_rating` is -0.37 (15th). Scratch decomposition (refits of
-  `data/2026_team_game_logs.parquet` with 2025's cross-validated penalty, 316): before adjustment
-  DEN was 23rd by point margin (-5.0 per game) and by EPA (-6.5 points per game); fully adjusted
-  with no penalty it would be +6.2 (8th), a schedule credit of about +12.7 that rests on 4-game
-  estimates of SF, KC, JAX, and LAR (SF's unpenalized offense alone is +21.5); the penalty, at 239
-  scrimmage plays against 316, keeps 43% of DEN's offensive evidence and its schedule credit. 2026
-  95% rank range 5th-30th (`data/2026_rating_ranges.parquet`). Nothing is wrong with the fit;
-  the ratings know nothing about 2025 (LAR 1st, JAX 4th, DEN 6th), which an idea below would test.
+  `sos` (5.28, `data/2026_ratings.parquet`) is the hardest in 2026 and above every completed
+  season's (2009 TB, 2.83, from `nfl-sos-ratings schedules`), yet `team_rating` is -0.37 (15th).
+  `POLARS_MAX_THREADS=1 .venv/bin/python .agents/findings_2026_10_08/den_rating_split.py --season
+  2026 --team DEN` refits `data/2026_team_game_logs.parquet` with 2025's cross-validated penalty
+  (316): before adjustment DEN was 23rd by point margin (-5.00 per game) and by EPA (-6.55); fully
+  adjusted with no penalty it would be +6.19 (8th), a schedule credit of about 12.7 points that
+  rests on 4-game estimates of SF, KC, JAX, and LAR; the penalty keeps 43% of DEN's offensive
+  evidence and 46% of its defensive (the shrink factors), schedule credit included; the 95% rank
+  range is 5th-30th. Nothing is wrong with the fit; the ratings know nothing about 2025 (LAR 1st,
+  JAX 4th, DEN 6th in `data/2025_ratings.parquet`), which P6 tests. The same command's prior sketch:
+  DEN +1.01 (12th), +1.51 (10th), and +2.43 (9th) with priors at 33%, 45%, and 67% of 2025, and
+  +0.32 (13th) at 45% without DEN's own prior.
 
 ## U. UX audit (2026-10-08)
 
