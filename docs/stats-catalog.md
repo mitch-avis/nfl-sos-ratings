@@ -32,7 +32,7 @@ played. Start here when ranking teams.
 | --- | --- | --- | --- | --- | --- | --- |
 | `team_rating` | Team Rating | score | - | 1999 | D | How many points per game better than an average team this team was on a neutral field, after adjusting for every opponent it faced. It is the sum of the offense, defense, and special-teams ratings, all built from expected points added (EPA). 0 is an average team. |
 | `offense_rating` | Off Rating | score | - | 1999 | D | Points per game the offense produced above an average offense, measured by scrimmage EPA per play and adjusted for the defenses it faced. |
-| `defense_rating` | Def Rating | score | - | 1999 | D | Points per game the defense prevented compared with an average defense, measured by scrimmage EPA per play allowed and adjusted for the offenses it faced. Higher is better. |
+| `defense_rating` | Def Rating | score | - | 1999 | D | Points per game the defense prevented compared with an average defense, measured by scrimmage EPA per play allowed and adjusted for the offenses it faced. |
 | `special_teams_rating` | ST Rating | score | - | 1999 | D | Points per game gained on special-teams plays (kicks, punts, returns, field goals, and extra points) compared with an average team, adjusted for the opponents faced. |
 | `SRS` | SRS | score | - | 1999 | D | A classic point-margin rating solved across the whole league at once. Positive means the team outscored opponents by more than an average team would have against the same schedule, measured in points per game. |
 | `sos` | SoS | score | - | 1999 | D | The average Team Rating of the opponents this team played, one entry per game, in points per game. Each opponent is rated without its games against this team, so beating an opponent badly cannot make that opponent look weaker here. Positive means a harder-than-average schedule. Early in a season, opponents that have played no one else yet are left out. Context, not a team grade. |
@@ -126,7 +126,7 @@ Everything the team did with the ball.
 | `net_passing_yards` | Net Pass Yds | count | - | 1999 | PBP | Passing yards minus yards lost to sacks — the NFL.com team convention for passing offense. Formula: passing_yards - sack_yards_lost (positive magnitude) |
 | `dropbacks` | Dropbacks | count | - | 1999 | PBP | Pass attempts plus sacks plus scrambles — every play that started as a pass. The natural denominator for passing efficiency. |
 | `sack_yards_lost` | Sack Yds Lost | count | - | 1999 | PBP +TS | Yards lost on sacks, shown as a positive number. Fewer is better. team_stats stores this negative upstream; the ETL normalizes the sign. |
-| `sack_rate_per_dropback` | Sack Rate | rate | dropbacks | 1999 | PBP | The share of dropbacks that ended in a sack. Lower is better. |
+| `sack_rate_per_dropback` | Sack Rate | rate | dropbacks | 1999 | PBP | The share of dropbacks that ended in a sack. |
 | `scrambles` | Scrambles | count | - | 1999 | PBP | Dropbacks on which the quarterback took off and ran. |
 | `scramble_yards` | Scramble Yds | count | - | 1999 | PBP | Rushing yards gained on quarterback scrambles. |
 | `passing_air_yards` | Air Yds | count | - | 2006 | PBP +TS | Total distance the ball traveled past the line of scrimmage on all throws, including incompletions — a measure of how far downfield the team attacks. |
@@ -141,7 +141,7 @@ Everything the team did with the ball.
 | `pass_success_rate` | Pass Success % | rate | dropbacks | 1999 | PBP | The share of dropbacks that improved the team's expected points. |
 | `team_passer_rating` | Passer Rating | rate | official NFL formula over attempts | 1999 | PBP | The classic NFL passer-rating formula (0 to 158.3) computed on the team's combined passing totals. |
 | `passing_td_rate_per_attempt` | TD % | rate | pass attempts | 1999 | PBP | The share of pass attempts that scored touchdowns. |
-| `int_rate_per_attempt` | INT % | rate | pass attempts | 1999 | PBP | The share of pass attempts that were intercepted. Lower is better. |
+| `int_rate_per_attempt` | INT % | rate | pass attempts | 1999 | PBP | The share of pass attempts that were intercepted. |
 | `explosive_pass_rate` | Explosive Pass % | rate | dropbacks | 1999 | PBP | Completions of 20+ yards divided by dropbacks. |
 | `deep_attempt_rate` | Deep Att % | rate | pass attempts | 1999 | PBP | The share of attempts thrown deep (16+ air yards). A style stat. |
 | `longest_pass` | Long Pass | max | - | 1999 | PBP | The team's longest completed pass of the season, in yards. |
@@ -167,7 +167,7 @@ Everything the team did with the ball.
 | `epa_per_carry` | EPA/Carry | rate | carries | 1999 | PBP | Rushing expected points added per carry — rushing efficiency. |
 | `rush_success_rate` | Rush Success % | rate | designed carries | 1999 | PBP | The share of designed runs that improved the team's expected points. |
 | `explosive_rush_rate` | Explosive Rush % | rate | carries | 1999 | PBP | Runs of 10+ yards divided by carries. |
-| `stuffed_run_rate` | Stuffed % | rate | carries other than kneel-downs | 1999 | PBP | The share of carries other than kneel-downs stopped for no gain or a loss. Lower is better. |
+| `stuffed_run_rate` | Stuffed % | rate | carries other than kneel-downs | 1999 | PBP | The share of carries other than kneel-downs stopped for no gain or a loss. |
 | `rushing_fumbles` | Rush Fumbles | count | - | 1999 | PBP +TS | Fumbles on rushing plays, whether or not the team lost the ball. |
 | `longest_rush` | Long Rush | max | - | 1999 | PBP | The team's longest run of the season, in yards. |
 | `rushing_2pt_conversions` | 2-Pt Rushes | count | - | 1999 | PBP +TS | Successful two-point conversions run in. |
@@ -218,7 +218,7 @@ Everything the team did with the ball.
 | `fourth_down_aggressiveness` | 4th Down Aggr | rate | fourth-and-short situations | 1999 | PBP | Go-for-it rate on fourth-and-short (2 yards or less), where analytics usually favors going for it. |
 | `series` | Series | count | - | 1999 | PBP | First-down series the offense ran (each new set of downs). |
 | `series_conversion_rate` | Series Conv % | rate | series | 1999 | PBP | The share of first-down series that gained another first down or scored — a steadier version of third-down percentage. |
-| `three_and_out_rate` | 3-and-Out % | rate | drives | 1999 | PBP | The share of drives that went three plays and punted. Lower is better. |
+| `three_and_out_rate` | 3-and-Out % | rate | drives | 1999 | PBP | The share of drives that went three plays and punted. |
 | `turnovers_on_downs` | TO on Downs | count | - | 1999 | PBP | Failed fourth-down tries that handed the ball over. |
 
 ### Offense: Drives & Field Position
@@ -231,8 +231,8 @@ Everything the team did with the ball.
 | `time_per_drive` | Time/Drive | avg | drives | 1999 | PBP | Average clock time used per possession. |
 | `first_downs_per_drive` | 1Ds/Drive | avg | drives | 1999 | PBP | Average first downs gained per possession. |
 | `score_pct_per_drive` | Score %/Drive | rate | drives | 1999 | PBP | The share of possessions ending in any score. |
-| `punt_pct_per_drive` | Punt %/Drive | rate | drives | 1999 | PBP | The share of possessions ending in a punt. Lower is better. |
-| `turnover_pct_per_drive` | TO %/Drive | rate | drives | 1999 | PBP | The share of possessions ending in a giveaway. Lower is better. |
+| `punt_pct_per_drive` | Punt %/Drive | rate | drives | 1999 | PBP | The share of possessions ending in a punt. |
+| `turnover_pct_per_drive` | TO %/Drive | rate | drives | 1999 | PBP | The share of possessions ending in a giveaway. |
 | `avg_starting_field_position` | Avg Start | avg | drives | 1999 | PBP | Where drives started on average, in yards from the team's own goal line. Higher means shorter fields to score. |
 | `long_field_score_pct` | Long-Field Score % | rate | long-field drives | 1999 | PBP | Scoring rate on drives that started inside the team's own 25. |
 | `drive_penalty_yards` | Drive Pen Yds | count | - | 1999 | PBP | Net penalty yards on the team's drives: yards the defense's fouls gave the offense minus yards its own fouls cost it. |
@@ -244,8 +244,8 @@ Everything the team did with the ball.
 | `giveaways` | Giveaways | count | - | 1999 | PBP | Interceptions thrown plus fumbles lost. |
 | `fumbles` | Fumbles | count | - | 1999 | PBP +TS | All offensive fumbles, whether recovered or lost. |
 | `fumbles_lost` | Fumbles Lost | count | - | 1999 | PBP +TS | Offensive fumbles the defense recovered. |
-| `giveaway_rate_per_offensive_snap` | Giveaway % | rate | offensive snaps | 1999 | PBP | Giveaways divided by offensive snaps. Lower is better. |
-| `giveaways_per_drive` | Giveaways/Drive | rate | drives | 1999 | PBP | Giveaways divided by possessions. Lower is better. |
+| `giveaway_rate_per_offensive_snap` | Giveaway % | rate | offensive snaps | 1999 | PBP | Giveaways divided by offensive snaps. |
+| `giveaways_per_drive` | Giveaways/Drive | rate | drives | 1999 | PBP | Giveaways divided by possessions. |
 | `turnover_epa` | TO EPA | count | - | 1999 | PBP | Expected points lost on giveaway plays — how costly the turnovers were, not just how many there were. Values are negative; closer to zero means cheaper turnovers. |
 
 ### Offense: Penalties

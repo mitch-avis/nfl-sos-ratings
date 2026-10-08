@@ -31,6 +31,8 @@ export interface MetricMetadata {
 // registry snapshot; the local inference below is only a fallback for
 // columns that have not been hydrated yet.
 const REGISTRY_METADATA = new Map<string, MetricMetadata>();
+// How each registry metric is computed, from `/api/metadata` (column payloads do not carry it).
+const REGISTRY_FORMULAS = new Map<string, string>();
 
 /**
  * The prefix of the columns the unique-opponent table derives (`detailAnalytics.ts`): a stat's
@@ -88,7 +90,10 @@ export function hydrateColumnMetadata(
 export function hydrateMetricRegistry(registry: MetricRegistryPayload): void {
   for (const [name, payload] of Object.entries(registry.metrics)) {
     if (!REGISTRY_METADATA.has(name)) {
-      REGISTRY_METADATA.set(name, toMetricMetadata(payload));
+      REGISTRY_METADATA.set(name, toMetricMetadata({ ...payload, base_name: payload.base_name ?? name }));
+    }
+    if (payload.formula) {
+      REGISTRY_FORMULAS.set(name, payload.formula);
     }
   }
   for (const entity of ['team', 'qb'] as const) {
@@ -237,31 +242,6 @@ const PREFIX_CONTEXTS: PrefixContext[] = [
   },
 ];
 
-export const GLOSSARY_SECTIONS: Array<{ title: string; description: string; metrics: string[] }> = [
-  {
-    title: 'Team Rankings',
-    description: 'Use these first when comparing full-team quality against actual schedules.',
-    metrics: [
-      'team_rating',
-      'offense_rating',
-      'defense_rating',
-      'special_teams_rating',
-      'sos',
-      'SRS',
-    ],
-  },
-  {
-    title: 'QB Rankings',
-    description: 'Use these first when comparing QB quality against the defenses each QB faced.',
-    metrics: ['adj_qb_epa_per_dropback', 'qb_epa_per_dropback', 'qb_faced_pass_defense'],
-  },
-  {
-    title: 'Key Supporting Stats',
-    description: 'Representative efficiency metrics used throughout the current shell.',
-    metrics: ['points_per_offensive_snap', 'qb_epa_per_dropback', 'qb_any_a', 'qb_sack_rate'],
-  },
-];
-
 export function getMetricMetadata(column: string): MetricMetadata {
   return (
     REGISTRY_METADATA.get(column)
@@ -270,10 +250,25 @@ export function getMetricMetadata(column: string): MetricMetadata {
   );
 }
 
-export function getMetricTooltip(column: string): string {
+/** How a registry metric is computed, or `null` for a column the registry does not list itself. */
+export function getMetricFormula(column: string): string | null {
+  return REGISTRY_FORMULAS.get(column) ?? null;
+}
+
+/** Which way is better, from a polarity and the context flag; `null` when neither way is. */
+export function directionFor(polarity: MetricPolarity, contextual: boolean | undefined): string | null {
+  if (contextual) {
+    return 'Context, not a grade: it describes the opposition, not this team or QB.';
+  }
+  if (polarity === 'higher') return 'Higher is better.';
+  if (polarity === 'lower') return 'Lower is better.';
+  return null;
+}
+
+/** Which way is better for a column, for hints and the glossary; `null` when neither is. */
+export function directionText(column: string): string | null {
   const metadata = getMetricMetadata(column);
-  const description = stripRepeatedMetricName(metadata.detail, metadata.fullName);
-  return description ? `${metadata.fullName}. ${description}` : metadata.fullName;
+  return directionFor(metadata.polarity, metadata.contextual);
 }
 
 export function getMetricDescription(column: string): string {

@@ -1,8 +1,9 @@
-import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
+import { getMetricMetadata } from '@/domain/metricMetadata'
 import { useHasHover } from '@/hooks/use-has-hover'
 import { cn } from '@/utils/cn'
 
 import { Hint } from './Hint'
+import { MetricHint } from './MetricHint'
 
 /**
  * A metric label that explains the metric from the metric registry: on hover or focus with a
@@ -29,7 +30,7 @@ export function MetricLabel({
   )
   const text = label ?? getMetricMetadata(column).label
   return (
-    <Hint content={tooltip ?? getMetricTooltip(column)} className="max-w-sm">
+    <Hint content={tooltip ?? <MetricHint column={column} />} className="max-w-sm">
       {hasHover ? (
         <span tabIndex={0} className={classes}>
           {text}

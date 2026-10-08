@@ -24,7 +24,7 @@ QB_RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "The quarterback's expected points added per dropback after adjusting for the pass "
             "defenses he faced. It reads on the same scale as raw EPA per dropback, and small "
-            "samples are pulled toward the league average. Higher is better."
+            "samples are pulled toward the league average."
         ),
         shape="rate",
         polarity="higher",
@@ -447,7 +447,7 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
         name="qb_interception_rate",
         label="INT %",
         full_name="QB Interception Rate",
-        description="The share of pass attempts that were intercepted. Lower is better.",
+        description="The share of pass attempts that were intercepted.",
         shape="rate",
         polarity="lower",
         source="D",
@@ -496,8 +496,8 @@ QB_PRESSURE_METRICS: tuple[MetricDef, ...] = (
         label="Sack Rate",
         full_name="QB Sack Rate",
         description=(
-            "The share of dropbacks that ended in a sack. Lower is better — sack "
-            "avoidance tracks quarterbacks more than offensive lines."
+            "The share of dropbacks that ended in a sack. Sack avoidance tracks quarterbacks more "
+            "than offensive lines."
         ),
         shape="rate",
         polarity="lower",
