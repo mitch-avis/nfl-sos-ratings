@@ -1112,13 +1112,17 @@ Charts:
 
 Color semantics:
 
-- [ ] U15 Schedule strength (SoS, Faced Pass D) is heat-mapped as good or bad, so a hard schedule
+- [x] U15 Schedule strength (SoS, Faced Pass D) is heat-mapped as good or bad, so a hard schedule
   is green; it is context, not quality. Give context columns a single-hue or no heat scale, from
-  registry metadata (the backend defines meaning).
-- [ ] U16 The unique-opponent table heat-maps raw counts against one opponent (completions,
-  attempts); shade rates only.
+  registry metadata (the backend defines meaning). Done on `feat/color-semantics`: every column
+  the registry marks `contextual` (SoS, Faced Pass D, the `opp_` columns) and the unique-opponent
+  schedule tier shade in one neutral slate hue, deeper toward the tougher end, in every palette;
+  the reading notes say so.
+- [x] U16 The unique-opponent table heat-maps raw counts against one opponent (completions,
+  attempts); shade rates only. Done on `feat/color-semantics` (`tableState.shadedColumns`).
 - [ ] U17 The default palette's green-to-red heat scale is hard to read with red-green color
-  blindness (about 1 in 12 men); consider blue to orange for the default.
+  blindness (about 1 in 12 men); consider blue to orange for the default. Waiting on the
+  maintainer (asked 2026-10-08): a visible change to the default look.
 
 Glossary and navigation:
 

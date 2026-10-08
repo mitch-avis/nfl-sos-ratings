@@ -65,6 +65,7 @@ const ENTITY_CONFIG: Record<EntityKind, EntityConfig> = {
       'Offense, defense, and special-teams ratings are on the same points-per-game scale, so they add up exactly to Team Rating.',
       'SoS is the average Team Rating of the opponents played, with each opponent rated without its games against this team. Positive means a harder schedule.',
       'SRS is the classic point-margin rating, kept as a score-based reference beside the EPA-based Team Rating.',
+      'Shading marks better or worse within the season; gray shading marks context instead, such as schedule strength or the opponents faced, deeper for tougher.',
     ],
   },
   qbs: {
@@ -88,6 +89,7 @@ const ENTITY_CONFIG: Record<EntityKind, EntityConfig> = {
       'Faced Pass D is the dropback-weighted quality of those defenses (positive means tougher), with each defense rated without its games against this quarterback.',
       'Small samples are pulled toward the league average, so a backup with a few big plays does not top the table.',
       'Wins, comebacks, and other outcomes do not feed the rating; they stay available as context stats.',
+      'Shading marks better or worse within the season; gray shading marks context instead, such as schedule strength or the opponents faced, deeper for tougher.',
     ],
   },
 };
