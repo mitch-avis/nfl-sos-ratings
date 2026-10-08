@@ -146,6 +146,10 @@ function findFirstAvailableMetric(gameLogs: TablePayload, candidates: string[]):
   return candidates.find((column) => gameLogs.visible_columns.includes(column)) ?? null;
 }
 
+/**
+ * The season value a per-game number is compared with: `seasonRow` as the API serves it (per game),
+ * never a view's row whose counts were turned into season totals, else the mean of the game values.
+ */
 function resolveSeasonBaseline(
   seasonRow: DataRow,
   gameLogs: TablePayload,

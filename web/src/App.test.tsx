@@ -476,6 +476,47 @@ describe('team detail', () => {
     expect(await screen.findByRole('heading', { name: /Team Ratings Index · 2025/ })).toBeInTheDocument()
     expect(screen.getByText('Season 1990 is not available; showing 2025.')).toHaveAttribute('role', 'status')
   })
+
+  it("compares each opponent with the season's per-game average in Raw Total Stats", async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const passingEpa = columnMeta('Pass EPA', { category: 'Offense', subcategory: 'Passing', shape: 'count' })
+    const teams = {
+      ...SEASON_2025.teams,
+      // DEN's season row is per game, as the API serves it: 6.5 passing EPA a game over 3 games.
+      rows: SEASON_2025.teams.rows.map((row) => ({ ...row, games_played: 3, passing_epa: row.team === 'DEN' ? 6.5 : 1 })),
+      visible_columns: [...SEASON_2025.teams.visible_columns, 'games_played', 'passing_epa'],
+      column_metadata: {
+        ...SEASON_2025.teams.column_metadata,
+        games_played: columnMeta('G', { category: 'Overall', shape: 'count', polarity: 'neutral' }),
+        passing_epa: passingEpa,
+      },
+    }
+    const passingByOpponent: Record<string, number> = { TEN: 9.25, IND: 2, LAC: 8.25 }
+    const games = {
+      ...DEN_GAME_LOGS,
+      rows: DEN_GAME_LOGS.rows.map((row) => ({ ...row, passing_epa: passingByOpponent[String(row.opponent_team)] })),
+      visible_columns: [...DEN_GAME_LOGS.visible_columns, 'passing_epa'],
+      column_metadata: { ...DEN_GAME_LOGS.column_metadata, passing_epa: passingEpa },
+    }
+    vi.stubGlobal(
+      'fetch',
+      stubApi({ ...API, '/api/seasons/2025': { ...SEASON_2025, teams }, '/api/seasons/2025/teams/DEN/game-logs': games }),
+    )
+    renderApp('/teams/DEN?season=2025')
+    await screen.findByRole('table', { name: 'Unique opponents' })
+
+    // Act
+    await user.click(screen.getByRole('button', { name: 'Raw Total Stats' }))
+
+    // Assert
+    const table = screen.getByRole('table', { name: 'Unique opponents' })
+    const deltaIndex = within(table)
+      .getAllByRole('columnheader')
+      .findIndex((header) => header.textContent?.includes('vs Season'))
+    const ten = within(table).getByRole('row', { name: /^TEN/ })
+    expect(within(ten).getAllByRole('cell')[deltaIndex]).toHaveTextContent('2.75')
+  })
 })
 
 const RANGES_PATH = '/api/seasons/2025/teams/rating-ranges'

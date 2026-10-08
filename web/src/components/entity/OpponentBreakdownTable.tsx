@@ -55,6 +55,7 @@ export function OpponentBreakdownTable({ breakdown }: { breakdown: Breakdown }) 
   return (
     <div className="max-h-[70vh] overflow-auto rounded-md border">
       <table className="w-max min-w-full text-sm tabular">
+        <caption className="sr-only">Unique opponents</caption>
         <thead className="sticky top-0 z-10 bg-muted">
           <tr>
             {breakdown.columns.map((column) => {
