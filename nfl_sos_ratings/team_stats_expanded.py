@@ -692,6 +692,8 @@ def _join_defense_mirrors(frame: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
 def _add_cross_side_margins(frame: pl.DataFrame) -> pl.DataFrame:
     """Derive whole-team margins that need both offense and defense values."""
     margin_specs = [
+        # Each takeaway is the opponent's giveaway, so the league's margins sum to zero.
+        ("takeaways", "giveaways", "turnover_margin"),
         ("aux_total_yards", "aux_total_yards_allowed", "total_yards_differential"),
         ("epa_per_offensive_snap", "epa_per_defensive_snap_allowed", "epa_margin_per_play"),
         ("success_rate", "success_rate_allowed", "success_rate_margin"),

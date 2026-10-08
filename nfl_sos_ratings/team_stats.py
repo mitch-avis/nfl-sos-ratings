@@ -290,24 +290,6 @@ def compute_team_game_stats_from_pbp(
         .alias("win_value"),
     )
 
-    turnover_margin_inputs = {
-        "def_interceptions": "def_interceptions",
-        "def_fumbles_forced": "def_fumbles_forced",
-        "passing_interceptions": "passing_interceptions",
-        "sack_fumbles_lost": "sack_fumbles_lost",
-        "rushing_fumbles_lost": "rushing_fumbles_lost",
-    }
-    if turnover_margin_inputs.keys() <= set(result.columns):
-        result = result.with_columns(
-            (
-                pl.col("def_interceptions")
-                + pl.col("def_fumbles_forced")
-                - pl.col("passing_interceptions")
-                - pl.col("sack_fumbles_lost")
-                - pl.col("rushing_fumbles_lost")
-            ).alias("turnover_margin")
-        )
-
     rate_specs = [
         ("points_for", "offensive_snaps", "points_per_offensive_snap"),
         ("total_yards", "offensive_snaps", "total_yards_per_offensive_snap"),
