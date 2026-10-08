@@ -929,6 +929,16 @@ Proposal (one small pull request after the current one merges):
 
 ## Data notes (2026-10-08)
 
+- Rebuilt and revalidated on 2026-10-08 (maintainer approval), from `485ae56`: `nfl-sos-ratings
+  pipeline`, `nfl-sos-ratings season --season 2026`, then the full `validate` command. Every fix
+  below that waited for a rebuild is now in `data/`. `nfl-sos-ratings diff-data --before <copy of
+  data/ before> --after data --tolerance 1e-9`: 280 files unchanged, 226 with changed values (the
+  descriptive stat files of every season); no team rating, range, pair, history, or win-probability
+  file changed, and the QB ratings files only in `qb_attempts_total` for one passer in 2001 and one
+  in 2002 (the Jacksonville repair). The validation report kept every team number and the adopt
+  decision; QB year-over-year Pearson moved to 0.398 for ANY/A (0.392 before) and 0.460 for passer
+  rating (0.464), both now from the fixed inputs; adjusted EPA per dropback stays 0.455.
+
 - nflverse play-by-play has no rows for three regular-season games, so the team game logs lack
   them: `1999_01_BAL_STL`, `2000_03_SD_KC`, and `2000_06_BUF_MIA`, from `POLARS_MAX_THREADS=1
   .venv/bin/python .agents/findings_2026_10_08/missing_pbp_games.py 1999 2000 2022` (nflverse's
