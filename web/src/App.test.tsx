@@ -749,6 +749,33 @@ describe('team palettes', () => {
     await waitFor(() => expect(chosen).toHaveFocus())
   })
 
+  it('lays out the palette menu as one row of four teams per division', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    renderApp('/teams?season=2025')
+
+    // Act
+    await user.click(await screen.findByRole('button', { name: 'Palette: Default' }))
+
+    // Assert
+    const rows = await screen.findAllByRole('group', { name: /^(AFC|NFC) / })
+    expect(rows).toHaveLength(8)
+    expect(within(rows[0]).getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual(['BUF', 'MIA', 'NE', 'NYJ'])
+  })
+
+  it('marks the chosen team in the palette menu', async () => {
+    // Arrange
+    window.localStorage.setItem('nfl-sos-palette', 'KC')
+    const user = userEvent.setup()
+    renderApp('/teams?season=2025')
+
+    // Act
+    await user.click(await screen.findByRole('button', { name: 'Palette: Kansas City Chiefs' }))
+
+    // Assert
+    expect(await screen.findByRole('menuitemradio', { name: 'Kansas City Chiefs' })).toHaveAttribute('aria-checked', 'true')
+  })
+
   it('switches to a team palette from the palette menu', async () => {
     // Arrange
     const user = userEvent.setup()
