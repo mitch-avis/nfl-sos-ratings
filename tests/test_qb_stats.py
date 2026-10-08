@@ -1322,3 +1322,60 @@ def test_compute_qb_season_stats_rates_the_season_totals_not_the_mean_game() -> 
     # CPOE over all 40 plays with a completion probability: (40 - 40) / 40.
     assert row["qb_completion_percentage_above_expectation"] == pytest.approx(0.0)
     assert not [column for column in row if column.startswith("_")]
+
+
+# Passing lines whose passer rating is exactly a tie at one decimal, with the rating to show:
+# 1999 Testaverde (78.75) and the 1999 Bills passers IND faced (82.75) compute just below the tie in
+# floating point, depending on how many rows Polars evaluates together; 81.25 is exact, where
+# half-to-even rounding would give 81.2.
+_RATING_TIES = (
+    ((10, 15, 96, 1, 1), 78.8),
+    ((276, 475, 3116, 17, 8), 82.8),
+    ((1, 4, 14, 1, 0), 81.3),
+)
+_PASSING_NAMES = ("completions", "attempts", "yards", "touchdowns", "interceptions")
+
+
+def test_qb_passer_rating_rounds_an_exact_tie_up() -> None:
+    # Arrange
+    passing = pl.DataFrame(
+        [totals for totals, _ in _RATING_TIES], schema=list(_PASSING_NAMES), orient="row"
+    ).cast(pl.Float64)
+
+    # Act
+    result = passing.select(
+        qb_stats.qb_passer_rating_expr(*(pl.col(name) for name in _PASSING_NAMES))
+    )
+
+    # Assert
+    assert result.to_series().to_list() == [rating for _, rating in _RATING_TIES]
+
+
+def test_compute_qb_season_stats_rounds_a_season_rating_tie_up() -> None:
+    # Arrange
+    games = [
+        {
+            "game_id": f"g{index}-{half}",
+            "week": half + 1,
+            "team_abbr": "NYJ",
+            "qb_id": f"qb-{index}",
+            "qb_name": f"Passer {index}",
+            # Each passer's line, split over two games.
+            **{
+                f"qb_{name}": value / 2 if half else value - value / 2
+                for name, value in zip(
+                    ("completions", "attempts", "pass_yards", "pass_touchdowns", "interceptions"),
+                    totals,
+                    strict=True,
+                )
+            },
+        }
+        for index, (totals, _) in enumerate(_RATING_TIES)
+        for half in (0, 1)
+    ]
+
+    # Act
+    season = qb_stats.compute_qb_season_stats(pl.DataFrame(games)).sort("qb_id")
+
+    # Assert
+    assert season.get_column("qb_passer_rating").to_list() == [rating for _, rating in _RATING_TIES]

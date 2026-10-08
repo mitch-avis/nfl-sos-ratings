@@ -774,6 +774,10 @@ def compute_qb_game_stats_from_pbp(
     )
 
 
+# Floating-point noise in a passer rating sits far below this many decimals.
+_RATING_NOISE_DECIMALS = 9
+
+
 def qb_passer_rating_expr(
     completions: pl.Expr,
     attempts: pl.Expr,
@@ -783,7 +787,9 @@ def qb_passer_rating_expr(
 ) -> pl.Expr:
     """Return passer rating over passing totals, to one decimal as the NFL publishes it.
 
-    Null without attempts.
+    A tie rounds up (78.75 shows as 78.8). Rounding to nine decimals first removes floating-point
+    noise, which otherwise puts an exact tie just below it (78.74999999999999) or not, depending on
+    how many rows Polars evaluates together. Null without attempts.
     """
     rating = passer_rating_from_rates(
         completions / attempts,
@@ -791,7 +797,8 @@ def qb_passer_rating_expr(
         touchdowns / attempts,
         interceptions / attempts,
     )
-    return pl.when(attempts > 0).then(rating.round(1)).otherwise(None)
+    shown = rating.round(_RATING_NOISE_DECIMALS).round(1, mode="half_away_from_zero")
+    return pl.when(attempts > 0).then(shown).otherwise(None)
 
 
 @dataclass(frozen=True, slots=True)
