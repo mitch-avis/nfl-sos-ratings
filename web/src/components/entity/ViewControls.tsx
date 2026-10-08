@@ -13,6 +13,8 @@ interface ViewControlsProps {
   onSelectView: (view: PrimaryView) => void
   onToggleSubcategory: (subcategory: string) => void
   state: ResolvedEntityViewState
+  /** The views offered; the detail page leaves out Ratings, which its summary already shows. */
+  views?: readonly PrimaryView[]
 }
 
 function ToggleRow({
@@ -65,6 +67,7 @@ export function ViewControls({
   onSelectView,
   onToggleSubcategory,
   state,
+  views = PRIMARY_VIEWS,
 }: ViewControlsProps) {
   const showStatRows = state.primaryView !== 'ratings'
   return (
@@ -72,7 +75,7 @@ export function ViewControls({
       <div className="flex flex-wrap items-center gap-1.5">
         <ToggleRow
           label="View"
-          options={PRIMARY_VIEWS}
+          options={[...views]}
           isActive={(view) => state.primaryView === view}
           onSelect={(view) => onSelectView(view as PrimaryView)}
         />

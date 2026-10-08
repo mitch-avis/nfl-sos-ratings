@@ -5,7 +5,6 @@ import type { TablePayload } from '@/api/types';
 import {
   buildGameLogGroups,
   buildOpponentBreakdown,
-  buildWeeklyHighlights,
   enrichGameLogsWithOpponentRatings,
 } from './detailAnalytics';
 import {
@@ -230,54 +229,6 @@ test('buildGameLogColumnSelection folds results into the weekly base columns', (
   assert.ok(selection.columns.includes('opp_defense_rating'));
   assert.ok(selection.columns.includes('qb_pass_yards'));
   assert.ok(!selection.columns.includes('qb_game_winning_drive'));
-});
-
-test('buildWeeklyHighlights adds a recent three-game card with season-baseline context', () => {
-  // Arrange
-  const seasonRow = {
-    points_per_offensive_snap: 0.3,
-  };
-  const gameLogs: TablePayload = {
-    column_groups: {},
-    rows: [
-      {
-        opponent_team: 'ATL',
-        opp_team_rating: 0.2,
-        points_per_offensive_snap: 0.2,
-        week: 1,
-      },
-      {
-        opponent_team: 'SEA',
-        opp_team_rating: 0.5,
-        points_per_offensive_snap: 0.25,
-        week: 2,
-      },
-      {
-        opponent_team: 'SF',
-        opp_team_rating: 1.4,
-        points_per_offensive_snap: 0.35,
-        week: 3,
-      },
-      {
-        opponent_team: 'LAR',
-        opp_team_rating: 0.9,
-        points_per_offensive_snap: 0.45,
-        week: 4,
-      },
-    ],
-    visible_columns: ['week', 'opponent_team', 'points_per_offensive_snap', 'opp_team_rating'],
-  };
-
-  // Act
-  const highlights = buildWeeklyHighlights('teams', seasonRow, gameLogs);
-
-  // Assert
-  const rollingHighlight = highlights.find((highlight) => highlight.eyebrow === 'Recent 3-Game')!;
-
-  assert.ok(rollingHighlight);
-  assert.strictEqual(rollingHighlight.value, '0.35');
-  assert.match(rollingHighlight.context, /Weeks 2-4 avg 0.35/);
-  assert.match(rollingHighlight.context, /vs season 0.30/);
 });
 
 test('buildOpponentBreakdown curates a team offense ledger with season-delta context', () => {

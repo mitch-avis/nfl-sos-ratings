@@ -8,9 +8,10 @@ import { WpFilterPanel } from './WpFilterPanel'
 
 /**
  * The garbage-time filter as a folded exploration section: closed by default, open when the
- * address already carries a threshold, so a shared link shows what it was shared for.
+ * address already carries a threshold, so a shared link shows what it was shared for. With
+ * `entityId` (a detail page), it shows that team's or QB's filtered rating.
  */
-export function WpExploration({ kind, season }: { kind: EntityKind; season: number }) {
+export function WpExploration({ kind, season, entityId }: { kind: EntityKind; season: number; entityId?: string }) {
   const [threshold] = useWpThreshold()
   const [open, setOpen] = useState(threshold > 0)
   return (
@@ -22,7 +23,7 @@ export function WpExploration({ kind, season }: { kind: EntityKind; season: numb
           {threshold > 0 ? `filter at ${threshold}%` : 'every play counts'}
         </span>
       </summary>
-      <WpFilterPanel kind={kind} season={season} />
+      <WpFilterPanel kind={kind} season={season} entityId={entityId} />
     </details>
   )
 }
