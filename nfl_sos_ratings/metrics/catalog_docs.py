@@ -40,7 +40,7 @@ _SOURCES = (
     ),
     ("PLS", "nflverse weekly player stats (`load_player_stats`)."),
     ("SCH", "nflverse schedules and final scores (`load_schedules`)."),
-    ("SNP", "nflverse snap counts (`load_snap_counts`, 2012 onward)."),
+    ("SNP", "nflverse snap counts (`load_snap_counts`, 2013 onward; the 2012 file is empty)."),
     ("D", "Derived by this project from the other columns, including every rating."),
 )
 _INTRO = (

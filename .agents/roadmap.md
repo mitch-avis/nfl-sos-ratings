@@ -943,6 +943,30 @@ Proposal (one small pull request after the current one merges):
   diff-data --season 2025`, changed only those columns, in the team game logs, per-game stats,
   combined, and opponent-profile files; no rating, range, pair, QB, or win-probability file
   changed.
+- QB stat fixes from the 2026-10-08 data audit (branch `fix/qb-stat-bugs`; `data/` not rebuilt):
+  `qb_sack_yards_lost` was stored negative, as nflverse publishes it, so ANY/A added sack yards;
+  scrambles and kneels were 0 because nflverse sets `rush = 0` on them; `qb_win_pct` was .500
+  without a primary-passer decision (now null); `qb_offense_snaps` was 0 before 2013 (now null;
+  nflverse's 2012 snap-count file has no rows). Scratch `season` builds of 2001, 2012, and 2025
+  with and without the fixes, compared with `nfl-sos-ratings diff-data --before <before> --after
+  <after> --season <season>`, changed only `qb_combined`, `qb_per_game_stats`, `qb_game_logs`, and
+  `qb_opponent_profiles`; every rating, range, and pair file is unchanged. In the fixed build's
+  `2025_qb_per_game_stats.parquet`, Drake Maye's ANY/A is 8.26 (9.01 before) and Josh Allen's 6.84
+  (8.03). Next, each ask-first: rebuild `data/`, then rerun `validate`, whose QB ANY/A stability
+  (0.392, quoted in `docs/methodology.md`) came from the sign-flipped ANY/A.
+- Open decision (maintainer): scrambles in QB dropbacks. nflverse leaves the passer empty on
+  scrambles, so `qb_dropbacks`, `qb_passing_epa`, and the QB rating count pass attempts and sacks
+  only, while team `dropbacks` and the registry text include scrambles. `POLARS_MAX_THREADS=1
+  .venv/bin/python .agents/findings_2026_10_08/qb_scramble_dropbacks.py --season 2025` (reads
+  `data/`): 18709 QB dropbacks carry 580.2 passing EPA, and the 1087 scrambles on the same QB rows
+  another 520.7; refit with scrambles counted, 23 of 33 qualified passers change rank (by at most
+  4; Spearman 0.986 between the two ratings), Maye stays 1st (0.210 to 0.254), and Allen moves
+  from 11th to 8th (0.102 to 0.149). Counting them changes a published rating, so it needs a
+  protocol here before any code. Until then `qb_scramble_rate` divides scrambles by dropbacks that
+  leave them out.
+- Not fixed: nflverse's weekly player stats give JAX's 2001-2002 home games the opponent's team
+  code, so those QB games find no official row and keep the play-by-play fallback, whose
+  `qb_attempts` counts sacks as attempts (`pass`) and whose passing EPA is play-by-play `qb_epa`.
 
 ## U. UX audit (2026-10-08)
 

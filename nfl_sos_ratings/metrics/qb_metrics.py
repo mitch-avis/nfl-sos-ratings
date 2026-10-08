@@ -182,7 +182,8 @@ QB_IDENTITY_METRICS: tuple[MetricDef, ...] = (
         shape="count",
         polarity="neutral",
         source="SNP",
-        since=2012,
+        since=2013,
+        note="Empty before 2013: nflverse's 2012 snap-count file has no rows.",
     ),
     _identity(
         name="qb_dropbacks",
@@ -685,7 +686,10 @@ QB_RUSHING_METRICS: tuple[MetricDef, ...] = (
         name="qb_kneels",
         label="Kneels",
         full_name="QB Kneel-Downs",
-        description="Kneel-downs to run out the clock (excluded from efficiency rates).",
+        description=(
+            "Kneel-downs to run out the clock. Counted in carries and the per-carry rates, "
+            "left out of the designed-run stats."
+        ),
         shape="count",
         polarity="neutral",
         source="PBP",
@@ -742,8 +746,9 @@ QB_CLUTCH_METRICS: tuple[MetricDef, ...] = (
         label="QB Win %",
         full_name="QB Win Percentage",
         description=(
-            "Share of primary-QB games won, counting a tie as half a win. Feeds only the "
-            "separate outcome layer, never the performance ratings."
+            "Share of primary-QB games won, counting a tie as half a win; empty for a "
+            "quarterback who was never the primary passer. A team outcome, shown for context — "
+            "never a rating input."
         ),
         shape="rate",
         polarity="higher",

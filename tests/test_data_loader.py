@@ -591,7 +591,8 @@ def test_load_qb_stats_prefers_official_weekly_player_stats_for_attempt_fields(
             "passing_tds": [1],
             "passing_interceptions": [1],
             "sacks_suffered": [1],
-            "sack_yards_lost": [8.0],
+            # nflverse stores the yards lost on sacks as a negative number.
+            "sack_yards_lost": [-8.0],
             "passing_epa": [3.0],
             "passing_cpoe": [2.5],
         }
@@ -650,6 +651,7 @@ def test_load_qb_stats_prefers_official_weekly_player_stats_for_attempt_fields(
     assert result.select("qb_pass_yards_per_dropback").item() == 25.0
     assert result.select("qb_td_int_margin_rate").item() == 0.0
     assert result.select("qb_sack_rate").item() == 0.5
+    # ANY/A = (50 yards + 20 * 1 TD - 45 * 1 INT - 8 sack yards) / (5 attempts + 1 sack).
     assert result.select("qb_any_a").item() == pytest.approx(17.0 / 6.0)
     assert result.select("qb_passer_rating").item() == 108.3
 
@@ -1515,28 +1517,16 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
 ) -> None:
     """Verify official rushing fields and derived QB rates flow into game rows."""
     # Arrange
+    # Rows: a completion, three designed runs, a scramble, and a kneel. As in nflverse, the
+    # scramble and the kneel have rush = 0 and a rusher but no passer, and the scramble is a pass.
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_01_DEN_KC"] * 6,
             "season_type": ["REG"] * 6,
             "week": [1] * 6,
             "posteam": ["DEN"] * 6,
-            "passer_player_id": [
-                "00-0031234",
-                None,
-                None,
-                None,
-                "00-0031234",
-                None,
-            ],
-            "passer_player_name": [
-                "John Doe",
-                None,
-                None,
-                None,
-                "John Doe",
-                None,
-            ],
+            "passer_player_id": ["00-0031234", None, None, None, None, None],
+            "passer_player_name": ["John Doe", None, None, None, None, None],
             "rusher_player_id": [
                 None,
                 "00-0031234",
@@ -1554,7 +1544,7 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
                 "John Doe",
             ],
             "qb_dropback": [1, 0, 0, 0, 1, 0],
-            "pass": [1, 0, 0, 0, 0, 0],
+            "pass": [1, 0, 0, 0, 1, 0],
             "complete_pass": [1, 0, 0, 0, 0, 0],
             "passing_yards": [18.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             "yards_gained": [18.0, 10.0, 14.0, 0.0, 12.0, -1.0],
@@ -1565,7 +1555,7 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
             "qb_epa": [1.2, 0.0, 0.0, 0.0, 0.7, 0.0],
             "epa": [1.2, 0.6, 0.9, 0.0, 0.7, -0.2],
             "cpoe": [4.0, None, None, None, None, None],
-            "rush": [0, 1, 1, 1, 1, 1],
+            "rush": [0, 1, 1, 1, 0, 0],
             "qb_scramble": [0, 0, 0, 0, 1, 0],
             "qb_kneel": [0, 0, 0, 0, 0, 1],
             "qb_spike": [0, 0, 0, 0, 0, 0],
@@ -1599,7 +1589,7 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
             "passing_tds": [1],
             "passing_interceptions": [0],
             "sacks_suffered": [1],
-            "sack_yards_lost": [6.0],
+            "sack_yards_lost": [-6.0],
             "passing_epa": [3.0],
             "passing_cpoe": [2.5],
             "carries": [5],
@@ -1665,10 +1655,14 @@ def test_load_qb_stats_adds_official_rushing_and_completion_percentage(
     assert row["qb_scrambles"] == 1
     assert row["qb_scramble_yards"] == 12.0
     assert row["qb_kneels"] == 1
+    # The play-by-play split reconciles to the official carries.
+    assert row["qb_designed_carries"] + row["qb_scrambles"] + row["qb_kneels"] == row["qb_carries"]
     assert row["qb_completion_pct"] == 0.75
     assert row["qb_yards_per_carry"] == 7.0
     assert abs(row["qb_epa_per_carry"] - 0.3) < 1e-9
-    assert row["qb_scramble_rate"] == pytest.approx(0.5)
+    # Dropbacks count only plays with a passer, so the scramble is not one of them.
+    assert row["qb_dropbacks"] == 1
+    assert row["qb_scramble_rate"] == pytest.approx(1.0)
     assert row["qb_yards_per_scramble"] == pytest.approx(12.0)
     assert row["qb_designed_yards_per_carry"] == pytest.approx(8.0)
     assert row["qb_designed_epa_per_carry"] == pytest.approx(0.5)
@@ -1922,6 +1916,48 @@ def test_load_playoff_qb_stats_skips_snap_counts_before_their_first_season(
 
     # Assert
     assert result.select("qb_dropbacks", "qb_epa_per_dropback").rows() == [(1, 0.7)]
+
+
+def test_load_qb_stats_leaves_snaps_empty_before_snap_counts_exist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify QB snaps are unknown, not zero, in a season before nflverse snap counts."""
+
+    # Arrange
+    def _unexpected_snap_counts_call(seasons: int) -> pl.DataFrame:
+        msg = f"snap counts loader should not run for season {seasons}"
+        raise AssertionError(msg)
+
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2010_01_DEN_JAX"],
+            "season_type": ["REG"],
+            "week": [1],
+            "posteam": ["DEN"],
+            "passer_player_id": ["00-0031234"],
+            "passer_player_name": ["John Doe"],
+            "qb_dropback": [1],
+            "pass": [1],
+            "complete_pass": [1],
+            "passing_yards": [10.0],
+            "pass_touchdown": [0],
+            "interception": [0],
+            "sack": [0],
+            "fumble_lost": [0],
+            "qb_epa": [0.7],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_snap_counts", _unexpected_snap_counts_call)
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(pl.DataFrame))
+    monkeypatch.setattr(data_loader.nfl, "load_players", pl.DataFrame)
+    monkeypatch.setattr(data_loader.nfl, "load_rosters_weekly", stub(pl.DataFrame))
+
+    # Act
+    result = data_loader.load_qb_stats(2010)
+
+    # Assert
+    assert result.select("qb_dropbacks", "qb_offense_snaps").rows() == [(1, None)]
 
 
 def test_filter_postseason_without_a_season_type_column_keeps_no_rows() -> None:

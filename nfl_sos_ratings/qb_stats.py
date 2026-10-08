@@ -77,9 +77,9 @@ _QB_PER_GAME_COLUMNS: dict[str, str] = {
 def select_primary_qb_rows(qb_df: pl.DataFrame) -> pl.DataFrame:
     """Return one primary QB row per team-week: most snaps, then dropbacks, then attempts.
 
-    The primary QB takes the game's result and late-game credit. Remaining ties (common before snap
-    counts exist in 2012) go to the lowest ``qb_id`` (or ``qb_name``), so the pick never depends on
-    row order.
+    The primary QB takes the game's result and late-game credit. Unknown (null) snaps, as before
+    snap counts exist in 2013, sort last. Remaining ties (common before 2013) go to the lowest
+    ``qb_id`` (or ``qb_name``), so the pick never depends on row order.
     """
     if not {"team_abbr", "week"}.issubset(set(qb_df.columns)):
         return qb_df
@@ -272,7 +272,12 @@ def compute_qb_game_volumes_from_pbp(
     snap_counts_df: pl.DataFrame | None = None,
     qb_identity_df: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
-    """Combine PBP dropbacks and snap counts into one row per quarterback game."""
+    """Combine PBP dropbacks and snap counts into one row per quarterback game.
+
+    Without snap-count data (``snap_counts_df`` absent or empty, as in seasons before nflverse
+    has it) every ``qb_offense_snaps`` is null: the snaps are unknown, not zero. With it, a passer
+    who has no snap-count row gets 0.
+    """
     schema = {
         "game_id": pl.String,
         "week": pl.Int64,
@@ -382,6 +387,8 @@ def compute_qb_game_volumes_from_pbp(
     result = combined.group_by(group_keys).agg(agg_exprs)
     if "_qb_identity_key" in result.columns:
         result = result.drop("_qb_identity_key")
+    if snap_counts_df is None or snap_counts_df.is_empty():
+        result = result.with_columns(pl.lit(None, dtype=pl.Int64).alias("qb_offense_snaps"))
 
     return (
         result.filter(pl.col("qb_position").is_null() | (pl.col("qb_position") == "QB"))
@@ -585,11 +592,13 @@ def compute_qb_game_stats_from_pbp(
                 else pl.lit(None, dtype=pl.String),
             ]
         )
+        # nflverse sets rush = 0 on scrambles and kneels (a scramble counts as a pass play), so
+        # their own flags bring them in beside the designed runs.
         rushing_stats = (
             pbp_df.filter(
                 pl.col("posteam").is_not_null()
                 & pl.col("rusher_player_id").is_not_null()
-                & rush_flag
+                & (rush_flag | scramble_flag | kneel_flag)
             )
             .group_by(["game_id", "week", "posteam", "rusher_player_id"])
             .agg(
@@ -810,6 +819,15 @@ def _qb_season_rate_exprs(columns: set[str]) -> list[pl.Expr]:
     return exprs
 
 
+def _known_total(column: str) -> pl.Expr:
+    """Return the column's sum, or null when every value is null: a total of unknowns is unknown.
+
+    Quarterback snaps are null in seasons before snap counts exist, and a plain sum would make
+    them 0.
+    """
+    return pl.when(pl.col(column).is_not_null().any()).then(pl.col(column).sum())
+
+
 def _qb_season_agg_exprs(qb_df: pl.DataFrame) -> list[pl.Expr]:
     """Return games played, per-game means of numeric stats, and season totals."""
     qb_stat_cols = [
@@ -821,7 +839,7 @@ def _qb_season_agg_exprs(qb_df: pl.DataFrame) -> list[pl.Expr]:
     agg_exprs.extend(pl.col(col).mean().alias(col) for col in qb_stat_cols)
     for source_col, (total_col, total_dtype) in _QB_TOTAL_COLUMNS.items():
         if source_col in qb_df.columns:
-            agg_exprs.append(pl.col(source_col).sum().cast(total_dtype).alias(total_col))
+            agg_exprs.append(_known_total(source_col).cast(total_dtype).alias(total_col))
         elif total_col == "qb_attempts_total":
             agg_exprs.append(pl.lit(0).cast(pl.Int64).alias(total_col))
     return agg_exprs
@@ -855,10 +873,14 @@ def _with_qb_results(
     weekly_df: pl.DataFrame | None,
     qb_keys: list[str],
 ) -> pl.DataFrame:
-    """Add primary-QB wins, losses, ties, and win percentage (0.5 when results are unknown)."""
+    """Add primary-QB wins, losses, ties, and win percentage.
+
+    The win percentage is null for a quarterback without a decision: one who was never the primary
+    passer, or whose results are unknown.
+    """
     required_weekly_cols = {"team", "week", "points_for", "points_allowed"}
     if weekly_df is None or not required_weekly_cols.issubset(set(weekly_df.columns)):
-        return season_stats.with_columns(pl.lit(0.5).alias("qb_win_pct"))
+        return season_stats.with_columns(pl.lit(None, dtype=pl.Float64).alias("qb_win_pct"))
 
     decisions = pl.col("qb_wins") + pl.col("qb_losses") + pl.col("qb_ties")
     qb_results = (
@@ -887,7 +909,7 @@ def _with_qb_results(
         .with_columns(
             pl.when(decisions > 0)
             .then((pl.col("qb_wins") + 0.5 * pl.col("qb_ties")) / decisions)
-            .otherwise(0.5)
+            .otherwise(None)
             .alias("qb_win_pct")
         )
     )
@@ -895,7 +917,6 @@ def _with_qb_results(
         pl.col("qb_wins").fill_null(0).cast(pl.Int64),
         pl.col("qb_losses").fill_null(0).cast(pl.Int64),
         pl.col("qb_ties").fill_null(0).cast(pl.Int64),
-        pl.col("qb_win_pct").fill_null(0.5),
     )
 
 

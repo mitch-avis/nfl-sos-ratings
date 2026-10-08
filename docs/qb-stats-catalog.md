@@ -20,7 +20,7 @@ booleans, and `id` identity fields.
 | PBP +TS | Computed from play-by-play and also published in nflverse weekly team stats, which serves as a cross-check. |
 | PLS | nflverse weekly player stats (`load_player_stats`). |
 | SCH | nflverse schedules and final scores (`load_schedules`). |
-| SNP | nflverse snap counts (`load_snap_counts`, 2012 onward). |
+| SNP | nflverse snap counts (`load_snap_counts`, 2013 onward; the 2012 file is empty). |
 | D | Derived by this project from the other columns, including every rating. |
 
 ## Schedule-Adjusted Ratings
@@ -53,7 +53,7 @@ Who the quarterback is and how much he played.
 | `player_id` | Player ID | id | - | - | PLS | The GSIS player identifier used to join across data sources. |
 | `player_display_name` | QB | id | - | - | PLS | The quarterback's display name from the official player feed. |
 | `qb_games_played` | QB Games | count | - | 1999 | PBP | Games in which this quarterback recorded a dropback. |
-| `qb_offense_snaps` | QB Snaps | count | - | 2012 | SNP | Offensive snaps the quarterback played, from snap-count data. |
+| `qb_offense_snaps` | QB Snaps | count | - | 2013 | SNP | Offensive snaps the quarterback played, from snap-count data. Empty before 2013: nflverse's 2012 snap-count file has no rows. |
 | `qb_dropbacks` | Dropbacks | count | - | 1999 | PBP | Pass attempts plus sacks plus scrambles — every play that began as a pass. The natural denominator for QB efficiency stats. |
 | `qb_is_eligible` | Eligible | flag | - | - | D | Whether the quarterback has the qualifying number of pass attempts (14 for every game his team has played) to be ranked on the league-wide QBs page. |
 | `qb_attempt_qualifier` | Qualifier Att | count | - | - | D | The pass attempts this quarterback needs to be ranked: 14 for every game his team has played so far (his main team, for a quarterback who changed teams). |
@@ -124,7 +124,7 @@ Quarterback runs: designed carries, scrambles, and their value.
 | `qb_scrambles` | Scrambles | count | - | 1999 | PBP | Dropbacks on which the quarterback took off and ran. |
 | `qb_scramble_yards` | Scramble Yds | count | - | 1999 | PBP | Yards gained on scrambles. |
 | `qb_yards_per_scramble` | Yds/Scramble | rate | scrambles | 1999 | PBP | Average yards gained per scramble. |
-| `qb_kneels` | Kneels | count | - | 1999 | PBP | Kneel-downs to run out the clock (excluded from efficiency rates). |
+| `qb_kneels` | Kneels | count | - | 1999 | PBP | Kneel-downs to run out the clock. Counted in carries and the per-carry rates, left out of the designed-run stats. |
 | `qb_rushing_2pt_conversions` | 2-Pt Rushes | count | - | 1999 | PLS | Successful two-point conversions run in. |
 
 ## Scoring, Clutch & Outcomes
@@ -137,7 +137,7 @@ feed the performance ratings.
 | `qb_wins` | QB Wins | count | - | 1999 | D | Wins in games where this quarterback was the primary passer. A team outcome, shown for context — never a rating input. |
 | `qb_losses` | QB Losses | count | - | 1999 | D | Losses in games where this quarterback was the primary passer. |
 | `qb_ties` | QB Ties | count | - | 1999 | D | Ties in games where this quarterback was the primary passer. |
-| `qb_win_pct` | QB Win % | rate | primary-QB games | 1999 | D | Share of primary-QB games won, counting a tie as half a win. Feeds only the separate outcome layer, never the performance ratings. |
+| `qb_win_pct` | QB Win % | rate | primary-QB games | 1999 | D | Share of primary-QB games won, counting a tie as half a win; empty for a quarterback who was never the primary passer. A team outcome, shown for context — never a rating input. |
 | `qb_fourth_quarter_comeback` | 4QC | count | - | 1999 | D | Credit for a game in which the quarterback's team trailed in the fourth quarter and he led it to a win. |
 | `qb_fourth_quarter_comebacks` | 4QC | count | - | 1999 | D | Games in which the quarterback's team trailed in the fourth quarter and he led it to a win. |
 | `qb_game_winning_drive` | GWD | count | - | 1999 | D | Credit for leading a drive that put the team ahead for good in the fourth quarter or overtime of a win. |

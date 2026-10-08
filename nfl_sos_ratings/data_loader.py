@@ -32,6 +32,8 @@ ESPN_QBR_RELEASE_URLS: dict[str, str] = {
 
 # nflverse play-by-play starts in 1999, so that season has no previous season in the data.
 PBP_START_SEASON = 1999
+# nflverse publishes snap counts from 2012, but its 2012 file has no rows, so QB snaps start in
+# 2013; a season without snap counts leaves them null (``compute_qb_game_volumes_from_pbp``).
 SNAP_COUNTS_START_SEASON = 2012
 _CACHE_MODE_VARIABLE = "NFLREADPY_CACHE"
 # Seconds to wait on an nflverse release download before failing instead of hanging.
@@ -296,8 +298,10 @@ def _load_official_weekly_qb_stats(
             if "sacks_suffered" in weekly_player_stats_df.columns
             else pl.lit(None, dtype=pl.Int64)
         ).alias("official_qb_sacks"),
+        # nflverse stores the yards lost on sacks as a negative number; the magnitude keeps the
+        # column in yards lost, as the play-by-play fallback counts them and ANY/A subtracts them.
         (
-            pl.col("sack_yards_lost").cast(pl.Float64)
+            pl.col("sack_yards_lost").cast(pl.Float64).abs()
             if "sack_yards_lost" in weekly_player_stats_df.columns
             else pl.lit(None, dtype=pl.Float64)
         ).alias("official_qb_sack_yards_lost"),

@@ -82,8 +82,10 @@ def test_compute_qb_season_stats_assigns_results_to_primary_qb_only() -> None:
     # Assert
     assert result.filter(pl.col("qb_id") == "QB_A").select("qb_win_pct").item() == 1.0
     assert result.filter(pl.col("qb_id") == "QB_A").select("qb_wins").item() == 1
-    assert result.filter(pl.col("qb_id") == "QB_B").select("qb_win_pct").item() == 0.5
+    # QB_B was never the primary passer, so he has no decisions and no win percentage.
+    assert result.filter(pl.col("qb_id") == "QB_B").select("qb_win_pct").item() is None
     assert result.filter(pl.col("qb_id") == "QB_B").select("qb_wins").item() == 0
+    assert result.filter(pl.col("qb_id") == "QB_B").select("qb_losses").item() == 0
 
 
 def test_compute_qb_season_stats_sums_late_game_totals() -> None:
@@ -315,8 +317,8 @@ def test_compute_qb_season_stats_derives_dropback_metrics_and_totals() -> None:
     assert result.select("qb_td_int_margin_rate").item() == pytest.approx(1.0 / 46.0)
 
 
-def test_compute_qb_season_stats_defaults_win_pct_when_results_unavailable() -> None:
-    """Verify qb_win_pct does not become NaN when team/week score joins fail."""
+def test_compute_qb_season_stats_leaves_win_pct_empty_when_results_unavailable() -> None:
+    """Verify qb_win_pct is empty, not NaN or a made-up .500, when team/week score joins fail."""
     # Arrange
     qb_df = pl.DataFrame(
         {
@@ -342,7 +344,28 @@ def test_compute_qb_season_stats_defaults_win_pct_when_results_unavailable() -> 
     result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
 
     # Assert
-    assert result.select("qb_win_pct").item() == 0.5
+    assert result.select("qb_win_pct").item() is None
+
+
+def test_compute_qb_season_stats_leaves_win_pct_empty_without_team_results() -> None:
+    """Verify qb_win_pct is empty when no weekly team results are given."""
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["DEN", "DEN"],
+            "week": [1, 2],
+            "qb_id": ["QB_A", "QB_A"],
+            "qb_name": ["QB A", "QB A"],
+            "qb_attempts": [30, 28],
+        }
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df)
+
+    # Assert
+    assert result.select("qb_win_pct").item() is None
+    assert result.schema["qb_win_pct"] == pl.Float64
 
 
 def test_compute_qb_game_volumes_from_pbp_combines_dropbacks_and_snap_counts() -> None:
@@ -582,22 +605,18 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
 def test_compute_qb_game_stats_from_pbp_splits_designed_runs_scrambles_and_kneels() -> None:
     """Verify QB rushing PBP splits exclude scrambles and kneels from designed-run value."""
     # Arrange
+    # Rows: a completion, a spike, a designed run, a scramble, and a kneel. As in nflverse, the
+    # scramble and the kneel have rush = 0 and a rusher but no passer, and the scramble is a pass.
     pbp = pl.DataFrame(
         {
             "game_id": ["2025_04_BUF_MIA"] * 5,
             "week": [4] * 5,
             "posteam": ["BUF"] * 5,
-            "passer_player_id": ["GSIS_A", "GSIS_A", None, "GSIS_A", "GSIS_A"],
-            "passer_player_name": [
-                "Dual Threat QB",
-                "Dual Threat QB",
-                None,
-                "Dual Threat QB",
-                "Dual Threat QB",
-            ],
+            "passer_player_id": ["GSIS_A", "GSIS_A", None, None, None],
+            "passer_player_name": ["Dual Threat QB", "Dual Threat QB", None, None, None],
             "rusher_player_id": [None, None, "GSIS_A", "GSIS_A", "GSIS_A"],
             "qb_dropback": [1, 1, 0, 1, 0],
-            "pass": [1, 0, 0, 0, 0],
+            "pass": [1, 0, 0, 1, 0],
             "complete_pass": [1, 0, 0, 0, 0],
             "passing_yards": [15.0, 0.0, 0.0, 0.0, 0.0],
             "yards_gained": [15.0, 0.0, 8.0, 12.0, -1.0],
@@ -607,7 +626,7 @@ def test_compute_qb_game_stats_from_pbp_splits_designed_runs_scrambles_and_kneel
             "fumble_lost": [0, 0, 0, 0, 0],
             "qb_epa": [1.5, 0.0, 1.2, 0.8, -0.9],
             "cpoe": [4.0, None, None, None, None],
-            "rush": [0, 0, 1, 1, 1],
+            "rush": [0, 0, 1, 0, 0],
             "qb_scramble": [0, 0, 0, 1, 0],
             "qb_kneel": [0, 0, 0, 0, 1],
             "qb_spike": [0, 1, 0, 0, 0],
@@ -639,15 +658,16 @@ def test_compute_qb_game_stats_from_pbp_splits_designed_runs_scrambles_and_kneel
     # Assert
     row = result.row(0, named=True)
 
-    assert row["qb_dropbacks"] == 3
-    assert row["qb_passing_epa"] == pytest.approx(2.3)
+    # Dropbacks and passing EPA count only plays with a passer, so the scramble is in neither.
+    assert row["qb_dropbacks"] == 2
+    assert row["qb_passing_epa"] == pytest.approx(1.5)
     assert row["qb_designed_carries"] == 1
     assert row["qb_designed_rush_yards"] == 8.0
     assert row["qb_designed_rush_epa"] == pytest.approx(1.2)
     assert row["qb_scrambles"] == 1
     assert row["qb_scramble_yards"] == 12.0
     assert row["qb_kneels"] == 1
-    assert row["qb_scramble_rate"] == pytest.approx(1.0 / 3.0)
+    assert row["qb_scramble_rate"] == pytest.approx(1.0 / 2.0)
     assert row["qb_yards_per_scramble"] == pytest.approx(12.0)
     assert row["qb_designed_yards_per_carry"] == pytest.approx(8.0)
     assert row["qb_designed_epa_per_carry"] == pytest.approx(1.2)
@@ -1023,6 +1043,85 @@ def test_compute_qb_game_stats_from_pbp_without_cpoe_leaves_it_null() -> None:
     row = games.row(0, named=True)
     assert row["qb_completion_percentage_above_expectation"] is None
     assert row["qb_epa_per_dropback"] == pytest.approx(0.8)
+
+
+# The typed empty frame the loader returns for a season before snap counts exist.
+_EMPTY_SNAP_COUNTS = pl.DataFrame(
+    schema={
+        "game_id": pl.String,
+        "week": pl.Int64,
+        "team": pl.String,
+        "player": pl.String,
+        "pfr_player_id": pl.String,
+        "position": pl.String,
+        "offense_snaps": pl.Float64,
+    }
+)
+
+
+@pytest.mark.parametrize("snap_counts", [None, _EMPTY_SNAP_COUNTS], ids=["absent", "empty"])
+def test_compute_qb_game_stats_from_pbp_leaves_snaps_empty_without_snap_counts(
+    snap_counts: pl.DataFrame | None,
+) -> None:
+    """Verify a season without snap-count data has unknown QB snaps, not zero snaps."""
+    # Act
+    games = qb_stats.compute_qb_game_stats_from_pbp(_one_dropback_pbp(), snap_counts)
+
+    # Assert
+    row = games.row(0, named=True)
+    assert row["qb_offense_snaps"] is None
+    assert row["qb_dropbacks"] == 1
+    assert games.schema["qb_offense_snaps"] == pl.Int64
+
+
+def test_compute_qb_season_stats_leaves_snap_totals_empty_when_snaps_are_unknown() -> None:
+    """Verify unknown game snaps give an unknown season snap total, not zero."""
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["DEN", "DEN"],
+            "week": [1, 2],
+            "qb_id": ["QB_A", "QB_A"],
+            "qb_name": ["QB A", "QB A"],
+            "qb_attempts": [30, 28],
+            "qb_dropbacks": [33, 31],
+            "qb_offense_snaps": pl.Series([None, None], dtype=pl.Int64),
+        }
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df)
+
+    # Assert
+    row = result.row(0, named=True)
+    assert row["qb_offense_snaps_total"] is None
+    assert row["qb_offense_snaps_per_game"] is None
+    assert row["qb_dropbacks_total"] == 64
+
+
+def test_compute_qb_season_stats_picks_the_primary_qb_by_dropbacks_when_snaps_are_unknown() -> None:
+    """Verify unknown snaps leave the primary-QB pick to dropbacks, as zero snaps did."""
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["ATL", "ATL"],
+            "week": [6, 6],
+            "qb_id": ["QB_A", "QB_B"],
+            "qb_name": ["QB A", "QB B"],
+            "qb_offense_snaps": pl.Series([None, None], dtype=pl.Int64),
+            "qb_dropbacks": [5, 30],
+            "qb_attempts": [4, 28],
+        }
+    )
+    weekly_df = pl.DataFrame(
+        {"team": ["ATL"], "week": [6], "points_for": [24], "points_allowed": [17]}
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
+
+    # Assert
+    assert result.filter(pl.col("qb_wins") == 1).get_column("qb_id").to_list() == ["QB_B"]
 
 
 def _tied_starters() -> pl.DataFrame:
