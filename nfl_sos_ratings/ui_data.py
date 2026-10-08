@@ -78,6 +78,9 @@ TEAM_RATING_COLUMNS = (
     "SRS",
 )
 QB_RATING_COLUMNS = ("adj_qb_epa_per_dropback", "qb_faced_pass_defense")
+# Shown beside the QB ratings in the app's Ratings view: the unadjusted rate the rating adjusts and
+# the sample behind it. Each stays in its own column group; this list only names them.
+QB_RATING_COMPANION_COLUMNS = ("qb_epa_per_dropback", "qb_dropbacks_total")
 TEAM_EXCLUDED_PREFIXES: tuple[str, ...] = ()
 QB_EXCLUDED_PREFIXES: tuple[str, ...] = ()
 QB_PER_DROPBACK_RATE_COLUMNS = (
@@ -595,6 +598,7 @@ def _build_team_payload(frame: pl.DataFrame) -> TablePayload:
         "column_groups": {
             "identity": identity_columns,
             "ratings": rating_columns,
+            "rating_companions": [],
             "per_game_rates": per_game_rates,
             "per_snap_rates": per_snap_rates,
             "opponent_context": opponent_context,
@@ -647,6 +651,9 @@ def _build_qb_payload(frame: pl.DataFrame) -> TablePayload:
         "column_groups": {
             "identity": identity_columns,
             "ratings": rating_columns,
+            "rating_companions": _ordered_existing_columns(
+                frame.columns, QB_RATING_COMPANION_COLUMNS
+            ),
             "raw_totals": raw_totals,
             "per_game_rates": per_game_rates,
             "per_dropback_rates": per_dropback_rates,
