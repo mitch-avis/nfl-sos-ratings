@@ -621,6 +621,42 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
     ]
 
 
+def test_compute_qb_game_stats_from_pbp_counts_only_the_offenses_sack_fumbles_lost() -> None:
+    """A strip-sack the defense recovers and fumbles back is not the quarterback's lost fumble.
+
+    The second sack's ``fumble_lost`` belongs to KC (``fumbled_1_team``): its defender lost the
+    ball he had recovered. Only the first sack's fumble is DEN's.
+    """
+    # Arrange
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"] * 2,
+            "week": [1, 1],
+            "posteam": ["DEN", "DEN"],
+            "defteam": ["KC", "KC"],
+            "passer_player_id": ["GSIS_A", "GSIS_A"],
+            "passer_player_name": ["Starter QB", "Starter QB"],
+            "qb_dropback": [1, 1],
+            "pass": [0, 0],
+            "complete_pass": [0, 0],
+            "passing_yards": [0.0, 0.0],
+            "pass_touchdown": [0, 0],
+            "interception": [0, 0],
+            "sack": [1, 1],
+            "yards_gained": [-5.0, -6.0],
+            "fumble_lost": [1, 1],
+            "fumbled_1_team": ["DEN", "KC"],
+            "qb_epa": [-1.0, -1.5],
+        }
+    )
+
+    # Act
+    result = qb_stats.compute_qb_game_stats_from_pbp(pbp)
+
+    # Assert
+    assert result.get_column("qb_sack_fumbles_lost").to_list() == [1]
+
+
 def test_compute_qb_game_stats_from_pbp_splits_designed_runs_scrambles_and_kneels() -> None:
     """Verify QB rushing PBP splits exclude scrambles and kneels from designed-run value."""
     # Arrange

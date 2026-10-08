@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from nfl_sos_ratings.pbp_expressions import (
+    giveaway_team_expr,
+    lost_fumble_team_expr,
     passer_rating_from_rates,
     scrimmage_snap_expr,
     special_teams_play_expr,
@@ -183,7 +185,10 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     is_kneel = is_carry & (value_expr(columns, "qb_kneel") > 0)
     is_designed_run = is_carry & ~is_scramble & ~is_kneel
     is_interception = value_expr(columns, "interception") > 0
-    is_fumble_lost = value_expr(columns, "fumble_lost") > 0
+    # A lost fumble counts against the team with the ball only when it fumbled
+    # (``lost_fumble_team_expr``): a returner's muff or an intercepting defender's fumble does not.
+    lost_by_offense = (lost_fumble_team_expr(columns) == pl.col("posteam")).fill_null(value=False)
+    giveaway_team = giveaway_team_expr(columns)
     yards = value_expr(columns, "yards_gained", 0.0)
     two_pt_success = (
         pl.col("two_point_conv_result") == "success"
@@ -361,14 +366,21 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             # Turnovers.
             _count((value_expr(columns, "fumble") > 0) & scrimmage, "fumbles"),
             _count(is_complete & receiver_fumbled, "receiving_fumbles"),
-            _count(is_complete & receiver_fumbled & is_fumble_lost, "receiving_fumbles_lost"),
-            _count(is_fumble_lost & scrimmage, "fumbles_lost"),
+            _count(is_complete & receiver_fumbled & lost_by_offense, "receiving_fumbles_lost"),
+            _count(lost_by_offense & scrimmage, "fumbles_lost"),
             _count(is_interception, "aux_interceptions"),
+            # Giveaway EPA from each side of the ball: the team with the ball's own, and the
+            # defending team's (a returner's lost fumble, from the receiving team's side).
             value_expr(columns, "epa", 0.0)
-            .filter(is_interception | is_fumble_lost)
+            .filter(giveaway_team == pl.col("posteam"))
             .sum()
             .fill_null(0.0)
             .alias("turnover_epa"),
+            (-value_expr(columns, "epa", 0.0))
+            .filter(giveaway_team == pl.col("defteam"))
+            .sum()
+            .fill_null(0.0)
+            .alias("aux_defense_giveaway_epa"),
             value_expr(columns, "return_yards", 0.0)
             .filter(is_interception)
             .sum()
@@ -570,7 +582,8 @@ def _aggregate_drive_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame
         value_expr(columns, "drive_inside20", 0).max().alias("inside_20"),
         value_expr(columns, "ydsnet", 0).first().alias("net_yards"),
         value_expr(columns, "drive_yards_penalized", 0).first().alias("yards_penalized"),
-        ((value_expr(columns, "interception") > 0) | (value_expr(columns, "fumble_lost") > 0))
+        (giveaway_team_expr(columns) == pl.col("posteam"))
+        .fill_null(value=False)
         .any()
         .alias("giveaway_play"),
         (
@@ -879,7 +892,8 @@ def _join_defense_mirrors(frame: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     mirror_columns = [
         *(pl.col(source).alias(target) for source, target in available.items()),
         *part_mirrors,
-        (-pl.col("turnover_epa")).alias("takeaway_epa"),
+        pl.col("turnover_epa").alias("aux_opponent_turnover_epa"),
+        pl.col("aux_defense_giveaway_epa").alias("aux_own_defense_giveaway_epa"),
     ]
     mirror = frame.select(
         [
@@ -889,7 +903,19 @@ def _join_defense_mirrors(frame: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             *mirror_columns,
         ]
     )
-    return frame.join(mirror, on=[*keys, "team", "opponent_team"], how="full", coalesce=True)
+    joined = frame.join(mirror, on=[*keys, "team", "opponent_team"], how="full", coalesce=True)
+    # A team's giveaway EPA is its own with the ball plus its giveaways while the opponent had the
+    # ball (a muffed punt); its takeaway EPA is the opponent's giveaway EPA, both sides, reversed.
+    return joined.with_columns(
+        (
+            pl.col("turnover_epa").fill_null(0.0)
+            + pl.col("aux_own_defense_giveaway_epa").fill_null(0.0)
+        ).alias("turnover_epa"),
+        (
+            -pl.col("aux_opponent_turnover_epa").fill_null(0.0)
+            - pl.col("aux_defense_giveaway_epa").fill_null(0.0)
+        ).alias("takeaway_epa"),
+    )
 
 
 def _add_cross_side_margins(frame: pl.DataFrame) -> pl.DataFrame:

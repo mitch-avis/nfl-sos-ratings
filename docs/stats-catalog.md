@@ -249,7 +249,7 @@ turnovers, and penalties.
 | `fumbles_lost` | Fumbles Lost | count | - | 1999 | PBP +TS | Offensive fumbles the defense recovered. |
 | `giveaway_rate_per_offensive_snap` | Giveaway % | rate | offensive snaps | 1999 | PBP | Share of offensive snaps that ended in an interception or lost fumble. |
 | `giveaways_per_drive` | Giveaways/Drive | rate | drives | 1999 | PBP | Average giveaways per drive. |
-| `turnover_epa` | Turnover EPA | count | - | 1999 | PBP | EPA (expected points added) on the team's interceptions and lost fumbles, kickoff-return fumbles included: how costly its giveaways were, not just how many. Almost always negative. |
+| `turnover_epa` | Turnover EPA | count | - | 1999 | PBP | EPA (expected points added), from the team's side, on its interceptions and lost fumbles, including muffs and fumbles on kickoff and punt returns: how costly its giveaways were, not just how many. Almost always negative. |
 
 ### Offense: Penalties
 
@@ -357,7 +357,7 @@ Everything the team allowed, plus the plays its defense made.
 | `fumble_recovery_opp` | Fumbles Recovered | count | - | 1999 | PBP +TS | Opponent fumbles this defense recovered. |
 | `takeaway_rate_per_defensive_snap` | Takeaway % | rate | defensive snaps | 1999 | PBP | Share of opponent scrimmage plays that ended in an interception or a fumble the defense recovered. |
 | `takeaways_per_drive` | Takeaways/Drive | rate | opponent drives | 1999 | PBP | Takeaways divided by opponent possessions. |
-| `takeaway_epa` | Takeaway EPA | count | - | 1999 | PBP | Expected points opponents lost on plays where the defense took the ball away (interceptions and lost fumbles), so each takeaway is weighed by how costly it was. Formula: -(Sum of opponent EPA on interceptions and lost fumbles) |
+| `takeaway_epa` | Takeaway EPA | count | - | 1999 | PBP | Expected points opponents lost on plays where the team took the ball away (interceptions and opponent fumbles it recovered, including muffed punts and return fumbles), so each takeaway is weighed by how costly it was. Formula: -(Opponent Turnover EPA) |
 | `def_tds` | Def & Return TDs | count | - | 1999 | PBP +TS | Touchdowns this team scored while the opponent had the ball: interception and fumble returns, plus scores on the opponent's punts and kicks, such as punt returns. |
 | `fumble_recovery_tds` | Fumble Return TDs | count | - | 1999 | PBP +TS | Touchdowns scored returning recovered fumbles. |
 
