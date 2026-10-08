@@ -15,6 +15,7 @@ import { EntityTable } from '@/components/entity/EntityTable'
 import { RankRangeChart } from '@/components/entity/RankRangeChart'
 import { ViewControls } from '@/components/entity/ViewControls'
 import { WpExploration } from '@/components/entity/WpExploration'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -100,7 +101,22 @@ function SeasonProgress({ games }: { games: number }) {
   )
 }
 
-/** The Teams or QBs index: the ranking line, comparison, the table, rank ranges, and exploration. */
+/** The toolbar's note of the picked rows: how many, a jump to the comparison, and a reset. */
+function SelectionBar({ count, onView, onClear }: { count: number; onView: () => void; onClear: () => void }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="font-medium">{count} selected</span>
+      <Button size="sm" variant="secondary" onClick={onView}>
+        View comparison
+      </Button>
+      <Button size="sm" variant="ghost" onClick={onClear}>
+        Clear selection
+      </Button>
+    </div>
+  )
+}
+
+/** The Teams or QBs index: the ranking line, the table, comparison, rank ranges, and exploration. */
 export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: SeasonDataset }) {
   const config = getEntityConfig(kind)
   const notFound = notFoundId(useLocation().state)
@@ -144,6 +160,7 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
   const { viewState } = state
   const season = dataset.season
   const gamesSoFar = getInProgressGames(dataset)
+  const comparisonRef = useRef<HTMLDivElement>(null)
 
   return (
     <div className="flex flex-col gap-5">
@@ -163,16 +180,6 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
           No {kind === 'teams' ? 'team' : 'quarterback'} {notFound} in {season}.
         </Notice>
       ) : null}
-
-      <ComparisonPanel
-        compareColumns={compareColumns}
-        compareIds={compareIds}
-        config={config}
-        season={season}
-        table={displayTable}
-        rankRanges={rankRanges}
-        onRemove={(entityId) => update({ compareIds: toggleCompareId(compareIds, entityId) })}
-      />
 
       <EntityTable
         key={`${kind}-${season}`}
@@ -199,22 +206,43 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
         sorting={state.sorting}
         table={displayTable}
         toolbar={
-          kind === 'qbs' ? (
-            <div className="flex items-center gap-2">
-              <Switch
-                id="show-unrated"
-                checked={state.showUnratedRows}
-                onCheckedChange={(checked) => update({ showUnratedRows: checked })}
+          <>
+            {kind === 'qbs' ? (
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="show-unrated"
+                  checked={state.showUnratedRows}
+                  onCheckedChange={(checked) => update({ showUnratedRows: checked })}
+                />
+                <Label htmlFor="show-unrated">Show QBs below the qualifier</Label>
+                <InfoTooltip
+                  label="About the qualifier"
+                  content={`The table ranks quarterbacks with at least 14 pass attempts per game their team has played${gamesSoFar !== null ? ' so far, so teams that have had a bye need fewer' : ''}. Switch on to list the passers below that mark too; they have no rank range. Each quarterback's number is the Qualifier Att column in Raw Total Stats.`}
+                />
+              </div>
+            ) : null}
+            {compareIds.length > 0 ? (
+              <SelectionBar
+                count={compareIds.length}
+                onView={() => comparisonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                onClear={() => update({ compareIds: [] })}
               />
-              <Label htmlFor="show-unrated">Show QBs below the qualifier</Label>
-              <InfoTooltip
-                label="About the qualifier"
-                content={`The table ranks quarterbacks with at least 14 pass attempts per game their team has played${gamesSoFar !== null ? ' so far, so teams that have had a bye need fewer' : ''}. Switch on to list the passers below that mark too; they have no rank range. Each quarterback's number is the Qualifier Att column in Raw Total Stats.`}
-              />
-            </div>
-          ) : null
+            ) : null}
+          </>
         }
       />
+
+      <div ref={comparisonRef} className="scroll-mt-20">
+        <ComparisonPanel
+          compareColumns={compareColumns}
+          compareIds={compareIds}
+          config={config}
+          season={season}
+          table={displayTable}
+          rankRanges={rankRanges}
+          onRemove={(entityId) => update({ compareIds: toggleCompareId(compareIds, entityId) })}
+        />
+      </div>
 
       {rankRangesQuery.isError && !isMissingRankRanges(rankRangesQuery.error) ? (
         <ErrorState error={rankRangesQuery.error} title="Could not load the rank ranges" />

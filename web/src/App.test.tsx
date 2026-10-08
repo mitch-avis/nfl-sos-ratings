@@ -37,8 +37,7 @@ afterEach(() => {
 })
 
 function bodyRows(): HTMLElement[] {
-  const tables = screen.getAllByRole('table')
-  const indexTable = tables[tables.length - 1]
+  const indexTable = screen.getByRole('table', { name: /Ratings Index$/ })
   return within(indexTable).getAllByRole('row').slice(1)
 }
 
@@ -103,6 +102,69 @@ describe('team index', () => {
     // Assert
     expect(await screen.findByText('Team comparison')).toBeInTheDocument()
     await waitFor(() => expect(router.state.location.search).toContain('compare=KC'))
+  })
+
+  it('puts the comparison below the table, so ticking a row moves no rows', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    renderApp('/teams?season=2025')
+    const compareKc = await screen.findByRole('checkbox', { name: 'Compare KC' })
+
+    // Act
+    await user.click(compareKc)
+
+    // Assert
+    const panel = await screen.findByRole('table', { name: 'Team comparison' })
+    const mainTable = screen.getAllByRole('table')[0]
+    expect(mainTable).not.toBe(panel)
+    expect(mainTable.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('says how many rows are picked and scrolls to the comparison on request', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    renderApp('/teams?season=2025&compare=DEN,KC')
+    const view = await screen.findByRole('button', { name: 'View comparison' })
+
+    // Act
+    await user.click(view)
+
+    // Assert
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+    expect(scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('clears the picked rows from the toolbar', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const { router } = renderApp('/teams?season=2025&compare=DEN,KC')
+    const clear = await screen.findByRole('button', { name: 'Clear selection' })
+
+    // Act
+    await user.click(clear)
+
+    // Assert
+    await waitFor(() => expect(router.state.location.search).not.toContain('compare='))
+    expect(screen.queryByRole('table', { name: 'Team comparison' })).not.toBeInTheDocument()
+  })
+
+  it('shades compared values against the whole season, not just the picks', async () => {
+    // Act
+    renderApp('/teams?season=2025&compare=DEN,KC')
+
+    // Assert
+    const panel = await screen.findByRole('table', { name: 'Team comparison' })
+    const panelRow = within(panel).getByRole('rowheader', { name: /Team Rating/ }).closest('tr')
+    const kcCompared = within(panelRow as HTMLElement).getAllByRole('cell')[1]
+    const mainTable = screen.getAllByRole('table').find((table) => table !== panel) as HTMLElement
+    const kcRow = within(mainTable).getByRole('link', { name: 'KC' }).closest('tr')
+    const ratingIndex = within(mainTable)
+      .getAllByRole('columnheader')
+      .findIndex((header) => /Team Rating/.test(header.textContent ?? ''))
+    const kcInTable = within(kcRow as HTMLElement).getAllByRole('cell')[ratingIndex]
+    expect(kcCompared.style.backgroundColor).toBe(kcInTable.style.backgroundColor)
   })
 
   it('restores a shared comparison from the URL', async () => {

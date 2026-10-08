@@ -74,7 +74,8 @@ export function buildColumnWidths(
   identityColumns: string[],
 ): Record<string, number> {
   const widths: Record<string, number> = {
-    compare: 108,
+    // A checkbox under an icon header.
+    compare: 44,
     rank: Math.max(76, Math.min(108, 50 + String(rows.length).length * 10)),
   };
 

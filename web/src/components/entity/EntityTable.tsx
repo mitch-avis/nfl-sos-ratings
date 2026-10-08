@@ -6,7 +6,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
-import { Search } from 'lucide-react'
+import { GitCompareArrows, Search } from 'lucide-react'
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
@@ -69,6 +69,8 @@ interface EntityTableProps {
 const CONTROL_COLUMNS = ['compare', 'rank']
 const RANK_RANGE_COLUMN = 'rank_range'
 const PHONE_PINNED_MAX_WIDTH = 120
+// The rank text plus a mini interval track.
+const RANK_RANGE_COLUMN_WIDTH = 168
 
 /** The cell for a QB below the qualifier, who is not ranked: why, with his attempts. */
 function BelowQualifierCell({ row }: { row: Row }) {
@@ -113,7 +115,7 @@ function RankRangeCell({
     >
       <button type="button" aria-label={rankRangeSummary(range)} className="flex items-center gap-2 rounded-sm text-left">
         <span className="w-16 text-right">{q250 === q750 ? ordinal(q250) : `${ordinal(q250)}–${ordinal(q750)}`}</span>
-        <span className="w-24">
+        <span className="w-20">
           <RankIntervalTrack range={range} count={count} size="mini" />
         </span>
       </button>
@@ -204,7 +206,7 @@ export function EntityTable({
           />
         </span>
       ),
-      size: 196,
+      size: RANK_RANGE_COLUMN_WIDTH,
       enableSorting: false,
       cell: ({ row }) => (
         <RankRangeCell
@@ -221,8 +223,14 @@ export function EntityTable({
     () => [
       {
         id: 'compare',
-        header: () => (isPhone ? <span className="sr-only">Compare</span> : 'Compare'),
-        size: isPhone ? 40 : (columnWidths.compare ?? 108),
+        header: () => (
+          <Hint content="Tick rows to compare them side by side, below the table.">
+            <button type="button" aria-label="Compare" className="inline-flex size-6 items-center justify-center rounded-sm">
+              <GitCompareArrows className="size-4" aria-hidden />
+            </button>
+          </Hint>
+        ),
+        size: columnWidths.compare ?? 44,
         enableSorting: false,
         cell: ({ row }) => {
           const entityId = String(row.original[config.identityKey] ?? '')
@@ -303,7 +311,6 @@ export function EntityTable({
       compareIds,
       config,
       filteredRows,
-      isPhone,
       onToggleCompare,
       rankRangeColumn,
       season,
@@ -351,10 +358,10 @@ export function EntityTable({
           </div>
         </div>
         {controls}
-        {/* On phones the box fills the screen below the app header, so it reads as one full-height
-            sheet with a sticky header row rather than a small window inside the page. */}
-        <div className="max-h-[calc(100dvh-4.5rem)] overflow-auto rounded-md border md:max-h-[75vh]">
-          <table className="w-max min-w-full text-sm tabular">
+        {/* The box fills the screen below the app header, so once the page scrolls to it, it reads as
+            one full-height sheet with a sticky header row rather than a small window inside the page. */}
+        <div className="max-h-[calc(100dvh-4.5rem)] overflow-auto rounded-md border">
+          <table aria-label={config.title} className="w-max min-w-full text-sm tabular">
             <thead className="sticky top-0 z-20 bg-muted">
               {reactTable.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>

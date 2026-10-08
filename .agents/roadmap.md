@@ -1049,21 +1049,29 @@ Index pages (layout):
   data rows on a phone's first screen. Changed from the wording above: the garbage-time filter
   moved below the rank ranges as a folded section (open when the address has `?wp=`), not into the
   toolbar, because it shows its own table of filtered ratings rather than filtering the main one.
-- [ ] U6 Nested scrolling: the table scrolls inside the scrolling page (`max-h-[75vh]`), so the
+- [x] U6 Nested scrolling: the table scrolls inside the scrolling page (`max-h-[75vh]`), so the
   wheel gets captured, and at 1440 px the SRS column hides behind a horizontal scroll while the
   Compare column (108 px for a checkbox) and Rank range (196 px) take room. Let the page scroll
-  with a sticky table header and tighten those widths.
+  with a sticky table header and tighten those widths. Done on `feat/index-table`: the table box
+  fills the screen below the app header at every width (as it already did on phones), so once
+  the page reaches it, it reads as one sheet with a sticky header row; Compare is a 44 px icon
+  column and Rank range 168 px, so SRS fits at 1440 px. Not done literally: a page-level sticky
+  header cannot coexist with the table's sideways scroll in one box, so the box keeps its own
+  scroll at full height.
 - [ ] U7 Noise: the "32 rows / 7 columns / 0 compared" and "6 columns / 110 columns" pills, the
   "USE FIRST" eyebrow, the card title repeating the page title, and the rank-range readout box
   ("Tap a row for its numbers.") that looks like an empty input. The floating scroll buttons cover
   the table's last column at the bottom right. Done on `feat/index-layout`: the index pills, the
   eyebrow, the repeated title, and the readout box (plain text until a row is picked). Left for
   the U6 change: the floating scroll buttons; the detail page's "6 columns / 110 columns" pills
-  go with P8.
-- [ ] U8 Comparison: the panel appears above the table, so ticking a box pushes the row under the
+  go with P8. Floating buttons, on `feat/index-table`: smaller (32 px) and translucent until
+  hovered or focused, so the corner they cover stays readable; they still sit over it.
+- [x] U8 Comparison: the panel appears above the table, so ticking a box pushes the row under the
   cursor down; with two picks every heat cell is fully green or red (min-max over two values). Show
   a "N selected, compare" bar and the panel below or in a drawer, and shade cells against the
-  season's range, not the picks'.
+  season's range, not the picks'. Done on `feat/index-table`: the panel sits below the table, the
+  toolbar shows "N selected" with "View comparison" (scrolls to it) and "Clear selection", and
+  compared cells take the season's heat (the same color as the row's cell in the table).
 
 Detail pages:
 
