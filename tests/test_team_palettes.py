@@ -286,31 +286,38 @@ def test_load_teams_reads_the_nflverse_teams_table(monkeypatch: pytest.MonkeyPat
     assert teams.height == 33
 
 
-def test_build_palette_tints_dark_surfaces_with_the_teams_base_color() -> None:
+@pytest.mark.parametrize("mode", ["light", "dark"])
+def test_build_palette_leaves_the_page_surfaces_to_the_default(mode: Mode) -> None:
     # Act
-    background = parse_oklch(build_palette(_GREEN_GOLD)["dark"]["background"])
+    tokens = build_palette(_GREEN_GOLD)[mode]
 
     # Assert
-    assert background[1] > 0.01
-    assert background[2] == pytest.approx(hex_to_oklch("#203731")[2], abs=5.0)
+    assert not {"background", "card", "popover", "muted", "secondary", "sidebar"} & set(tokens)
 
 
-def test_build_palette_keeps_light_surfaces_no_more_tinted_than_the_default() -> None:
+@pytest.mark.parametrize("mode", ["light", "dark"])
+def test_build_palette_tints_the_hint_card_and_borders_it_with_the_accent(mode: Mode) -> None:
     # Act
-    tokens = build_palette(_GREEN_GOLD)["light"]
+    tokens = build_palette(_RED_NAVY)[mode]
 
     # Assert
-    for surface in ("background", "card", "muted", "secondary", "sidebar"):
-        assert parse_oklch(tokens[surface])[1] <= SURFACES["light"][surface][1] + 1e-3
+    accent = parse_oklch(tokens["primary"])
+    hint = parse_oklch(tokens["hint"])
+    assert hint[2] == pytest.approx(accent[2], abs=1.0)
+    assert hint[1] > 0.01
+    assert tokens["hint_border"] == tokens["primary"]
 
 
-@pytest.mark.parametrize("team", [_BLACK_GOLD, _ORANGE_BLACK])
-def test_build_palette_keeps_surfaces_neutral_for_a_black_based_team(team: TeamColors) -> None:
+def test_is_readable_rejects_unreadable_text_on_the_hint_card() -> None:
+    # Arrange
+    palette = build_palette(_RED_NAVY)
+    palette["light"]["hint"] = "oklch(0.3 0.05 21.3)"
+
     # Act
-    background = parse_oklch(build_palette(team)["dark"]["background"])
+    readable = team_palettes.is_readable(palette, "light")
 
     # Assert
-    assert background[1] < 0.002
+    assert readable is False
 
 
 def test_build_palette_tints_the_accent_surfaces_with_the_accent_hue() -> None:

@@ -53,25 +53,16 @@ describe('paletteCssVariables', () => {
     expect(variables['--sidebar-primary-foreground']).toBe(variables['--primary-foreground'])
   })
 
-  it("tints the surfaces and hover backgrounds with the team's colors", () => {
+  it('colors the hint cards and hover backgrounds but leaves the page surfaces alone', () => {
     // Act
     const variables = paletteCssVariables('GB', 'dark')
 
     // Assert
     expect(Object.keys(variables)).toEqual(
-      expect.arrayContaining([
-        '--background',
-        '--card',
-        '--popover',
-        '--muted',
-        '--secondary',
-        '--sidebar',
-        '--accent',
-        '--accent-foreground',
-        '--sidebar-accent',
-        '--sidebar-accent-foreground',
-      ]),
+      expect.arrayContaining(['--accent', '--accent-foreground', '--sidebar-accent', '--hint', '--hint-border']),
     )
+    expect(Object.keys(variables)).not.toEqual(expect.arrayContaining(['--background']))
+    expect(Object.keys(variables)).not.toEqual(expect.arrayContaining(['--card']))
   })
 
   it('sets the sidebar text color for generated palettes', () => {
