@@ -220,6 +220,12 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
         else pl.lit(None, dtype=pl.Float64)
     )
     receiver_fumbled = _receiver_fumbled_expr(columns)
+    # A season without the no-huddle flag leaves the rate's parts empty, so it pools to null.
+    no_huddle = (
+        value_expr(columns, "no_huddle", 0)
+        if _is_charted(plays, "no_huddle")
+        else pl.lit(None, dtype=pl.Float64)
+    )
 
     def _count(condition: pl.Expr, name: str) -> pl.Expr:
         return condition.cast(pl.Int64).sum().alias(name)
@@ -326,9 +332,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
                 "rush_success_rate", value_expr(columns, "success", 0).filter(is_designed_run)
             ),
             *mean_with_parts("shotgun_rate", value_expr(columns, "shotgun", 0).filter(scrimmage)),
-            *mean_with_parts(
-                "no_huddle_rate", value_expr(columns, "no_huddle", 0).filter(scrimmage)
-            ),
+            *mean_with_parts("no_huddle_rate", no_huddle.filter(scrimmage)),
             *mean_with_parts(
                 "pass_rate_over_expected",
                 (
@@ -472,9 +476,14 @@ def _blank_unless_charted(
     or null on every play, as ``data_loader`` leaves it) makes every stat built on it unknown,
     not zero.
     """
-    if field in plays.columns and plays.get_column(field).is_not_null().any():
+    if _is_charted(plays, field):
         return expr
     return pl.lit(None, dtype=dtype).alias(expr.meta.output_name())
+
+
+def _is_charted(plays: pl.DataFrame, field: str) -> bool:
+    """Return whether the season's play-by-play has any value for ``field``."""
+    return field in plays.columns and plays.get_column(field).is_not_null().any()
 
 
 def _receiver_fumbled_expr(columns: list[str]) -> pl.Expr:

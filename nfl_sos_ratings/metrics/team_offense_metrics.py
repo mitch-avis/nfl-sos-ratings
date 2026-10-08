@@ -138,7 +138,12 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         polarity="neutral",
         source="PBP",
         denominator="offensive snaps",
-        since=1999,
+        since=2003,
+        note=(
+            "Blank before 2003, when nflverse flags almost no snap as no-huddle. The flag follows "
+            "the play text, which marks no-huddle snaps more often in later seasons, so compare "
+            "teams within a season."
+        ),
         percent=True,
     ),
     _off_total(

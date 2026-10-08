@@ -101,7 +101,7 @@ Everything the team did with the ball.
 | `epa_per_offensive_snap` | EPA/Off Snap | rate | offensive snaps | 1999 | PBP | Offensive expected points added per snap — the core efficiency stat. |
 | `success_rate` | Success % | rate | offensive snaps | 1999 | PBP | The share of offensive plays that improved the team's expected points. A consistency measure that ignores how big each gain was. |
 | `explosive_play_rate` | Explosive % | rate | offensive snaps | 1999 | PBP | The share of snaps gaining 20+ passing yards or 10+ rushing yards — the big-play component of offense. |
-| `no_huddle_rate` | No-Huddle % | rate | offensive snaps | 1999 | PBP | The share of offensive snaps run without a huddle. A style stat. |
+| `no_huddle_rate` | No-Huddle % | rate | offensive snaps | 2003 | PBP | The share of offensive snaps run without a huddle. A style stat. Blank before 2003, when nflverse flags almost no snap as no-huddle. The flag follows the play text, which marks no-huddle snaps more often in later seasons, so compare teams within a season. |
 | `shotgun_rate` | Shotgun % | rate | offensive snaps | 1999 | PBP | The share of offensive snaps taken from the shotgun. A style stat. |
 | `pass_rate` | Pass % | rate | offensive snaps | 1999 | PBP | Dropbacks divided by scrimmage snaps — how pass-heavy the offense is. |
 | `early_down_pass_rate` | Early-Down Pass % | rate | early-down snaps | 1999 | PBP | Dropbacks on first and second down divided by early-down snaps. Passing early is the analytics-favored tendency signal. |

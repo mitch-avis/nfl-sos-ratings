@@ -2129,7 +2129,9 @@ _PRE_2006_PBP_FIELDS = {
 @pytest.mark.parametrize(
     ("season", "blank"),
     [
-        (1999, _PRE_2006_PBP_FIELDS | {"drive_yards_penalized"}),
+        (1999, _PRE_2006_PBP_FIELDS | {"drive_yards_penalized", "no_huddle"}),
+        (2002, _PRE_2006_PBP_FIELDS | {"no_huddle"}),
+        (2003, _PRE_2006_PBP_FIELDS | {"qb_hit"}),
         (2004, _PRE_2006_PBP_FIELDS | {"qb_hit"}),
         (2006, set[str]()),
     ],
@@ -2139,8 +2141,9 @@ def test_load_pbp_data_blanks_fields_nflverse_lacks_that_season(
 ) -> None:
     """Verify a field the season's play-by-play lacks is null, not the zero nflverse may write.
 
-    nflverse writes ``qb_hit = 0`` on every 2003-2005 play and carries yards after catch and pass
-    depth on a few 1999 games only; the loader treats those seasons as having no value.
+    nflverse writes ``qb_hit = 0`` on every 2003-2005 play, flags almost no snap as no-huddle before
+    2003, and carries yards after catch and pass depth on a few 1999 games only; the loader treats
+    those seasons as having no value.
     """
     # Arrange
     pbp = pl.DataFrame(
@@ -2156,6 +2159,7 @@ def test_load_pbp_data_blanks_fields_nflverse_lacks_that_season(
             "yac_epa": [0.3],
             "xyac_mean_yardage": [5.1],
             "qb_hit": [0],
+            "no_huddle": [0],
             "drive_yards_penalized": [-5.0],
             "epa": [1.2],
         }

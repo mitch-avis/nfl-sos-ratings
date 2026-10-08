@@ -83,8 +83,9 @@ PASS_DEPTH_START_SEASON = 2006
 _BEFORE_PASS_DEPTH = range(PBP_START_SEASON, PASS_DEPTH_START_SEASON)
 # Seasons in which nflverse has no value for a play-by-play field, so every stat built on it is
 # unknown there: the loaders write nulls for them, including where nflverse writes 0. Play-by-play
-# records a QB hit on no play in 2003-2005 (before 2003 only on sacks) and has no drive penalty
-# yards before 2001.
+# records a QB hit on no play in 2003-2005 (before 2003 only on sacks), flags 0 to 22 dropbacks and
+# runs a season as no-huddle before 2003 (275 to 506 in 2003-2005, following the play text), and
+# has no drive penalty yards before 2001.
 _PBP_FIELD_GAPS: dict[str, range] = {
     "air_yards": _BEFORE_PASS_DEPTH,
     "air_epa": _BEFORE_PASS_DEPTH,
@@ -93,6 +94,7 @@ _PBP_FIELD_GAPS: dict[str, range] = {
     "yac_epa": _BEFORE_PASS_DEPTH,
     "xyac_mean_yardage": _BEFORE_PASS_DEPTH,
     "qb_hit": range(2003, 2006),
+    "no_huddle": range(PBP_START_SEASON, 2003),
     "drive_yards_penalized": range(PBP_START_SEASON, 2001),
 }
 # The same for weekly player stats, which credit every player with 0 tackles for loss in 2003-2011

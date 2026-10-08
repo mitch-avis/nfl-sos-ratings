@@ -766,7 +766,8 @@ def test_fields_the_season_lacks_give_blank_stats_not_zero() -> None:
     """Verify stats built on a field the season's play-by-play lacks are null, not zero.
 
     Fixture: a 2004-style game, where the loader leaves air yards, yards after catch, their EPA
-    splits, pass depth, QB hits, and (as in 1999-2000) drive penalty yards null on every play.
+    splits, pass depth, QB hits, and (as in 1999-2002) the no-huddle flag and drive penalty yards
+    null on every play.
     """
     # Arrange
     missing = {
@@ -776,6 +777,7 @@ def test_fields_the_season_lacks_give_blank_stats_not_zero() -> None:
         "yards_after_catch": None,
         "pass_length": None,
         "qb_hit": None,
+        "no_huddle": None,
         "drive_yards_penalized": None,
     }
     plays = [
@@ -805,6 +807,7 @@ def test_fields_the_season_lacks_give_blank_stats_not_zero() -> None:
         "yac_epa_total",
         "deep_attempt_rate",
         "drive_penalty_yards",
+        "no_huddle_rate",
     ]
     blank_defense = [
         "air_yards_allowed",
