@@ -129,14 +129,41 @@ def test_options_pass_through_to_the_command(
 
 
 def _unset_blas_thread_variables(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Remove the BLAS thread variables for one test, restoring them afterwards.
+    """Remove the BLAS and Polars thread variables for one test, restoring them afterwards.
 
     ``setenv`` first records each variable's original state, so the undo also removes values the
     code under test sets on ``os.environ`` directly.
     """
-    for name in cli.BLAS_THREAD_VARIABLES:
+    for name in (*cli.BLAS_THREAD_VARIABLES, cli.POLARS_THREAD_VARIABLE):
         monkeypatch.setenv(name, "placeholder")
         monkeypatch.delenv(name)
+
+
+def test_main_runs_polars_on_one_thread_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Arrange
+    _unset_blas_thread_variables(monkeypatch)
+    seasons: list[int] = []
+    monkeypatch.setattr(main, "run_season", seasons.append)
+
+    # Act
+    cli.main(["season"])
+
+    # Assert
+    assert os.environ["POLARS_MAX_THREADS"] == "1"
+
+
+def test_main_keeps_an_explicit_polars_thread_setting(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Arrange
+    _unset_blas_thread_variables(monkeypatch)
+    monkeypatch.setenv("POLARS_MAX_THREADS", "6")
+    seasons: list[int] = []
+    monkeypatch.setattr(main, "run_season", seasons.append)
+
+    # Act
+    cli.main(["season"])
+
+    # Assert
+    assert os.environ["POLARS_MAX_THREADS"] == "6"
 
 
 def test_main_limits_blas_to_one_thread_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:

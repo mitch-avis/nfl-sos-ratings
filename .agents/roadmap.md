@@ -62,15 +62,16 @@ from the updated `main`; the preseason-prior check may be run when built (a `dat
 needs a fresh yes); no scheduled refresh task (the maintainer refreshes by hand). Work top to
 bottom; update the status boxes in the same change set as the work.
 
-1. [ ] P1 Team colors (`feat/team-color-depth`, F7 follow-up). Done on the branch: generated
+1. [x] P1 Team colors (pull request #17, merged 2026-10-08 as `77d06a0`, F7 follow-up): generated
    Broncos palette, team heat scales, team chips, logo, header stripe. Maintainer changes of
    2026-10-08: page surfaces stay the default neutral in every page and palette (only light or dark
    changes them); accents, charts, heat scale, stripe, logo, and tooltips follow the chosen palette
    on the Teams, Quarterbacks, and Glossary pages; a team or QB page switches to that team's
    palette automatically, with a "Use each team's colors on its page" switch (on by default) in the
    palette menu; the palette menu opens at the chosen team.
-2. [ ] P2 Test and pipeline speed (S5): `POLARS_MAX_THREADS=1` by default in the front door and the
+2. [x] P2 Test and pipeline speed (S5): `POLARS_MAX_THREADS=1` by default in the front door and the
    test suite; `pytest -m published_data` works without `--no-cov` (conftest hook, approved).
+   Done on `perf/single-thread-polars`; timings in S5.
 3. [ ] P3 Bugs and copy (U1-U4).
 4. [ ] P4 Split `nfl_sos_ratings/metrics/team_metrics.py` by category (approved), catalogs
    byte-identical as the characterization check.
@@ -879,18 +880,21 @@ by at most 8.5e-14, float summation order).
 
 Proposal (one small pull request after the current one merges):
 
-- [ ] `cli.limit_blas_threads` also defaults `POLARS_MAX_THREADS` to 1 (before any command imports
+- [x] `cli.limit_blas_threads` also defaults `POLARS_MAX_THREADS` to 1 (before any command imports
   Polars), with a test like the BLAS ones; `tests/conftest.py` sets the same default before the
-  test modules import Polars. Record before and after timings of `pytest` and `pipeline`.
-- [ ] **Decision for the maintainer:** `pytest -m published_data` (the checks of the generated
-  files in `data/` after a rebuild: row order, bins adding up, pair files, eligible passers) fails
-  on the coverage floor because `addopts` always measures coverage and those 6 tests touch little
-  code. Options: (a, recommended) a `tests/conftest.py` hook that lifts the coverage floor only
-  when every selected test is a `published_data` one, so the documented command just works and
-  every run that includes code tests keeps the floor; (b) a `scripts/gate.sh --data` step that runs
-  it with `--no-cov`, leaving the bare command as it is; (c) moving the floor from
-  `[tool.coverage.report]` to the gate's pytest call, which stops a bare `pytest` from enforcing it.
-  (a) and (c) touch coverage behavior, which is ask-first.
+  test modules import Polars. Timings (2026-10-08, 24 cores): `time .venv/bin/pytest` 18.7 s wall
+  with the new default, against 133 s before (scratch run with all cores, not citable); `time
+  .venv/bin/nfl-sos-ratings season --season 2025` 5.3 s with the default and 32.2 s with
+  `POLARS_MAX_THREADS=24`, outputs equal (`diff-data --tolerance 1e-9`, README). A full
+  `pipeline` was not timed (it rewrites `data/`).
+- [x] `pytest -m published_data` (the checks of the generated files in `data/` after a rebuild:
+  row order, bins adding up, pair files, eligible passers) failed on the coverage floor because
+  `addopts` always measures coverage and those 6 tests touch little code. The maintainer approved
+  option (a) on 2026-10-08: a `tests/conftest.py` hook lifts the coverage floor and report only
+  when every selected test is a `published_data` one. Checked on the real `data/`: the plain
+  command passes (6 tests, no coverage report), and `pytest -m "published_data or not
+  published_data"` still enforces the floor (100%). `scripts/refresh-season.sh` dropped
+  `--no-cov`.
 
 ## Data notes (2026-10-08)
 

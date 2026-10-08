@@ -20,6 +20,10 @@ PROG = "nfl-sos-ratings"
 # they save in wall time, so every command runs single-threaded BLAS unless the caller set these.
 # BLAS reads them when NumPy first loads, which happens only once a command module is imported.
 BLAS_THREAD_VARIABLES = ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS")
+# The same holds for Polars: a season's work is thousands of small frames, where a full thread pool
+# spends its time waking threads (a 2025 season build took 32.7 s with every core and 4.8 s with
+# one, outputs equal within 1e-13). Polars reads it when first imported, after this module runs.
+POLARS_THREAD_VARIABLE = "POLARS_MAX_THREADS"
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,8 +145,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def limit_blas_threads() -> None:
-    """Default every BLAS thread variable to one thread, keeping any value already set."""
-    for name in BLAS_THREAD_VARIABLES:
+    """Default every BLAS and Polars thread variable to one thread, keeping any explicit value."""
+    for name in (*BLAS_THREAD_VARIABLES, POLARS_THREAD_VARIABLE):
         os.environ.setdefault(name, "1")
 
 

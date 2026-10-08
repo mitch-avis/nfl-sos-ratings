@@ -106,7 +106,7 @@ main() {
 	echo "== Refresh started $(date '+%Y-%m-%d %H:%M:%S')"
 	run cp -a data/. "${backup}/"
 	run .venv/bin/nfl-sos-ratings season "${season_args[@]}"
-	run .venv/bin/pytest -m published_data -q --no-cov
+	run .venv/bin/pytest -m published_data -q
 	run .venv/bin/nfl-sos-ratings diff-data "${diff_args[@]}"
 	echo "== Refresh finished $(date '+%Y-%m-%d %H:%M:%S')"
 	finished=true

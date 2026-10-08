@@ -130,12 +130,15 @@ Progress messages go to stderr and data a command prints for the reader (such as
 ratings table, or the `diff-data` and check reports) to stdout. `nfl-sos-ratings --verbose
 <command>` (or `-v`) adds debug detail on stderr, such as each file written.
 
-Every command, the `nfl-sos` and `nfl-sos-pipeline` shortcuts included, runs NumPy's BLAS on one
-thread unless `OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS`, or `MKL_NUM_THREADS` is already set. The
-rating fits are many small solves, where BLAS threads cost far more CPU than they save: on
-2026-10-04, `time .venv/bin/nfl-sos-ratings season --season 2025` (download cache warm) took 46.5 s
-wall and 8 min 3 s of user CPU with default threading on 24 cores, and 30.0 s and 39 s with one
-thread, with identical output.
+Every command, the `nfl-sos` and `nfl-sos-pipeline` shortcuts included, runs NumPy's BLAS and Polars
+on one thread unless `OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS`, `MKL_NUM_THREADS`, or
+`POLARS_MAX_THREADS` is already set. The rating fits are many small solves and the stats many small
+frames, where worker threads cost far more than they save: on 2026-10-04, `time
+.venv/bin/nfl-sos-ratings season --season 2025` (download cache warm) took 46.5 s wall and 8 min 3 s
+of user CPU with default BLAS threading on 24 cores, and 30.0 s and 39 s with one BLAS thread; on
+2026-10-08, the same command took 32.2 s wall (1 min 44 s of system CPU) with
+`POLARS_MAX_THREADS=24` and 5.3 s with the one-thread default, and `nfl-sos-ratings diff-data
+--tolerance 1e-9` found the two builds' outputs unchanged.
 
 ## Data Files
 
@@ -199,9 +202,9 @@ adds the frontend checks (npm ci, lint, typecheck, Vitest, build). CI
 request; `.venv/bin/pre-commit install` adds the commit and pre-push hooks.
 
 pytest skips tests marked `published_data`, which read the generated files in `data/`; run them
-with `.venv/bin/pytest -m published_data --no-cov` after a data refresh (without `--no-cov` the
-coverage floor fails the run, as these few tests cover little of the package). Agent working
-rules live in [AGENTS.md].
+with `.venv/bin/pytest -m published_data` after a data refresh (with only those tests selected, the
+coverage floor and report are lifted for the run, as these few tests cover little of the package).
+Agent working rules live in [AGENTS.md].
 
 ## Data Sources
 
