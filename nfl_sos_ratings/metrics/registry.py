@@ -148,6 +148,8 @@ DEFAULT_SUFFIX_RULES: tuple[SuffixRule, ...] = (
         description_note=(
             "The filtered value minus the same calculation with no plays filtered out (0%)."
         ),
+        # How far the filter moves a value shows sensitivity to it, not quality.
+        polarity="neutral",
     ),
     SuffixRule(
         suffix="_total",
@@ -306,6 +308,8 @@ class MetricRegistry:
         polarity = base.polarity
         if prefix is not None and prefix.invert_polarity_for_qb and base.name.startswith("qb_"):
             polarity = _invert(polarity)
+        if suffix is not None and suffix.polarity is not None:
+            polarity = suffix.polarity
 
         # A prefix can make a column context (opp_), but never makes a context metric a grade.
         contextual = base.contextual or (prefix is not None and prefix.contextual)

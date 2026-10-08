@@ -78,12 +78,17 @@ class PrefixRule:
 
 @dataclass(frozen=True, slots=True)
 class SuffixRule:
-    """How a column suffix transforms the base metric's presentation."""
+    """How a column suffix transforms the base metric's presentation.
+
+    ``polarity``, when set, replaces the base metric's polarity: a suffix that turns a grade into
+    something else (a change, for example) says which end of the new scale is good, if either.
+    """
 
     suffix: str
     label_template: str
     full_name_template: str
     description_note: str
+    polarity: Polarity | None = None
 
 
 @dataclass(frozen=True, slots=True)

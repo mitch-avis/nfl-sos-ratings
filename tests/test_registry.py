@@ -213,6 +213,25 @@ def test_per_game_suffix_keeps_the_base_metric(registry: MetricRegistry) -> None
 
 
 @pytest.mark.parametrize(
+    "column",
+    [
+        "filtered_team_rating_change",
+        "filtered_team_rank_change",
+        "filtered_adj_qb_epa_per_dropback_change",
+        "filtered_qb_rank_change",
+    ],
+)
+def test_change_suffix_reads_as_neutral(registry: MetricRegistry, column: str) -> None:
+    """A change under the garbage-time filter shows sensitivity to the filter, not quality."""
+    # Act
+    resolved = registry.resolve_column(column)
+
+    # Assert
+    assert resolved is not None
+    assert resolved.polarity == "neutral"
+
+
+@pytest.mark.parametrize(
     ("column", "category"),
     [
         ("opp_passing_yards", "Offense"),
