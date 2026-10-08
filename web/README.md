@@ -28,7 +28,10 @@ uv run nfl-sos-ratings web   # app and API on http://127.0.0.1:8080
 `nfl-sos-ratings web` serves the built app from `web/dist` (with a fallback to `index.html` for
 client-side routes) and the JSON API under `/api` on one port. Without `web/dist` it still serves
 the API and shows a page telling you to build the app. Options: `--host` (default `127.0.0.1`),
-`--port` (default `8080`), `--data-dir` (default `data`), `--reload`.
+`--port` (default `8080`), `--data-dir` (default `data`), `--reload`, and `--allow-refresh`, which
+adds a refresh button to the header that rebuilds the season in progress on the server
+(`scripts/refresh-season.sh`; the root README has the details). The app polls the run every two
+seconds while it goes and refetches every page when it ends.
 
 For frontend development with hot reload, keep `nfl-sos-ratings web` running for the API and start
 the Vite dev server in a second terminal:

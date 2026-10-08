@@ -97,7 +97,8 @@ as shortcuts for `season` and `pipeline`. `web` serves the built app, so run `np
 `web/` first; the Vite dev server (`npm run dev`) runs on 5280 and proxies `/api` to 8080.
 
 `scripts/refresh-season.sh` rebuilds `data/` for the season in progress, so a real run is ask-first
-like `season`; `--dry-run` only prints the steps.
+like `season`; `--dry-run` only prints the steps. The app's refresh button, which `web
+--allow-refresh` turns on, runs the same script on the server: pressing it is ask-first too.
 
 The pipeline and validation commands download from nflverse and can outlive an agent's command
 timeout (often 10 minutes): run them detached (`nohup setsid <cmd> > run.log 2>&1 &`) and only

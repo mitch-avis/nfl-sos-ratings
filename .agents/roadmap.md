@@ -95,9 +95,16 @@ bottom; update the status boxes in the same change set as the work.
    approved), on `feat/chart-polish`.
 10. [ ] P10 Color semantics: U15-U17.
 11. [x] P11 Palette menu as a division grid (U19), on `feat/palette-grid`; U18 lands with P5.
-12. [ ] P12 Refresh button (maintainer idea, 2026-10-08): an opt-in server flag, one refresh at a
-    time, a confirmation dialog in the app, progress, then the `diff-data` summary and the data
-    checks; the app refetches its data when done.
+12. [x] P12 Refresh button (maintainer idea, 2026-10-08), on `feat/refresh-button`: `web
+    --allow-refresh` (off by default; only when the server serves the repository's `data/`) runs
+    `scripts/refresh-season.sh` in the background, one run at a time (`nfl_sos_ratings/
+    refresh_runner.py`), behind `GET` and `POST /api/refresh`; a start needs the app's
+    `X-Requested-With` header and, when the browser sends an `Origin`, this server's own. The header
+    button opens a panel that says what a refresh does before its "Start refresh" button, then
+    shows the run's start time and last output line, the `diff-data` summary and "the data checks
+    passed" on success, or the last eight output lines on failure; the app polls every two seconds
+    while a run goes and refetches every query when it ends. The maintainer turns it on by
+    restarting their server with `--allow-refresh`.
 
 ## Recommended order
 
@@ -731,11 +738,13 @@ Tasks:
   practical (Bats is optional). Done 2026-10-05: `scripts/refresh-season.sh [--season N]
   [--dry-run]` (shellcheck and shfmt clean); `tests/test_refresh_season_script.py` runs a copy of
   it in a temporary tree with stand-in commands (dry run, clean run, failing step, bad arguments).
-  The `published_data` step uses `--no-cov`: the documented `pytest -m published_data` exits 1 on
-  the coverage floor even when every test passes, so AGENTS.md, README, and the status note now
-  say `--no-cov`. Not run for real tonight (that is a rebuild; `data/` was current).
-- [ ] **Ask first** before installing any scheduled task (machine configuration outside the
-  repo); provide the exact install command or task XML for the maintainer. Not installed. The
+  The `published_data` step used `--no-cov` then, since the coverage floor failed a run of only
+  those tests; S5 (2026-10-08) lifted the floor for that selection and dropped the flag. Not run
+  for real tonight (that is a rebuild; `data/` was current).
+- [x] **Ask first** before installing any scheduled task (machine configuration outside the
+  repo); provide the exact install command or task XML for the maintainer. Decided 2026-10-08: no
+  scheduled task; the app's refresh button (session plan, P12) starts the script instead. Not
+  installed. The
   command for this machine (WSL distribution `Ubuntu`), from PowerShell or `cmd`: `schtasks /Create
   /TN "nfl-sos-ratings weekly refresh" /SC WEEKLY /D TUE /ST 09:00 /TR "wsl.exe -d Ubuntu --
   /home/mitch/workspace/nfl-sos-ratings/scripts/refresh-season.sh"`; `schtasks /Delete /TN
