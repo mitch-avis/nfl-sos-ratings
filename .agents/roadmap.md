@@ -1318,10 +1318,28 @@ Tasks:
   today's fit in the seasons before a prior; duplicate rows are rejected before pairing; NaN
   counts as a mismatch; the single-game bootstrap draws in chunks; and failure tests break the
   production code (wrong means, a solver that drops the prior, a drifting warm-up).
-- [ ] Run the check (approved); record the results here with the command.
-- [ ] Maintainer decision; if adopted, the refits above, then ask before the `data/` rebuild, then
-  update the registry, `README.md`, `docs/methodology.md`, the validation report, and the
-  nfl-predictor note.
+- [x] Run the check (approved), 2026-10-08, from commit `f274469` on `feat/team-prior`:
+  `POLARS_MAX_THREADS=1 .venv/bin/nfl-sos-ratings check-team-prior --data-dir data
+  --start-season 2003 --end-season 2025` (input fingerprint `1fe53e2b...16fa`, 53 files).
+  Integrity: every check passed (previous seasons' ratings rebuilt from each prior with gap 0;
+  slopes against the exact recompute 9.2e-10; fully faded rows equal today's on 10,941 rows;
+  1,119 audited snapshots, means 1.4e-17, residual form 2.1e-14; teams without games on 3
+  snapshots, 2017 week 2; limit 2.4e-10 on 373 snapshots; 23 information-set seasons; 27 seasons'
+  penalties). Results, MAE of predicted home margins, prediction weeks 2+ of 2003-2025 (5,600
+  games): today 10.750, 3 games 10.714, 6 games 10.685, 9 games 10.668. Paired differences,
+  98.33% season-bootstrap intervals: 3 games -0.036 (-0.053 to -0.017), 6 games -0.064 (-0.090 to
+  -0.038), 9 games -0.082 (-0.114 to -0.050). Every interval excluding zero favors the prior:
+  each horizon overall and in weeks 2-4 (3: -0.189; 6: -0.253; 9: -0.264), and 6 and 9 in weeks
+  5-8 (-0.069, -0.136); no band interval lies above zero, so the guard removes none. Decision
+  rule: all three qualify; the recommendation is the 9-game horizon (lowest MAE). Descriptive:
+  weeks 9+ are unchanged for every horizon; 17 games and no fade gain little more overall
+  (-0.095, -0.093) and are not adoptable; the fitted margin slope is about 0.89 for every
+  candidate (no rescaling); Elo by band 10.996 / 10.730 / 10.605; carryover slopes 0.68-0.82
+  (offense) and 0.38-0.47 (defense); 2026 DEN after week 4 -0.37 (15th) today, +0.96 (12th) at 9
+  games; week 1 by the prior alone MAE 10.341 against 10.689 for the home edge alone.
+- [ ] Maintainer decision on the 9-game horizon (asked 2026-10-08).
+- [ ] If adopted: the refits above, then ask before the `data/` rebuild, then update the registry,
+  `README.md`, `docs/methodology.md`, the validation report, and the nfl-predictor note.
 
 ## Ideas parking lot (not approved yet)
 
