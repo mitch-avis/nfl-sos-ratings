@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest'
 import type { MetricRegistryPayload } from '@/api/types'
 import { columnMeta } from '@/test/fixtures'
 
-import { getMetricMetadata, hydrateColumnMetadata, hydrateMetricRegistry } from './metricMetadata'
+import {
+  directionText,
+  getMetricFormula,
+  getMetricMetadata,
+  hydrateColumnMetadata,
+  hydrateMetricRegistry,
+} from './metricMetadata'
 
 const SEASON_DELTA_RULE = {
   prefix: 'season_delta_',
@@ -46,5 +52,48 @@ describe('getMetricMetadata', () => {
       category: 'Passing Volume',
       shape: 'count',
     })
+  })
+})
+
+describe('directionText', () => {
+  it.each([
+    [{ polarity: 'higher' as const }, 'Higher is better.'],
+    [{ polarity: 'lower' as const }, 'Lower is better.'],
+    [{ polarity: 'higher' as const, contextual: true }, 'Context, not a grade: it describes the opposition, not this team or QB.'],
+    [{ polarity: 'neutral' as const }, null],
+  ])('reads %o as %s', (overrides, expected) => {
+    // Arrange
+    hydrateColumnMetadata({ direction_probe: columnMeta('Probe', overrides) })
+
+    // Act
+    const text = directionText('direction_probe')
+
+    // Assert
+    expect(text).toBe(expected)
+  })
+})
+
+describe('getMetricFormula', () => {
+  it("returns a registry metric's formula", () => {
+    // Arrange
+    hydrateMetricRegistry({
+      entities: { team: { categories: [] }, qb: { categories: [] } },
+      metrics: { formula_probe: { ...columnMeta('Probe'), formula: 'yards / plays' } },
+      prefix_rules: [],
+    } as MetricRegistryPayload)
+
+    // Act
+    const formula = getMetricFormula('formula_probe')
+
+    // Assert
+    expect(formula).toBe('yards / plays')
+  })
+
+  it('has no formula for a column the registry does not list', () => {
+    // Act
+    const formula = getMetricFormula('opp_formula_probe')
+
+    // Assert
+    expect(formula).toBeNull()
   })
 })

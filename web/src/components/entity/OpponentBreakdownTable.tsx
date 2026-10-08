@@ -5,7 +5,8 @@ import { SortableHeader } from '@/components/common/SortableHeader'
 import { TeamChip } from '@/components/common/TeamChip'
 import type { OpponentBreakdownTable as Breakdown } from '@/domain/detailAnalytics'
 import { compareDetailCellValues, formatDetailCellValue } from '@/domain/detailUi'
-import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
+import { MetricHint } from '@/components/common/MetricHint'
+import { getMetricMetadata } from '@/domain/metricMetadata'
 import { buildColumnDecimals, buildColumnStats, getHeatCellStyle } from '@/domain/tableState'
 
 interface SortState {
@@ -69,7 +70,7 @@ export function OpponentBreakdownTable({ breakdown }: { breakdown: Breakdown }) 
                 >
                   <SortableHeader
                     label={column.label ?? getMetricMetadata(column.id).label}
-                    hint={column.tooltip ?? getMetricTooltip(column.id)}
+                    hint={column.tooltip ?? <MetricHint column={column.id} />}
                     direction={sorted ? (activeSort.desc ? 'desc' : 'asc') : false}
                     onSort={() => setSort(nextSort(column.id))}
                   />

@@ -15,6 +15,7 @@ import { useTheme } from '@/app/ThemeProvider'
 import { CsvExportButton } from '@/components/common/CsvExportButton'
 import { Hint } from '@/components/common/Hint'
 import { InfoTooltip } from '@/components/common/InfoTooltip'
+import { MetricHint } from '@/components/common/MetricHint'
 import { MetricLabel } from '@/components/common/MetricLabel'
 import { SortableHeader } from '@/components/common/SortableHeader'
 import { TeamChip } from '@/components/common/TeamChip'
@@ -23,7 +24,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { csvFileName, toCsv } from '@/domain/csv'
 import { formatValue } from '@/domain/format'
-import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
+import { getMetricMetadata } from '@/domain/metricMetadata'
 import {
   belowQualifierDetail,
   belowQualifierText,
@@ -382,7 +383,7 @@ export function EntityTable({
                         {header.column.getCanSort() ? (
                           <SortableHeader
                             label={getMetricMetadata(header.column.id).label}
-                            hint={getMetricTooltip(header.column.id)}
+                            hint={<MetricHint column={header.column.id} />}
                             direction={sorted}
                             onSort={(event) => header.column.getToggleSortingHandler()?.(event)}
                           />

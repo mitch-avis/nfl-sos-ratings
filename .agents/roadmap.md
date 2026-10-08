@@ -83,7 +83,12 @@ bottom; update the status boxes in the same change set as the work.
    formula, the affix rules, the app's own hint text, and a glossary rebuilt from the registry
    (search, categories, a "Start here" section, the methodology linked on GitHub). Tooltips gain a
    generated direction line and a "How it's computed" line. Drafts by six read-only subagents in
-   `/tmp/tooltip-audit/` (style brief there), verified and applied centrally.
+   `/tmp/tooltip-audit/` (style brief there), verified and applied centrally. Done on
+   `feat/glossary`: the glossary (U18) and the hint format (`MetricHint`: full name, sentence,
+   generated direction line, and the registry formula for a base metric), with the twelve
+   descriptions that stated a direction trimmed so it reads once. Left: the registry text rewrite
+   itself (labels, descriptions, formulas from the reviewed drafts), after the season-rate and
+   missing-data fixes land, since both touch the registry.
 6. [ ] P6 Preseason prior for the team fit: the team fit shrinks toward a regressed previous-season
    rating that fades out early in the season (the maintainer expects the prior gone by mid-season
    or earlier; the fade point is for the pre-registered test to settle). Protocol first, then code
@@ -1122,9 +1127,15 @@ Color semantics:
 
 Glossary and navigation:
 
-- [ ] U18 The glossary covers about a dozen metrics, points at a repository path instead of linking
+- [x] U18 The glossary covers about a dozen metrics, points at a repository path instead of linking
   the methodology, and explains neither rank ranges, head-to-head chances, the garbage-time filter,
-  nor what positive SoS means. Build it from the registry with search and categories.
+  nor what positive SoS means. Build it from the registry with search and categories. Done on
+  `feat/glossary` (`domain/glossary`): "Start here" with plain-language entries for EPA, the
+  schedule adjustment, schedule strength, rank ranges, head-to-head chances, the garbage-time
+  filter, and the shading, then the headline ratings; every other registry metric by entity and
+  category in the registry's order, with its table label, direction, formula, first season, and
+  any duplicate it repeats; a search over all of it; the methodology linked on GitHub. The old
+  hand-picked sections (with the "current shell" text and the duplicate entry) are gone.
 - [x] U19 The palette menu is a 33-item scrolling list; an eight-division grid of team chips would
   be faster, especially on a phone.
 

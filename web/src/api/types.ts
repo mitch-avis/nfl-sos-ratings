@@ -45,9 +45,19 @@ export interface PrefixRulePayload {
   invert_polarity_for_qb: boolean;
 }
 
+/** One metric in `/api/metadata`: its column metadata plus the registry's own fields. */
+export interface RegistryMetricPayload extends Omit<ColumnMetadataPayload, 'base_name'> {
+  base_name?: string;
+  entity?: 'team' | 'qb';
+  formula?: string | null;
+  note?: string | null;
+  since?: number | null;
+  duplicate_of?: string | null;
+}
+
 export interface MetricRegistryPayload {
   entities: Record<'team' | 'qb', { categories: RegistryCategoryPayload[] }>;
-  metrics: Record<string, ColumnMetadataPayload>;
+  metrics: Record<string, RegistryMetricPayload>;
   prefix_rules: PrefixRulePayload[];
 }
 

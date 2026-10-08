@@ -497,6 +497,26 @@ describe('qb detail', () => {
 })
 
 describe('rank column', () => {
+  it("says which way is better and how a stat is computed in the stat's hint", async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const registry = {
+      ...REGISTRY,
+      metrics: { offense_rating: { ...columnMeta('Off Rating'), entity: 'team', formula: 'offense effect per play x plays per game' } },
+    }
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/metadata': registry }))
+    renderApp('/teams?season=2025')
+    const header = await screen.findByRole('button', { name: /Off Rating/ })
+
+    // Act
+    await user.hover(header)
+
+    // Assert
+    const hint = await screen.findByRole('tooltip')
+    expect(hint).toHaveTextContent('Higher is better.')
+    expect(hint).toHaveTextContent("How it's computed: offense effect per play x plays per game")
+  })
+
   it('explains that Rank follows the current sort', async () => {
     // Arrange
     const user = userEvent.setup()
@@ -1223,13 +1243,48 @@ describe('seasons and glossary', () => {
     expect(screen.getByText('No route for /api/seasons/2025')).toBeInTheDocument()
   })
 
-  it('renders the glossary without season data', async () => {
+  it('renders the glossary without season data, starting with the ideas behind the pages', async () => {
     // Act
     renderApp('/glossary')
 
     // Assert
     expect(await screen.findByRole('heading', { name: 'Glossary' })).toBeInTheDocument()
-    expect(screen.getByText('Primary overall team rank: Team Rating')).toBeInTheDocument()
+    const startHere = await screen.findByRole('region', { name: 'Start here' })
+    expect(within(startHere).getByText('Rank range')).toBeInTheDocument()
+    expect(screen.queryByText(/current shell/)).not.toBeInTheDocument()
+  })
+
+  it('links the methodology on GitHub', async () => {
+    // Act
+    renderApp('/glossary')
+
+    // Assert
+    expect(await screen.findByRole('link', { name: /methodology/ })).toHaveAttribute(
+      'href',
+      'https://github.com/mitch-avis/nfl-sos-ratings/blob/main/docs/methodology.md',
+    )
+  })
+
+  it('narrows the glossary to the stats a search names', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const registry = {
+      ...REGISTRY,
+      metrics: {
+        qb_sack_rate: { ...columnMeta('Sack Rate', { category: 'Pressure, Sacks & Pocket' }), description: 'Sacks taken per dropback.', entity: 'qb' },
+        qb_any_a: { ...columnMeta('ANY/A', { full_name: 'Adjusted Net Yards per Attempt', category: 'Passing' }), description: 'Yards per attempt with touchdowns, interceptions, and sacks.', entity: 'qb' },
+      },
+    }
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/metadata': registry }))
+    renderApp('/glossary')
+    const search = await screen.findByRole('searchbox', { name: 'Search the glossary' })
+
+    // Act
+    await user.type(search, 'per dropback')
+
+    // Assert
+    expect(screen.getByText('Sack Rate')).toBeInTheDocument()
+    expect(screen.queryByText('Adjusted Net Yards per Attempt')).not.toBeInTheDocument()
   })
 
   it('explains each metric from the registry when opened directly', async () => {

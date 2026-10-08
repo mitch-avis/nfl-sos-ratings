@@ -13,7 +13,8 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Slider } from '@/components/ui/slider'
 import { columnDecimals, formatFixed } from '@/domain/format'
-import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
+import { MetricHint } from '@/components/common/MetricHint'
+import { getMetricMetadata } from '@/domain/metricMetadata'
 import {
   describeWpThreshold,
   formatRankChange,
@@ -80,7 +81,7 @@ function WpRatingsTable({
   const header = (key: WpSortKey, column: string, descendingFirst: boolean, label?: string) => (
     <SortableHeader
       label={label ?? getMetricMetadata(column).label}
-      hint={getMetricTooltip(column)}
+      hint={<MetricHint column={column} />}
       direction={sort.key === key ? (sort.descending ? 'desc' : 'asc') : false}
       onSort={() =>
         setSort((current) =>
