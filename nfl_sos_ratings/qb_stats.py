@@ -857,10 +857,14 @@ def _with_qb_results(
     weekly_df: pl.DataFrame | None,
     qb_keys: list[str],
 ) -> pl.DataFrame:
-    """Add primary-QB wins, losses, ties, and win percentage (0.5 when results are unknown)."""
+    """Add primary-QB wins, losses, ties, and win percentage.
+
+    The win percentage is null for a quarterback without a decision: one who was never the primary
+    passer, or whose results are unknown.
+    """
     required_weekly_cols = {"team", "week", "points_for", "points_allowed"}
     if weekly_df is None or not required_weekly_cols.issubset(set(weekly_df.columns)):
-        return season_stats.with_columns(pl.lit(0.5).alias("qb_win_pct"))
+        return season_stats.with_columns(pl.lit(None, dtype=pl.Float64).alias("qb_win_pct"))
 
     decisions = pl.col("qb_wins") + pl.col("qb_losses") + pl.col("qb_ties")
     qb_results = (
@@ -889,7 +893,7 @@ def _with_qb_results(
         .with_columns(
             pl.when(decisions > 0)
             .then((pl.col("qb_wins") + 0.5 * pl.col("qb_ties")) / decisions)
-            .otherwise(0.5)
+            .otherwise(None)
             .alias("qb_win_pct")
         )
     )
@@ -897,7 +901,6 @@ def _with_qb_results(
         pl.col("qb_wins").fill_null(0).cast(pl.Int64),
         pl.col("qb_losses").fill_null(0).cast(pl.Int64),
         pl.col("qb_ties").fill_null(0).cast(pl.Int64),
-        pl.col("qb_win_pct").fill_null(0.5),
     )
 
 

@@ -745,8 +745,9 @@ QB_CLUTCH_METRICS: tuple[MetricDef, ...] = (
         label="QB Win %",
         full_name="QB Win Percentage",
         description=(
-            "Share of primary-QB games won, counting a tie as half a win. Feeds only the "
-            "separate outcome layer, never the performance ratings."
+            "Share of primary-QB games won, counting a tie as half a win; empty for a "
+            "quarterback who was never the primary passer. A team outcome, shown for context — "
+            "never a rating input."
         ),
         shape="rate",
         polarity="higher",

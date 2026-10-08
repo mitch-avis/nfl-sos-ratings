@@ -82,8 +82,10 @@ def test_compute_qb_season_stats_assigns_results_to_primary_qb_only() -> None:
     # Assert
     assert result.filter(pl.col("qb_id") == "QB_A").select("qb_win_pct").item() == 1.0
     assert result.filter(pl.col("qb_id") == "QB_A").select("qb_wins").item() == 1
-    assert result.filter(pl.col("qb_id") == "QB_B").select("qb_win_pct").item() == 0.5
+    # QB_B was never the primary passer, so he has no decisions and no win percentage.
+    assert result.filter(pl.col("qb_id") == "QB_B").select("qb_win_pct").item() is None
     assert result.filter(pl.col("qb_id") == "QB_B").select("qb_wins").item() == 0
+    assert result.filter(pl.col("qb_id") == "QB_B").select("qb_losses").item() == 0
 
 
 def test_compute_qb_season_stats_sums_late_game_totals() -> None:
@@ -315,8 +317,8 @@ def test_compute_qb_season_stats_derives_dropback_metrics_and_totals() -> None:
     assert result.select("qb_td_int_margin_rate").item() == pytest.approx(1.0 / 46.0)
 
 
-def test_compute_qb_season_stats_defaults_win_pct_when_results_unavailable() -> None:
-    """Verify qb_win_pct does not become NaN when team/week score joins fail."""
+def test_compute_qb_season_stats_leaves_win_pct_empty_when_results_unavailable() -> None:
+    """Verify qb_win_pct is empty, not NaN or a made-up .500, when team/week score joins fail."""
     # Arrange
     qb_df = pl.DataFrame(
         {
@@ -342,7 +344,28 @@ def test_compute_qb_season_stats_defaults_win_pct_when_results_unavailable() -> 
     result = qb_stats.compute_qb_season_stats(qb_df, weekly_df=weekly_df)
 
     # Assert
-    assert result.select("qb_win_pct").item() == 0.5
+    assert result.select("qb_win_pct").item() is None
+
+
+def test_compute_qb_season_stats_leaves_win_pct_empty_without_team_results() -> None:
+    """Verify qb_win_pct is empty when no weekly team results are given."""
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["DEN", "DEN"],
+            "week": [1, 2],
+            "qb_id": ["QB_A", "QB_A"],
+            "qb_name": ["QB A", "QB A"],
+            "qb_attempts": [30, 28],
+        }
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df)
+
+    # Assert
+    assert result.select("qb_win_pct").item() is None
+    assert result.schema["qb_win_pct"] == pl.Float64
 
 
 def test_compute_qb_game_volumes_from_pbp_combines_dropbacks_and_snap_counts() -> None:

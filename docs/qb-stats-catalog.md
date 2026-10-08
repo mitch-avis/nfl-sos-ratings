@@ -137,7 +137,7 @@ feed the performance ratings.
 | `qb_wins` | QB Wins | count | - | 1999 | D | Wins in games where this quarterback was the primary passer. A team outcome, shown for context — never a rating input. |
 | `qb_losses` | QB Losses | count | - | 1999 | D | Losses in games where this quarterback was the primary passer. |
 | `qb_ties` | QB Ties | count | - | 1999 | D | Ties in games where this quarterback was the primary passer. |
-| `qb_win_pct` | QB Win % | rate | primary-QB games | 1999 | D | Share of primary-QB games won, counting a tie as half a win. Feeds only the separate outcome layer, never the performance ratings. |
+| `qb_win_pct` | QB Win % | rate | primary-QB games | 1999 | D | Share of primary-QB games won, counting a tie as half a win; empty for a quarterback who was never the primary passer. A team outcome, shown for context — never a rating input. |
 | `qb_fourth_quarter_comeback` | 4QC | count | - | 1999 | D | Credit for a game in which the quarterback's team trailed in the fourth quarter and he led it to a win. |
 | `qb_fourth_quarter_comebacks` | 4QC | count | - | 1999 | D | Games in which the quarterback's team trailed in the fourth quarter and he led it to a win. |
 | `qb_game_winning_drive` | GWD | count | - | 1999 | D | Credit for leading a drive that put the team ahead for good in the fourth quarter or overtime of a win. |
