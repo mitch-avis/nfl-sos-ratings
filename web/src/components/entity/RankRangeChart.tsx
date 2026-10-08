@@ -26,10 +26,18 @@ const ROW_GRID: Record<EntityKind, string> = {
 }
 const ROW_CLASS = 'w-full rounded-sm px-1 py-1 text-left hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-ring'
 
-/** The pinned card above the rows: the active row's ranges in words, or how to pick a row. */
+/** Pinned above the rows: the active row's ranges in a card, or a line on how to pick a row. */
 function Readout({ kind, season, range, hasHover }: { kind: EntityKind; season: number; range: RankRange | undefined; hasHover: boolean }) {
   return (
-    <div role="status" aria-live="polite" className={cn(HINT_CARD_CLASS, 'sticky top-16 z-10 w-full max-w-none')}>
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn(
+        'sticky top-16 z-10 w-full',
+        // Before a row is picked, the instruction reads as plain text, not as an empty input box.
+        range ? cn(HINT_CARD_CLASS, 'max-w-none') : 'bg-card py-1 text-xs text-muted-foreground',
+      )}
+    >
       {range ? (
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <div>

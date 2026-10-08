@@ -18,12 +18,11 @@ import { InfoTooltip } from '@/components/common/InfoTooltip'
 import { MetricLabel } from '@/components/common/MetricLabel'
 import { SortableHeader } from '@/components/common/SortableHeader'
 import { TeamChip } from '@/components/common/TeamChip'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { csvFileName, toCsv } from '@/domain/csv'
-import { countLabel, formatValue } from '@/domain/format'
+import { formatValue } from '@/domain/format'
 import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
 import {
   belowQualifierDetail,
@@ -63,6 +62,8 @@ interface EntityTableProps {
   selectedColumns: string[]
   sorting: SortingState
   table: TablePayload
+  /** Page-specific controls for the toolbar beside the search box. */
+  toolbar?: ReactNode
 }
 
 const CONTROL_COLUMNS = ['compare', 'rank']
@@ -140,6 +141,7 @@ export function EntityTable({
   selectedColumns,
   sorting,
   table,
+  toolbar,
 }: EntityTableProps) {
   const { resolved: theme, activePalette: palette } = useTheme()
   const basePath = `/${config.kind}`
@@ -327,29 +329,26 @@ export function EntityTable({
 
   return (
     <Card className="gap-4">
-      <CardHeader className="flex flex-wrap items-start justify-between gap-3">
-        <CardTitle className="text-base">{config.title}</CardTitle>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <Badge variant="secondary">{countLabel(filteredRows.length, 'row')}</Badge>
-          <Badge variant="secondary">{countLabel(selectedColumns.length, 'column')}</Badge>
-          <Badge variant="secondary">{compareIds.length} compared</Badge>
-          <CsvExportButton
-            fileName={csvFileName(config.kind, season)}
-            build={() => toCsv(selectedColumns, reactTable.getRowModel().rows.map((row) => row.original))}
-          />
-        </div>
-      </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="relative max-w-sm">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            aria-label="Search visible columns"
-            placeholder="Search visible columns"
-            className="pl-8"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-          />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+          <div className="relative w-full max-w-sm">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              aria-label="Search visible columns"
+              placeholder="Search visible columns"
+              className="pl-8"
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+            />
+          </div>
+          {toolbar}
+          <div className="ml-auto">
+            <CsvExportButton
+              fileName={csvFileName(config.kind, season)}
+              build={() => toCsv(selectedColumns, reactTable.getRowModel().rows.map((row) => row.original))}
+            />
+          </div>
         </div>
         {controls}
         {/* On phones the box fills the screen below the app header, so it reads as one full-height
