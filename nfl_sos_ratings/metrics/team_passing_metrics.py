@@ -239,11 +239,11 @@ OFFENSE_PASSING_METRICS: tuple[MetricDef, ...] = (
     ),
     _off_pass(
         name="air_yards_per_attempt",
-        label="aDOT",
-        full_name="Air Yards Per Attempt (aDOT)",
+        label="Air Yds/Att",
+        full_name="Air Yards Per Attempt",
         description=(
-            "Average depth of target: how far downfield the average throw traveled. A "
-            "style stat, not a quality grade."
+            "How far past the line of scrimmage the average pass attempt traveled in the air, "
+            "throwaways included. A style stat, not a quality grade."
         ),
         shape="rate",
         polarity="neutral",

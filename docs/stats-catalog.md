@@ -131,7 +131,7 @@ Everything the team did with the ball.
 | `scramble_yards` | Scramble Yds | count | - | 1999 | PBP | Rushing yards gained on quarterback scrambles. |
 | `passing_air_yards` | Air Yds | count | - | 2006 | PBP +TS | Total distance the ball traveled past the line of scrimmage on all throws, including incompletions — a measure of how far downfield the team attacks. |
 | `passing_yards_after_catch` | YAC | count | - | 1999 | PBP +TS | Yards receivers gained after catching the ball. |
-| `air_yards_per_attempt` | aDOT | rate | pass attempts | 2006 | PBP | Average depth of target: how far downfield the average throw traveled. A style stat, not a quality grade. |
+| `air_yards_per_attempt` | Air Yds/Att | rate | pass attempts | 2006 | PBP | How far past the line of scrimmage the average pass attempt traveled in the air, throwaways included. A style stat, not a quality grade. |
 | `yac_per_completion` | YAC/Comp | rate | completions | 1999 | PBP | Average yards gained after the catch on completed passes. |
 | `yards_per_attempt` | Y/A | rate | pass attempts | 1999 | PBP | Passing yards divided by official pass attempts. |
 | `net_yards_per_attempt` | NY/A | rate | pass attempts + sacks | 1999 | PBP | Passing yards minus sack yards, divided by attempts plus sacks — yards per dropback-style efficiency that charges the offense for sacks. Formula: (passing_yards - sack_yards_lost) / (attempts + sacks) |
