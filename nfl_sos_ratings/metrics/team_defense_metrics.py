@@ -726,11 +726,13 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         name="stuff_rate",
         label="Stuff %",
         full_name="Run Stuff Rate",
-        description="The share of opponent carries stopped for no gain or a loss.",
+        description=(
+            "The share of opponent carries other than kneel-downs stopped for no gain or a loss."
+        ),
         shape="rate",
         polarity="higher",
         source="PBP",
-        denominator="opponent carries",
+        denominator="opponent carries other than kneel-downs",
         since=1999,
     ),
     _def_press(

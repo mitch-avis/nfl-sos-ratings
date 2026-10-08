@@ -167,7 +167,7 @@ Everything the team did with the ball.
 | `epa_per_carry` | EPA/Carry | rate | carries | 1999 | PBP | Rushing expected points added per carry — rushing efficiency. |
 | `rush_success_rate` | Rush Success % | rate | designed carries | 1999 | PBP | The share of designed runs that improved the team's expected points. |
 | `explosive_rush_rate` | Explosive Rush % | rate | carries | 1999 | PBP | Runs of 10+ yards divided by carries. |
-| `stuffed_run_rate` | Stuffed % | rate | carries | 1999 | PBP | The share of carries stopped for no gain or a loss. Lower is better. |
+| `stuffed_run_rate` | Stuffed % | rate | carries other than kneel-downs | 1999 | PBP | The share of carries other than kneel-downs stopped for no gain or a loss. Lower is better. |
 | `rushing_fumbles` | Rush Fumbles | count | - | 1999 | PBP +TS | Fumbles on rushing plays, whether or not the team lost the ball. |
 | `longest_rush` | Long Rush | count | - | 1999 | PBP | The team's longest run of the season, in yards. |
 | `rushing_2pt_conversions` | 2-Pt Rushes | count | - | 1999 | PBP +TS | Successful two-point conversions run in. |
@@ -371,7 +371,7 @@ Everything the team allowed, plus the plays its defense made.
 | `def_sack_yards` | Sack Yds Forced | count | - | 1999 | PBP +TS | Yards opponents lost to this defense's sacks. |
 | `def_sack_rate_per_dropback` | Sack Rate Forced | rate | opponent dropbacks | 1999 | PBP | Sacks divided by opponent dropbacks — pass-rush efficiency. |
 | `qb_pressure_events_rate` | Pressure Events % | rate | opponent dropbacks | 1999 | PBP | Sacks plus quarterback hits divided by opponent dropbacks. |
-| `stuff_rate` | Stuff % | rate | opponent carries | 1999 | PBP | The share of opponent carries stopped for no gain or a loss. |
+| `stuff_rate` | Stuff % | rate | opponent carries other than kneel-downs | 1999 | PBP | The share of opponent carries other than kneel-downs stopped for no gain or a loss. |
 | `havoc_rate` | Havoc % | rate | defensive snaps | 1999 | PBP | Disruptive plays — tackles for loss, forced fumbles, interceptions, and pass breakups — divided by defensive snaps. |
 | `defensive_2pt_conversions` | Def 2-Pt | count | - | 1999 | PBP | Two-point returns scored by the defense on turnovers during tries. |
 

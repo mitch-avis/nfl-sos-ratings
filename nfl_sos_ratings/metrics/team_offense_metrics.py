@@ -325,11 +325,14 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         name="stuffed_run_rate",
         label="Stuffed %",
         full_name="Stuffed Run Rate",
-        description="The share of carries stopped for no gain or a loss. Lower is better.",
+        description=(
+            "The share of carries other than kneel-downs stopped for no gain or a loss. Lower "
+            "is better."
+        ),
         shape="rate",
         polarity="lower",
         source="PBP",
-        denominator="carries",
+        denominator="carries other than kneel-downs",
         since=1999,
     ),
     _off_rush(

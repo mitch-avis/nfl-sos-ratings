@@ -148,7 +148,8 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     # so the split starts from rush attempts.
     is_carry = is_rush_attempt & ~is_two_point
     is_scramble = is_carry & (value_expr(columns, "qb_scramble") > 0)
-    is_designed_run = is_carry & ~is_scramble & ~(value_expr(columns, "qb_kneel") > 0)
+    is_kneel = is_carry & (value_expr(columns, "qb_kneel") > 0)
+    is_designed_run = is_carry & ~is_scramble & ~is_kneel
     is_interception = value_expr(columns, "interception") > 0
     is_fumble_lost = value_expr(columns, "fumble_lost") > 0
     yards = value_expr(columns, "yards_gained", 0.0)
@@ -278,7 +279,9 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
                 is_rush_attempt & ~is_two_point & (yards >= _EXPLOSIVE_RUSH_YARDS),
                 "aux_explosive_rushes",
             ),
-            _count(is_rush_attempt & ~is_two_point & (yards <= 0), "aux_stuffed_rushes"),
+            # A kneel-down is a carry but never a stuff, so stuff rate leaves kneel-downs out.
+            _count(is_carry & ~is_kneel, "aux_carries_without_kneels"),
+            _count(is_carry & ~is_kneel & (yards <= 0), "aux_stuffed_rushes"),
             _count(
                 is_pass_attempt & ~is_two_point & (pl.col("pass_length") == "deep")
                 if "pass_length" in columns
@@ -336,7 +339,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
             .fill_null(0.0)
             .alias("aux_pass_epa"),
             value_expr(columns, "epa", 0.0)
-            .filter(value_expr(columns, "rush") > 0)
+            .filter(is_carry)
             .sum()
             .fill_null(0.0)
             .alias("aux_rush_epa"),
@@ -657,7 +660,7 @@ def _add_offense_ratios(frame: pl.DataFrame) -> pl.DataFrame:
         ("aux_rush_yards", "carries", "yards_per_carry"),
         ("aux_rush_epa", "carries", "epa_per_carry"),
         ("aux_explosive_rushes", "carries", "explosive_rush_rate"),
-        ("aux_stuffed_rushes", "carries", "stuffed_run_rate"),
+        ("aux_stuffed_rushes", "aux_carries_without_kneels", "stuffed_run_rate"),
         ("offensive_epa", "aux_off_snaps", "epa_per_offensive_snap"),
         ("aux_total_yards", "aux_off_snaps", "yards_per_offensive_snap"),
         ("dropbacks", "aux_off_snaps", "pass_rate"),

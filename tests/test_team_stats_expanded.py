@@ -224,8 +224,8 @@ def test_passing_volume_and_efficiency_extras() -> None:
 def test_rushing_extras_and_run_defense_mirror() -> None:
     """Verify carries, designed splits, explosive/stuffed rates, and stuff rate.
 
-    Fixture: 12-yard explosive run, -1-yard stuffed TFL run, kneel, and a
-    9-yard scramble (a carry but not a designed carry).
+    Fixture: 12-yard explosive run, -1-yard stuffed TFL run, kneel (a carry
+    but not a stuff), and a 9-yard scramble (a carry but not a designed carry).
     """
     # Arrange
     plays = [
@@ -246,7 +246,7 @@ def test_rushing_extras_and_run_defense_mirror() -> None:
             epa=-0.6,
             tackled_for_loss=1,
         ),
-        _play(rush=1, rush_attempt=1, qb_kneel=1, rushing_yards=-1.0, yards_gained=-1.0),
+        _play(rush_attempt=1, qb_kneel=1, rushing_yards=-1.0, yards_gained=-1.0),
         _play(
             **{"pass": 1},
             qb_dropback=1,
@@ -269,13 +269,13 @@ def test_rushing_extras_and_run_defense_mirror() -> None:
     assert abs(_num(den, "yards_per_carry") - 19.0 / 4.0) < 1e-9
     assert den["rush_success_rate"] == 0.5
     assert den["explosive_rush_rate"] == 0.25
-    assert den["stuffed_run_rate"] == 0.5
+    assert abs(_num(den, "stuffed_run_rate") - 1.0 / 3.0) < 1e-9
     assert den["longest_rush"] == 12.0
 
     kc = _row(result, "KC")
     assert kc["carries_faced"] == 4
     assert abs(_num(kc, "yards_per_carry_allowed") - 19.0 / 4.0) < 1e-9
-    assert kc["stuff_rate"] == 0.5
+    assert abs(_num(kc, "stuff_rate") - 1.0 / 3.0) < 1e-9
     assert kc["explosive_rush_rate_allowed"] == 0.25
     assert kc["rush_success_rate_allowed"] == 0.5
 
@@ -503,6 +503,39 @@ def test_drive_scoring_and_field_position_families() -> None:
     assert kc["red_zone_td_pct_allowed"] == 1.0
     assert kc["goal_to_go_td_pct_allowed"] == 1.0
     assert kc["avg_starting_field_position_allowed"] == 30.0
+
+
+def test_epa_per_carry_and_stuff_rate_divide_over_their_own_plays() -> None:
+    """Verify EPA per carry covers every carry and stuff rate leaves kneel-downs out.
+
+    Fixture (nflverse flags): a 12-yard run, a run stopped for a 1-yard loss, a kneel-down, a
+    9-yard scramble, and a run a penalty wiped out (a designed-run flag but no rush attempt).
+    """
+    # Arrange
+    plays = [
+        _play(rush=1, rush_attempt=1, rushing_yards=12.0, yards_gained=12.0, epa=0.8),
+        _play(rush=1, rush_attempt=1, rushing_yards=-1.0, yards_gained=-1.0, epa=-0.6),
+        _play(rush_attempt=1, qb_kneel=1, rushing_yards=-1.0, yards_gained=-1.0, epa=-0.4),
+        _play(
+            **{"pass": 1},
+            qb_dropback=1,
+            qb_scramble=1,
+            rush_attempt=1,
+            rushing_yards=9.0,
+            yards_gained=9.0,
+            epa=0.5,
+        ),
+        _play(rush=1, penalty=1, penalty_team="DEN", rushing_yards=None, epa=-0.6),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    den = _row(result, "DEN")
+    assert abs(_num(den, "epa_per_carry") - (0.8 - 0.6 - 0.4 + 0.5) / 4) < 1e-9
+    assert abs(_num(den, "stuffed_run_rate") - 1 / 3) < 1e-9
+    assert abs(_num(_row(result, "KC"), "stuff_rate") - 1 / 3) < 1e-9
 
 
 def test_scrambles_and_designed_runs_leave_out_plays_wiped_out_by_penalty() -> None:
