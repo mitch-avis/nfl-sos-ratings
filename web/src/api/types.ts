@@ -83,3 +83,17 @@ export interface EntityConfig {
   primaryRankingDescription: string;
   pageNotes: string[];
 }
+
+/** Where the server's data refresh stands (`GET /api/refresh`). */
+export type RefreshState = 'idle' | 'running' | 'succeeded' | 'failed';
+
+/** Whether the server allows refreshing, and the last or running refresh's progress. */
+export interface RefreshStatus {
+  allowed: boolean;
+  state: RefreshState;
+  started_at: string | null;
+  finished_at: string | null;
+  exit_code: number | null;
+  summary: string | null;
+  log_tail: string[];
+}

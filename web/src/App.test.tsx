@@ -16,6 +16,8 @@ import {
   TEAM_RANK_RANGES,
   TEAM_WP_RATINGS,
 } from '@/test/fixtures'
+import type { RefreshStatus } from '@/api/types'
+import { REFRESH_POLL_MS } from '@/domain/refresh'
 import { PALETTE_CSS_VARIABLES, paletteCssVariables } from '@/domain/teamPalettes'
 import { renderApp } from '@/test/renderApp'
 
@@ -1049,5 +1051,136 @@ describe('garbage-time filter', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/teams/DEN'))
     expect(router.state.location.search).toContain('wp=10')
     expect(await screen.findByRole('region', { name: 'Garbage-time filter' })).toBeInTheDocument()
+  })
+})
+
+describe('data refresh', () => {
+  const IDLE: RefreshStatus = {
+    allowed: true,
+    state: 'idle',
+    started_at: null,
+    finished_at: null,
+    exit_code: null,
+    summary: null,
+    log_tail: [],
+  }
+  const RUNNING: RefreshStatus = { ...IDLE, state: 'running', started_at: '2026-10-08T14:05:09+00:00', log_tail: ['Loading play-by-play'] }
+  const SUCCEEDED: RefreshStatus = {
+    ...RUNNING,
+    state: 'succeeded',
+    finished_at: '2026-10-08T14:09:40+00:00',
+    exit_code: 0,
+    summary: 'Summary: 12 unchanged, 6 values changed, 0 added, 0 removed',
+  }
+
+  /** The fixture API plus `/api/refresh`: each GET answers the next of `statuses`; a POST answers `started`. */
+  function refreshApi(statuses: RefreshStatus[], started: RefreshStatus = RUNNING): typeof fetch {
+    const base = stubApi(API)
+    let reads = 0
+    return (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (input !== '/api/refresh') return base(input, init)
+      const posted = init?.method === 'POST'
+      const body = posted ? started : statuses[Math.min(reads++, statuses.length - 1)]
+      return new Response(JSON.stringify(body), { status: posted ? 202 : 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('leaves the refresh button out when the server does not allow refreshing', async () => {
+    // Arrange
+    const fetchSpy = vi.fn(refreshApi([{ ...IDLE, allowed: false }]))
+    vi.stubGlobal('fetch', fetchSpy)
+
+    // Act
+    renderApp('/teams?season=2025')
+
+    // Assert
+    await screen.findByRole('heading', { name: /Team Ratings Index/ })
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('/api/refresh', expect.anything()))
+    expect(screen.queryByRole('button', { name: /Refresh data/ })).not.toBeInTheDocument()
+  })
+
+  it('starts a refresh from the header after saying what it does', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    // Idle when the app loads and when the panel opens; running from then on.
+    vi.stubGlobal('fetch', refreshApi([IDLE, IDLE, RUNNING]))
+    renderApp('/teams?season=2025')
+    await user.click(await screen.findByRole('button', { name: 'Refresh data' }))
+    expect(await screen.findByText(/rebuilds the season in progress/)).toBeInTheDocument()
+
+    // Act
+    await user.click(screen.getByRole('button', { name: 'Start refresh' }))
+
+    // Assert
+    expect(await screen.findByText(/^Refreshing since/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refreshing data' })).toBeInTheDocument()
+  })
+
+  it('refetches every page once a running refresh finishes', async () => {
+    // Arrange
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const fetchSpy = vi.fn(refreshApi([RUNNING, SUCCEEDED]))
+    vi.stubGlobal('fetch', fetchSpy)
+    renderApp('/teams?season=2025')
+    await screen.findByRole('button', { name: 'Refreshing data' })
+    const seasonReads = () => fetchSpy.mock.calls.filter(([input]) => input === '/api/seasons/2025').length
+    await waitFor(() => expect(seasonReads()).toBe(1))
+
+    // Act
+    await vi.advanceTimersByTimeAsync(REFRESH_POLL_MS)
+
+    // Assert
+    expect(await screen.findByRole('button', { name: 'Refresh data' })).toBeInTheDocument()
+    await waitFor(() => expect(seasonReads()).toBe(2))
+  })
+
+  it('says what the last refresh changed', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', refreshApi([SUCCEEDED]))
+    renderApp('/teams?season=2025')
+
+    // Act
+    await user.click(await screen.findByRole('button', { name: 'Refresh data' }))
+
+    // Assert
+    expect(await screen.findByText(/Files: 12 unchanged, 6 values changed/)).toBeInTheDocument()
+  })
+
+  it('shows the end of the output when a refresh fails', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const failed: RefreshStatus = { ...RUNNING, state: 'failed', finished_at: '2026-10-08T14:07:00+00:00', exit_code: 1, log_tail: ['step one', 'FAILED tests/test_published_data.py'] }
+    vi.stubGlobal('fetch', refreshApi([failed]))
+    renderApp('/teams?season=2025')
+
+    // Act
+    await user.click(await screen.findByRole('button', { name: 'Refresh data (last run failed)' }))
+
+    // Assert
+    expect(await screen.findByText(/The refresh failed at/)).toBeInTheDocument()
+    expect(screen.getByText(/FAILED tests\/test_published_data.py/)).toBeInTheDocument()
+  })
+
+  it("reports the server's refusal to start", async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const base = refreshApi([IDLE])
+    vi.stubGlobal('fetch', (async (input: RequestInfo | URL, init?: RequestInit) =>
+      init?.method === 'POST'
+        ? new Response(JSON.stringify({ detail: 'A refresh is already running.' }), { status: 409, headers: { 'content-type': 'application/json' } })
+        : base(input, init)) as typeof fetch)
+    renderApp('/teams?season=2025')
+    await user.click(await screen.findByRole('button', { name: 'Refresh data' }))
+
+    // Act
+    await user.click(await screen.findByRole('button', { name: 'Start refresh' }))
+
+    // Assert
+    expect(await screen.findByRole('alert')).toHaveTextContent('A refresh is already running.')
   })
 })

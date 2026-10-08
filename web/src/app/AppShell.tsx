@@ -48,6 +48,7 @@ import { paletteGroups, paletteName } from '@/domain/teamPalettes'
 import { cn } from '@/utils/cn'
 
 import { NAV_ITEMS } from './nav'
+import { RefreshControl } from './RefreshControl'
 import { useTheme, type Theme } from './ThemeProvider'
 import { useSeason, withSeason } from './useSeason'
 
@@ -317,6 +318,7 @@ export function AppShell() {
           <Separator orientation="vertical" className="mr-1 h-5" />
           <SeasonSelect />
           <div className="ml-auto flex items-center gap-1">
+            <RefreshControl />
             <PalettePicker />
             <ThemeToggle />
           </div>
