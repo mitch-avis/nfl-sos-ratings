@@ -254,10 +254,10 @@ Everything the team did with the ball.
 | --- | --- | --- | --- | --- | --- | --- |
 | `penalties` | Penalties | count | - | 1999 | PBP +TS | Penalties committed by the team across all units. |
 | `penalty_yards` | Penalty Yds | count | - | 1999 | PBP +TS | Yards assessed against the team on its penalties. |
-| `offensive_penalties` | Off Penalties | count | - | 1999 | PBP | Penalties committed while on offense. |
-| `offensive_penalty_yards` | Off Pen Yds | count | - | 1999 | PBP | Penalty yards assessed while on offense. |
+| `offensive_penalties` | Off Penalties | count | - | 1999 | PBP | Penalties committed on plays where the team had the ball, including its punts, field goals, extra points, and kickoff returns. |
+| `offensive_penalty_yards` | Off Pen Yds | count | - | 1999 | PBP | Penalty yards assessed on plays where the team had the ball, including its punts, field goals, extra points, and kickoff returns. |
 | `presnap_penalty_rate` | Pre-Snap Pen % | rate | offensive snaps | 1999 | PBP | False starts, delays of game, and similar self-inflicted penalties per offensive snap. A discipline measure. |
-| `penalty_rate_per_offensive_snap` | Off Pen % | rate | offensive snaps | 1999 | PBP | Offensive penalties divided by offensive snaps. |
+| `penalty_rate_per_offensive_snap` | Off Pen % | rate | offensive snaps | 1999 | PBP | Offensive penalties (special-teams plays with the ball included) divided by offensive snaps. |
 
 ## Defense
 
@@ -379,8 +379,8 @@ Everything the team allowed, plus the plays its defense made.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `defensive_penalties` | Def Penalties | count | - | 1999 | PBP | Penalties committed while on defense. |
-| `defensive_penalty_yards` | Def Pen Yds | count | - | 1999 | PBP | Penalty yards assessed while on defense. |
+| `defensive_penalties` | Def Penalties | count | - | 1999 | PBP | Penalties committed on plays where the opponent had the ball, including the team's kickoffs, punt returns, and field-goal and extra-point defense. |
+| `defensive_penalty_yards` | Def Pen Yds | count | - | 1999 | PBP | Penalty yards assessed on plays where the opponent had the ball, including the team's kickoffs, punt returns, and field-goal and extra-point defense. |
 | `defensive_pass_interference` | DPI | count | - | 1999 | PBP | Defensive pass interference penalties committed. |
 | `penalty_first_downs_allowed` | Pen 1Ds Gifted | count | - | 1999 | PBP | Opponent first downs handed over via defensive penalties. |
 

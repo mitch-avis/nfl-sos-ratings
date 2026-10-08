@@ -763,7 +763,10 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         name="defensive_penalties",
         label="Def Penalties",
         full_name="Defensive Penalties",
-        description="Penalties committed while on defense.",
+        description=(
+            "Penalties committed on plays where the opponent had the ball, including the "
+            "team's kickoffs, punt returns, and field-goal and extra-point defense."
+        ),
         shape="count",
         polarity="lower",
         source="PBP",
@@ -773,7 +776,10 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         name="defensive_penalty_yards",
         label="Def Pen Yds",
         full_name="Defensive Penalty Yards",
-        description="Penalty yards assessed while on defense.",
+        description=(
+            "Penalty yards assessed on plays where the opponent had the ball, including the "
+            "team's kickoffs, punt returns, and field-goal and extra-point defense."
+        ),
         shape="count",
         polarity="lower",
         source="PBP",

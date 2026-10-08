@@ -860,7 +860,10 @@ OFFENSE_PENALTY_METRICS: tuple[MetricDef, ...] = (
         name="offensive_penalties",
         label="Off Penalties",
         full_name="Offensive Penalties",
-        description="Penalties committed while on offense.",
+        description=(
+            "Penalties committed on plays where the team had the ball, including its punts, "
+            "field goals, extra points, and kickoff returns."
+        ),
         shape="count",
         polarity="lower",
         source="PBP",
@@ -870,7 +873,10 @@ OFFENSE_PENALTY_METRICS: tuple[MetricDef, ...] = (
         name="offensive_penalty_yards",
         label="Off Pen Yds",
         full_name="Offensive Penalty Yards",
-        description="Penalty yards assessed while on offense.",
+        description=(
+            "Penalty yards assessed on plays where the team had the ball, including its punts, "
+            "field goals, extra points, and kickoff returns."
+        ),
         shape="count",
         polarity="lower",
         source="PBP",
@@ -894,7 +900,10 @@ OFFENSE_PENALTY_METRICS: tuple[MetricDef, ...] = (
         name="penalty_rate_per_offensive_snap",
         label="Off Pen %",
         full_name="Offensive Penalty Rate",
-        description="Offensive penalties divided by offensive snaps.",
+        description=(
+            "Offensive penalties (special-teams plays with the ball included) divided by "
+            "offensive snaps."
+        ),
         shape="rate",
         polarity="lower",
         source="PBP",
