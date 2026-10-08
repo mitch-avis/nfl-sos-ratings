@@ -921,6 +921,19 @@ Proposal (one small pull request after the current one merges):
   JAX 4th, DEN 6th in `data/2025_ratings.parquet`), which P6 tests. The same command's prior sketch:
   DEN +1.01 (12th), +1.51 (10th), and +2.43 (9th) with priors at 33%, 45%, and 67% of 2025, and
   +0.32 (13th) at 45% without DEN's own prior.
+- Rams team codes (found by the P5 audit, fixed on `fix/team-abbreviations`): play-by-play writes
+  the Rams as `LA` in every team column and yard line, and the loader normalized only `posteam`,
+  `defteam`, `home_team`, and `away_team`. So `penalty_team`, `td_team`, and the team in
+  `drive_start_yard_line` never matched `LAR`: in every season file in `data/`, LAR's
+  committed-penalty columns (counts, yards, splits, and rates) and touchdown columns read 0, its
+  drive starts in its own half are mirrored (a start at its 25 reads 75), and
+  `long_field_score_pct` is null; its opponents' `avg_starting_field_position_allowed`, both
+  sides' penalty differentials, and the `opp_` averages that include LAR are off too. The loader
+  now normalizes every team column and yard line. `data/` keeps the old values until a rebuild
+  (ask first): scratch 2025 builds before and after the fix, compared with `nfl-sos-ratings
+  diff-data --season 2025`, changed only those columns, in the team game logs, per-game stats,
+  combined, and opponent-profile files; no rating, range, pair, QB, or win-probability file
+  changed.
 
 ## U. UX audit (2026-10-08)
 
