@@ -278,6 +278,11 @@ export function deriveLegacyDetailSurfaceId(
   return 'results';
 }
 
+/**
+ * In a team's Raw Total Stats view, turn each per-game `count` back into its season total (the
+ * per-game value times games played). Every other shape keeps its value: rates and averages have
+ * their own denominator, and a `max` (the longest play) is already the season's largest game value.
+ */
 function transformSeasonRow(
   kind: EntityKind,
   row: DataRow,

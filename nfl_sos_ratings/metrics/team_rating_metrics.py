@@ -129,6 +129,7 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="bootstrap resamples",
         since=1999,
+        percent=True,
     ),
     _ratings(
         name="team_rank_top5_probability",
@@ -144,6 +145,7 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="bootstrap resamples",
         since=1999,
+        percent=True,
     ),
     _ratings(
         name="team_rank_top10_probability",
@@ -159,6 +161,7 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="bootstrap resamples",
         since=1999,
+        percent=True,
     ),
     _ratings(
         name="team_rank_probabilities",
@@ -173,6 +176,7 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="bootstrap resamples",
         since=1999,
+        percent=True,
     ),
 )
 

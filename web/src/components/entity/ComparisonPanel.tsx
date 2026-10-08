@@ -11,9 +11,8 @@ import { RankIntervalTrack } from '@/components/entity/RankInterval'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getEntityLabel } from '@/domain/entityConfig'
-import { formatFixed } from '@/domain/format'
 import { middleRankText, ordinal, type RankRange } from '@/domain/rankRanges'
-import { buildColumnDecimals, buildColumnStats, getHeatCellStyle } from '@/domain/tableState'
+import { buildColumnDecimals, buildColumnStats, formatColumnValue, getHeatCellStyle } from '@/domain/tableState'
 
 interface ComparisonPanelProps {
   compareColumns: string[]
@@ -135,7 +134,7 @@ export function ComparisonPanel({
                       className="px-3 py-1.5"
                       style={getHeatCellStyle(column, entity.row[column] ?? null, compareStats, theme, palette)}
                     >
-                      {formatFixed(entity.row[column] ?? null, compareDecimals[column] ?? null)}
+                      {formatColumnValue(column, entity.row[column] ?? null, compareDecimals[column] ?? null)}
                     </td>
                   ))}
                 </tr>

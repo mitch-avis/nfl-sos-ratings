@@ -112,6 +112,7 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="offensive snaps",
         since=1999,
+        percent=True,
     ),
     _off_total(
         name="explosive_play_rate",
@@ -126,6 +127,7 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="offensive snaps",
         since=1999,
+        percent=True,
     ),
     _off_total(
         name="no_huddle_rate",
@@ -137,6 +139,7 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="offensive snaps",
         since=1999,
+        percent=True,
     ),
     _off_total(
         name="shotgun_rate",
@@ -148,6 +151,7 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="offensive snaps",
         since=1999,
+        percent=True,
     ),
     _off_total(
         name="pass_rate",
@@ -159,6 +163,7 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="offensive snaps",
         since=1999,
+        percent=True,
     ),
     _off_total(
         name="early_down_pass_rate",
@@ -173,6 +178,7 @@ OFFENSE_TOTAL_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="early-down snaps",
         since=1999,
+        percent=True,
     ),
     _off_total(
         name="pass_rate_over_expected",
@@ -309,6 +315,7 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="designed carries",
         since=1999,
+        percent=True,
     ),
     _off_rush(
         name="explosive_rush_rate",
@@ -320,6 +327,7 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="carries",
         since=1999,
+        percent=True,
     ),
     _off_rush(
         name="stuffed_run_rate",
@@ -334,6 +342,7 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="carries other than kneel-downs",
         since=1999,
+        percent=True,
     ),
     _off_rush(
         name="rushing_fumbles",
@@ -350,7 +359,7 @@ OFFENSE_RUSHING_METRICS: tuple[MetricDef, ...] = (
         label="Long Rush",
         full_name="Longest Rush",
         description="The team's longest run of the season, in yards.",
-        shape="count",
+        shape="max",
         polarity="higher",
         source="PBP",
         since=1999,
@@ -420,6 +429,7 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="red-zone trips",
         since=1999,
+        percent=True,
     ),
     _off_score(
         name="points_per_red_zone_trip",
@@ -442,6 +452,7 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="goal-to-go series",
         since=1999,
+        percent=True,
     ),
     _off_score(
         name="two_pt_attempts",
@@ -473,6 +484,7 @@ OFFENSE_SCORING_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="two-point attempts",
         since=1999,
+        percent=True,
     ),
 )
 
@@ -517,6 +529,7 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="third-down attempts",
         since=1999,
+        percent=True,
     ),
     _off_downs(
         name="third_down_avg_distance",
@@ -562,6 +575,7 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="fourth-down attempts",
         since=1999,
+        percent=True,
     ),
     _off_downs(
         name="fourth_down_go_rate",
@@ -576,6 +590,7 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="fourth downs faced",
         since=1999,
+        percent=True,
     ),
     _off_downs(
         name="fourth_down_aggressiveness",
@@ -590,6 +605,7 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="fourth-and-short situations",
         since=1999,
+        percent=True,
     ),
     _off_downs(
         name="series",
@@ -614,6 +630,7 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="series",
         since=1999,
+        percent=True,
     ),
     _off_downs(
         name="three_and_out_rate",
@@ -625,6 +642,7 @@ OFFENSE_DOWNS_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="drives",
         since=1999,
+        percent=True,
     ),
     _off_downs(
         name="turnovers_on_downs",
@@ -703,6 +721,7 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="drives",
         since=1999,
+        percent=True,
     ),
     _off_drives(
         name="punt_pct_per_drive",
@@ -714,6 +733,7 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="drives",
         since=1999,
+        percent=True,
     ),
     _off_drives(
         name="turnover_pct_per_drive",
@@ -725,6 +745,7 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="drives",
         since=1999,
+        percent=True,
     ),
     _off_drives(
         name="avg_starting_field_position",
@@ -750,6 +771,7 @@ OFFENSE_DRIVES_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="long-field drives",
         since=1999,
+        percent=True,
     ),
     _off_drives(
         name="drive_penalty_yards",
@@ -807,6 +829,7 @@ OFFENSE_TURNOVER_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="offensive snaps",
         since=1999,
+        percent=True,
     ),
     _off_to(
         name="giveaways_per_drive",
@@ -895,6 +918,7 @@ OFFENSE_PENALTY_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="offensive snaps",
         since=1999,
+        percent=True,
     ),
     _off_pen(
         name="penalty_rate_per_offensive_snap",
@@ -909,6 +933,7 @@ OFFENSE_PENALTY_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="offensive snaps",
         since=1999,
+        percent=True,
     ),
 )
 

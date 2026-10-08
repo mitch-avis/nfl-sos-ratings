@@ -23,7 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { csvFileName, toCsv } from '@/domain/csv'
-import { countLabel, formatFixed, formatValue } from '@/domain/format'
+import { countLabel, formatValue } from '@/domain/format'
 import { getMetricMetadata, getMetricTooltip } from '@/domain/metricMetadata'
 import {
   belowQualifierDetail,
@@ -38,6 +38,7 @@ import {
   buildColumnDecimals,
   buildColumnStats,
   buildColumnWidths,
+  formatColumnValue,
   getHeatCellStyle,
   sanitizeSorting,
 } from '@/domain/tableState'
@@ -268,7 +269,7 @@ export function EntityTable({
             const value = getValue() as RowValue
             const chip = column === TEAM_COLUMN && typeof value === 'string' ? <TeamChip team={value} /> : null
             if (column !== config.labelKey) {
-              const text = formatFixed(value, columnDecimals[column] ?? null)
+              const text = formatColumnValue(column, value, columnDecimals[column] ?? null)
               return chip ? (
                 <span className="inline-flex items-center gap-1.5">
                   {chip}

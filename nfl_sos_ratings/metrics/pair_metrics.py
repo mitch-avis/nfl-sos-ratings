@@ -40,6 +40,7 @@ TEAM_PAIR_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="bootstrap resamples with both teams",
         since=1999,
+        percent=True,
     ),
     _team(
         name="team_rating_gap",
@@ -67,6 +68,7 @@ TEAM_PAIR_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="bootstrap resamples",
         since=1999,
+        percent=True,
     ),
 )
 
@@ -98,6 +100,7 @@ QB_PAIR_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="bootstrap resamples with both quarterbacks",
         since=1999,
+        percent=True,
     ),
     _qb(
         name="qb_rating_gap",
@@ -127,6 +130,7 @@ QB_PAIR_METRICS: tuple[MetricDef, ...] = (
         source="D",
         denominator="bootstrap resamples",
         since=1999,
+        percent=True,
     ),
 )
 

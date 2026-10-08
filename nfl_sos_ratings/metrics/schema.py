@@ -14,12 +14,14 @@ from typing import Literal, NotRequired, Protocol, TypedDict, Unpack
 Entity = Literal["team", "qb"]
 """Which page family a metric belongs to: the Teams pages or the QBs pages."""
 
-Shape = Literal["count", "rate", "avg", "flag", "id", "score"]
+Shape = Literal["count", "rate", "avg", "max", "flag", "id", "score"]
 """How a metric behaves across views.
 
 - ``count``: a summable total (yards, touchdowns). Valid in every view.
 - ``rate``: an intrinsic ratio with its own denominator. Never divided again.
 - ``avg``: a per-event mean re-averaged over events, not over weeks.
+- ``max``: the largest single value, such as the longest play. The season row keeps the largest
+  game value, so it is never summed, multiplied by games, or divided by plays.
 - ``flag``: a boolean marker (eligibility, comeback credit).
 - ``id``: identity text (team codes, player names, game ids).
 - ``score``: a model output on its own scale (ratings and SRS in points per game).
@@ -31,7 +33,13 @@ Polarity = Literal["higher", "lower", "neutral"]
 
 @dataclass(frozen=True, slots=True)
 class MetricDef:
-    """One stat/rating/metric definition — the single source of truth entry."""
+    """One stat/rating/metric definition — the single source of truth entry.
+
+    ``percent`` marks a proportion, where 0.653 means 65.3%: a share of its denominator (completion
+    percentage), events per play (havoc rate), a chance, or the difference of two shares. The
+    analyst app shows it as a percentage; data files, the API, and CSV exports keep the proportion.
+    A value already in percentage points (completion percentage above expectation) is not one.
+    """
 
     name: str
     label: str
@@ -49,6 +57,7 @@ class MetricDef:
     contextual: bool = False
     formula: str | None = None
     note: str | None = None
+    percent: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,12 +85,17 @@ class PrefixRule:
 
 @dataclass(frozen=True, slots=True)
 class SuffixRule:
-    """How a column suffix transforms the base metric's presentation."""
+    """How a column suffix transforms the base metric's presentation.
+
+    ``polarity``, when set, replaces the base metric's polarity: a suffix that turns a grade into
+    something else (a change, for example) says which end of the new scale is good, if either.
+    """
 
     suffix: str
     label_template: str
     full_name_template: str
     description_note: str
+    polarity: Polarity | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +129,7 @@ class MetricFields(TypedDict):
     contextual: NotRequired[bool]
     formula: NotRequired[str | None]
     note: NotRequired[str | None]
+    percent: NotRequired[bool]
 
 
 class MetricBuilder(Protocol):

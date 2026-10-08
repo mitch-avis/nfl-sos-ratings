@@ -65,6 +65,10 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
   const entityId = decodeURIComponent(useParams().entityId ?? '')
   const seasonView = useMemo(() => buildSeasonViewTable(kind, dataset[kind], viewState), [dataset, kind, viewState])
   const row = getEntityRow(seasonView.table, kind, entityId)
+  // The season row as the API serves it, per game in every view: the baseline the game-by-game
+  // tiles and the unique-opponent "vs Season" column compare per-game values with. The view's row
+  // above turns counts into season totals in Raw Total Stats.
+  const seasonRow = useMemo(() => getEntityRow(dataset[kind], kind, entityId), [dataset, entityId, kind])
   // A QB page shows his team's palette (team pages set theirs from the route, `router.tsx`).
   const qbTeam = kind === 'qbs' && row ? String(row.team ?? '') : ''
   useTeamPageColors(qbTeam === '' ? null : qbTeam)
@@ -100,8 +104,8 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
     [kind, ratingHistoryQuery.data],
   )
   const weeklyHighlights = useMemo(
-    () => (enrichedGameLogs && row ? buildWeeklyHighlights(kind, row, enrichedGameLogs) : []),
-    [enrichedGameLogs, kind, row],
+    () => (enrichedGameLogs && seasonRow ? buildWeeklyHighlights(kind, seasonRow, enrichedGameLogs) : []),
+    [enrichedGameLogs, kind, seasonRow],
   )
   const gameLogSelection = useMemo(
     () => (enrichedGameLogs ? buildGameLogColumnSelection(kind, enrichedGameLogs, viewState) : null),
@@ -109,10 +113,10 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
   )
   const opponentBreakdown = useMemo(
     () =>
-      enrichedGameLogs && row
-        ? buildOpponentBreakdown(kind, row, enrichedGameLogs, deriveLegacyDetailSurfaceId(kind, viewState))
+      enrichedGameLogs && seasonRow
+        ? buildOpponentBreakdown(kind, seasonRow, enrichedGameLogs, deriveLegacyDetailSurfaceId(kind, viewState))
         : null,
-    [enrichedGameLogs, kind, row, viewState],
+    [enrichedGameLogs, kind, seasonRow, viewState],
   )
 
   if (!row) return <Navigate to={`/${kind}?season=${season}`} replace state={{ notFound: entityId }} />

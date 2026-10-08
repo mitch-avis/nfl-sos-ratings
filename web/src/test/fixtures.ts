@@ -24,6 +24,7 @@ export function columnMeta(
     denominator: null,
     source: 'D',
     base_name: label,
+    percent: false,
     ...overrides,
   }
 }
@@ -166,6 +167,7 @@ export const DEN_GAME_LOGS: TablePayload = {
 export const REGISTRY: MetricRegistryPayload = {
   entities: { team: { categories: [] }, qb: { categories: [] } },
   metrics: {},
+  prefix_rules: [],
 }
 
 /** A fetch stub that answers each known API path with its JSON payload. */

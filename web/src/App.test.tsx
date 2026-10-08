@@ -16,7 +16,7 @@ import {
   TEAM_RANK_RANGES,
   TEAM_WP_RATINGS,
 } from '@/test/fixtures'
-import type { RefreshStatus } from '@/api/types'
+import type { RefreshStatus, SeasonDataset } from '@/api/types'
 import { REFRESH_POLL_MS } from '@/domain/refresh'
 import { PALETTE_CSS_VARIABLES, paletteCssVariables } from '@/domain/teamPalettes'
 import { renderApp } from '@/test/renderApp'
@@ -40,6 +40,28 @@ function bodyRows(): HTMLElement[] {
   const tables = screen.getAllByRole('table')
   const indexTable = tables[tables.length - 1]
   return within(indexTable).getAllByRole('row').slice(1)
+}
+
+const THIRD_DOWN_PCT = columnMeta('3rd Down %', {
+  category: 'Offense',
+  subcategory: 'Downs & Conversions',
+  shape: 'rate',
+  denominator: 'third-down attempts',
+  percent: true,
+})
+
+/** The 2025 fixture plus each team's third-down rate, a proportion the registry marks a percentage. */
+function seasonWithThirdDownRate(): SeasonDataset {
+  const rates: Record<string, number> = { DEN: 0.4567, KC: 0.5, LV: 0.3 }
+  return {
+    ...SEASON_2025,
+    teams: {
+      ...SEASON_2025.teams,
+      rows: SEASON_2025.teams.rows.map((row) => ({ ...row, third_down_pct: rates[String(row.team)] })),
+      visible_columns: [...SEASON_2025.teams.visible_columns, 'third_down_pct'],
+      column_metadata: { ...SEASON_2025.teams.column_metadata, third_down_pct: THIRD_DOWN_PCT },
+    },
+  }
 }
 
 describe('team index', () => {
@@ -140,6 +162,42 @@ describe('team index', () => {
     const [header, first] = (await blob?.text())?.split('\r\n') ?? []
     expect(header?.startsWith('team,')).toBe(true)
     expect(first?.startsWith('DEN,')).toBe(true)
+  })
+
+  it('shows proportions as percentages in the table and the comparison', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025': seasonWithThirdDownRate() }))
+    renderApp('/teams?season=2025&compare=DEN,KC')
+    const perGame = await screen.findByRole('button', { name: 'Per-Game Rates' })
+
+    // Act
+    await user.click(perGame)
+
+    // Assert
+    const den = bodyRows().find((row) => within(row).queryByRole('link', { name: 'DEN' }))
+    expect(den).toHaveTextContent('45.7%')
+    const comparison = screen.getByRole('table', { name: 'Team comparison' })
+    expect(within(comparison).getByRole('row', { name: /3rd Down %/ })).toHaveTextContent('45.7%50.0%')
+  })
+
+  it('exports proportions as the API serves them', async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const createObjectURL = vi.fn<(blob: Blob) => string>(() => 'blob:table')
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025': seasonWithThirdDownRate() }))
+    renderApp('/teams?season=2025')
+    await user.click(await screen.findByRole('button', { name: 'Per-Game Rates' }))
+
+    // Act
+    await user.click(screen.getByRole('button', { name: 'Export the table as CSV' }))
+
+    // Assert
+    const lines = ((await createObjectURL.mock.calls[0]?.[0]?.text()) ?? '').split('\r\n')
+    expect(lines[0]).toBe('team,third_down_pct')
+    expect(lines).toContain('DEN,0.4567')
   })
 
   it('starts on the Ratings view with reset disabled', async () => {
@@ -475,6 +533,77 @@ describe('team detail', () => {
     // Assert
     expect(await screen.findByRole('heading', { name: /Team Ratings Index · 2025/ })).toBeInTheDocument()
     expect(screen.getByText('Season 1990 is not available; showing 2025.')).toHaveAttribute('role', 'status')
+  })
+
+  it("compares each opponent with the season's per-game average in Raw Total Stats", async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const passingEpa = columnMeta('Pass EPA', { category: 'Offense', subcategory: 'Passing', shape: 'count' })
+    const teams = {
+      ...SEASON_2025.teams,
+      // DEN's season row is per game, as the API serves it: 6.5 passing EPA a game over 3 games.
+      rows: SEASON_2025.teams.rows.map((row) => ({ ...row, games_played: 3, passing_epa: row.team === 'DEN' ? 6.5 : 1 })),
+      visible_columns: [...SEASON_2025.teams.visible_columns, 'games_played', 'passing_epa'],
+      column_metadata: {
+        ...SEASON_2025.teams.column_metadata,
+        games_played: columnMeta('G', { category: 'Overall', shape: 'count', polarity: 'neutral' }),
+        passing_epa: passingEpa,
+      },
+    }
+    const passingByOpponent: Record<string, number> = { TEN: 9.25, IND: 2, LAC: 8.25 }
+    const games = {
+      ...DEN_GAME_LOGS,
+      rows: DEN_GAME_LOGS.rows.map((row) => ({ ...row, passing_epa: passingByOpponent[String(row.opponent_team)] })),
+      visible_columns: [...DEN_GAME_LOGS.visible_columns, 'passing_epa'],
+      column_metadata: { ...DEN_GAME_LOGS.column_metadata, passing_epa: passingEpa },
+    }
+    vi.stubGlobal(
+      'fetch',
+      stubApi({ ...API, '/api/seasons/2025': { ...SEASON_2025, teams }, '/api/seasons/2025/teams/DEN/game-logs': games }),
+    )
+    renderApp('/teams/DEN?season=2025')
+    await screen.findByRole('table', { name: 'Unique opponents' })
+
+    // Act
+    await user.click(screen.getByRole('button', { name: 'Raw Total Stats' }))
+
+    // Assert
+    const table = screen.getByRole('table', { name: 'Unique opponents' })
+    const deltaIndex = within(table)
+      .getAllByRole('columnheader')
+      .findIndex((header) => header.textContent?.includes('vs Season'))
+    const ten = within(table).getByRole('row', { name: /^TEN/ })
+    expect(within(ten).getAllByRole('cell')[deltaIndex]).toHaveTextContent('2.75')
+  })
+
+  it("shows a team's proportions as percentages on its page", async () => {
+    // Arrange
+    const user = userEvent.setup()
+    const rateByOpponent: Record<string, number> = { TEN: 0.5, IND: 0.25, LAC: 0.6 }
+    const games = {
+      ...DEN_GAME_LOGS,
+      rows: DEN_GAME_LOGS.rows.map((row) => ({ ...row, third_down_pct: rateByOpponent[String(row.opponent_team)] })),
+      visible_columns: [...DEN_GAME_LOGS.visible_columns, 'third_down_pct'],
+      column_metadata: { ...DEN_GAME_LOGS.column_metadata, third_down_pct: THIRD_DOWN_PCT },
+    }
+    vi.stubGlobal(
+      'fetch',
+      stubApi({
+        ...API,
+        '/api/seasons/2025': seasonWithThirdDownRate(),
+        '/api/seasons/2025/teams/DEN/game-logs': games,
+      }),
+    )
+    renderApp('/teams/DEN?season=2025')
+    await screen.findByRole('table', { name: 'Game by game' })
+
+    // Act
+    await user.click(screen.getByRole('button', { name: 'Per-Game Rates' }))
+
+    // Assert
+    expect(screen.getByRole('region', { name: 'Offense — Downs & Conversions' })).toHaveTextContent('45.7%')
+    const gameLog = screen.getByRole('table', { name: 'Game by game' })
+    expect(within(gameLog).getByRole('row', { name: /IND/ })).toHaveTextContent('25%')
   })
 })
 

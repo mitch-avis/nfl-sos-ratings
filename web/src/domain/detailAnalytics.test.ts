@@ -57,6 +57,7 @@ test('buildSeasonViewTable expands team per-game counts into raw totals', () => 
         shape: 'count',
         source: 'SCH',
         subcategory: null,
+        percent: false,
       },
       games_played: {
         base_name: 'games_played',
@@ -70,6 +71,7 @@ test('buildSeasonViewTable expands team per-game counts into raw totals', () => 
         shape: 'count',
         source: 'SCH',
         subcategory: null,
+        percent: false,
       },
       team_rating: {
         base_name: 'team_rating',
@@ -83,6 +85,7 @@ test('buildSeasonViewTable expands team per-game counts into raw totals', () => 
         shape: 'score',
         source: 'D',
         subcategory: null,
+        percent: false,
       },
     },
     rows: [{ team: 'DET', points_for: 28, games_played: 17, team_rating: 6.2 }],
@@ -96,6 +99,55 @@ test('buildSeasonViewTable expands team per-game counts into raw totals', () => 
   assert.deepEqual(derived.selectedColumns, ['team', 'points_for', 'games_played']);
   assert.strictEqual(derived.table.rows[0].points_for, 476);
   assert.strictEqual(derived.table.rows[0].games_played, 17);
+});
+
+test('buildSeasonViewTable keeps a season maximum as it is in raw totals', () => {
+  // Arrange
+  const viewState = resolveEntityViewState('teams', {
+    primaryView: 'raw_total_stats',
+    teamCategory: 'Offense',
+  });
+  const passing = {
+    category: 'Offense',
+    contextual: false,
+    percent: false,
+    polarity: 'higher',
+    subcategory: 'Passing',
+  } as const;
+  const table: TablePayload = {
+    column_groups: { identity: ['team'], ratings: [] },
+    column_metadata: {
+      passing_yards: {
+        ...passing,
+        base_name: 'passing_yards',
+        denominator: null,
+        description: 'Passing yards.',
+        full_name: 'Passing Yards',
+        label: 'Pass Yds',
+        shape: 'count',
+        source: 'PBP',
+      },
+      longest_pass: {
+        ...passing,
+        base_name: 'longest_pass',
+        denominator: null,
+        description: 'The longest completed pass.',
+        full_name: 'Longest Completed Pass',
+        label: 'Long Pass',
+        shape: 'max',
+        source: 'PBP',
+      },
+    },
+    rows: [{ team: 'NE', games_played: 17, passing_yards: 230.5, longest_pass: 72 }],
+    visible_columns: ['team', 'passing_yards', 'longest_pass'],
+  };
+
+  // Act
+  const derived = buildSeasonViewTable('teams', table, viewState);
+
+  // Assert
+  assert.strictEqual(derived.table.rows[0].passing_yards, 3918.5);
+  assert.strictEqual(derived.table.rows[0].longest_pass, 72);
 });
 
 test('buildGameLogColumnSelection folds results into the weekly base columns', () => {
@@ -128,6 +180,7 @@ test('buildGameLogColumnSelection folds results into the weekly base columns', (
         shape: 'count',
         source: 'PLS',
         subcategory: null,
+        percent: false,
       },
       qb_game_winning_drive: {
         base_name: 'qb_game_winning_drive',
@@ -141,6 +194,7 @@ test('buildGameLogColumnSelection folds results into the weekly base columns', (
         shape: 'count',
         source: 'D',
         subcategory: null,
+        percent: false,
       },
     },
     rows: [],

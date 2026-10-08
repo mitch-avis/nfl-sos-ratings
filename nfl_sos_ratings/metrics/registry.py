@@ -94,6 +94,8 @@ DEFAULT_PREFIX_RULES: tuple[PrefixRule, ...] = (
     ),
 )
 
+# Suffixes the pipeline and the API add to a base metric. A stat with its own per-play denominator
+# (qb_epa_per_dropback, epa_per_carry, points_per_drive) is a metric of its own and needs no rule.
 DEFAULT_SUFFIX_RULES: tuple[SuffixRule, ...] = (
     SuffixRule(
         suffix="_per_game",
@@ -118,36 +120,14 @@ DEFAULT_SUFFIX_RULES: tuple[SuffixRule, ...] = (
         ),
     ),
     SuffixRule(
-        suffix="_per_dropback",
-        label_template="{label}/DB",
-        full_name_template="{full_name} Per Dropback",
-        description_note="Shown per dropback (pass attempts plus sacks plus scrambles).",
-    ),
-    SuffixRule(
-        suffix="_per_attempt",
-        label_template="{label}/Att",
-        full_name_template="{full_name} Per Attempt",
-        description_note="Shown per official pass attempt.",
-    ),
-    SuffixRule(
-        suffix="_per_carry",
-        label_template="{label}/Carry",
-        full_name_template="{full_name} Per Carry",
-        description_note="Shown per rushing attempt.",
-    ),
-    SuffixRule(
-        suffix="_per_drive",
-        label_template="{label}/Drive",
-        full_name_template="{full_name} Per Drive",
-        description_note="Shown per offensive possession.",
-    ),
-    SuffixRule(
         suffix="_change",
         label_template="{label} Change",
         full_name_template="Change in {full_name}",
         description_note=(
             "The filtered value minus the same calculation with no plays filtered out (0%)."
         ),
+        # How far the filter moves a value shows sensitivity to it, not quality.
+        polarity="neutral",
     ),
     SuffixRule(
         suffix="_total",
@@ -229,11 +209,12 @@ class MetricRegistry:
                 "denominator": resolved.base.denominator,
                 "source": resolved.base.source,
                 "base_name": resolved.base.name,
+                "percent": resolved.base.percent,
             }
         return metadata
 
     def payload(self) -> dict[str, object]:
-        """Return the full registry as a JSON-safe API payload."""
+        """Return the registry as a JSON-safe API payload: categories, metrics, and prefix rules."""
         return {
             "entities": {
                 entity: {
@@ -265,9 +246,23 @@ class MetricRegistry:
                     "contextual": metric.contextual,
                     "formula": metric.formula,
                     "note": metric.note,
+                    "percent": metric.percent,
                 }
                 for metric in self.metrics.values()
             },
+            # The web app applies a rule itself to the columns it derives from a metric, such as
+            # the unique-opponent table's season_delta_ columns.
+            "prefix_rules": [
+                {
+                    "prefix": rule.prefix,
+                    "label_template": rule.label_template,
+                    "full_name_template": rule.full_name_template,
+                    "description_note": rule.description_note,
+                    "contextual": rule.contextual,
+                    "invert_polarity_for_qb": rule.invert_polarity_for_qb,
+                }
+                for rule in self._prefix_rules
+            ],
         }
 
     def _resolve_core(self, core: str) -> tuple[MetricDef, SuffixRule | None] | None:
@@ -306,8 +301,11 @@ class MetricRegistry:
         polarity = base.polarity
         if prefix is not None and prefix.invert_polarity_for_qb and base.name.startswith("qb_"):
             polarity = _invert(polarity)
+        if suffix is not None and suffix.polarity is not None:
+            polarity = suffix.polarity
 
-        contextual = prefix.contextual if prefix is not None else base.contextual
+        # A prefix can make a column context (opp_), but never makes a context metric a grade.
+        contextual = base.contextual or (prefix is not None and prefix.contextual)
         category, subcategory = _resolved_taxonomy(base, prefix)
 
         return ResolvedColumn(
@@ -336,7 +334,7 @@ class MetricRegistry:
         metric: MetricDef,
         category_index: dict[tuple[Entity, str], CategoryDef],
     ) -> None:
-        """Check one metric's links, denominator rule, and description."""
+        """Check one metric's links, denominator and percentage rules, and description."""
         category = category_index.get((metric.entity, metric.category))
         if category is None:
             msg = f"Metric {metric.name} references unknown category {metric.category!r}"
@@ -349,6 +347,9 @@ class MetricRegistry:
             raise RegistryValidationError(msg)
         if metric.shape in ("rate", "avg") and not metric.denominator:
             msg = f"Metric {metric.name} is a {metric.shape} but declares no denominator"
+            raise RegistryValidationError(msg)
+        if metric.percent and metric.shape not in ("rate", "avg"):
+            msg = f"Metric {metric.name} is a {metric.shape}, so it cannot be a percentage"
             raise RegistryValidationError(msg)
         if (
             not metric.description.endswith(".")

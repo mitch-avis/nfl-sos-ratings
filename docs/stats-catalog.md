@@ -5,12 +5,12 @@ Do not edit by hand. Companion catalog: [qb-stats-catalog.md](qb-stats-catalog.m
 
 Every column below is regular season only. Data files and the analyst app add a prefix or suffix to
 these base names: `opp_` (the team's head-to-head-excluded opponent profile), `qopp_` (what the
-defenses a quarterback faced allowed to other passers), `_per_game`, `_total`, per-play denominators
-such as `_per_offensive_snap` and `_per_dropback`, rank-range percentiles `_q025` through `_q975`,
-and, in the analyst app's garbage-time filter view, `filtered_` (refit on the plays the filter
-keeps) and `_change` (filtered minus unfiltered). Shapes: `count` totals, `rate` ratios with their
-own denominator, `avg` per-event averages, `score` model outputs on their own scale, `flag`
-booleans, and `id` identity fields.
+defenses a quarterback faced allowed to other passers), `_per_game`, `_total`, the per-snap
+denominators `_per_offensive_snap` and `_per_defensive_snap`, rank-range percentiles `_q025` through
+`_q975`, and, in the analyst app's garbage-time filter view, `filtered_` (refit on the plays the
+filter keeps) and `_change` (filtered minus unfiltered). Shapes: `count` totals, `rate` ratios with
+their own denominator, `avg` per-event averages, `max` the largest single value (such as the longest
+play), `score` model outputs on their own scale, `flag` booleans, and `id` identity fields.
 
 ## Sources
 
@@ -144,7 +144,7 @@ Everything the team did with the ball.
 | `int_rate_per_attempt` | INT % | rate | pass attempts | 1999 | PBP | The share of pass attempts that were intercepted. Lower is better. |
 | `explosive_pass_rate` | Explosive Pass % | rate | dropbacks | 1999 | PBP | Completions of 20+ yards divided by dropbacks. |
 | `deep_attempt_rate` | Deep Att % | rate | pass attempts | 1999 | PBP | The share of attempts thrown deep (16+ air yards). A style stat. |
-| `longest_pass` | Long Pass | count | - | 1999 | PBP | The team's longest completed pass of the season, in yards. |
+| `longest_pass` | Long Pass | max | - | 1999 | PBP | The team's longest completed pass of the season, in yards. |
 | `sack_fumbles` | Sack Fumbles | count | - | 1999 | PBP +TS | Fumbles on sack plays, whether or not the team lost the ball. |
 | `passing_2pt_conversions` | 2-Pt Passes | count | - | 1999 | PBP +TS | Successful two-point conversions thrown. |
 | `air_epa_total` | Air EPA | count | - | 1999 | PBP | The share of passing EPA created by the throw itself (distance and placement) rather than the run after the catch. |
@@ -169,7 +169,7 @@ Everything the team did with the ball.
 | `explosive_rush_rate` | Explosive Rush % | rate | carries | 1999 | PBP | Runs of 10+ yards divided by carries. |
 | `stuffed_run_rate` | Stuffed % | rate | carries other than kneel-downs | 1999 | PBP | The share of carries other than kneel-downs stopped for no gain or a loss. Lower is better. |
 | `rushing_fumbles` | Rush Fumbles | count | - | 1999 | PBP +TS | Fumbles on rushing plays, whether or not the team lost the ball. |
-| `longest_rush` | Long Rush | count | - | 1999 | PBP | The team's longest run of the season, in yards. |
+| `longest_rush` | Long Rush | max | - | 1999 | PBP | The team's longest run of the season, in yards. |
 | `rushing_2pt_conversions` | 2-Pt Rushes | count | - | 1999 | PBP +TS | Successful two-point conversions run in. |
 
 ### Offense: Receiving
@@ -348,7 +348,7 @@ Everything the team allowed, plus the plays its defense made.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `def_interceptions` | Def INTs | count | - | 1999 | PBP +TS | Passes intercepted by the defense. |
+| `def_interceptions` | Def INTs | count | - | 1999 | PLS | Passes intercepted by the defense. |
 | `takeaways` | Takeaways | count | - | 1999 | PBP | Interceptions plus opponent fumbles recovered. |
 | `def_interception_yards` | INT Ret Yds | count | - | 1999 | PBP +TS | Yards gained returning interceptions. |
 | `fumble_recovery_opp` | Opp Fum Rec | count | - | 1999 | PBP +TS | Opponent fumbles this defense recovered. |
@@ -362,12 +362,12 @@ Everything the team allowed, plus the plays its defense made.
 
 | Column | Label | Shape | Per | Since | Source | Description |
 | --- | --- | --- | --- | --- | --- | --- |
-| `def_sacks` | Def Sacks | count | - | 1999 | PBP +TS | Times the defense sacked the opposing quarterback. |
-| `def_qb_hits` | Def QB Hits | count | - | 1999 | PBP | Times the defense hit the quarterback, beyond sacks. |
-| `def_tackles_for_loss` | Def TFL | count | - | 1999 | PBP | Tackles made behind the line of scrimmage. |
-| `def_pass_defended` | Def PD | count | - | 1999 | PBP | Passes broken up or deflected by defenders. |
-| `def_fumbles_forced` | Def FF | count | - | 1999 | PBP | Fumbles the defense knocked loose. |
-| `def_safeties` | Def Safeties | count | - | 1999 | PBP | Safeties forced by the defense (two points each). |
+| `def_sacks` | Def Sacks | count | - | 1999 | PLS | Times the defense sacked the opposing quarterback. |
+| `def_qb_hits` | Def QB Hits | count | - | 1999 | PLS | Times the defense hit the quarterback, beyond sacks. |
+| `def_tackles_for_loss` | Def TFL | count | - | 1999 | PLS | Tackles made behind the line of scrimmage. |
+| `def_pass_defended` | Def PD | count | - | 1999 | PLS | Passes broken up or deflected by defenders. |
+| `def_fumbles_forced` | Def FF | count | - | 1999 | PLS | Fumbles the defense knocked loose. |
+| `def_safeties` | Def Safeties | count | - | 1999 | PLS | Safeties forced by the defense (two points each). |
 | `def_sack_yards` | Sack Yds Forced | count | - | 1999 | PBP +TS | Yards opponents lost to this defense's sacks. |
 | `def_sack_rate_per_dropback` | Sack Rate Forced | rate | opponent dropbacks | 1999 | PBP | Sacks divided by opponent dropbacks — pass-rush efficiency. |
 | `qb_pressure_events_rate` | Pressure Events % | rate | opponent dropbacks | 1999 | PBP | Sacks plus quarterback hits divided by opponent dropbacks. |

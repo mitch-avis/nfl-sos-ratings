@@ -988,6 +988,29 @@ Proposal (one small pull request after the current one merges):
 - Not fixed: nflverse's weekly player stats give JAX's 2001-2002 home games the opponent's team
   code, so those QB games find no official row and keep the play-by-play fallback, whose
   `qb_attempts` counts sacks as attempts (`pass`) and whose passing EPA is play-by-play `qb_epa`.
+- App and registry fixes from the P5 audit (branch `fix/app-stat-display`; no `data/` change):
+  Raw Total Stats multiplied `longest_pass` and `longest_rush` by games played (they now have the
+  registry shape `max`); the detail page's "vs Season" column compared per-game matchup averages
+  with the Raw Total Stats row's season totals (the page's game-by-game analytics now use the
+  API's per-game row); `filtered_` dropped a context metric's `contextual` flag; `_change`
+  inherited the base polarity (now neutral); the `_per_dropback`, `_per_attempt`, `_per_carry`,
+  and `_per_drive` suffix rules matched no column (removed), and the `season_delta_` rule never
+  reached the app (`/api/metadata` now serves the prefix rules, and the app applies it); the seven
+  player-stat `def_` columns named play-by-play as their source (now `PLS`); proportions showed as
+  fractions (the registry's new `percent` flag; the app shows 65.3%, CSV keeps 0.653).
+- Not done, from `POLARS_MAX_THREADS=1 .venv/bin/python
+  .agents/findings_2026_10_08/app_stat_display.py --team NE --season 2025` (reads `data/`):
+  `yards_per_defensive_snap_allowed` is not a duplicate of the derived
+  `total_yards_allowed_per_defensive_snap` (play-by-play yards over scrimmage snaps against total
+  yards allowed, from official team stats where available), so it has no `duplicate_of`: they
+  differ in 23 of 28 seasons (12 games in 2001, largest gap 6.739 yards per snap), as do
+  `yards_per_offensive_snap` and `total_yards_per_offensive_snap`. Whether the Per-Play view keeps
+  both near-identical columns is the maintainer's call. `opp_longest_pass` and `opp_longest_rush`
+  average each opponent's per-game longest play, because the opponent profile takes the mean of
+  every column: NE 2025 shows 34.17 and 22.45 against 63.57 and 54.64 for its opponents' season
+  maxima. Keeping the maximum there, as the team's own season row does, changes `data/` (ask
+  first). `fourth_down_aggressiveness` is 2.0 in two games (`2000_04_CIN_BAL` CIN, `2000_10_SF_NO`
+  SF), the only values outside 0-1 among the 136 percentage columns in `data/`.
 
 ## U. UX audit (2026-10-08)
 

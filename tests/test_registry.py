@@ -8,14 +8,23 @@ import polars as pl
 import pytest
 
 from nfl_sos_ratings.metrics import CategoryDef, MetricDef, RegistryValidationError, get_registry
-from nfl_sos_ratings.metrics.registry import MetricRegistry
+from nfl_sos_ratings.metrics.registry import (
+    DEFAULT_PREFIX_RULES,
+    DEFAULT_SUFFIX_RULES,
+    MetricRegistry,
+)
+from nfl_sos_ratings.rating_ranges import RANGE_QUANTILES, quantile_suffix
 
 if TYPE_CHECKING:
-    from nfl_sos_ratings.metrics.schema import Entity
+    from collections.abc import Sequence
 
-# A representative sample of every column shape the pipeline writes. The full guarantee is
-# enforced at write time by main._write_data_file and by the published-data test below.
+    from nfl_sos_ratings.metrics.schema import Entity, PrefixRule, SuffixRule
+
+# A representative sample of every column shape the pipeline writes or the API serves, with at
+# least one column for every affix rule. The full guarantee is enforced at write time by
+# main._write_data_file and by the published-data test below.
 _OUTPUT_COLUMN_SAMPLES = (
+    *(f"team_rank{quantile_suffix(level)}" for level in RANGE_QUANTILES),
     "team",
     "game_id",
     "is_home",
@@ -183,6 +192,25 @@ def test_filtered_change_column_names_both_the_filter_and_the_change(
     assert "exploration view" in resolved.description
 
 
+@pytest.mark.parametrize(
+    ("column", "contextual"),
+    [
+        ("filtered_sos", True),
+        ("filtered_qb_faced_pass_defense", True),
+        ("filtered_team_rating", False),
+    ],
+)
+def test_filtered_prefix_keeps_the_base_contextual_flag(
+    registry: MetricRegistry, column: str, *, contextual: bool
+) -> None:
+    # Act
+    resolved = registry.resolve_column(column)
+
+    # Assert
+    assert resolved is not None
+    assert resolved.contextual is contextual
+
+
 def test_per_game_suffix_keeps_the_base_metric(registry: MetricRegistry) -> None:
     # Act
     resolved = registry.resolve_column("qb_attempts_per_game")
@@ -191,6 +219,25 @@ def test_per_game_suffix_keeps_the_base_metric(registry: MetricRegistry) -> None
     assert resolved is not None
     assert resolved.base.name == "qb_attempts"
     assert resolved.polarity == resolved.base.polarity
+
+
+@pytest.mark.parametrize(
+    "column",
+    [
+        "filtered_team_rating_change",
+        "filtered_team_rank_change",
+        "filtered_adj_qb_epa_per_dropback_change",
+        "filtered_qb_rank_change",
+    ],
+)
+def test_change_suffix_reads_as_neutral(registry: MetricRegistry, column: str) -> None:
+    """A change under the garbage-time filter shows sensitivity to the filter, not quality."""
+    # Act
+    resolved = registry.resolve_column(column)
+
+    # Assert
+    assert resolved is not None
+    assert resolved.polarity == "neutral"
 
 
 @pytest.mark.parametrize(
@@ -238,6 +285,18 @@ def test_payload_survives_a_json_round_trip(registry: MetricRegistry) -> None:
     assert "Opponent Context" not in [
         category["name"] for category in payload["entities"]["team"]["categories"]
     ]
+
+
+def test_payload_serves_the_prefix_rules(registry: MetricRegistry) -> None:
+    """The web app labels the season_delta_ columns it derives with the registry's own rule."""
+    # Act
+    payload = json.loads(json.dumps(registry.payload()))
+
+    # Assert
+    rules = {rule["prefix"]: rule for rule in payload["prefix_rules"]}
+    assert list(rules) == [rule.prefix for rule in DEFAULT_PREFIX_RULES]
+    assert rules["season_delta_"]["label_template"] == "{label} vs Season"
+    assert rules["qopp_"]["invert_polarity_for_qb"] is True
 
 
 def test_column_metadata_carries_label_and_description(registry: MetricRegistry) -> None:
@@ -373,6 +432,21 @@ def test_cross_entity_context_columns_map_onto_the_viewing_taxonomy(
             ),
             "full-sentence",
         ),
+        (
+            MetricDef(
+                name="alpha",
+                label="Alpha",
+                full_name="Alpha",
+                description="A synthetic metric used only for validation tests.",
+                entity="team",
+                category="Test Category",
+                shape="count",
+                polarity="higher",
+                source="D",
+                percent=True,
+            ),
+            "percentage",
+        ),
     ],
 )
 def test_registry_rejects_an_invalid_metric(metric: MetricDef, message: str) -> None:
@@ -418,3 +492,139 @@ def test_drive_penalty_yards_rewards_net_yards_gained(registry: MetricRegistry) 
     # Assert
     assert resolved is not None
     assert resolved.polarity == "higher"
+
+
+def test_season_maximum_metrics_have_the_max_shape(registry: MetricRegistry) -> None:
+    """The season row keeps a ``longest_`` column's largest game value (``team_stats``)."""
+    # Act
+    mismatched = [
+        metric.name
+        for metric in registry.metrics.values()
+        if (metric.shape == "max") != metric.name.startswith("longest_")
+    ]
+
+    # Assert
+    assert mismatched == []
+
+
+@pytest.mark.parametrize("column", ["longest_pass", "longest_rush", "opp_longest_pass"])
+def test_column_metadata_marks_longest_plays_as_maxima(
+    registry: MetricRegistry, column: str
+) -> None:
+    # Act
+    metadata = registry.column_metadata([column])
+
+    # Assert
+    assert metadata[column]["shape"] == "max"
+
+
+@pytest.mark.parametrize(
+    "metric",
+    [
+        "def_tackles_for_loss",
+        "def_fumbles_forced",
+        "def_sacks",
+        "def_qb_hits",
+        "def_interceptions",
+        "def_pass_defended",
+        "def_safeties",
+    ],
+)
+def test_defense_player_stats_name_weekly_player_stats_as_source(
+    registry: MetricRegistry, metric: str
+) -> None:
+    """team_stats sums these from nflverse weekly player stats, never from play-by-play."""
+    # Act
+    source = registry.metrics[metric].source
+
+    # Assert
+    assert source == "PLS"
+
+
+@pytest.mark.parametrize(
+    ("column", "percent"),
+    [
+        ("completion_pct", True),
+        ("qb_sack_rate", True),
+        ("havoc_rate", True),
+        ("success_rate_margin", True),
+        ("team_rank_top5_probability", True),
+        ("opp_third_down_pct", True),
+        ("qopp_qb_completion_pct", True),
+        ("yards_per_attempt", False),
+        ("qb_completion_percentage_above_expectation", False),
+        ("giveaways_per_drive", False),
+        ("passing_yards", False),
+    ],
+)
+def test_column_metadata_marks_proportions_as_percentages(
+    registry: MetricRegistry, column: str, *, percent: bool
+) -> None:
+    """0.653 means 65.3%; values already in percentage points (CPOE) are not proportions."""
+    # Act
+    metadata = registry.column_metadata([column])
+
+    # Assert
+    assert metadata[column]["percent"] is percent
+
+
+def test_payload_marks_proportions_as_percentages(registry: MetricRegistry) -> None:
+    # Act
+    payload = json.loads(json.dumps(registry.payload()))
+
+    # Assert
+    assert payload["metrics"]["third_down_pct"]["percent"] is True
+    assert payload["metrics"]["points_per_drive"]["percent"] is False
+
+
+def _registry_with_rules(
+    registry: MetricRegistry,
+    prefix_rules: Sequence[PrefixRule],
+    suffix_rules: Sequence[SuffixRule],
+) -> MetricRegistry:
+    """Return the project's metrics and categories under other affix rules."""
+    return MetricRegistry(
+        list(registry.metrics.values()),
+        [*registry.categories("team"), *registry.categories("qb")],
+        prefix_rules=prefix_rules,
+        suffix_rules=suffix_rules,
+    )
+
+
+@pytest.mark.parametrize(
+    "rule", DEFAULT_SUFFIX_RULES, ids=[rule.suffix for rule in DEFAULT_SUFFIX_RULES]
+)
+def test_every_suffix_rule_resolves_a_real_column(
+    registry: MetricRegistry, rule: SuffixRule
+) -> None:
+    """A rule no real column needs would only describe, and admit, columns that do not exist."""
+    # Arrange
+    others = [other for other in DEFAULT_SUFFIX_RULES if other is not rule]
+    without_rule = _registry_with_rules(registry, DEFAULT_PREFIX_RULES, others)
+
+    # Act
+    needing_rule = [
+        column for column in _OUTPUT_COLUMN_SAMPLES if without_rule.resolve_column(column) is None
+    ]
+
+    # Assert
+    assert needing_rule != []
+
+
+@pytest.mark.parametrize(
+    "rule", DEFAULT_PREFIX_RULES, ids=[rule.prefix for rule in DEFAULT_PREFIX_RULES]
+)
+def test_every_prefix_rule_resolves_a_real_column(
+    registry: MetricRegistry, rule: PrefixRule
+) -> None:
+    """The web app's unique-opponent table derives season_delta_ columns from game-log stats."""
+    # Arrange
+    others = [other for other in DEFAULT_PREFIX_RULES if other is not rule]
+    without_rule = _registry_with_rules(registry, others, DEFAULT_SUFFIX_RULES)
+    columns = [*_OUTPUT_COLUMN_SAMPLES, "season_delta_passing_epa"]
+
+    # Act
+    needing_rule = [column for column in columns if without_rule.resolve_column(column) is None]
+
+    # Assert
+    assert needing_rule != []

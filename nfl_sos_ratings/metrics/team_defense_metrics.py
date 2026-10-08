@@ -155,7 +155,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Times the defense sacked the opposing quarterback.",
         shape="count",
         polarity="higher",
-        source="PBP +TS",
+        source="PLS",
         since=1999,
     ),
     _def_press(
@@ -165,7 +165,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Times the defense hit the quarterback, beyond sacks.",
         shape="count",
         polarity="higher",
-        source="PBP",
+        source="PLS",
         since=1999,
     ),
     _def_press(
@@ -175,7 +175,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Tackles made behind the line of scrimmage.",
         shape="count",
         polarity="higher",
-        source="PBP",
+        source="PLS",
         since=1999,
     ),
     _def_press(
@@ -185,7 +185,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Passes broken up or deflected by defenders.",
         shape="count",
         polarity="higher",
-        source="PBP",
+        source="PLS",
         since=1999,
     ),
     _def_press(
@@ -195,7 +195,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Fumbles the defense knocked loose.",
         shape="count",
         polarity="higher",
-        source="PBP",
+        source="PLS",
         since=1999,
     ),
     _def_press(
@@ -205,7 +205,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Safeties forced by the defense (two points each).",
         shape="count",
         polarity="higher",
-        source="PBP",
+        source="PLS",
         since=1999,
     ),
     _def_to(
@@ -215,7 +215,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         description="Passes intercepted by the defense.",
         shape="count",
         polarity="higher",
-        source="PBP +TS",
+        source="PLS",
         since=1999,
     ),
     # Planned defense expansion (mirrors and defense-only stats).
@@ -261,6 +261,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="defensive snaps",
         since=1999,
+        percent=True,
     ),
     _def_total(
         name="explosive_play_rate_allowed",
@@ -272,6 +273,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="defensive snaps",
         since=1999,
+        percent=True,
     ),
     _def_pass(
         name="attempts_faced",
@@ -303,6 +305,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent pass attempts",
         since=1999,
+        percent=True,
     ),
     _def_pass(
         name="net_passing_yards_allowed",
@@ -350,6 +353,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent dropbacks",
         since=1999,
+        percent=True,
     ),
     _def_pass(
         name="air_yards_allowed",
@@ -392,6 +396,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent pass attempts",
         since=1999,
+        percent=True,
     ),
     _def_rush(
         name="carries_faced",
@@ -424,6 +429,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent designed carries",
         since=1999,
+        percent=True,
     ),
     _def_rush(
         name="explosive_rush_rate_allowed",
@@ -435,6 +441,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent carries",
         since=1999,
+        percent=True,
     ),
     _def_recv(
         name="targets_faced",
@@ -483,6 +490,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         denominator="opponent targets",
         since=1999,
         note=_TARGETS_GAP_NOTE,
+        percent=True,
     ),
     _def_score(
         name="points_per_drive_allowed",
@@ -505,6 +513,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent red-zone trips",
         since=1999,
+        percent=True,
     ),
     _def_score(
         name="goal_to_go_td_pct_allowed",
@@ -516,6 +525,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent goal-to-go series",
         since=1999,
+        percent=True,
     ),
     _def_score(
         name="two_pt_conversion_rate_allowed",
@@ -527,6 +537,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent two-point attempts",
         since=1999,
+        percent=True,
     ),
     _def_downs(
         name="third_down_pct_allowed",
@@ -538,6 +549,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent third-down attempts",
         since=1999,
+        percent=True,
     ),
     _def_downs(
         name="fourth_down_pct_allowed",
@@ -549,6 +561,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent fourth-down attempts",
         since=1999,
+        percent=True,
     ),
     _def_downs(
         name="series_conversion_rate_allowed",
@@ -560,6 +573,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent series",
         since=1999,
+        percent=True,
     ),
     _def_downs(
         name="three_and_outs_forced_rate",
@@ -571,6 +585,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent drives",
         since=1999,
+        percent=True,
     ),
     _def_drives(
         name="score_pct_per_drive_allowed",
@@ -582,6 +597,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent drives",
         since=1999,
+        percent=True,
     ),
     _def_drives(
         name="punts_forced_pct",
@@ -593,6 +609,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent drives",
         since=1999,
+        percent=True,
     ),
     _def_drives(
         name="avg_starting_field_position_allowed",
@@ -648,6 +665,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="defensive snaps",
         since=1999,
+        percent=True,
     ),
     _def_to(
         name="takeaways_per_drive",
@@ -710,6 +728,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent dropbacks",
         since=1999,
+        percent=True,
     ),
     _def_press(
         name="qb_pressure_events_rate",
@@ -721,6 +740,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent dropbacks",
         since=1999,
+        percent=True,
     ),
     _def_press(
         name="stuff_rate",
@@ -734,6 +754,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="opponent carries other than kneel-downs",
         since=1999,
+        percent=True,
     ),
     _def_press(
         name="havoc_rate",
@@ -748,6 +769,7 @@ DEFENSE_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
         denominator="defensive snaps",
         since=1999,
+        percent=True,
     ),
     _def_press(
         name="defensive_2pt_conversions",

@@ -2,7 +2,7 @@ export type RowValue = string | number | boolean | null;
 export type ThemeMode = 'light' | 'dark';
 /** `classic` (the default palette) or a team abbreviation with a palette in teamPaletteData.json. */
 export type PaletteMode = 'classic' | (string & {});
-export type MetricShape = 'count' | 'rate' | 'avg' | 'flag' | 'id' | 'score';
+export type MetricShape = 'count' | 'rate' | 'avg' | 'max' | 'flag' | 'id' | 'score';
 export type PrimaryView =
   | 'ratings'
   | 'raw_total_stats'
@@ -23,6 +23,8 @@ export interface ColumnMetadataPayload {
   denominator: string | null;
   source: string;
   base_name: string;
+  /** A proportion (0.653) the app shows as a percentage (65.3%). */
+  percent: boolean;
 }
 
 export interface RegistryCategoryPayload {
@@ -31,9 +33,22 @@ export interface RegistryCategoryPayload {
   subcategories: string[];
 }
 
+/** How a column prefix changes a metric's label, name, description, and meaning. */
+export interface PrefixRulePayload {
+  prefix: string;
+  /** `{label}` stands for the base column's label. */
+  label_template: string;
+  /** `{full_name}` stands for the base column's full name. */
+  full_name_template: string;
+  description_note: string;
+  contextual: boolean;
+  invert_polarity_for_qb: boolean;
+}
+
 export interface MetricRegistryPayload {
   entities: Record<'team' | 'qb', { categories: RegistryCategoryPayload[] }>;
   metrics: Record<string, ColumnMetadataPayload>;
+  prefix_rules: PrefixRulePayload[];
 }
 
 export interface TablePayload {
