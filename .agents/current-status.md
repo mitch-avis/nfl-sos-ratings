@@ -102,9 +102,9 @@ Garbage-time filter test (2026-10-05, `nfl-sos-ratings check-wp-filter --data-di
 10.663 at 10%, 10.733 at 20%; 5% and 10% tie, 20% is worse (+0.133, 98.33% interval +0.046 to
 +0.222). The published ratings keep every play.
 
-Gate state: `scripts/gate.sh --web` passes, and `.venv/bin/pytest -m published_data --no-cov` passes
-on the rebuilt `data/` (6 tests, 2026-10-05). Earlier notes said the command without `--no-cov`
-passed; its tests did, but the coverage floor makes that command exit 1.
+Gate state: `scripts/gate.sh --web` passes, and `.venv/bin/pytest -m published_data` passes on
+`data/` (6 tests, 2026-10-08; with only those tests selected the coverage floor is lifted, so
+`--no-cov` is no longer needed).
 
 Season rollover: after the 2026 season, set `END_YEAR` to 2026 and `SEASON` to 2027 in
 `nfl_sos_ratings/config.py`, rebuild (ask first), and regenerate the validation report. The weekly

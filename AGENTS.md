@@ -54,8 +54,11 @@ scripts/gate.sh --web      # also check web/ (npm ci, lint, typecheck, vitest, b
   the key error), or not run (with the reason). Single tools while iterating: `.venv/bin/ruff`,
   `.venv/bin/ty check .`, `.venv/bin/pyright .`, `.venv/bin/pytest`.
 - pytest deselects tests marked `published_data`, which read the generated Parquet files in
-  `data/`. Run them with `.venv/bin/pytest -m published_data --no-cov` after a data refresh;
-  without `--no-cov` the coverage floor fails the run even when every test passes.
+  `data/`. Run them with `.venv/bin/pytest -m published_data` after a data refresh; when only
+  those tests are selected, `tests/conftest.py` lifts the coverage floor and report for that run.
+- Polars runs on one thread by default in every command and in the test suite (`cli.py`,
+  `tests/conftest.py`): this code builds thousands of small frames, where a full thread pool costs
+  far more than it saves. An explicit `POLARS_MAX_THREADS` is kept.
 - After any `pyproject.toml` edit, even a comment, run `uv sync`: uv rebuilds the project
   package, and until then the gate's `uv sync --check` step fails. A `git checkout`, merge, or
   rebase that rewrites `pyproject.toml` counts as an edit (uv keys on its modification time), and
