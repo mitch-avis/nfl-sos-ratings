@@ -46,7 +46,8 @@ export function ComparisonPanel({
     .map((entityId) => table.rows.find((row) => String(row[config.identityKey] ?? '') === entityId))
     .filter((row): row is Record<string, RowValue> => row !== undefined)
   if (compareRows.length === 0) return null
-  const compareStats = buildColumnStats(compareRows, compareColumns)
+  // Shaded against the whole season, so two picks are not painted as each other's extremes.
+  const compareStats = buildColumnStats(table.rows, compareColumns)
   // The same decimals as the season table below, from every row of the season.
   const compareDecimals = buildColumnDecimals(table.rows, compareColumns)
   const rangesById = new Map((rankRanges ?? []).map((range) => [range.id, range]))
