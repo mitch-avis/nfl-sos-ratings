@@ -1,6 +1,9 @@
 """Tests for the expanded Tier 1 team metrics derived from play-by-play."""
 
+from pathlib import Path
+
 import polars as pl
+import pytest
 
 from nfl_sos_ratings import team_stats
 from nfl_sos_ratings.metrics import get_registry
@@ -943,6 +946,10 @@ def _game_rows() -> pl.DataFrame:
             "def_sacks": [0.0, 1.0],
             "def_qb_hits": [0, 1],
             "def_tackles_for_loss": [1, 0],
+            "def_fumbles_forced": [0, 1],
+            "def_interceptions": [1, 0],
+            "def_pass_defended": [2, 1],
+            "def_safeties": [0, 0],
         }
     )
     schedule = pl.DataFrame(
@@ -1018,3 +1025,20 @@ def _matches_parts(value: object, numerator: object, denominator: object) -> boo
     assert isinstance(numerator, int | float), numerator
     assert isinstance(value, int | float), value
     return abs(value - numerator / denominator) <= 1e-12
+
+
+@pytest.mark.published_data
+def test_the_rate_guard_builds_every_rate_the_published_game_logs_carry() -> None:
+    # Arrange
+    files = sorted(Path("data").glob("*_team_game_logs.parquet"))
+    built = set(_rate_columns(_game_rows().columns))
+
+    # Act
+    missing = {
+        path.name: sorted(set(_rate_columns(list(pl.read_parquet_schema(path)))) - built)
+        for path in files
+    }
+
+    # Assert
+    assert files
+    assert {name: columns for name, columns in missing.items() if columns} == {}

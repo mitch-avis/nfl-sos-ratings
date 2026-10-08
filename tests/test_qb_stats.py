@@ -1,10 +1,18 @@
 """Tests for nfl_sos_ratings.qb_stats."""
 
+from pathlib import Path
+
 import polars as pl
 import pytest
 
-from nfl_sos_ratings import qb_stats
-from nfl_sos_ratings.pooled_rates import denominator_column, numerator_column
+from nfl_sos_ratings import data_loader, qb_stats
+from nfl_sos_ratings.metrics import get_registry
+from nfl_sos_ratings.pooled_rates import (
+    denominator_column,
+    is_rate_part,
+    numerator_column,
+    rate_parts,
+)
 
 
 def test_compute_qb_season_stats_includes_volume_and_eligibility() -> None:
@@ -1379,3 +1387,125 @@ def test_compute_qb_season_stats_rounds_a_season_rating_tie_up() -> None:
 
     # Assert
     assert season.get_column("qb_passer_rating").to_list() == [rating for _, rating in _RATING_TIES]
+
+
+def _qb_game_rows() -> pl.DataFrame:
+    """Return one passer's game rows as the loader builds them, official weekly stats included.
+
+    The play-by-play has a completion, an incompletion, a sack, a scramble, a designed run, and a
+    kneel-down, so every passing and rushing rate is built.
+    """
+    play = {
+        "game_id": "2025_01_DEN_KC",
+        "season_type": "REG",
+        "week": 1,
+        "posteam": "DEN",
+        "passer_player_id": "00-0031234",
+        "passer_player_name": "John Doe",
+        "rusher_player_id": None,
+        "rusher_player_name": None,
+        "qb_dropback": 1,
+        "pass": 1,
+        "rush": 0,
+        "qb_scramble": 0,
+        "qb_kneel": 0,
+        "two_point_attempt": 0,
+        "complete_pass": 0,
+        "passing_yards": 0.0,
+        "rushing_yards": 0.0,
+        "yards_gained": 0.0,
+        "pass_touchdown": 0,
+        "interception": 0,
+        "sack": 0,
+        "fumble_lost": 0,
+        "epa": 0.0,
+        "qb_epa": 0.0,
+        "cpoe": None,
+    }
+    runner = {
+        "passer_player_id": None,
+        "passer_player_name": None,
+        "rusher_player_id": "00-0031234",
+        "rusher_player_name": "John Doe",
+    }
+    plays = [
+        {**play, "complete_pass": 1, "passing_yards": 12.0, "qb_epa": 0.9, "cpoe": 20.0},
+        {**play, "qb_epa": -0.5, "cpoe": -30.0},
+        {**play, "sack": 1, "yards_gained": -6.0, "qb_epa": -1.5},
+        {**play, **runner, "qb_scramble": 1, "rushing_yards": 9.0, "epa": 0.8},
+        {**play, **runner, "qb_dropback": 0, "pass": 0, "rush": 1, "rushing_yards": 4.0},
+        {**play, **runner, "qb_dropback": 0, "pass": 0, "qb_kneel": 1, "rushing_yards": -1.0},
+    ]
+    player_stats = pl.DataFrame(
+        {
+            "season_type": ["REG"],
+            "week": [1],
+            "game_id": ["2025_01_DEN_KC"],
+            "team": ["DEN"],
+            "player_id": ["00-0031234"],
+            "position": ["QB"],
+            "attempts": [2],
+            "completions": [1],
+            "passing_yards": [12.0],
+            "passing_tds": [0],
+            "passing_interceptions": [0],
+            "sacks_suffered": [1],
+            "sack_yards_lost": [-6.0],
+            "passing_epa": [-1.1],
+            "passing_cpoe": [-5.0],
+            "carries": [3],
+            "rushing_yards": [12.0],
+            "rushing_epa": [0.6],
+        }
+    )
+    return data_loader._build_qb_stats(
+        pl.DataFrame(plays), pl.DataFrame(), pl.DataFrame(), player_stats
+    )
+
+
+def _qb_rate_columns(columns: list[str]) -> list[str]:
+    """Return the QB game columns the registry calls a rate or a mean."""
+    registry = get_registry()
+    return [
+        column
+        for column in columns
+        if (resolved := registry.resolve_column(column)) is not None
+        and not is_rate_part(column)
+        and resolved.base.shape in {"rate", "avg"}
+    ]
+
+
+def test_every_qb_game_rate_is_rebuilt_over_games() -> None:
+    # Arrange
+    games = _qb_game_rows()
+
+    # Act
+    with_parts = set(rate_parts(games.columns))
+
+    # Assert
+    rates = _qb_rate_columns(games.columns)
+    assert rates
+    assert [
+        rate for rate in rates if rate not in qb_stats.QB_RATES and rate not in with_parts
+    ] == []
+
+
+@pytest.mark.published_data
+def test_the_qb_rate_guard_builds_every_rate_the_published_game_logs_carry() -> None:
+    # Arrange
+    files = sorted(Path("data").glob("*_qb_game_logs.parquet"))
+    built = set(_qb_rate_columns(_qb_game_rows().columns))
+    # The game result joined onto QB game logs; a season row takes its share of games.
+    from_team_rows = {"win_value"}
+
+    # Act
+    missing = {
+        path.name: sorted(
+            set(_qb_rate_columns(list(pl.read_parquet_schema(path)))) - built - from_team_rows
+        )
+        for path in files
+    }
+
+    # Assert
+    assert files
+    assert {name: columns for name, columns in missing.items() if columns} == {}
