@@ -14,7 +14,7 @@ test('meanReference draws the line at the mean of the points shown', () => {
   const reference = meanReference(points)
 
   // Assert
-  assert.deepEqual(reference, { value: 3.1666666666666665, caption: 'Dashed line: the mean of the games shown (3.167).' })
+  assert.deepEqual(reference, { value: 3.1666666666666665, caption: 'Dashed line: the average of the games shown (3.167).' })
 })
 
 test("meanReference states the mean in the column's own format", () => {
@@ -28,7 +28,7 @@ test("meanReference states the mean in the column's own format", () => {
   const reference = meanReference(points, (value) => `${(value * 100).toFixed(1)}%`)
 
   // Assert
-  assert.strictEqual(reference?.caption, 'Dashed line: the mean of the games shown (45.0%).')
+  assert.strictEqual(reference?.caption, 'Dashed line: the average of the games shown (45.0%).')
 })
 
 test('meanReference draws no line without points', () => {

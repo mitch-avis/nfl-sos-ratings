@@ -63,7 +63,7 @@ const CONCEPTS: GlossaryEntry[] = [
   concept(
     'schedule-strength',
     'Schedule strength',
-    "SoS is the average Team Rating of the opponents a team played, each opponent rated without its games against that team. Positive means a harder schedule than average. Faced Pass D is the same idea for a quarterback: the quality of the pass defenses faced, weighted by dropbacks.",
+    "SoS is the average Team Rating of the opponents a team played, each opponent rated without its games against that team. Positive means a harder schedule than average. Pass Defense Faced is the same idea for a quarterback: the strength of the pass defenses faced, weighted by dropbacks.",
   ),
   concept(
     'rank-range',
@@ -78,7 +78,7 @@ const CONCEPTS: GlossaryEntry[] = [
   concept(
     'garbage-time',
     'Garbage-time filter',
-    'An exploration view that leaves out plays from lopsided game states (a win probability below the chosen threshold or above 100 minus it) and refits the ratings. The published ratings keep every play: in a walk-forward test, no threshold predicted game margins better.',
+    "An exploration view that leaves out plays from lopsided game states (a win probability below the chosen threshold or above 100 minus it) and refits the ratings. The published ratings keep every play: when filters of 5%, 10%, and 20% were tested by predicting each game's margin from earlier games, none did better.",
   ),
   concept(
     'shading',

@@ -222,8 +222,8 @@ const PREFIX_CONTEXTS: PrefixContext[] = [
     prefix: 'opp_',
     contextual: true,
     detailPrefix:
-      'This is season-long opponent context for the selected team or quarterback, not a '
-      + 'single-game grade.',
+      'This opponent\'s own full-season value, shown for context. It describes the opponent, not '
+      + 'this game.',
     apply: (template) => ({
       label: `Opp ${template.label}`,
       fullName: `Opponent ${template.fullName}`,
@@ -281,22 +281,28 @@ export function getGroupDescription(kind: EntityKind, group: string): string {
     identity: 'Names and identifiers used for deep linking and comparison.',
     ratings: 'Primary schedule-adjusted rating outputs. Start here for ranking.',
     raw_total_stats:
-      'Count stats are shown as raw totals here, while rate and average stats keep their intrinsic values.',
+      'Season totals for counting stats such as yards, touchdowns, and sacks. Stats that are already rates or averages, such as completion percentage, are shown as they are.',
     raw_totals:
       'For QBs, this group contains explicit season totals used to build the season-long passing surface.',
     per_game_rates:
       kind === 'teams'
-        ? 'Season-average per-game team stats, kept alongside per-snap rates for a fuller surface view.'
-        : 'Per-game QB rates derived from the season totals and game counts in the current data.',
+        ? 'Counting stats as per-game averages over the games played. Rates and averages, such as completion percentage, are shown as they are.'
+        : 'Counting stats divided by the games he played. Rates and averages, such as passer rating, are shown as they are.',
     per_play_rates:
-      'Play-normalized rates using each subcategory\'s natural denominator, such as snaps, dropbacks, attempts, carries, drives, or series.',
+      kind === 'teams'
+        ? 'Stats divided by the plays behind them (per offensive or defensive snap, dropback, pass attempt, carry, or drive), so busy and slow teams compare fairly. Rates such as completion percentage are here too.'
+        : 'Stats divided by the plays behind them (per dropback, pass attempt, or carry), plus rates such as completion percentage and passer rating.',
     per_snap_rates:
       'Snap-normalized rates that make teams comparable even when game environments differ.',
     per_dropback_rates: 'Per-dropback passing rates, generally the cleanest QB efficiency slice.',
     opponent_per_game_rates:
-      'Season-long opponent context on a per-game basis. These columns describe the schedule, not the selected subject.',
+      kind === 'teams'
+        ? 'What this team\'s opponents did per game in their other games (games against this team left out), each opponent counted once. Offense shows the opponents\' offenses, Defense what their defenses allowed: the schedule, not this team.'
+        : 'What the defenses he faced did per game in their other games (games against his team left out), each defense counted once: points allowed, sacks, interceptions, and what they allowed other teams\' main quarterbacks.',
     opponent_per_play_rates:
-      'Season-long opponent context on the matching play denominator for the active surface.',
+      kind === 'teams'
+        ? 'The same opponent profile per play (per snap, dropback, pass attempt, carry, or drive), plus rates such as completion percentage. Offense shows the opponents\' offenses, Defense what their defenses allowed.'
+        : 'The same profile of the defenses he faced, per dropback, pass attempt, or carry: what they allowed other teams\' main quarterbacks in their other games.',
     opponent_context:
       'Context about the opponents faced. These are schedule descriptors, not direct better/worse scores.',
   };

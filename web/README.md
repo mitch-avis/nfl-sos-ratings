@@ -188,15 +188,16 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   opens on a team's EPA margin per play or a QB's EPA per dropback when the view has them.
 - When a season has head-to-head files, the detail page adds a `Head to head` card: a `Compare
   with` picker, starting on the team or QB ranked just above (just below for the leader), and one
-  sentence such as "NE rated above BUF in 38% of resampled seasons; difference -1.2 points, 95%:
-  -5.0 to +2.8." The comparison panel shows the same sentence when exactly two rows are compared.
+  sentence such as "NE rated above BUF in 38% of redraws. Typical gap (NE minus BUF): -1.2 points
+  per game; 95% of redraws: -5.0 to +2.8." The comparison panel shows the same sentence when
+  exactly two rows are compared.
 - The garbage-time filter is a folded section at the end of each page ("Explore ratings without
   garbage time"), open when the address carries a threshold. It holds a slider from Off to 20%,
   kept in the address as `?wp=`. A threshold of X% asks
   `/api/seasons/{season}/{teams|qbs}/wp-ratings` for the ratings refit on the plays whose win
   probability before the snap was between X% and 100% minus X%. It then lists
   every team or qualifying QB by filtered rank, beside the change, the published rank and rating,
-  and the share of plays kept, under an "Unvalidated exploration view" label. Detail pages show
+  and the share of plays kept, under an "Exploration only" label. Detail pages show
   the same for one row (and none for a team or QB without a rating). The slider waits 250 ms
   after it stops moving before asking. Rank ranges and everything else on the page still count
   every play.

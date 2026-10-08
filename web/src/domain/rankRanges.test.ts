@@ -125,7 +125,7 @@ test('rankRangeHeadline says when no resample ranked the subject', () => {
   const headline = rankRangeHeadline(empty)
 
   // Assert
-  assert.equal(headline, '1st; not ranked in any resample')
+  assert.equal(headline, '1st; not ranked in any redraw')
 })
 
 test('rankRangeSummary names the subject and its median for screen readers', () => {
@@ -152,7 +152,7 @@ test('rankChanceText adds how often a quarterback was missing', () => {
   const text = rankChanceText('qbs', qb)
 
   // Assert
-  assert.equal(text, 'Top 5 in 42% of resamples, top 10 in 81%; left out of 12% (no dropbacks drawn)')
+  assert.equal(text, 'Top 5 in 42% of redraws, top 10 in 81%; left out of 12% (no dropbacks drawn)')
 })
 
 test('rankChanceText leaves the missing share out when nothing was missing', () => {
@@ -160,7 +160,7 @@ test('rankChanceText leaves the missing share out when nothing was missing', () 
   const text = rankChanceText('teams', range())
 
   // Assert
-  assert.equal(text, 'Top 5 in 42% of resamples, top 10 in 81%')
+  assert.equal(text, 'Top 5 in 42% of redraws, top 10 in 81%')
 })
 
 test('rankSpan covers whole rank cells from the low rank to the high rank', () => {

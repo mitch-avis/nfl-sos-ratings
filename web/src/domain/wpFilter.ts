@@ -51,7 +51,7 @@ export function parseWpThreshold(raw: string | null): number {
 /** Say in plain words which plays a threshold keeps. */
 export function describeWpThreshold(threshold: number): string {
   if (threshold === 0) return 'Off: every play counts, as in the published ratings.'
-  return `Keeps plays where the offense's win probability before the snap was between ${threshold}% and ${100 - threshold}%.`
+  return `Keeps plays that began with the offense's chance of winning between ${threshold}% and ${100 - threshold}%; plays from more lopsided moments are left out.`
 }
 
 function asNumber(value: RowValue | undefined): number | null {

@@ -49,14 +49,14 @@ function ExplorationNote({ kind }: { kind: EntityKind }) {
   return (
     <div className="flex flex-col gap-1.5">
       <Badge variant="outline" className="w-fit border-amber-500/60 text-amber-700 dark:text-amber-300">
-        Unvalidated exploration view
+        Exploration only
       </Badge>
       <p className="max-w-prose text-sm text-muted-foreground">
-        The published ratings use every play. Rank ranges and the rest of this page count every play
-        too. In a walk-forward test, no threshold predicted team game margins better than every play,
-        and 20% predicted them worse.
+        Published ratings, rank ranges, and the rest of this page always use every play. When filters
+        of 5%, 10%, and 20% were tested by predicting each game&apos;s margin from earlier games
+        (1999-2025), none beat using every play, and 20% did worse.
         {kind === 'qbs'
-          ? ' Filtered QB ratings use play-by-play EPA, which differs slightly from the official EPA in the published rating, so changes compare with the same calculation at 0%.'
+          ? ' Filtered QB ratings use play-by-play EPA, which differs slightly from the official EPA behind the published rating, so each change is measured against that same play-by-play calculation with no filter.'
           : null}
       </p>
     </div>
@@ -251,7 +251,8 @@ export function WpFilterPanel({ kind, season, entityId }: { kind: EntityKind; se
       <p className="text-sm">{describeWpThreshold(draft)}</p>
       {threshold === 0 ? (
         <p className="max-w-prose text-sm text-muted-foreground">
-          Move the slider to leave out plays from lopsided game states and see how much the{' '}
+          Move the slider to leave out plays from lopsided moments, when one team was very likely to
+          win, and see how much the{' '}
           {kind === 'teams' ? 'team' : 'quarterback'} ratings depend on them.
         </p>
       ) : (

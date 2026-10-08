@@ -57,14 +57,14 @@ const ENTITY_CONFIG: Record<EntityKind, EntityConfig> = {
     identityColumns: ['team'],
     primaryRankingLabel: 'Primary overall team rank: Team Rating',
     primaryRankingDescription:
-      'Team Rating is points per game better than an average team on a neutral field, after '
-      + 'adjusting for every opponent faced. It is the sum of the offense, defense, and '
-      + 'special-teams ratings.',
+      'Team Rating is points per game better (+) or worse (−) than an average team on a neutral '
+      + 'field, after adjusting for every opponent faced; 0 is average. It is the sum of the '
+      + 'offense, defense, and special-teams ratings.',
     pageNotes: [
-      'Team Rating is built from expected points added (EPA) per play, adjusted for each opponent and for who those opponents played, then converted to points per game.',
+      'Team Rating is built from expected points added (EPA), which scores each play by how much it changed the offense\'s expected points. Each team is judged against its opponents, and those opponents against theirs, all at once, then put in points per game.',
       'Offense, defense, and special-teams ratings are on the same points-per-game scale, so they add up exactly to Team Rating.',
-      'SoS is the average Team Rating of the opponents played, with each opponent rated without its games against this team. Positive means a harder schedule.',
-      'SRS is the classic point-margin rating, kept as a score-based reference beside the EPA-based Team Rating.',
+      'SoS (schedule strength) is the average Team Rating of the opponents played, counted once per game, with each opponent rated without its games against this team. Positive means a tougher schedule.',
+      'SRS is the classic score-based rating: average point margin, adjusted for the opponents played. It sits beside Team Rating as a check built from final scores instead of plays.',
       'Shading marks better or worse within the season; gray shading marks context instead, such as schedule strength or the opponents faced, deeper for tougher.',
     ],
   },
@@ -82,13 +82,16 @@ const ENTITY_CONFIG: Record<EntityKind, EntityConfig> = {
     identityColumns: ['qb_name', 'team'],
     primaryRankingLabel: 'Primary overall QB rank: Adjusted EPA per Dropback',
     primaryRankingDescription:
-      'Adjusted EPA per dropback is the quarterback\'s expected points added per dropback after '
-      + 'adjusting for the pass defenses he faced, on the same scale as raw EPA per dropback.',
+      'Adjusted EPA per dropback is the quarterback\'s expected points added per dropback (EPA: how '
+      + 'much each play changed his team\'s expected points), after adjusting for the pass defenses '
+      + 'he faced. It reads on the same scale as raw EPA per dropback, whose league average is '
+      + 'usually a little above 0.',
     pageNotes: [
       'Adjusted EPA per dropback compares each passer with the defenses he actually faced, and each defense with every passer it faced.',
-      'Faced Pass D is the dropback-weighted quality of those defenses (positive means tougher), with each defense rated without its games against this quarterback.',
+      'Pass Defense Faced is the average strength of those pass defenses, weighted by his dropbacks against each, with each defense rated only on its plays against other passers. Positive means tougher.',
       'Small samples are pulled toward the league average, so a backup with a few big plays does not top the table.',
       'Wins, comebacks, and other outcomes do not feed the rating; they stay available as context stats.',
+      'EPA also reflects his line, receivers, and play-calling, which public play-by-play cannot separate, so the rating describes the passing offense he led.',
       'Shading marks better or worse within the season; gray shading marks context instead, such as schedule strength or the opponents faced, deeper for tougher.',
     ],
   },

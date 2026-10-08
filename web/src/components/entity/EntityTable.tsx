@@ -203,7 +203,7 @@ export function EntityTable({
           Rank range
           <InfoTooltip
             label="About the rank range"
-            content="The middle 50% of ranks across resampled seasons (the season's games redrawn at random). Thick bar: middle 50%; thin bar: middle 95%; dot: median; diamond: the published rank when it differs. Rank 1 is at the left."
+            content="The middle 50% of this row's ranks across 1,000 redraws of the season (its games drawn at random, with repeats, and everyone re-rated). Thick bar: middle 50%; thin bar: middle 95%; dot: median rank. Rank 1 is at the left."
           />
         </span>
       ),
@@ -256,7 +256,7 @@ export function EntityTable({
               Rank
               <InfoTooltip
                 label="About the rank"
-                content={`Each row's position in the current sort${sortedLabel ? ` (${sortedLabel})` : ''}. Sort by ${headline} for the published ranking; the Rank range column is always about ${headline}.`}
+                content={`This row's position in the table as it is sorted${sortedLabel ? ` (${sortedLabel})` : ''} and searched now. Sorted by ${headline} with no search, it is the published rank${config.kind === 'qbs' ? ' (with QBs below the qualifier hidden)' : ''}. The Rank range column always refers to ${headline}.`}
               />
             </span>
           )

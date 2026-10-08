@@ -34,8 +34,8 @@ export function UnitRankRangeTable({ ranges, count }: { ranges: UnitRankRange[];
         </tbody>
       </table>
       <p className="text-xs text-muted-foreground">
-        Unit percentiles do not add up to the team&apos;s: the median of a sum is not the sum of the
-        medians.
+        Offense, defense, and special teams are each ranked on their own in every redraw, so their
+        ranges need not combine into the overall one.
       </p>
     </div>
   )

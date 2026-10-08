@@ -169,9 +169,10 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
           <CardHeader>
             <CardTitle className="text-base">Rank range</CardTitle>
             <CardDescription>
-              The rank when the {season} games are redrawn at random, with repeats, and the ratings are
-              refit on every redraw. It shows how much the rank depends on which games happened to be
-              played, not whether the model is right.
+              Where this {kind === 'teams' ? 'team' : 'quarterback'} ranked across 1,000 redraws of
+              the {season} season: its games drawn at random, with repeats, and everyone re-rated each
+              time. It shows how much the rank depends on which games happened to be played, not whether
+              the model is right.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
@@ -197,8 +198,10 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
           <CardHeader>
             <CardTitle className="text-base">Rating by week</CardTitle>
             <CardDescription>
-              Each point is the rating fit on the {season} games through that week, so early weeks sit
-              near average and spread out as games accumulate. The last point is the rating above.
+              Each point is the rating using only the {season} games through that week. Early points sit
+              near {kind === 'teams' ? '0 (an average team)' : 'the league average'}, because a few games
+              are thin evidence, and spread out as games are added. The last point is the season rating
+              shown above.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -248,10 +251,10 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
           <CardHeader>
             <CardTitle className="text-base">Game by game</CardTitle>
             <CardDescription>
-              Every {season} game, with result context first and the current view&apos;s columns after
-              it. Opponent rating columns describe that opponent&apos;s full season, not a
-              single-game grade, and so does the rank range beside each opponent: the middle 50% of
-              its {kind === 'qbs' ? 'defense rank' : 'rank'} when the season is redrawn at random.
+              Every {season} game{kind === 'qbs' ? ' he played' : ''}: score and result first, then the
+              stats for the view you picked. The opponent ratings and the rank range beside each opponent
+              (the middle 50% of its {kind === 'qbs' ? 'defense rank' : 'rank'} across redraws) describe
+              that opponent&apos;s whole season, not this game.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
