@@ -124,9 +124,10 @@ hand-edit `uv.lock` or any generated `requirements*.txt` export.
   score-based reference, and `rating_ranges` summarizes game-bootstrap refits of both into rank
   ranges and head-to-head chances. `opponent_stats` and `qb_opponent_stats` build the descriptive
   head-to-head-excluded opponent profiles, and `pooled_rates` pools rates over games for them and
-  the season rows. `main` runs one season, `pipeline` runs them all, and `cli` is the
-  `nfl-sos-ratings` front door. `ui_data` and `ui_api` serve the web app's JSON API and its built
-  files.
+  the season rows. `player_team_repair` rebuilds player team codes, from the season roster, in
+  games nflverse credits wholly to one team (Jacksonville's 2001-2002 home games). `main` runs one
+  season, `pipeline` runs them all, and `cli` is the `nfl-sos-ratings` front door. `ui_data` and
+  `ui_api` serve the web app's JSON API and its built files.
 - `nfl_sos_ratings/metrics/`: the metric registry and the catalog generator;
   `nfl_sos_ratings/validation/`: the walk-forward validation and its report. Read the module you
   are changing rather than assuming it.

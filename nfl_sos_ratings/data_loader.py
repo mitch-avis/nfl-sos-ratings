@@ -10,6 +10,14 @@ import polars as pl
 from nflreadpy.config import CacheMode, update_config
 
 from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
+from nfl_sos_ratings.player_team_repair import (
+    PBP_PLAYER_TEAM_IDS,
+    game_player_teams,
+    one_team_games,
+    repair_pbp_player_teams,
+    repair_player_stats_teams,
+    two_team_games_only,
+)
 from nfl_sos_ratings.pooled_rates import numerator_for_value
 from nfl_sos_ratings.qb_stats import (
     CPOE_COLUMN,
@@ -606,15 +614,33 @@ def load_espn_qbr(
     return _normalize_team_abbreviations(qbr_df, team_columns)
 
 
+# League (GSIS) team codes some season rosters use, such as 2002's, in place of nflverse's.
+_ROSTER_TEAM_CODES = {"ARZ": "ARI", "BLT": "BAL", "CLV": "CLE", "HST": "HOU", "SL": "STL"}
+
+
+def _load_roster_teams(season: int) -> pl.DataFrame:
+    """Return each rostered player's ``player_id`` and normalized ``team`` for one season."""
+    rosters = nfl.load_rosters(seasons=season).select(
+        pl.col("gsis_id").alias("player_id"), pl.col("team").replace(_ROSTER_TEAM_CODES)
+    )
+    return _normalize_team_abbreviations(rosters.drop_nulls(), ["team"])
+
+
 def load_pbp_data(season: int) -> pl.DataFrame:
     """Load regular-season play-by-play data with normalized team abbreviations.
 
-    Fields nflverse lacks in the season are null (``_PBP_FIELD_GAPS``).
+    Fields nflverse lacks in the season are null (``_PBP_FIELD_GAPS``). In a game nflverse credits
+    every player to one team (``player_team_repair``), the player team columns are rebuilt from the
+    season roster.
     """
     df = nfl.load_pbp(seasons=season)
     df = _filter_regular_season(df)
     df = _blank_fields_missing_in_season(df, season, _PBP_FIELD_GAPS)
-    return _normalize_pbp_teams(df)
+    df = _normalize_pbp_teams(df)
+    games = one_team_games(df, list(PBP_PLAYER_TEAM_IDS))
+    if not games:
+        return df
+    return repair_pbp_player_teams(df, games, game_player_teams(games, _load_roster_teams(season)))
 
 
 def load_wp_bins(season: int) -> tuple[pl.DataFrame, pl.DataFrame]:
@@ -651,7 +677,13 @@ def load_weekly_player_stats(season: int) -> pl.DataFrame:
     df = nfl.load_player_stats(seasons=season, summary_level="week")
     df = _filter_regular_season(df)
     df = _blank_fields_missing_in_season(df, season, _PLAYER_STAT_GAPS)
-    return _normalize_team_abbreviations(df, ["team", "opponent_team"])
+    df = _normalize_team_abbreviations(df, ["team", "opponent_team"])
+    games = one_team_games(df, ["team"])
+    if not games:
+        return df
+    return repair_player_stats_teams(
+        df, games, game_player_teams(games, _load_roster_teams(season))
+    )
 
 
 def load_snap_counts_data(season: int) -> pl.DataFrame:
@@ -665,10 +697,15 @@ def load_snap_counts_data(season: int) -> pl.DataFrame:
 
 
 def load_official_weekly_team_stats(season: int) -> pl.DataFrame:
-    """Load official weekly team stats with normalized team abbreviations."""
+    """Load official weekly team stats with normalized team abbreviations.
+
+    A game with a row for only one team (both teams' totals credited to it) is left out, so the
+    play-by-play values stand for it (``player_team_repair``).
+    """
     df = nfl.load_team_stats(seasons=season, summary_level="week")
     df = _filter_regular_season(df)
-    return _normalize_team_abbreviations(df, ["team", "opponent_team"])
+    df = _normalize_team_abbreviations(df, ["team", "opponent_team"])
+    return two_team_games_only(df) if "game_id" in df.columns else df
 
 
 def _load_official_weekly_team_surface(official_team_stats_df: pl.DataFrame) -> pl.DataFrame:
