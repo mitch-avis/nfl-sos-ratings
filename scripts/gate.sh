@@ -9,8 +9,8 @@
 #                            CLI --help smoke check, markdownlint
 #   scripts/gate.sh --quick  skip pytest and the CLI smoke check (static checks only; for
 #                            iteration, never the report)
-#   scripts/gate.sh --web    also check the frontend in web/ (npm ci, lint, typecheck, vitest,
-#                            build)
+#   scripts/gate.sh --web    also check the frontend in web/ (pnpm install, lint, typecheck,
+#                            vitest, build)
 #
 # Exit status is 0 only when every selected step passed.
 
@@ -76,17 +76,21 @@ markdownlint_step() {
 }
 
 web_step() {
-	if ! command -v npm >/dev/null 2>&1 && [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+	if ! command -v node >/dev/null 2>&1 && [[ -s "$HOME/.nvm/nvm.sh" ]]; then
 		# shellcheck disable=SC1091  # nvm lives outside the repo
 		. "$HOME/.nvm/nvm.sh"
 	fi
+	local pnpm_home="${PNPM_HOME:-$HOME/.local/share/pnpm}"
+	if ! command -v pnpm >/dev/null 2>&1 && [[ -x "$pnpm_home/pnpm" ]]; then
+		PATH="$pnpm_home:$PATH"
+	fi
 	(
 		cd web &&
-			npm ci --no-audit --no-fund &&
-			npm run lint &&
-			npm run typecheck &&
-			npx vitest run &&
-			npm run build
+			pnpm install --frozen-lockfile &&
+			pnpm run lint &&
+			pnpm run typecheck &&
+			pnpm exec vitest run &&
+			pnpm run build
 	)
 }
 

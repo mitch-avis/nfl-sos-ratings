@@ -21,7 +21,7 @@ not a public site. It answers questions like:
 From the repository root, after the pipeline has written at least one season to `data/`:
 
 ```bash
-cd web && npm ci && npm run build && cd ..
+cd web && pnpm install --frozen-lockfile && pnpm run build && cd ..
 uv run nfl-sos-ratings web   # app and API on http://127.0.0.1:8080
 ```
 
@@ -38,7 +38,7 @@ the Vite dev server in a second terminal:
 
 ```bash
 cd web
-npm run dev   # http://127.0.0.1:5280, proxies /api to 127.0.0.1:8080
+pnpm run dev   # http://127.0.0.1:5280, proxies /api to 127.0.0.1:8080
 ```
 
 The ports (8080 and 5280) are chosen so this app can run beside nfl-predictor's (8000 and 5173).
@@ -48,10 +48,10 @@ The ports (8080 and 5280) are chosen so this app can run beside nfl-predictor's 
 From `web/`:
 
 ```bash
-npm run lint        # oxlint
-npm run typecheck   # tsc -b
-npx vitest run      # unit and component tests
-npm run build       # tsc -b, then the Vite production build into dist/
+pnpm run lint          # oxlint
+pnpm run typecheck     # tsc -b
+pnpm exec vitest run   # unit and component tests
+pnpm run build         # tsc -b, then the Vite production build into dist/
 ```
 
 `scripts/gate.sh --web` from the repository root runs the Python gate plus these frontend checks.
@@ -238,7 +238,7 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   `nfl-sos-ratings season` or `nfl-sos-ratings pipeline` and check `data/`.
 - **The dev server loads but API calls fail.** `nfl-sos-ratings web` is not running on port 8080;
   the Vite proxy expects it there.
-- **Port 8080 serves an old app.** It serves whatever is in `web/dist`; rerun `npm run build`.
+- **Port 8080 serves an old app.** It serves whatever is in `web/dist`; rerun `pnpm run build`.
 - **A detail link lands on the index page instead.** The ID in the URL is not in the selected
   season, so the app redirects to that season's index. Pick the entity again from there.
 - **A metric looks wrong.** Inspect the `/api` payload before changing frontend code; the app must
