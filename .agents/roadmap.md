@@ -109,8 +109,8 @@ bottom; update the status boxes in the same change set as the work.
 8. [x] P8 Detail pages: U9-U12, on `feat/detail-layout` (#31).
 9. [x] P9 Charts: U13-U14, with R3's early weeks (chart starts once every team has 3 games;
    approved), on `feat/chart-polish`.
-10. [ ] P10 Color semantics: U15-U17. U15 and U16 done on `feat/color-semantics` (#33); U17 waits
-    on the maintainer.
+10. [x] P10 Color semantics: U15-U17. U15 and U16 done on `feat/color-semantics` (#33); U17 on
+    `feat/heat-scale` (maintainer approval of 2026-10-08), with deeper light-mode shading.
 11. [x] P11 Palette menu as a division grid (U19), on `feat/palette-grid`; U18 lands with P5.
 12. [x] P12 Refresh button (maintainer idea, 2026-10-08), on `feat/refresh-button`: `web
     --allow-refresh` (off by default; only when the server serves the repository's `data/`) runs
@@ -1239,9 +1239,15 @@ Color semantics:
   the reading notes say so.
 - [x] U16 The unique-opponent table heat-maps raw counts against one opponent (completions,
   attempts); shade rates only. Done on `feat/color-semantics` (`tableState.shadedColumns`).
-- [ ] U17 The default palette's green-to-red heat scale is hard to read with red-green color
-  blindness (about 1 in 12 men); consider blue to orange for the default. Waiting on the
-  maintainer (asked 2026-10-08): a visible change to the default look.
+- [x] U17 The default palette's green-to-red heat scale is hard to read with red-green color
+  blindness (about 1 in 12 men); consider blue to orange for the default. Done on
+  `feat/heat-scale` (approved 2026-10-08): the default scale runs blue (better) to orange (worse),
+  built like the team scales. The maintainer also found every light-mode scale too pale to read
+  the gradient: light-mode tints in `team_palettes.py` move from OKLCH lightness 0.91 and chroma
+  0.06 to 0.84 and 0.10 (muted ends 0.85 to 0.76, hueless scales 0.78-0.96 to 0.70-0.97), the two
+  ends must sit 8 OKLab units apart as in dark mode (was 4.9), and context columns shade to 40%
+  slate in light mode (was 30%). `nfl-sos-ratings team-palettes` regenerated the palette file; every
+  team keeps a heat scale and every palette passes the readability tests. Dark mode is unchanged.
 
 Glossary and navigation:
 
