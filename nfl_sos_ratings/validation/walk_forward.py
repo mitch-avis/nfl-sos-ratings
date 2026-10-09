@@ -4,14 +4,14 @@ Team check: for every week from ``--start-week`` on, each baseline is rebuilt fr
 games played before the week, a margin model ``home_margin = k * rating_gap + home_edge`` is fit
 on earlier predictions only, and the week's home margins are predicted. The baselines are:
 
-- ``TeamRating``: the published points-based team rating from
-  ``team_rating.fit_team_ratings_with_previous_penalties`` (the previous season's ridge penalties),
-  called on the same team-game rows the pipeline publishes, so the validated estimator is the
+- ``TeamRating``: the published points-based team rating, fit by ``team_prior.snapshot_fit``
+  with the previous season's ridge penalties and, until a team has played 9 games, its preseason
+  prior, on the same team-game rows the pipeline publishes, so the validated estimator is the
   published one.
 - ``SRS``: the simple rating system on point margin, from the same games.
 - ``RawEPA``: each team's mean raw EPA margin per play, from the same games.
-- ``Elo``: a fixed-constant Elo that carries ratings across seasons. It sees more information than
-  the others, so it is a reference, never part of the decision rule.
+- ``Elo``: a fixed-constant Elo that carries every rating across seasons. It is a reference, never
+  part of the decision rule.
 
 The decision rule, written before the first run (``.agents/ratings-simplification-plan.md``):
 ``TeamRating`` stays the published headline if its overall MAE is not significantly worse than
@@ -575,6 +575,17 @@ def evaluate_team_decision(
     )
 
 
+def _season_spans(seasons: Sequence[int]) -> str:
+    """Return sorted seasons as runs, for example ``1999-2003, 2007``."""
+    spans: list[list[int]] = []
+    for season in sorted(seasons):
+        if spans and season == spans[-1][-1] + 1:
+            spans[-1].append(season)
+        else:
+            spans.append([season])
+    return ", ".join(f"{span[0]}-{span[-1]}" if len(span) > 1 else str(span[0]) for span in spans)
+
+
 def run_walk_forward_backtest(
     data_dir: Path,
     seasons: Sequence[int],
@@ -589,11 +600,22 @@ def run_walk_forward_backtest(
     game logs from ``data_dir`` since the first play-by-play season; ``team_prior=False`` rates
     them without it, as the published rating did before the prior (the prior check's baseline).
     """
-    history = (
-        PriorHistory(lambda season: pl.read_parquet(data_dir / f"{season}_team_game_logs.parquet"))
-        if team_prior
-        else None
-    )
+    history = None
+    if team_prior and seasons:
+        missing = [
+            season
+            for season in range(PBP_START_SEASON, max(seasons))
+            if not (data_dir / f"{season}_team_game_logs.parquet").exists()
+        ]
+        if missing:
+            msg = (
+                "the preseason prior reads every season's team game logs since "
+                f"{PBP_START_SEASON}; {data_dir} lacks {_season_spans(missing)}"
+            )
+            raise FileNotFoundError(msg)
+        history = PriorHistory(
+            lambda season: pl.read_parquet(data_dir / f"{season}_team_game_logs.parquet")
+        )
     feature_frames: list[pl.DataFrame] = []
     for season in sorted(seasons):
         game_logs = pl.read_parquet(data_dir / f"{season}_team_game_logs.parquet")

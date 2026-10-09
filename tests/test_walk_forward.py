@@ -247,6 +247,31 @@ def test_run_walk_forward_backtest_rates_snapshots_with_the_seasons_prior(tmp_pa
     )
 
 
+def test_run_walk_forward_backtest_names_every_season_the_prior_lacks(tmp_path: Path) -> None:
+    # Arrange
+    for season in (2024, 2025):
+        _with_epa_margin(_team_game_logs()).write_parquet(
+            tmp_path / f"{season}_team_game_logs.parquet"
+        )
+
+    # Act & Assert
+    with pytest.raises(FileNotFoundError, match=r"1999-2023"):
+        run_walk_forward_backtest(tmp_path, [2025], start_week=2)
+
+
+def test_run_walk_forward_backtest_names_missing_seasons_as_runs(tmp_path: Path) -> None:
+    # Arrange
+    for season in range(1999, 2026):
+        if season not in {2001, 2010, 2011}:
+            _with_epa_margin(_team_game_logs()).write_parquet(
+                tmp_path / f"{season}_team_game_logs.parquet"
+            )
+
+    # Act & Assert
+    with pytest.raises(FileNotFoundError, match=r"lacks 2001, 2010-2011$"):
+        run_walk_forward_backtest(tmp_path, [2025], start_week=2)
+
+
 def test_run_walk_forward_backtest_without_the_prior_needs_only_the_previous_season(
     tmp_path: Path,
 ) -> None:
@@ -269,7 +294,7 @@ def test_run_walk_forward_backtest_needs_the_previous_seasons_game_logs(tmp_path
 
     # Act & Assert
     with pytest.raises(FileNotFoundError, match="2024_team_game_logs"):
-        run_walk_forward_backtest(tmp_path, [2025])
+        run_walk_forward_backtest(tmp_path, [2025], team_prior=False)
 
 
 def test_run_walk_forward_backtest_first_play_by_play_season_cross_validates(
