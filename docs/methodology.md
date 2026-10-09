@@ -234,12 +234,13 @@ Every rating rests on choices. These are the ones that matter most here:
 
 ## How the Ratings Are Checked
 
-The walk-forward check rebuilds `team_rating` each week from that season's earlier games only (with
-the previous season's penalties, as published), fits a margin model on earlier predictions only, and
-predicts the coming week's home margins. `SRS` and raw EPA margin built from the same games are the
-comparisons, and Elo, which carries ratings across seasons and so sees more information, is shown as
-a reference. The decision rule was written before the first run: `team_rating` stays the headline
-unless its mean absolute error is significantly worse than raw EPA's or SRS's in a paired bootstrap.
+The walk-forward check rebuilds `team_rating` each week as published: from that season's earlier
+games, with the previous season's penalties and, until a team has played 9 games, its preseason
+prior. It fits a margin model on earlier predictions only and predicts the coming week's home
+margins. `SRS` and raw EPA margin built from the same games alone are the comparisons, and Elo,
+which carries every rating across seasons, is shown as a reference. The decision rule was written
+before the first run: `team_rating` stays the headline unless its mean absolute error is
+significantly worse than raw EPA's or SRS's in a paired bootstrap.
 
 The quarterback checks are year-over-year stability beside passer rating and ANY/A, and the
 per-season correlation with ESPN QBR, which is a reference, not a target.
