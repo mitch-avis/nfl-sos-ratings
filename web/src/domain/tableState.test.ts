@@ -48,13 +48,24 @@ describe('getHeatCellStyle', () => {
     })
   })
 
+  it.each([
+    ['light', ['rgb(162 207 255)', 'rgb(244 247 250)', 'rgb(254 185 139)']],
+    ['dark', ['rgb(14 63 106)', 'rgb(22 27 34)', 'rgb(95 46 0)']],
+  ] as const)('shades the default palette blue for better and orange for worse in %s mode', (theme, colors) => {
+    // Act
+    const shades = [8, 0, -8].map((value) => getHeatCellStyle('team_rating', value, STATS, theme, 'classic'))
+
+    // Assert
+    expect(shades.map((style) => style?.backgroundColor)).toEqual(colors)
+  })
+
   it('shades a context column in one neutral hue, darkest at its tougher end', () => {
     // Act
     const [hardest, middle, easiest] = [2, 0, -2].map((value) => getHeatCellStyle('sos', value, STATS, 'light', 'classic'))
 
     // Assert
-    expect(hardest?.backgroundColor).toBe('rgba(100, 116, 139, 0.3)')
-    expect(middle?.backgroundColor).toBe('rgba(100, 116, 139, 0.15)')
+    expect(hardest?.backgroundColor).toBe('rgba(100, 116, 139, 0.4)')
+    expect(middle?.backgroundColor).toBe('rgba(100, 116, 139, 0.2)')
     expect(easiest).toBeUndefined()
   })
 
@@ -69,8 +80,8 @@ describe('getHeatCellStyle', () => {
   })
 
   it.each([
-    ['Tougher', 'rgba(100, 116, 139, 0.3)'],
-    ['Middle', 'rgba(100, 116, 139, 0.15)'],
+    ['Tougher', 'rgba(100, 116, 139, 0.4)'],
+    ['Middle', 'rgba(100, 116, 139, 0.2)'],
   ])('shades the %s schedule bucket as context', (bucket, color) => {
     // Act
     const style = getHeatCellStyle('opp_schedule_bucket', bucket, STATS, 'light', 'classic')

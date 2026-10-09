@@ -211,7 +211,7 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   Rates there. The QB Ratings view, on both pages, also shows raw EPA per dropback and total
   dropbacks (the API's `rating_companions`).
 - The header toggles light, dark, or system theme, and its `Palette` menu offers the default palette
-  (blue accent, green-to-red heat scale) or any team's, shown as a compact grid with one row of four
+  (blue accent, blue-to-orange heat scale) or any team's, shown as a compact grid with one row of four
   teams per division (each team's color chip and abbreviation); it opens at the chosen palette. A
   team palette recolors the accent, chart colors, heat scale, hover and selected backgrounds,
   tooltips, and app logo in the team's colors and marks the top of the header with its two colors;

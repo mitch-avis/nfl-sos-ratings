@@ -117,9 +117,8 @@ NEUTRAL_CHROMA = 0.025
 MAX_ACCENT_SHIFT = 0.15
 # Two hues closer than this many degrees do not separate the ends of a heat scale.
 MIN_HUE_DISTANCE = 30.0
-# The smallest OKLab distance (x100) between the heat scale's two ends. Pale light-mode tints sit
-# near the gamut's edge, so light mode asks for less.
-MIN_HEAT_SEPARATION: dict[Mode, float] = {"light": 4.9, "dark": 8.0}
+# The smallest OKLab distance (x100) between the heat scale's two ends, so the gradient reads.
+MIN_HEAT_SEPARATION: dict[Mode, float] = {"light": 8.0, "dark": 8.0}
 # The smallest OKLab distance (x100) between either heat-scale end and the card, so the best and
 # worst cells never look unshaded.
 MIN_CARD_SEPARATION = 3.0
@@ -165,20 +164,20 @@ ACCENT_SURFACE_CHROMA: dict[Mode, float] = {"light": 0.035, "dark": 0.05}
 HINT_CHROMA: dict[Mode, float] = {"light": 0.03, "dark": 0.045}
 # The hint card's lightness: a little below the card in light mode, a little above it in dark mode.
 HINT_LIGHTNESS: dict[Mode, float] = {"light": 0.965, "dark": 0.25}
-# Heat-scale tints: pale in light mode, deep in dark mode, with a neutral middle.
-HEAT_LIGHTNESS: dict[Mode, float] = {"light": 0.91, "dark": 0.36}
-HEAT_MAX_CHROMA: dict[Mode, float] = {"light": 0.06, "dark": 0.09}
+# Heat-scale tints: light in light mode, deep in dark mode, with a neutral middle.
+HEAT_LIGHTNESS: dict[Mode, float] = {"light": 0.84, "dark": 0.36}
+HEAT_MAX_CHROMA: dict[Mode, float] = {"light": 0.1, "dark": 0.09}
 # The heat scale's neutral middle for team palettes: a cool near-white in light mode, the card in
 # dark mode.
 HEAT_MID: dict[Mode, list[int]] = {"light": [244, 247, 250], "dark": [22, 27, 34]}
 # A muted bad end (a gray of the second color): a little darker than the tints in light mode and a
 # little lighter than the card in dark mode, with at most this much chroma.
-HEAT_MUTED_LIGHTNESS: dict[Mode, float] = {"light": 0.85, "dark": 0.3}
+HEAT_MUTED_LIGHTNESS: dict[Mode, float] = {"light": 0.76, "dark": 0.3}
 HEAT_MUTED_CHROMA = 0.012
 # A team without any hue gets good, middle, and bad lightnesses instead (darker is better in light
 # mode, lighter in dark mode), in its own gray.
 HEAT_LIGHTNESS_SCALE: dict[Mode, tuple[float, float, float]] = {
-    "light": (0.78, 0.89, 0.96),
+    "light": (0.7, 0.88, 0.97),
     "dark": (0.46, 0.33, 0.25),
 }
 WHITE = "#FFFFFF"

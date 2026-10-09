@@ -146,8 +146,8 @@ Informative only; it does not gate anything.
 | Entity | Metric | Pairs | Pearson | Spearman |
 | --- | --- | --- | --- | --- |
 | qb | adj_qb_epa_per_dropback | 601 | 0.455 | 0.441 |
-| qb | qb_any_a | 601 | 0.392 | 0.377 |
-| qb | qb_passer_rating | 601 | 0.464 | 0.469 |
+| qb | qb_any_a | 601 | 0.398 | 0.385 |
+| qb | qb_passer_rating | 601 | 0.460 | 0.460 |
 | team | SRS | 829 | 0.437 | 0.425 |
 | team | team_rating | 829 | 0.434 | 0.427 |
 

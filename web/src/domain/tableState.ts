@@ -100,11 +100,14 @@ export function buildColumnWidths(
   return widths;
 }
 
-// The default palette's heat scale, green to red. Every team palette brings its own
-// (teamPalettes.ts); a palette without one would fall back to this.
+// The default palette's heat scale: blue for better and orange for worse, which readers with
+// red-green color blindness tell apart. Built like the team scales (`team_palettes.py`: OKLCH
+// lightness 0.84 in light mode and 0.36 in dark mode, hues 250 and 55, the team scales' middle),
+// so body text stays readable on every step. Every team palette brings its own (teamPalettes.ts);
+// a palette without one falls back to this.
 const DEFAULT_HEAT: Record<ThemeMode, HeatScale> = {
-  light: { good: [225, 247, 237], bad: [252, 226, 222], mid: [255, 250, 240] },
-  dark: { good: [8, 88, 64], bad: [103, 31, 38], mid: [22, 27, 34] },
+  light: { good: [162, 207, 255], bad: [254, 185, 139], mid: [244, 247, 250] },
+  dark: { good: [14, 63, 106], bad: [95, 46, 0], mid: [22, 27, 34] },
 };
 
 function heatScale(palette: PaletteMode, theme: ThemeMode): HeatScale {
@@ -125,12 +128,14 @@ const CONTEXT_TINT: Record<ThemeMode, readonly [number, number, number]> = {
   light: [100, 116, 139],
   dark: [148, 163, 184],
 }
-const CONTEXT_MAX_ALPHA = 0.3
+// Deeper in light mode, where a pale tint on white is hard to tell apart.
+const CONTEXT_MAX_ALPHA: Record<ThemeMode, number> = { light: 0.4, dark: 0.3 }
 
 function contextShade(theme: ThemeMode, intensity: number): CSSProperties | undefined {
   if (intensity <= 0) return undefined
   const [red, green, blue] = CONTEXT_TINT[theme]
-  return { backgroundColor: `rgba(${red}, ${green}, ${blue}, ${Number((CONTEXT_MAX_ALPHA * intensity).toFixed(3))})` }
+  const alpha = Number((CONTEXT_MAX_ALPHA[theme] * intensity).toFixed(3))
+  return { backgroundColor: `rgba(${red}, ${green}, ${blue}, ${alpha})` }
 }
 
 /** The columns worth shading in a table of single opponents: rates and scores, not raw counts. */
