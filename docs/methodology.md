@@ -103,8 +103,10 @@ placed in the full history the data covers.
 
 ## Quarterback Ratings
 
-Each quarterback-game contributes one row: EPA per dropback, weighted by dropbacks. The fit has
-the same shape, with passers in place of offenses:
+Each quarterback-game contributes one row: EPA per dropback, weighted by dropbacks. A player is a
+quarterback in a season when nflverse lists him at QB in its players file or in any week of that
+season's roster, so a quarterback who also plays another position (Taysom Hill, listed at tight
+end) is rated like any other. The fit has the same shape, with passers in place of offenses:
 
 ```text
 EPA per dropback = league average + passer strength - opposing defense strength + home field
