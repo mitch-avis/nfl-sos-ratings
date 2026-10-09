@@ -8,6 +8,7 @@ from nfl_sos_ratings.qb_rating import (
     compute_qb_faced_pass_defense,
     fit_qb_ratings,
 )
+from nfl_sos_ratings.ridge import UnitPrior
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
     TeamRatingFit,
@@ -96,6 +97,56 @@ def test_team_schedule_strength_at_zero_reproduces_the_published_sos() -> None:
 
     # Assert
     published = compute_team_schedule_strength(logs, season)
+    assert _column(filtered, "sos") == pytest.approx(_column(published, "sos"))
+
+
+# A preseason prior pulling the teams apart, and one per team left out of a schedule refit.
+_PRIOR = UnitPrior(
+    offense={team: 0.01 * index for index, team in enumerate(OFFENSE)},
+    defense={team: -0.01 * index for index, team in enumerate(OFFENSE)},
+)
+_PRIORS_WITHOUT = {
+    left_out: UnitPrior(
+        offense={team: 0.02 for team in OFFENSE if team != left_out},
+        defense={team: 0.0 for team in OFFENSE if team != left_out},
+    )
+    for left_out in OFFENSE
+}
+
+
+def test_team_ratings_at_zero_with_a_prior_reproduce_the_season_fit() -> None:
+    # Arrange
+    bins = team_bins()
+    logs = team_game_logs(bins)
+    season = fit_team_ratings(
+        logs, scrimmage_lambda=LAMBDA, special_teams_lambda=LAMBDA, scrimmage_prior=_PRIOR
+    )
+
+    # Act
+    filtered = TeamWpFilter(logs, bins, season, scrimmage_prior=_PRIOR).ratings(0)
+
+    # Assert
+    for column in TEAM_RATING_COLUMNS:
+        assert _column(filtered, column) == pytest.approx(_column(season.ratings, column))
+
+
+def test_team_schedule_strength_at_zero_with_priors_reproduces_the_published_sos() -> None:
+    # Arrange
+    bins = team_bins()
+    logs = team_game_logs(bins)
+    season = fit_team_ratings(
+        logs, scrimmage_lambda=LAMBDA, special_teams_lambda=LAMBDA, scrimmage_prior=_PRIOR
+    )
+    published = compute_team_schedule_strength(
+        logs, season, prior_without=_PRIORS_WITHOUT.__getitem__
+    )
+
+    # Act
+    filtered = TeamWpFilter(
+        logs, bins, season, scrimmage_prior=_PRIOR, priors_without=_PRIORS_WITHOUT
+    ).ratings(0)
+
+    # Assert
     assert _column(filtered, "sos") == pytest.approx(_column(published, "sos"))
 
 

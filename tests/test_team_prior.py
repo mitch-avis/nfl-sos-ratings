@@ -7,9 +7,10 @@ import numpy as np
 import polars as pl
 import pytest
 
-from nfl_sos_ratings.ridge import UnitPrior
+from nfl_sos_ratings.ridge import UnitPrior, fit_unit_ridge
 from nfl_sos_ratings.team_prior import (
     MIN_CARRYOVER_PAIRS,
+    PRIOR_HORIZON_GAMES,
     CarryoverSlopes,
     PriorHistory,
     SeasonPrior,
@@ -17,10 +18,14 @@ from nfl_sos_ratings.team_prior import (
     fade,
     games_played,
     prior_means,
+    prior_without_team,
+    read_team_prior_table,
     snapshot_fit,
+    snapshot_prior,
     snapshot_ratings,
+    team_prior_table,
 )
-from nfl_sos_ratings.team_rating import fit_team_ratings
+from nfl_sos_ratings.team_rating import TEAM_UNIT_COLUMNS, fit_team_ratings, scrimmage_rows
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -507,3 +512,186 @@ def test_snapshot_fit_without_a_prior_has_no_means() -> None:
 
     # Assert
     assert means is None
+
+
+def _flat_season(weeks: int) -> pl.DataFrame:
+    """Return the first ``weeks`` weeks of a season of average teams."""
+    zero = dict.fromkeys(_TEAMS, 0.0)
+    return _season_logs(zero, zero).filter(pl.col("week") <= weeks)
+
+
+def _spread_prior() -> SeasonPrior:
+    """Return a prior whose previous-season effects differ team by team."""
+    return _season_prior(
+        {team: 0.01 * index for index, team in enumerate(_TEAMS)},
+        {team: -0.005 * index for index, team in enumerate(_TEAMS)},
+        slope=0.7,
+    )
+
+
+def test_snapshot_prior_fades_and_centers_by_the_games_played_so_far() -> None:
+    # Arrange
+    games = _flat_season(3)
+    expected = prior_means(
+        _spread_prior(), games_played(games, _TEAMS), PRIOR_HORIZON_GAMES, sorted(_TEAMS)
+    )
+
+    # Act
+    prior = snapshot_prior(_spread_prior(), games)
+
+    # Assert
+    assert prior == expected
+
+
+def test_snapshot_prior_is_gone_once_every_team_reaches_the_horizon() -> None:
+    # Arrange
+    games = _flat_season(int(PRIOR_HORIZON_GAMES))
+
+    # Act
+    prior = snapshot_prior(_spread_prior(), games)
+
+    # Assert
+    assert prior is None
+
+
+def test_snapshot_prior_without_a_season_prior_is_none() -> None:
+    # Act
+    prior = snapshot_prior(None, _flat_season(2))
+
+    # Assert
+    assert prior is None
+
+
+def test_season_prior_without_a_team_refits_the_previous_season_without_its_games() -> None:
+    # Arrange
+    league, _ = _carryover_league(5, 0.7, spread=0.05, noise=0.3, seed=2)
+    history = _history(league)
+    others = league[2003].filter((pl.col("team") != "AAA") & (pl.col("opponent_team") != "AAA"))
+    expected = fit_unit_ridge(
+        scrimmage_rows(others),
+        TEAM_UNIT_COLUMNS,
+        ridge_lambda=history.penalties(2003).scrimmage_lambda,
+    )
+    full = history.season_prior(2004)
+
+    # Act
+    prior = history.season_prior_without(2004, "AAA")
+
+    # Assert
+    assert prior is not None
+    assert full is not None
+    assert (prior.offense, prior.defense) == (expected.offense, expected.defense)
+    assert "AAA" not in prior.offense
+    assert prior.slopes == full.slopes
+
+
+def test_season_prior_without_a_team_ignores_that_teams_previous_games() -> None:
+    # Arrange
+    league, _ = _carryover_league(5, 0.7, spread=0.05, noise=0.3, seed=2)
+    changed = dict(league)
+    changed[2003] = league[2003].with_columns(
+        pl.when(pl.col("team") == "AAA")
+        .then(pl.col("offensive_epa") + 30.0)
+        .otherwise(pl.col("offensive_epa"))
+        .alias("offensive_epa")
+    )
+    expected = _history(league).season_prior_without(2004, "AAA")
+    history = PriorHistory(changed.__getitem__, first_season=2000)
+
+    # Act
+    prior = history.season_prior_without(2004, "AAA")
+
+    # Assert
+    assert prior is not None
+    assert expected is not None
+    assert (prior.offense, prior.defense) == (expected.offense, expected.defense)
+
+
+def test_season_prior_without_a_team_before_enough_pairs_is_none() -> None:
+    # Arrange
+    league, _ = _carryover_league(4, 0.7, spread=0.05, noise=0.3, seed=2)
+
+    # Act
+    prior = _history(league).season_prior_without(2003, "AAA")
+
+    # Assert
+    assert prior is None
+
+
+def test_prior_without_team_fades_opponents_by_their_snapshot_games() -> None:
+    """An opponent's fade counts its game against the left-out team, who leaves the centering."""
+    # Arrange
+    league, _ = _carryover_league(5, 0.7, spread=0.05, noise=0.3, seed=2)
+    history = _history(league)
+    games = league[2004].filter(pl.col("week") <= 3)
+    others = games.filter((pl.col("team") != "AAA") & (pl.col("opponent_team") != "AAA"))
+    expected = snapshot_prior(
+        history.season_prior_without(2004, "AAA"),
+        others,
+        games=games_played(games, _TEAMS),
+    )
+
+    # Act
+    prior = prior_without_team(history, 2004, games)("AAA")
+
+    # Assert
+    assert prior == expected
+    assert prior is not None
+    assert "AAA" not in prior.offense
+    assert sum(prior.offense.values()) == pytest.approx(0.0, abs=1e-12)
+
+
+def test_prior_without_team_is_none_when_no_other_game_remains() -> None:
+    # Arrange
+    league, _ = _carryover_league(5, 0.7, spread=0.05, noise=0.3, seed=2)
+    first_game = league[2004].filter(pl.col("game_id") == league[2004].get_column("game_id")[0])
+    team = str(first_game.get_column("team")[0])
+
+    # Act
+    prior = prior_without_team(_history(league), 2004, first_game)(team)
+
+    # Assert
+    assert prior is None
+
+
+def test_team_prior_table_lists_the_season_means_and_each_left_out_teams() -> None:
+    # Arrange
+    season_means = UnitPrior(offense={"AAA": 0.01, "BBB": -0.01}, defense={"AAA": 0.0, "BBB": 0.0})
+    without = {
+        "AAA": UnitPrior(offense={"BBB": 0.0}, defense={"BBB": 0.0}),
+        "BBB": None,
+    }
+
+    # Act
+    table = team_prior_table(season_means, without.__getitem__, ["AAA", "BBB"])
+
+    # Assert
+    assert table.rows() == [
+        (None, "AAA", 0.01, 0.0),
+        (None, "BBB", -0.01, 0.0),
+        ("AAA", "BBB", 0.0, 0.0),
+    ]
+    assert read_team_prior_table(table) == (season_means, {"AAA": without["AAA"]})
+
+
+def test_team_prior_table_without_a_prior_is_empty() -> None:
+    # Act
+    table = team_prior_table(None, None, ["AAA"])
+
+    # Assert
+    assert table.is_empty()
+    assert table.columns == ["excluded_team", "team", "offense_prior", "defense_prior"]
+    assert read_team_prior_table(table) == (None, {})
+
+
+def test_season_prior_without_a_team_is_built_once() -> None:
+    # Arrange
+    league, _ = _carryover_league(5, 0.7, spread=0.05, noise=0.3, seed=2)
+    history = _history(league)
+    first = history.season_prior_without(2004, "AAA")
+
+    # Act
+    second = history.season_prior_without(2004, "AAA")
+
+    # Assert
+    assert second is first

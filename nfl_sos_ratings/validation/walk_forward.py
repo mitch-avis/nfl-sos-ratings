@@ -39,10 +39,10 @@ from nfl_sos_ratings.config import DATA_DIR, END_YEAR, START_YEAR
 from nfl_sos_ratings.data_loader import PBP_START_SEASON, load_espn_qbr
 from nfl_sos_ratings.logger import configure_logging
 from nfl_sos_ratings.srs import solve_srs
+from nfl_sos_ratings.team_prior import PRIOR_HORIZON_GAMES, PriorHistory, SeasonPrior, snapshot_fit
 from nfl_sos_ratings.team_rating import (
     TeamRatingFit,
     fit_team_ratings,
-    fit_team_ratings_with_previous_penalties,
 )
 from nfl_sos_ratings.validation.report import ValidationReportInputs, write_validation_report
 
@@ -248,19 +248,24 @@ def _raw_epa_snapshot(prior_games: pl.DataFrame) -> pl.DataFrame:
 
 
 def build_team_rating_feature_rows(
-    game_logs: pl.DataFrame, season: int, previous: TeamRatingFit | None
+    game_logs: pl.DataFrame,
+    season: int,
+    previous: TeamRatingFit | None,
+    season_prior: SeasonPrior | None = None,
 ) -> pl.DataFrame:
     """Build walk-forward rows from week-by-week snapshots of the published team rating.
 
     ``previous`` is the previous season's full-season fit, whose penalties every snapshot reuses,
-    or ``None`` for the first play-by-play season.
+    or ``None`` for the first play-by-play season. ``season_prior`` is the season's preseason prior
+    (``team_prior``), or ``None`` for none: each snapshot then shrinks toward the means faded by
+    the games played before the week, and a team without a game yet rates at its prior.
     """
+    teams = sorted(game_logs.get_column("team").unique().to_list())
 
     def snapshot(prior_games: pl.DataFrame) -> pl.DataFrame:
         """Return the published team rating fit on the pre-week games."""
-        return fit_team_ratings_with_previous_penalties(prior_games, previous).ratings.select(
-            "team", pl.col("team_rating").alias("rating")
-        )
+        ratings, _ = snapshot_fit(prior_games, teams, previous, season_prior, PRIOR_HORIZON_GAMES)
+        return ratings.select("team", pl.col("team_rating").alias("rating"))
 
     return build_snapshot_feature_rows(game_logs, season, TEAM_RATING_BASELINE, snapshot)
 
@@ -575,15 +580,28 @@ def run_walk_forward_backtest(
     seasons: Sequence[int],
     start_week: int = 5,
     elo_config: EloConfig | None = None,
+    *,
+    team_prior: bool = True,
 ) -> pl.DataFrame:
-    """Return walk-forward predictions for every baseline across the requested seasons."""
+    """Return walk-forward predictions for every baseline across the requested seasons.
+
+    The team rating's snapshots take the published preseason prior, which reads every season's
+    game logs from ``data_dir`` since the first play-by-play season; ``team_prior=False`` rates
+    them without it, as the published rating did before the prior (the prior check's baseline).
+    """
+    history = (
+        PriorHistory(lambda season: pl.read_parquet(data_dir / f"{season}_team_game_logs.parquet"))
+        if team_prior
+        else None
+    )
     feature_frames: list[pl.DataFrame] = []
     for season in sorted(seasons):
         game_logs = pl.read_parquet(data_dir / f"{season}_team_game_logs.parquet")
         previous = previous_season_fit(data_dir, season)
+        season_prior = None if history is None else history.season_prior(season)
         feature_frames.extend(
             [
-                build_team_rating_feature_rows(game_logs, season, previous),
+                build_team_rating_feature_rows(game_logs, season, previous, season_prior),
                 build_srs_feature_rows(game_logs, season),
                 build_raw_epa_feature_rows(game_logs, season),
                 build_elo_feature_rows(build_home_game_frame(game_logs, season), config=elo_config),

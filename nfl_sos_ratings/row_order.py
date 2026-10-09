@@ -19,6 +19,7 @@ PUBLISHED_ROW_ORDER: dict[str, tuple[tuple[str, bool], ...]] = {
     "qb_ratings": (("adj_qb_epa_per_dropback", True), ("qb_id", False)),
     "rating_ranges": (("team_rank", False), ("team", False)),
     "qb_rating_ranges": (("qb_rank", False), ("qb_id", False)),
+    "team_prior": (("excluded_team", False), ("team", False)),
 }
 ROW_IDENTITY_KEYS = ("qb_id", "team")
 ROW_EVENT_KEYS = ("week", "game_id")

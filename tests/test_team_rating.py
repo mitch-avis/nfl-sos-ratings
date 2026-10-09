@@ -447,3 +447,111 @@ def test_fit_team_ratings_scrimmage_prior_needs_a_fixed_penalty() -> None:
     # Act & Assert
     with pytest.raises(ValueError, match="fixed penalty"):
         fit_team_ratings(_game_logs(), scrimmage_prior=UnitPrior(offense={}, defense={}))
+
+
+# A prior that pulls the first four teams' scrimmage effects apart.
+_PRIOR = UnitPrior(
+    offense={"AAA": 0.04, "BBB": -0.04, "CCC": 0.01, "DDD": -0.01},
+    defense={"AAA": 0.02, "BBB": -0.02, "CCC": 0.0, "DDD": 0.0},
+)
+
+
+def test_fit_team_ratings_with_previous_penalties_takes_the_scrimmage_prior() -> None:
+    # Arrange
+    previous = fit_team_ratings(_game_logs(), scrimmage_lambda=40.0, special_teams_lambda=20.0)
+    expected = fit_team_ratings(
+        _game_logs(), scrimmage_lambda=40.0, special_teams_lambda=20.0, scrimmage_prior=_PRIOR
+    )
+
+    # Act
+    fit = fit_team_ratings_with_previous_penalties(_game_logs(), previous, scrimmage_prior=_PRIOR)
+
+    # Assert
+    assert fit.ratings.equals(expected.ratings)
+
+
+def test_team_rating_resampler_with_a_prior_matches_a_prior_fit_on_duplicated_games() -> None:
+    # Arrange
+    game_logs = _game_logs()
+    fit = fit_team_ratings(
+        game_logs, scrimmage_lambda=40.0, special_teams_lambda=20.0, scrimmage_prior=_PRIOR
+    )
+    resampler = TeamRatingResampler(game_logs, fit, scrimmage_prior=_PRIOR)
+    counts = np.array([(index * 5) % 3 for index in range(len(resampler.game_ids))])
+    expected = fit_team_ratings(
+        _duplicated(game_logs, resampler.game_ids, counts),
+        scrimmage_lambda=40.0,
+        special_teams_lambda=20.0,
+        scrimmage_prior=_PRIOR,
+    ).ratings.sort("team")
+
+    # Act
+    ratings = resampler.ratings(counts).sort("team")
+
+    # Assert
+    assert ratings.get_column("team_rating").to_list() == pytest.approx(
+        expected.get_column("team_rating").to_list()
+    )
+
+
+def test_bootstrap_team_ratings_keep_the_snapshots_prior_in_every_draw() -> None:
+    """At a huge penalty every draw rates each offense at its prior, however often it is drawn."""
+    # Arrange
+    fit = fit_team_ratings(
+        _game_logs(), scrimmage_lambda=1e12, special_teams_lambda=20.0, scrimmage_prior=_PRIOR
+    )
+
+    # Act
+    draws = bootstrap_team_ratings(_game_logs(), fit, resamples=3, seed=2, scrimmage_prior=_PRIOR)
+
+    # Assert
+    offense = draws.filter(pl.col("team") == "AAA").get_column("offense_rating").to_list()
+    assert offense == pytest.approx([0.04 * _SCRIMMAGE_PLAYS] * 3, abs=1e-6)
+
+
+def test_fit_team_ratings_by_week_fits_each_week_with_that_weeks_prior() -> None:
+    # Arrange
+    game_logs = _game_logs(_PARTIAL)
+    season_fit = fit_team_ratings(game_logs, scrimmage_lambda=10.0, special_teams_lambda=20.0)
+    seen: list[int] = []
+
+    def prior_for(games: pl.DataFrame) -> UnitPrior:
+        seen.append(games.get_column("week").n_unique())
+        return _PRIOR
+
+    through_week_nine = game_logs.filter(pl.col("week") <= 9)
+    expected = fit_team_ratings(
+        through_week_nine,
+        scrimmage_lambda=10.0,
+        special_teams_lambda=20.0,
+        scrimmage_prior=_PRIOR,
+    ).ratings
+
+    # Act
+    history = fit_team_ratings_by_week(game_logs, season_fit, prior_for=prior_for)
+
+    # Assert
+    week_nine = history.filter(pl.col("week") == 9).select(expected.columns)
+    assert week_nine.sort("team").equals(expected.sort("team"))
+    assert seen == list(range(1, game_logs.get_column("week").n_unique() + 1))
+
+
+def test_compute_team_schedule_strength_refits_with_the_prior_left_without_the_team() -> None:
+    """At a huge penalty each opponent rates at its prior from the refit without the team."""
+    # Arrange
+    game_logs = _game_logs()
+    fit = fit_team_ratings(game_logs, scrimmage_lambda=1e12, special_teams_lambda=1e12)
+    asked: list[str] = []
+
+    def prior_without(team: str) -> UnitPrior:
+        asked.append(team)
+        return UnitPrior(offense={"BBB": 0.04}, defense={"BBB": -0.01})
+
+    # Act
+    sos = compute_team_schedule_strength(game_logs, fit, prior_without=prior_without)
+
+    # Assert
+    aaa = float(sos.filter(pl.col("team") == "AAA").get_column("sos").item())
+    # AAA's opponents: BBB (prior offense 0.04, defense -0.01), CCC and DDD (prior zero).
+    assert aaa == pytest.approx((0.04 - 0.01) * _SCRIMMAGE_PLAYS / 3, abs=1e-4)
+    assert sorted(asked) == ["AAA", "BBB", "CCC", "DDD"]

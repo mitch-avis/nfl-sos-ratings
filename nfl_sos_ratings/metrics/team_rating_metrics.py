@@ -29,6 +29,10 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         source="D",
         since=1999,
         formula="Offense Rating + Defense Rating + Special Teams Rating",
+        note=(
+            "Until a team has played 9 games, its offense and defense also lean on last season's "
+            "(Offense Prior and Defense Prior), a little less after each game."
+        ),
     ),
     _ratings(
         name="offense_rating",
@@ -47,6 +51,10 @@ RATING_METRICS: tuple[MetricDef, ...] = (
             "Opponent-adjusted EPA per scrimmage play above average x league-average scrimmage "
             "plays per team-game"
         ),
+        note=(
+            "Until a team has played 9 games, its offense and defense also lean on last season's "
+            "(Offense Prior and Defense Prior), a little less after each game."
+        ),
     ),
     _ratings(
         name="defense_rating",
@@ -63,6 +71,10 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         formula=(
             "Opponent-adjusted EPA per scrimmage play prevented x league-average scrimmage plays "
             "per team-game"
+        ),
+        note=(
+            "Until a team has played 9 games, its offense and defense also lean on last season's "
+            "(Offense Prior and Defense Prior), a little less after each game."
         ),
     ),
     _ratings(
@@ -196,6 +208,55 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         denominator="bootstrap resamples",
         since=1999,
         percent=True,
+    ),
+    _ratings(
+        name="excluded_team",
+        label="Left-Out Team",
+        full_name="Team Left Out of the Refit",
+        description=(
+            "For a schedule-strength refit, the team whose games are left out, this season's and "
+            "last season's; blank for the season fit itself."
+        ),
+        shape="id",
+        polarity="neutral",
+        source="D",
+        since=2003,
+    ),
+    _ratings(
+        name="offense_prior",
+        label="Offense Prior",
+        full_name="Preseason Prior: Offense",
+        description=(
+            "The per-play offense value the early-season fit pulls this team toward instead of "
+            "average: its offense last season times how much of it usually carries over, fading "
+            "to nothing by its 9th game. 0 once the team has played 9 games."
+        ),
+        shape="score",
+        polarity="neutral",
+        source="D",
+        since=2003,
+        formula=(
+            "max(0, 1 - games played / 9) x carryover slope x last season's per-play offense "
+            "effect, minus the league average of the same"
+        ),
+    ),
+    _ratings(
+        name="defense_prior",
+        label="Defense Prior",
+        full_name="Preseason Prior: Defense",
+        description=(
+            "The per-play defense value the early-season fit pulls this team toward instead of "
+            "average: its defense last season times how much of it usually carries over, fading "
+            "to nothing by its 9th game. 0 once the team has played 9 games."
+        ),
+        shape="score",
+        polarity="neutral",
+        source="D",
+        since=2003,
+        formula=(
+            "max(0, 1 - games played / 9) x carryover slope x last season's per-play defense "
+            "effect, minus the league average of the same"
+        ),
     ),
 )
 

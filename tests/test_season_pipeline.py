@@ -4,6 +4,7 @@ import io
 import itertools
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
@@ -12,6 +13,7 @@ from nfl_sos_ratings import main
 from nfl_sos_ratings.pooled_rates import denominator_column, is_rate_part, numerator_column
 from nfl_sos_ratings.qb_stats import CPOE_COLUMN
 from nfl_sos_ratings.row_order import data_file_row_order
+from nfl_sos_ratings.team_prior import read_team_prior_table
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
     TeamRatingFit,
@@ -20,6 +22,9 @@ from nfl_sos_ratings.team_rating import (
 )
 from nfl_sos_ratings.team_stats import add_per_snap_rates
 from tests.stubs import stub
+
+if TYPE_CHECKING:
+    from nfl_sos_ratings.ridge import UnitPrior
 
 _TEAMS = ("BUF", "MIA", "NE", "NYJ")
 _STRENGTH = {"BUF": 0.08, "MIA": -0.02, "NE": 0.04, "NYJ": -0.10}
@@ -542,9 +547,16 @@ def _recording_previous_fits(
     """Record the previous-season fit ``run_season`` passes to the team fit; behavior is real."""
     seen: list[TeamRatingFit | None] = []
 
-    def recording(game_logs: pl.DataFrame, previous: TeamRatingFit | None) -> TeamRatingFit:
+    def recording(
+        game_logs: pl.DataFrame,
+        previous: TeamRatingFit | None,
+        *,
+        scrimmage_prior: UnitPrior | None = None,
+    ) -> TeamRatingFit:
         seen.append(previous)
-        return fit_team_ratings_with_previous_penalties(game_logs, previous)
+        return fit_team_ratings_with_previous_penalties(
+            game_logs, previous, scrimmage_prior=scrimmage_prior
+        )
 
     monkeypatch.setattr(main, "fit_team_ratings_with_previous_penalties", recording)
     return seen
@@ -585,9 +597,10 @@ def test_run_season_fits_teams_with_the_previous_seasons_penalties(
     assert previous.ratings.equals(fit_team_ratings(previous_logs).ratings)
 
 
-def test_run_season_loads_a_previous_season_missing_from_data(
+def test_run_season_loads_each_earlier_season_missing_from_data_once(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """The penalties need the previous season and the prior's slopes every season before."""
     # Arrange
     loaded = _patch_loaders(monkeypatch, tmp_path)
 
@@ -595,7 +608,7 @@ def test_run_season_loads_a_previous_season_missing_from_data(
     main.run_season(2025)
 
     # Assert
-    assert sorted(loaded) == [2024, 2025]
+    assert sorted(loaded) == list(range(1999, 2026))
 
 
 def test_run_season_first_play_by_play_season_cross_validates(
@@ -881,3 +894,58 @@ def test_run_season_pools_a_season_rate_over_the_teams_games(season_outputs: Pat
     assert dict(season.select("team", "points_per_offensive_snap").rows()) == pytest.approx(
         expected
     )
+
+
+def test_run_season_publishes_the_fit_with_the_prior_means_it_writes(
+    season_outputs: Path,
+) -> None:
+    """Every team has played 6 games, under the 9 that fade the prior out, so the prior counts."""
+    # Arrange
+    season_means, without = read_team_prior_table(
+        pl.read_parquet(season_outputs / "2025_team_prior.parquet")
+    )
+    assert season_means is not None
+    previous = fit_team_ratings(main._build_team_game_logs(_weekly_df()))
+    expected = fit_team_ratings_with_previous_penalties(
+        _weekly_df(), previous, scrimmage_prior=season_means
+    ).ratings.sort("team")
+
+    # Act
+    published = pl.read_parquet(season_outputs / "2025_ratings.parquet").sort("team")
+
+    # Assert
+    assert sorted(season_means.offense) == sorted(_TEAMS)
+    assert sorted(without) == sorted(_TEAMS)
+    for column in TEAM_RATING_COLUMNS:
+        assert published.get_column(column).to_list() == pytest.approx(
+            expected.get_column(column).to_list()
+        )
+
+
+def test_run_season_writes_no_prior_means_for_a_season_without_a_prior(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The carryover slopes need three earlier season pairs, so 2002 has no prior."""
+    # Arrange
+    _patch_loaders(monkeypatch, tmp_path)
+
+    # Act
+    main.run_season(2002)
+
+    # Assert
+    assert pl.read_parquet(tmp_path / "2002_team_prior.parquet").is_empty()
+
+
+def test_seasons_built_in_one_data_directory_share_one_prior_history(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A pipeline run fits each earlier season once, not once per season it builds."""
+    # Arrange
+    monkeypatch.setattr(main, "DATA_DIR", str(tmp_path))
+    first = main._prior_history()
+
+    # Act
+    second = main._prior_history()
+
+    # Assert
+    assert second is first
