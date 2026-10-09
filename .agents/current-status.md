@@ -53,21 +53,23 @@ history (the composite-rating era and its experiments) is in git, before commit 
   QB ratings files only `qb_attempts_total` for one passer in 2001 and one in 2002. The validation
   rerun is in the snapshot below. `.venv/bin/pytest -m published_data` passes on the rebuilt data.
 
+## Approved and in progress (maintainer answers of 2026-10-08)
+
+1. Preseason prior at 9 games: adopt it. Needs the in-season refits (rank ranges, and head-to-head
+   `sos` from a previous-season refit without the evaluated team), then a `data/` rebuild and a
+   validation rerun (roadmap P6).
+2. Default heat scale blue to orange, and deeper light-mode shading in every palette (U17).
+3. QB rating from all of a quarterback's plays (scrambles and designed runs, not only dropbacks):
+   write the pre-registered protocol first (roadmap "Data notes"); adoption is the maintainer's.
+4. The garbage-time filter, kept but more compact.
+5. A plan for bringing this app's features into nfl-predictor (heads-up; nothing done there).
+
 ## Decisions waiting for the maintainer
 
-1. Preseason prior: adopt it at 9 games, the pre-registered rule's recommendation (roadmap P6, with
-   the command and every interval)? Adoption needs the in-season refits (rank ranges, and
-   head-to-head `sos` from a previous-season refit without the evaluated team), then a `data/`
-   rebuild and a validation rerun, each ask-first.
-2. Default heat scale (U17): blue to orange instead of green to red (a mock comparison was shared
-   on 2026-10-08).
-3. QB dropbacks and scrambles (roadmap, "Data notes"): a published-rating change that needs its
-   own protocol.
-5. Smaller open items in the roadmap's "Data notes", each a `data/` change: the extra-point drive
-   after a return touchdown, the near-duplicate
-   yards-per-snap columns, `opp_longest_*` averaging per-game maxima, `fourth_down_aggressiveness`
-   at 2.0 in two 2000 games, play-by-play as a 2003-2011 source for tackles for loss, and
-   kneel-downs under-recorded in 2000 and 2001.
+1. Smaller open items in the roadmap's "Data notes", each a `data/` change: the extra-point drive
+   after a return touchdown, the near-duplicate yards-per-snap columns, `opp_longest_*` averaging
+   per-game maxima, `fourth_down_aggressiveness` at 2.0 in two 2000 games, play-by-play as a
+   2003-2011 source for tackles for loss, and kneel-downs under-recorded in 2000 and 2001.
 
 ## State before 2026-10-08
 
