@@ -2,21 +2,30 @@
 
 import io
 import itertools
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
+from polars.testing import assert_frame_equal
 
 from nfl_sos_ratings import main
 from nfl_sos_ratings.pooled_rates import denominator_column, is_rate_part, numerator_column
 from nfl_sos_ratings.qb_stats import CPOE_COLUMN
 from nfl_sos_ratings.row_order import data_file_row_order
-from nfl_sos_ratings.team_prior import read_team_prior_table
+from nfl_sos_ratings.team_prior import (
+    PriorHistory,
+    SeasonPrior,
+    prior_without_team,
+    snapshot_prior,
+    team_prior_table,
+)
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
     TeamRatingFit,
+    compute_team_schedule_strength,
     fit_team_ratings,
     fit_team_ratings_with_previous_penalties,
 )
@@ -896,30 +905,113 @@ def test_run_season_pools_a_season_rate_over_the_teams_games(season_outputs: Pat
     )
 
 
-def test_run_season_publishes_the_fit_with_the_prior_means_it_writes(
-    season_outputs: Path,
-) -> None:
-    """Every team has played 6 games, under the 9 that fade the prior out, so the prior counts."""
-    # Arrange
-    season_means, without = read_team_prior_table(
-        pl.read_parquet(season_outputs / "2025_team_prior.parquet")
+@dataclass(frozen=True, slots=True)
+class _PriorInputs:
+    """What the 2025 build's prior should be, rebuilt by direct calls on the synthetic league."""
+
+    history: PriorHistory
+    season_prior: SeasonPrior | None
+    means: UnitPrior | None
+    fit: TeamRatingFit
+
+
+def _prior_inputs() -> _PriorInputs:
+    """Return the 2025 prior inputs the pipeline should use: every earlier season is the league.
+
+    Every team has played 6 games, under the 9 that fade the prior out, so the prior counts.
+    """
+    history = PriorHistory(lambda _season: main._build_team_game_logs(_weekly_df()))
+    season_prior = history.season_prior(2025)
+    means = snapshot_prior(season_prior, _weekly_df())
+    fit = fit_team_ratings_with_previous_penalties(
+        _weekly_df(), history.penalties(2025), scrimmage_prior=means
     )
-    assert season_means is not None
-    previous = fit_team_ratings(main._build_team_game_logs(_weekly_df()))
-    expected = fit_team_ratings_with_previous_penalties(
-        _weekly_df(), previous, scrimmage_prior=season_means
-    ).ratings.sort("team")
+    return _PriorInputs(history, season_prior, means, fit)
+
+
+def _sorted(frame: pl.DataFrame) -> pl.DataFrame:
+    """Return ``frame`` sorted by its identity columns, for comparisons free of row order."""
+    keys = [key for key in ("week", "team", "other_team", "excluded_team") if key in frame.columns]
+    return frame.sort(keys, nulls_last=True)
+
+
+def test_run_season_publishes_the_season_fit_with_the_prior(season_outputs: Path) -> None:
+    # Arrange
+    expected = _prior_inputs().fit.ratings
 
     # Act
-    published = pl.read_parquet(season_outputs / "2025_ratings.parquet").sort("team")
+    published = pl.read_parquet(season_outputs / "2025_ratings.parquet")
 
     # Assert
-    assert sorted(season_means.offense) == sorted(_TEAMS)
-    assert sorted(without) == sorted(_TEAMS)
-    for column in TEAM_RATING_COLUMNS:
-        assert published.get_column(column).to_list() == pytest.approx(
-            expected.get_column(column).to_list()
-        )
+    assert_frame_equal(
+        _sorted(published.select(expected.columns)), _sorted(expected), check_exact=False
+    )
+
+
+def test_run_season_writes_the_prior_means_its_fits_used(season_outputs: Path) -> None:
+    # Arrange
+    inputs = _prior_inputs()
+    expected = team_prior_table(
+        inputs.means,
+        prior_without_team(inputs.history, 2025, _weekly_df()),
+        sorted(_TEAMS),
+    )
+
+    # Act
+    written = pl.read_parquet(season_outputs / "2025_team_prior.parquet")
+
+    # Assert
+    assert inputs.means is not None
+    assert_frame_equal(_sorted(written), _sorted(expected), check_exact=False)
+
+
+def test_run_season_refits_schedule_strength_with_the_left_out_teams_priors(
+    season_outputs: Path,
+) -> None:
+    # Arrange
+    inputs = _prior_inputs()
+    prior_without = prior_without_team(inputs.history, 2025, _weekly_df())
+    expected = compute_team_schedule_strength(_weekly_df(), inputs.fit, prior_without=prior_without)
+    without_prior = compute_team_schedule_strength(_weekly_df(), inputs.fit)
+
+    # Act
+    published = pl.read_parquet(season_outputs / "2025_ratings.parquet").select("team", "sos")
+
+    # Assert
+    assert_frame_equal(_sorted(published), _sorted(expected), check_exact=False)
+    assert not _sorted(published).equals(_sorted(without_prior))
+
+
+def test_run_season_resamples_with_the_season_fits_prior(season_outputs: Path) -> None:
+    # Arrange
+    inputs = _prior_inputs()
+    ranges, pairs = main.build_team_rank_summaries(_weekly_df(), inputs.fit, inputs.means)
+    plain_ranges, _ = main.build_team_rank_summaries(_weekly_df(), inputs.fit)
+
+    # Act
+    written_ranges = pl.read_parquet(season_outputs / "2025_rating_ranges.parquet")
+    written_pairs = pl.read_parquet(season_outputs / "2025_rating_pairs.parquet")
+
+    # Assert
+    assert_frame_equal(_sorted(written_ranges), _sorted(ranges), check_exact=False)
+    assert_frame_equal(_sorted(written_pairs), _sorted(pairs), check_exact=False)
+    assert not _sorted(written_ranges).equals(_sorted(plain_ranges))
+
+
+def test_run_season_weekly_rank_ranges_take_each_weeks_prior(
+    current_season_outputs: Path,
+) -> None:
+    # Arrange
+    inputs = _prior_inputs()
+    expected = main.build_team_rank_ranges_by_week(_weekly_df(), inputs.fit, inputs.season_prior)
+    plain = main.build_team_rank_ranges_by_week(_weekly_df(), inputs.fit)
+
+    # Act
+    written = pl.read_parquet(current_season_outputs / "2025_rating_ranges_by_week.parquet")
+
+    # Assert
+    assert_frame_equal(_sorted(written), _sorted(expected), check_exact=False)
+    assert not _sorted(written).equals(_sorted(plain))
 
 
 def test_run_season_writes_no_prior_means_for_a_season_without_a_prior(

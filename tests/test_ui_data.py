@@ -15,7 +15,11 @@ from nfl_sos_ratings.rating_ranges import (
 )
 from nfl_sos_ratings.ridge import UnitPrior
 from nfl_sos_ratings.team_prior import team_prior_table
-from nfl_sos_ratings.team_rating import fit_team_ratings, fit_team_ratings_with_previous_penalties
+from nfl_sos_ratings.team_rating import (
+    compute_team_schedule_strength,
+    fit_team_ratings,
+    fit_team_ratings_with_previous_penalties,
+)
 from nfl_sos_ratings.ui_data import (
     MissingEntityRowsError,
     MissingSeasonContractError,
@@ -621,8 +625,20 @@ def test_team_wp_ratings_at_zero_reproduce_ratings_published_with_a_prior(
     published.ratings.select("team", "team_rating").write_parquet(
         tmp_path / f"{_WP_SEASON}_ratings.parquet"
     )
-    team_prior_table(prior, None, teams).write_parquet(
+    priors_without = {
+        left_out: UnitPrior(
+            offense={team: 0.01 for team in teams if team != left_out},
+            defense={team: -0.01 * index for index, team in enumerate(teams) if team != left_out},
+        )
+        for left_out in teams
+    }
+    team_prior_table(prior, priors_without.__getitem__, teams).write_parquet(
         tmp_path / f"{_WP_SEASON}_team_prior.parquet"
+    )
+    sos = dict(
+        compute_team_schedule_strength(logs, published, prior_without=priors_without.__getitem__)
+        .select("team", "sos")
+        .iter_rows()
     )
 
     # Act
@@ -632,6 +648,9 @@ def test_team_wp_ratings_at_zero_reproduce_ratings_published_with_a_prior(
     rows = payload["rows"]
     assert [row["filtered_team_rating"] for row in rows] == pytest.approx(
         [row["team_rating"] for row in rows]
+    )
+    assert [row["filtered_sos"] for row in rows] == pytest.approx(
+        [sos[str(row["team"])] for row in rows]
     )
 
 

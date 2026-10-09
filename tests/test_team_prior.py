@@ -671,7 +671,19 @@ def test_team_prior_table_lists_the_season_means_and_each_left_out_teams() -> No
         (None, "BBB", -0.01, 0.0),
         ("AAA", "BBB", 0.0, 0.0),
     ]
-    assert read_team_prior_table(table) == (season_means, {"AAA": without["AAA"]})
+
+
+def test_read_team_prior_table_returns_the_means_it_was_built_from() -> None:
+    # Arrange
+    season_means = UnitPrior(offense={"AAA": 0.01, "BBB": -0.01}, defense={"AAA": 0.0, "BBB": 0.0})
+    without_aaa = UnitPrior(offense={"BBB": 0.0}, defense={"BBB": 0.0})
+    table = team_prior_table(season_means, {"AAA": without_aaa, "BBB": None}.__getitem__, ["AAA"])
+
+    # Act
+    means = read_team_prior_table(table)
+
+    # Assert
+    assert means == (season_means, {"AAA": without_aaa})
 
 
 def test_team_prior_table_without_a_prior_is_empty() -> None:
@@ -681,7 +693,17 @@ def test_team_prior_table_without_a_prior_is_empty() -> None:
     # Assert
     assert table.is_empty()
     assert table.columns == ["excluded_team", "team", "offense_prior", "defense_prior"]
-    assert read_team_prior_table(table) == (None, {})
+
+
+def test_read_team_prior_table_of_an_empty_table_has_no_means() -> None:
+    # Arrange
+    table = team_prior_table(None, None, ["AAA"])
+
+    # Act
+    means = read_team_prior_table(table)
+
+    # Assert
+    assert means == (None, {})
 
 
 def test_season_prior_without_a_team_is_built_once() -> None:
