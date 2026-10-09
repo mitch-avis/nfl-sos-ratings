@@ -504,6 +504,16 @@ threshold is a cumulative sum and the API refits on demand with the weighted eng
   while the page's scripts kept answering at once; it did not recur. The filtered QB table now
   shows each QB's team in its own column, as the main QB table does (pull request after #5).
 
+### WP3 follow-up: compact filter (2026-10-08)
+
+The maintainer could not find the folded exploration section at the end of each page and found it
+too large; they want the filter kept, smaller. Done on `feat/compact-wp-filter`: the filter is one
+toolbar button with a popover (slider, what it keeps, the exploration note, "Count every play"); at
+a non-zero threshold the index table's Ratings view adds the filtered rating and rank beside the
+published rating, and a detail page shows one line under its rating summary. The separate
+filtered table and its kept-share and change columns are gone from the app (the API still serves
+them); table links keep `?wp=`.
+
 ### WP4. Pre-registered walk-forward test
 
 Pre-registered on 2026-10-05, committed before any run of the check (AGENTS.md). The maintainer
