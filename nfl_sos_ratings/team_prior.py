@@ -428,8 +428,9 @@ class PriorHistory:
 
         A head-to-head-excluded refit (``sos``) rates the opponents without the evaluated team's
         games, so their prior means come from the previous season refit without that team's games
-        too, at the published fit's penalty, and the evaluated team's results never move them. The
-        slopes are the season's own. ``None`` when the season has no prior.
+        too, at the published fit's penalty, and those games never shape them. The slopes are the
+        season's own, pooled over every team as the penalty is. ``None`` when the season has no
+        prior.
         """
         if (season, team) in self._without:
             return self._without[(season, team)]

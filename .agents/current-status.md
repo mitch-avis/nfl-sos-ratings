@@ -55,13 +55,15 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Approved and in progress (maintainer answers of 2026-10-08)
 
-1. Preseason prior at 9 games: adopt it. Needs the in-season refits (rank ranges, and head-to-head
-   `sos` from a previous-season refit without the evaluated team), then a `data/` rebuild and a
-   validation rerun (roadmap P6).
-2. Default heat scale blue to orange, and deeper light-mode shading in every palette (U17).
+1. Preseason prior at 9 games: adopted in code on `feat/team-prior-adoption` (the in-season
+   refits, the head-to-head-excluded `sos` from a previous-season refit without the evaluated team,
+   the `{season}_team_prior` file, registry, docs, and app text); the `data/` rebuild and the
+   validation rerun follow its merge (roadmap P6, "If adopted").
+2. Default heat scale blue to orange, and deeper light-mode shading in every palette (U17): done,
+   #45.
 3. QB rating from all of a quarterback's plays (scrambles and designed runs, not only dropbacks):
    write the pre-registered protocol first (roadmap "Data notes"); adoption is the maintainer's.
-4. The garbage-time filter, kept but more compact.
+4. The garbage-time filter, kept but more compact: done, #46 (one control above the table).
 5. A plan for bringing this app's features into nfl-predictor (heads-up; nothing done there).
 
 ## Decisions waiting for the maintainer
@@ -107,8 +109,8 @@ history (the composite-rating era and its experiments) is in git, before commit 
 ## Next steps
 
 All open work is in `.agents/roadmap.md`, the single active plan, in the recommended order. The
-2026-10-08 session plan is done except P6 (waiting on the prior decision) and P10's U17 (waiting on
-the heat-scale decision); "Decisions waiting for the maintainer" above lists what each needs.
+2026-10-08 session plan is done except P6's rebuild and validation rerun (approved, after the
+adoption merges) and the QB all-plays protocol; "Approved and in progress" above lists them.
 Earlier work, pull requests #1-#16 (rank ranges, rebuild tooling, the garbage-time filter and its
 test, head-to-head chances, unit and weekly rank ranges, the refresh script, the project logger,
 opponent context, comparison, CSV export, team palettes), is described in the roadmap. Rebuild 2026

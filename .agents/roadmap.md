@@ -1514,27 +1514,41 @@ Tasks:
   games; week 1 by the prior alone MAE 10.341 against 10.689 for the home edge alone.
 - [x] Maintainer decision on the 9-game horizon: adopt (2026-10-08), with the rebuild and the
   validation rerun approved in the same answer.
-- [x] The refits, on `feat/team-prior-adoption`: `team_prior.PRIOR_HORIZON_GAMES` (9),
-  `snapshot_prior` (a snapshot's means, `None` once every team has played 9 games, so completed
-  seasons take the plain fit), `PriorHistory.season_prior_without` and `prior_without_team` (the
-  head-to-head-excluded refits' means from the previous season refit without the evaluated team,
-  faded by the snapshot's games and centered over the others), and `team_prior_table` (the new
-  `{season}_team_prior` file, read back by the API's garbage-time filter so 0% equals the published
-  rating). The season fit, `sos`, the weekly history (each week's own means), the rank ranges and
-  head-to-head chances (the snapshot's means held fixed in every resample), the weekly rank
-  ranges, the filter, and the walk-forward validation's team snapshots (`snapshot_fit`, as the test
-  ran them) all take the prior; `check-team-prior` keeps its no-prior baseline
-  (`run_walk_forward_backtest(..., team_prior=False)`). The registry adds `excluded_team`,
-  `offense_prior`, and `defense_prior` and notes the prior on the three scrimmage ratings;
-  `README.md`, `docs/methodology.md`, and the app's season-in-progress and rating-by-week text
-  describe it. Scratch builds of 2003, 2010, 2025, and 2026 into a copy of `data/`, compared with
-  `nfl-sos-ratings diff-data --before data --after <copy> --season <season> --tolerance 1e-9`:
-  in the completed seasons only `ratings_by_week` changed (288 rows each, weeks 1-9) plus the new
-  `team_prior` file; their ratings, rank ranges, and pairs are unchanged, the integrity check the
-  plan asked for. 2026 (4 games a team) changed its ratings, `sos`, ranges, pairs, and weekly files;
-  DEN moved from -0.37 (15th) to +0.96 (12th), the check's 9-game value. The check, rerun on the
-  rebuilt data (input fingerprint `bb5276fe...6b43`), printed the same results as before.
-- [ ] Rebuild `data/` and rerun `validate` once the adoption is merged (approved).
+- [ ] If adopted: the refits above, then ask before the `data/` rebuild, then update the registry,
+  `README.md`, `docs/methodology.md`, the validation report, and the nfl-predictor note.
+  - [x] The refits, on `feat/team-prior-adoption`: `team_prior.PRIOR_HORIZON_GAMES` (9),
+    `snapshot_prior` (a snapshot's means, `None` once every team has played 9 games, so completed
+    seasons take the plain fit), `PriorHistory.season_prior_without` and `prior_without_team` (the
+    head-to-head-excluded refits' means from the previous season refit without the evaluated team,
+    faded by the snapshot's games and centered over the others), and `team_prior_table` (the new
+    `{season}_team_prior` file, read back by the API's garbage-time filter so 0% equals the
+    published rating). The season fit, `sos`, the weekly history (each week's own means), the rank
+    ranges and head-to-head chances (the snapshot's means held fixed in every resample), the weekly
+    rank ranges, the filter, and the walk-forward validation's team snapshots (`snapshot_fit`, as
+    the test ran them) all take the prior; `check-team-prior` keeps its no-prior baseline
+    (`run_walk_forward_backtest(..., team_prior=False)`). The registry adds `excluded_team`,
+    `offense_prior`, and `defense_prior` and notes the prior on the three scrimmage ratings;
+    `README.md`, `docs/methodology.md`, and the app's season-in-progress and rating-by-week text
+    describe it. Scratch builds of 2003, 2010, 2025, and 2026 into a copy of `data/`, compared with
+    `nfl-sos-ratings diff-data --before data --after <copy> --season <season> --tolerance 1e-9`: in
+    the completed seasons only `ratings_by_week` changed (288 rows each, weeks 1-9) plus the new
+    `team_prior` file; their ratings, rank ranges, and pairs are unchanged, the integrity check the
+    plan asked for. 2026 (4 games a team) changed its ratings, `sos`, ranges, pairs, and weekly
+    files; DEN moved from -0.37 (15th) to +0.96 (12th), the check's 9-game value. The check, rerun
+    on the rebuilt data (input fingerprint `bb5276fe...6b43`), printed the same results as before.
+  - Narrowed: the head-to-head-excluded `sos` test above (changing the evaluated team's
+    previous-season games leaves its `sos` unchanged) cannot hold as written, because the spec's
+    own `rho` is pooled over every team's season pairs, the evaluated team's included, as the
+    penalties are. The test checks what can hold: the opponents' prior means are unchanged
+    (`test_season_prior_without_a_team_ignores_that_teams_previous_games`), while the slopes may
+    move slightly. Making `sos` exactly invariant would need slopes refit without each team, 32
+    extra slope fits per season; not proposed unless the maintainer wants it.
+  - [x] Ask before the rebuild: approved with the adoption (2026-10-08).
+  - [x] Registry, `README.md`, and `docs/methodology.md`: on `feat/team-prior-adoption`.
+  - [ ] Rebuild `data/` and rerun `validate` once the adoption is merged (approved); then the
+    validation report and the methodology's results.
+  - [ ] The nfl-predictor note: this repo never edits `../nfl-predictor`, so it goes to the
+    maintainer in the session report, to pass on.
 
 ## Ideas parking lot (not approved yet)
 

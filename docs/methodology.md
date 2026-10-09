@@ -57,20 +57,22 @@ prior instead of toward average:
 prior = max(0, 1 - games played / 9) x carryover slope x last season's per-play strength
 ```
 
-centered so the league's priors average zero. The carryover slope is how much of a strength
-usually survives into the next season, regressed over every earlier pair of seasons (0.68 to 0.82
-for offenses and 0.38 to 0.47 for defenses so far). After a team's 9th game its prior is gone, so a
-completed season is rated exactly as it would be without one; special teams keep a prior of zero;
-the first prior comes in 2003, once three earlier pairs of seasons give a slope. The weekly rating
-history, the rank ranges, the head-to-head chances, and the garbage-time filter take the same
+centered so the league's priors average zero. The carryover slope is how much of a strength usually
+survives into the next season, regressed over every earlier pair of seasons (0.68 to 0.82 for
+offenses and 0.38 to 0.47 for defenses so far). After a team's 9th game its own prior is gone (only
+the centering shift remains while other teams still have one), and once every team has played 9 the
+fit is exactly the one without a prior, as every completed season is; special teams keep a prior of
+zero; the first prior comes in 2003, once three earlier pairs of seasons give a slope. The weekly
+rating history, the rank ranges, the head-to-head chances, and the garbage-time filter take the same
 priors, and schedule strength's refits take priors from last season refit without the evaluated
-team, so its results never move its opponents' priors. The `team_prior` file keeps each season's
-priors. A pre-registered test predicted every game from week 2 on in 2003-2025 (5,600 games) from
-the games before it: mean absolute error 10.668 points with the 9-game prior against 10.750
-without (difference -0.082, 98.33% season-bootstrap interval -0.114 to -0.050), better in weeks 2-4
-(-0.264) and 5-8 (-0.136) and unchanged from week 9 on, where every prior has faded (`nfl-sos-ratings
-check-team-prior --data-dir data --start-season 2003 --end-season 2025`; horizons of 3 and 6 games
-helped less).
+team's games, so those games never shape its opponents' priors (the carryover slopes and the
+penalty, pooled over every team, still include them, as the penalty always has). The `team_prior`
+file keeps each season's priors. A pre-registered test predicted every game from week 2 on in
+2003-2025 (5,600 games) from the games before it: mean absolute error 10.668 points with the 9-game
+prior against 10.750 without (difference -0.082, 98.33% season-bootstrap interval -0.114 to -0.050),
+better in weeks 2-4 (-0.264) and 5-8 (-0.136) and unchanged from week 9 on, by when nearly every
+prior has faded (`nfl-sos-ratings check-team-prior --data-dir data --start-season 2003 --end-season
+2025`; horizons of 3 and 6 games helped less).
 
 Special teams get the same fit over kicks, punts, returns, field goals, and extra points, with each
 team's possession units and coverage units estimated separately and then added together.

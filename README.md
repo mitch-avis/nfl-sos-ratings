@@ -109,6 +109,10 @@ validation run is `validate --data-dir data --start-season 1999 --end-season 202
 --report-path docs/validation-report.md`. `nfl-sos` and `nfl-sos-pipeline` remain as shortcuts for
 `season` and `pipeline`.
 
+The preseason prior and the early-season penalties are fit on every earlier season since 1999, so
+`season` reads those seasons' `team_game_logs` from `DATA_DIR` and downloads any that are missing,
+and `validate` needs them all in `--data-dir`.
+
 `season` and `pipeline` download from nflverse. They cache downloads on disk for a day (nflreadpy's
 filesystem cache) unless `NFLREADPY_CACHE` is set to `memory`, `filesystem`, or `off`. A full
 pipeline run with fresh downloads took about 13 minutes on 2026-10-04 and 20 minutes on 2026-10-05
@@ -155,8 +159,8 @@ of user CPU with default BLAS threading on 24 cores, and 30.0 s and 39 s with on
 Each season writes Parquet files named `{season}_{name}.parquet` under `DATA_DIR`. Convert any of
 them for a spreadsheet with `pl.read_parquet(path).write_csv(...)`. Rows come in a fixed order, so
 two builds from the same inputs give identical files: `ratings`, `qb_ratings`, and the two rank-range
-files best first, every other file by `qb_id` (or `team` when it has no `qb_id`), then week and
-game (`row_order.data_file_row_order`).
+files best first, `team_prior` by `excluded_team` then `team`, every other file by `qb_id` (or
+`team` when it has no `qb_id`), then week and game (`row_order.data_file_row_order`).
 
 - `ratings`: one row per team with `team_rating`, the three unit ratings, `sos`, and `SRS`.
 - `qb_ratings`: one row per qualifying quarterback (14 pass attempts per game his team has played,
@@ -183,6 +187,10 @@ game (`row_order.data_file_row_order`).
   bins (`wp_bin` = `floor(100 * min(wp, 1 - wp))`, null when play-by-play has no `wp`). Summed
   over every bin they equal the totals the ratings use; they are the inputs to the garbage-time
   filter in the analyst app, which keeps the bins at or above a chosen threshold.
+- `team_prior`: the preseason prior the team fits used (`offense_prior`, `defense_prior`, per play),
+  one row per team for the season fit and one per team for each head-to-head-excluded refit
+  (`excluded_team` names the team left out), so the garbage-time filter refits with the same
+  prior. It is empty once every team has played 9 games, and for seasons before 2003.
 - `team_per_game_stats`, `qb_per_game_stats`, `opponent_profiles`, `qb_opponent_profiles`: the
   intermediate tables behind `combined` and `qb_combined`.
 

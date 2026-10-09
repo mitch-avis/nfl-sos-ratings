@@ -229,7 +229,7 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "The per-play offense value the early-season fit pulls this team toward instead of "
             "average: its offense last season times how much of it usually carries over, fading "
-            "to nothing by its 9th game. 0 once the team has played 9 games."
+            "to nothing by its 9th game, then shifted so the league averages zero."
         ),
         shape="score",
         polarity="neutral",
@@ -247,7 +247,7 @@ RATING_METRICS: tuple[MetricDef, ...] = (
         description=(
             "The per-play defense value the early-season fit pulls this team toward instead of "
             "average: its defense last season times how much of it usually carries over, fading "
-            "to nothing by its 9th game. 0 once the team has played 9 games."
+            "to nothing by its 9th game, then shifted so the league averages zero."
         ),
         shape="score",
         polarity="neutral",
