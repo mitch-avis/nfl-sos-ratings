@@ -1052,7 +1052,9 @@ Proposal (one small pull request after the current one merges):
   protocol here before any code. Until then `qb_scramble_rate` divides scrambles by dropbacks that
   leave them out. The maintainer asked (2026-10-08) for every QB play to count; the protocol,
   scrambles and designed runs both, is Q1.
-- QB rows by career position (found while drafting Q1; not fixed). `load_qb_identity_crosswalk`
+- QB rows by career position (found while drafting Q1; fixed on `fix/qb-multi-position`,
+  maintainer approval 2026-10-08: a player any source lists at QB in a season counts as a QB that
+  season, in the crosswalk and in the official weekly stats, then a `data/` rebuild). `load_qb_identity_crosswalk`
   takes a player's position from `nflreadpy.load_players()` (his latest) before the season's weekly
   roster, and the QB rows keep only players listed at QB, so a quarterback later listed elsewhere
   loses every QB row: his dropbacks are neither rated nor in his opponents' pass-defense fits.
@@ -1063,9 +1065,13 @@ Proposal (one small pull request after the current one merges):
   plus non-quarterbacks' passes (T.Tupa in 1999, A.Randle El in 2002). nflverse's weekly rosters
   list Pryor (2012-2013), Taysom Hill (2020-2023; QB and TE in 2022), L.Thomas (2014), and
   K.Hinton (2020, QB and WR) at QB, and the players file at WR or TE (`POLARS_MAX_THREADS=1
-  .venv/bin/python .agents/findings_2026_10_08/qb_protocol_checks.py 1999 2025`). The fix: prefer
-  the season's weekly roster position in `load_qb_identity_crosswalk`. It changes published QB
-  ratings in those seasons (ask first); Q1, question 2.
+  .venv/bin/python .agents/findings_2026_10_08/qb_protocol_checks.py 1999 2025`). The maintainer's rule:
+  a player who plays more than one position counts at each, and his QB stats count like any
+  other quarterback's. The weekly player stats also give the latest position (Hill TE, Pryor
+  WR), so `_load_official_weekly_qb_stats` now keeps a crosswalk QB's row too; without it his
+  official passing and rushing stats were dropped and his QB carries read 0. With the fix,
+  `load_qb_stats` gives Hill 12 QB rows in 2021 (134 attempts, 70 carries, 374 rushing yards)
+  and Pryor 11 in 2013 (272 attempts, 83 carries, 576 yards).
 - Aborted snaps counted as designed runs, not fixed: `qb_designed_carries` and
   `qb_designed_rush_epa` count them (the `qb_play_types.py` command above), and so do the team
   `designed_carries` and with it `rush_success_rate` (from reading `team_stats_expanded.py`). In

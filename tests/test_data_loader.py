@@ -397,6 +397,68 @@ def test_load_qb_identity_crosswalk_skips_weekly_rosters_before_source_floor(
     ]
 
 
+def test_load_qb_identity_crosswalk_keeps_a_quarterback_listed_elsewhere_later(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A player the season's weekly roster lists at QB is a quarterback that season.
+
+    The players file holds a player's latest position, so a quarterback later listed at tight end
+    (Taysom Hill) or wide receiver (Terrelle Pryor) would otherwise lose his QB rows.
+    """
+    # Arrange
+    players = pl.DataFrame(
+        {
+            "gsis_id": ["00-0033357"],
+            "display_name": ["Taysom Hill"],
+            "position": ["TE"],
+            "pfr_id": ["HillTa00"],
+        }
+    )
+    rosters = pl.DataFrame(
+        {
+            "gsis_id": ["00-0033357", "00-0033357"],
+            "full_name": ["Taysom Hill", "Taysom Hill"],
+            "position": ["TE", "QB"],
+            "pfr_id": ["HillTa00", "HillTa00"],
+            "game_type": ["REG", "REG"],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_players", lambda: players)
+    monkeypatch.setattr(data_loader.nfl, "load_rosters_weekly", stub(lambda: rosters))
+
+    # Act
+    result = data_loader.load_qb_identity_crosswalk(2022)
+
+    # Assert
+    assert result.get_column("qb_position").to_list() == ["QB"]
+
+
+def test_load_qb_identity_crosswalk_keeps_a_non_quarterbacks_position(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A receiver no source lists at QB keeps his position, so a trick-play pass makes no QB row."""
+    # Arrange
+    players = pl.DataFrame(
+        {"gsis_id": ["00-0020001"], "display_name": ["A. Receiver"], "position": ["WR"]}
+    )
+    rosters = pl.DataFrame(
+        {
+            "gsis_id": ["00-0020001"],
+            "full_name": ["A. Receiver"],
+            "position": ["WR"],
+            "game_type": ["REG"],
+        }
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_players", lambda: players)
+    monkeypatch.setattr(data_loader.nfl, "load_rosters_weekly", stub(lambda: rosters))
+
+    # Act
+    result = data_loader.load_qb_identity_crosswalk(2022)
+
+    # Assert
+    assert result.get_column("qb_position").to_list() == ["WR"]
+
+
 def test_load_qb_stats_merges_pbp_and_snap_counts_by_canonical_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1837,6 +1899,40 @@ def test_load_official_weekly_qb_stats_without_an_identity_crosswalk_keeps_playe
     # Assert
     assert official.height == 1
     assert "qb_name" not in official.columns
+
+
+def test_load_official_weekly_qb_stats_keeps_a_quarterback_listed_elsewhere() -> None:
+    """Official stats list a player at his latest position, so the crosswalk decides who is a QB.
+
+    Fixture: Taysom Hill's 2021 row says TE, but the crosswalk lists him at QB; a receiver's row
+    says WR and the crosswalk agrees, so only Hill's row stays.
+    """
+    # Arrange
+    player_stats = pl.DataFrame(
+        {
+            "game_id": ["g1", "g1"],
+            "week": [1, 1],
+            "team": ["NO", "NO"],
+            "player_id": ["00-0033357", "00-0020001"],
+            "player_display_name": ["Taysom Hill", "A. Receiver"],
+            "position": ["TE", "WR"],
+            "attempts": [20, 1],
+        }
+    )
+    crosswalk = pl.DataFrame(
+        {
+            "qb_id": ["00-0033357", "00-0020001"],
+            "snap_player_id": ["HillTa00", None],
+            "qb_name": ["Taysom Hill", "A. Receiver"],
+            "qb_position": ["QB", "WR"],
+        }
+    )
+
+    # Act
+    official = data_loader._load_official_weekly_qb_stats(player_stats, crosswalk)
+
+    # Assert
+    assert official.get_column("qb_id").to_list() == ["00-0033357"]
 
 
 def test_load_playoff_qb_stats_keeps_postseason_games_with_official_passing_epa(

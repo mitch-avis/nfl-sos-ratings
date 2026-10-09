@@ -54,6 +54,9 @@ _CACHE_MODE_VARIABLE = "NFLREADPY_CACHE"
 # Seconds to wait on an nflverse release download before failing instead of hanging.
 _RELEASE_DOWNLOAD_TIMEOUT_SECONDS = 60
 ROSTERS_WEEKLY_START_SEASON = 2002
+# The position a source lists a quarterback at. A player any source lists here in a season is a
+# quarterback that season, whatever else he plays (`load_qb_identity_crosswalk`).
+QB_POSITION = "QB"
 # Play-by-play columns that hold a team code. nflverse writes the Rams as LA in every one of them,
 # not only in posteam and defteam, so the loaders normalize them all before any code compares one
 # team column with another.
@@ -203,7 +206,13 @@ def _standardize_qb_identity_source(
 
 
 def load_qb_identity_crosswalk(season: int) -> pl.DataFrame:
-    """Load canonical player identities used to normalize QB-source rows."""
+    """Load canonical player identities used to normalize QB-source rows.
+
+    A player's position is QB when any source lists him there: the players file (his latest
+    position) or any week of the season's weekly roster. So a player who also plays another
+    position, such as a quarterback later listed at tight end, keeps his QB rows; otherwise the
+    players file wins, then the roster.
+    """
     players = _standardize_qb_identity_source(
         nfl.load_players(),
         name_column="display_name",
@@ -230,7 +239,10 @@ def load_qb_identity_crosswalk(season: int) -> pl.DataFrame:
         .agg(
             pl.col("snap_player_id").drop_nulls().first().alias("snap_player_id"),
             pl.col("qb_name").drop_nulls().first().alias("qb_name"),
-            pl.col("qb_position").drop_nulls().first().alias("qb_position"),
+            pl.when((pl.col("qb_position") == QB_POSITION).any())
+            .then(pl.lit(QB_POSITION))
+            .otherwise(pl.col("qb_position").drop_nulls().first())
+            .alias("qb_position"),
         )
     )
 
@@ -299,8 +311,20 @@ def _load_official_weekly_qb_stats(
         )
     )
 
+    # Player stats give a player's latest position, so the crosswalk's season positions also count:
+    # a quarterback later listed at tight end keeps his official stats.
+    crosswalk_qbs = (
+        qb_identity_df.filter(pl.col("qb_position") == QB_POSITION).get_column("qb_id")
+        if {"qb_id", "qb_position"} <= set(qb_identity_df.columns)
+        else pl.Series("qb_id", [], dtype=pl.String)
+    )
+    listed_qb = (
+        (pl.col("position") == QB_POSITION) | pl.col("player_id").is_in(crosswalk_qbs.implode())
+        if "position" in weekly_player_stats_df.columns
+        else pl.lit(value=True)
+    )
     official_qb_stats = weekly_player_stats_df.filter(
-        ((pl.col("position") == "QB") if "position" in weekly_player_stats_df.columns else True)
+        listed_qb
         & pl.col("team").is_not_null()
         & pl.col("week").is_not_null()
         & pl.col("player_id").is_not_null()
