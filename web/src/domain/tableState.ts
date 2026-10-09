@@ -122,20 +122,17 @@ function colorToCss(rgb: number[]): string {
   return `rgb(${rgb[0]} ${rgb[1]} ${rgb[2]})`;
 }
 
-// Context columns (schedule strength, the opponents faced) shade in one neutral hue, deeper toward
-// the tougher end, so they never read as good or bad.
-const CONTEXT_TINT: Record<ThemeMode, readonly [number, number, number]> = {
-  light: [100, 116, 139],
-  dark: [148, 163, 184],
-}
-// Deeper in light mode, where a pale tint on white is hard to tell apart.
-const CONTEXT_MAX_ALPHA: Record<ThemeMode, number> = { light: 0.4, dark: 0.3 }
+// Context columns (schedule strength, the opponents faced) shade in one hue, the active palette's
+// main color (`--primary`, set per palette by the theme provider), deeper toward the tougher end,
+// so they follow the chosen palette without the heat scale's good and bad ends.
+// The most of that color mixed in, as a percentage: more in light mode, where a pale tint on white
+// is hard to tell apart.
+const CONTEXT_MAX_MIX: Record<ThemeMode, number> = { light: 40, dark: 30 }
 
 function contextShade(theme: ThemeMode, intensity: number): CSSProperties | undefined {
   if (intensity <= 0) return undefined
-  const [red, green, blue] = CONTEXT_TINT[theme]
-  const alpha = Number((CONTEXT_MAX_ALPHA[theme] * intensity).toFixed(3))
-  return { backgroundColor: `rgba(${red}, ${green}, ${blue}, ${alpha})` }
+  const percent = Number((CONTEXT_MAX_MIX[theme] * intensity).toFixed(1))
+  return { backgroundColor: `color-mix(in oklch, var(--primary) ${percent}%, transparent)` }
 }
 
 /** The columns worth shading in a table of single opponents: rates and scores, not raw counts. */

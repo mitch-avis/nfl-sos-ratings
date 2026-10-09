@@ -83,7 +83,7 @@ const CONCEPTS: GlossaryEntry[] = [
   concept(
     'shading',
     'Shading',
-    "Colored cells mark better or worse within the season, in the chosen palette's colors. Gray cells mark context, such as schedule strength or the opponents faced, and darken toward the tougher end.",
+    "Colored cells mark better or worse within the season, in the chosen palette's colors. Cells tinted in the palette's main color mark context, such as schedule strength or the opponents faced, and deepen toward the tougher end.",
   ),
 ]
 

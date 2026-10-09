@@ -163,9 +163,10 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   full name, a plain sentence, which way is better (generated from the registry's polarity; context
   columns say they describe the opposition), and, for a base registry metric, how it is computed.
 - Cells are shaded for better or worse within the season in the palette's heat colors. Columns the
-  registry marks as context (schedule strength, the `opp_` columns, the opponents' schedule tier)
-  shade in one gray instead, deeper toward the tougher end; the unique-opponent table shades rates
-  only, not raw counts.
+  registry marks as context (schedule strength, the `opp_` and `qopp_` columns, the opponents'
+  schedule tier) shade instead in one color, the active palette's main color (`--primary`), deeper
+  toward the tougher end, so they follow the palette without reading as good or bad; the
+  unique-opponent table shades rates only, not raw counts.
 - On phones only the name column stays pinned while the table scrolls sideways, and the view
   toggles scroll on one row.
 - When a season has rank-range files, the `Ratings` view gains a `Rank range` column (the middle
