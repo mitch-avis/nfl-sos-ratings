@@ -2,7 +2,12 @@
 
 import polars as pl
 
-from nfl_sos_ratings.pbp_expressions import lost_fumble_team_expr, scrimmage_snap_expr, value_expr
+from nfl_sos_ratings.pbp_expressions import (
+    dropback_expr,
+    lost_fumble_team_expr,
+    scrimmage_snap_expr,
+    value_expr,
+)
 from nfl_sos_ratings.pooled_rates import (
     is_rate_part,
     mean_with_parts,
@@ -298,7 +303,7 @@ def compute_team_game_stats_from_pbp(
             [
                 value_expr(pbp_df.columns, "passing_yards", 0.0).sum().alias("passing_yards"),
                 value_expr(pbp_df.columns, "rushing_yards", 0.0).sum().alias("rushing_yards"),
-                pl.when(value_expr(pbp_df.columns, "qb_dropback") > 0)
+                pl.when(dropback_expr(pbp_df.columns))
                 .then(value_expr(pbp_df.columns, "epa", 0.0))
                 .otherwise(0.0)
                 .sum()
@@ -363,7 +368,7 @@ def compute_team_game_stats_from_pbp(
                 value_expr(pbp_df.columns, "rushing_yards", 0.0)
                 .sum()
                 .alias("rushing_yards_allowed"),
-                pl.when(value_expr(pbp_df.columns, "qb_dropback") > 0)
+                pl.when(dropback_expr(pbp_df.columns))
                 .then(value_expr(pbp_df.columns, "epa", 0.0))
                 .otherwise(0.0)
                 .sum()

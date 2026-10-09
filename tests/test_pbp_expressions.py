@@ -1,9 +1,15 @@
-"""Tests for the shared play-by-play expressions: who lost a fumble and who gave the ball away."""
+"""Tests for the shared play-by-play expressions: dropbacks and scrimmage snaps, who lost a fumble,
+and who gave the ball away."""
 
 import polars as pl
 import pytest
 
-from nfl_sos_ratings.pbp_expressions import giveaway_team_expr, lost_fumble_team_expr
+from nfl_sos_ratings.pbp_expressions import (
+    dropback_expr,
+    giveaway_team_expr,
+    lost_fumble_team_expr,
+    scrimmage_snap_expr,
+)
 
 
 def _play(**overrides: object) -> dict[str, object]:
@@ -93,3 +99,90 @@ def test_giveaway_team_names_the_first_team_to_give_the_ball_away(
 
     # Assert
     assert team == expected
+
+
+def _snap(**overrides: object) -> dict[str, object]:
+    """Return one play with every snap flag off, as nflverse codes them."""
+    play: dict[str, object] = {
+        "play_type": "run",
+        "qb_dropback": 0,
+        "qb_scramble": 0,
+        "rush": 0,
+        "qb_kneel": 0,
+        "qb_spike": 0,
+    }
+    play.update(overrides)
+    return play
+
+
+_DROPBACK_CASES = [
+    (_snap(play_type="pass", qb_dropback=1), True),
+    (_snap(qb_dropback=1, qb_scramble=1), True),
+    (_snap(qb_scramble=1), True),
+    (_snap(play_type="no_play", qb_scramble=1), False),
+    (_snap(rush=1), False),
+]
+_DROPBACK_IDS = [
+    "pass attempt",
+    "scramble flagged as a dropback (2006 on)",
+    "scramble without the dropback flag (before 2006)",
+    "scramble a penalty wiped out",
+    "designed run",
+]
+
+
+@pytest.mark.parametrize(("play", "expected"), _DROPBACK_CASES, ids=_DROPBACK_IDS)
+def test_dropback_counts_every_scramble_that_stood(
+    play: dict[str, object], *, expected: bool
+) -> None:
+    # Arrange
+    plays = pl.DataFrame([play])
+
+    # Act
+    dropback = plays.select(dropback_expr(plays.columns)).item()
+
+    # Assert
+    assert dropback is expected
+
+
+def test_dropback_without_scramble_columns_reads_the_dropback_flag() -> None:
+    # Arrange
+    plays = pl.DataFrame([{"qb_dropback": 1}, {"qb_dropback": 0}])
+
+    # Act
+    dropbacks = plays.select(dropback_expr(plays.columns)).to_series().to_list()
+
+    # Assert
+    assert dropbacks == [True, False]
+
+
+@pytest.mark.parametrize(
+    ("play", "expected"),
+    [
+        (_snap(qb_scramble=1), True),
+        (_snap(play_type="no_play", qb_scramble=1), False),
+        (_snap(rush=1), True),
+        (_snap(play_type="qb_kneel", qb_kneel=1), True),
+        (_snap(play_type="qb_spike", qb_spike=1), True),
+        (_snap(), False),
+    ],
+    ids=[
+        "scramble without the dropback flag",
+        "scramble a penalty wiped out",
+        "designed run",
+        "kneel-down",
+        "spike",
+        "no flag",
+    ],
+)
+def test_scrimmage_snap_counts_dropbacks_runs_kneels_and_spikes(
+    play: dict[str, object], *, expected: bool
+) -> None:
+    # Arrange
+    plays = pl.DataFrame([play])
+
+    # Act
+    snap = plays.select(scrimmage_snap_expr(plays.columns)).item()
+
+    # Assert
+    assert snap is expected

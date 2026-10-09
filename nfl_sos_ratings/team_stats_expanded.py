@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from nfl_sos_ratings.pbp_expressions import (
+    dropback_expr,
     giveaway_team_expr,
     lost_fumble_team_expr,
     passer_rating_from_rates,
@@ -175,7 +176,7 @@ def _aggregate_play_stats(plays: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
     is_two_point = value_expr(columns, "two_point_attempt") > 0
     is_sack = value_expr(columns, "sack") > 0
     is_complete = value_expr(columns, "complete_pass") > 0
-    is_dropback = value_expr(columns, "qb_dropback") > 0
+    is_dropback = dropback_expr(columns)
     is_rush_attempt = value_expr(columns, "rush_attempt") > 0
     # Carries (rush attempts that stood, not two-point tries) split into scrambles, kneel-downs,
     # and designed runs. nflverse keeps the scramble and run flags on plays a penalty wiped out,

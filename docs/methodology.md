@@ -25,7 +25,10 @@ converts back to points per game only at the end, using the league's average pla
 ## Team Ratings
 
 Each team-game contributes one row: the offense's EPA per scrimmage play (dropbacks, rushes,
-kneels, and spikes). One weighted least-squares fit explains every row at once:
+kneels, and spikes). Dropbacks are pass attempts, sacks, and scrambles. nflverse flags scrambles
+as dropbacks from 2006 on but leaves most earlier ones unflagged, so a run play nflverse marks as
+a scramble counts as a dropback in every season (`pbp_expressions.dropback_expr`). One weighted
+least-squares fit explains every row at once:
 
 ```text
 EPA per play = league average + offense strength - opposing defense strength + home field

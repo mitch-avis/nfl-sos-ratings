@@ -8,19 +8,40 @@ the passer-rating formula the single definition of passer rating.
 import polars as pl
 
 
+def _flag_expr(columns: list[str], column: str) -> pl.Expr:
+    """Return a play-by-play 0/1 flag as a boolean, false when missing or the column is absent."""
+    if column in columns:
+        return pl.col(column).fill_null(0) > 0
+    return pl.lit(value=False)
+
+
+def dropback_expr(columns: list[str]) -> pl.Expr:
+    """Return an expression that flags dropbacks: pass attempts, sacks, and scrambles that stood.
+
+    nflverse codes a scramble as a pass play (``rush`` is 0) and, from 2006 on, flags it with
+    ``qb_dropback``; before 2006 it leaves ``qb_dropback`` at 0 on most scrambles. So a run play
+    flagged ``qb_scramble`` also counts, which adds those scrambles and changes nothing from 2006
+    on. A scramble a penalty wiped out (``play_type`` ``no_play``) is not a dropback in any season.
+    """
+    scramble = (
+        _flag_expr(columns, "qb_scramble") & (pl.col("play_type") == "run").fill_null(value=False)
+        if "play_type" in columns
+        else pl.lit(value=False)
+    )
+    return _flag_expr(columns, "qb_dropback") | scramble
+
+
 def scrimmage_snap_expr(columns: list[str]) -> pl.Expr:
     """Return an expression that flags offensive scrimmage snaps in PBP data.
 
-    A scrimmage snap is a dropback, rush, kneel, or spike (the established
-    pipeline definition).
+    A scrimmage snap is a dropback (:func:`dropback_expr`), rush, kneel, or spike.
     """
-
-    def _flag(column: str) -> pl.Expr:
-        if column in columns:
-            return pl.col(column).fill_null(0).cast(pl.Int8)
-        return pl.lit(0)
-
-    return (_flag("qb_dropback") + _flag("rush") + _flag("qb_kneel") + _flag("qb_spike")) > 0
+    return (
+        dropback_expr(columns)
+        | _flag_expr(columns, "rush")
+        | _flag_expr(columns, "qb_kneel")
+        | _flag_expr(columns, "qb_spike")
+    )
 
 
 def special_teams_play_expr(columns: list[str]) -> pl.Expr:
