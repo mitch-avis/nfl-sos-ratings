@@ -82,10 +82,11 @@ history (the composite-rating era and its experiments) is in git, before commit 
 2. Default heat scale blue to orange, and deeper light-mode shading in every palette (U17): done,
    #45.
 3. QB rating from all of a quarterback's plays (scrambles and designed runs, not only dropbacks):
-   write the pre-registered protocol first; adoption is the maintainer's. Drafted 2026-10-08 on
-   `docs/qb-all-plays-protocol` (roadmap Q1, with `.agents/findings_2026_10_08/qb_play_types.py`
-   and `qb_protocol_checks.py`), independently reviewed with every finding resolved; it waits on
-   five maintainer questions listed there.
+   pre-registered protocol merged (#49) after two independent reviews; the maintainer answered four
+   of its questions on 2026-10-08, which brought three published fixes (#52-#54) and the
+   botched-snap rule (count one against a quarterback only when the official scorer charged the
+   fumble to him), all folded into the protocol (roadmap Q1). Two questions are open, under
+   "Decisions waiting". Nothing of the check is built or run.
 4. The garbage-time filter, kept but more compact: done, #46 (one control above the table).
 5. Bringing this app into nfl-predictor: the maintainer approved absorbing this repo into
    nfl-predictor fully (2026-10-08; that repo's `.agents/TODO.md`, "Roadmap Status", step 6). Its
@@ -108,7 +109,16 @@ history (the composite-rating era and its experiments) is in git, before commit 
 
 ## Decisions waiting for the maintainer
 
-1. Smaller open items in the roadmap's "Data notes", each a `data/` change: the extra-point drive
+1. The QB all-plays test's order of simplicity: when the test cannot tell two candidates apart,
+   which one is recommended. Recommended: "plus scrambles" ahead of "passes and sacks" (today's
+   rating) ahead of "every quarterback play" (roadmap Q1, "Questions for the maintainer").
+2. Botched snaps already in the published QB rating: 60 aborted snaps of 2006-2025 that the scorer
+   charged to a center and that went on as a pass or sack still count against the quarterback.
+   Recommended: take them out, as the maintainer's rule for the new candidate does; a rebuild.
+3. Spikes and kneel-downs in the team ratings: the team offense and defense ratings count both as
+   scrimmage plays (`pbp_expressions.scrimmage_snap_expr`); the maintainer's decision took them
+   out of the QB rating only. Asked 2026-10-09.
+4. Smaller open items in the roadmap's "Data notes", each a `data/` change: the extra-point drive
    after a return touchdown, the near-duplicate yards-per-snap columns, `opp_longest_*` averaging
    per-game maxima, `fourth_down_aggressiveness` at 2.0 in two 2000 games, play-by-play as a
    2003-2011 source for tackles for loss, and kneel-downs under-recorded in 2000 and 2001.
