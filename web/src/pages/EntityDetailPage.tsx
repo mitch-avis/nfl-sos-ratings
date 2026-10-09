@@ -19,7 +19,7 @@ import { RatingSummary } from '@/components/entity/RatingSummary'
 import { ViewControls } from '@/components/entity/ViewControls'
 import { UnitRankRangeTable } from '@/components/entity/UnitRankRanges'
 import { WeeklyTrendChart } from '@/components/entity/WeeklyTrendChart'
-import { WpExploration } from '@/components/entity/WpExploration'
+import { WpEntityLine } from '@/components/entity/WpEntityLine'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -152,6 +152,11 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
       <Card className="gap-4">
         <CardContent>
           <RatingSummary kind={kind} row={seasonRow ?? row} rows={dataset[kind].rows} />
+          {hasRating ? (
+            <div className="mt-3">
+              <WpEntityLine kind={kind} season={season} entityId={entityId} />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -285,8 +290,6 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
           </Card>
         ) : null}
       </div>
-
-      {hasRating ? <WpExploration kind={kind} season={season} entityId={entityId} /> : null}
     </div>
   )
 }
