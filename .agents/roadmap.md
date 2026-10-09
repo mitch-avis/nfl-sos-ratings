@@ -99,8 +99,8 @@ bottom; update the status boxes in the same change set as the work.
    throwing depth more than quality); `player_id` and `player_display_name` left the registry and
    `ui_data._build_qb_payload` (no file in `data/` has them; the tests' fixtures now use `qb_id` and
    `qb_name`, as the data does); the nine labels of 19-20 characters stay.
-6. [x] P6 Preseason prior for the team fit (adopted at 9 games, 2026-10-08; the rebuild and the
-   validation rerun follow the merge): the team fit shrinks toward a regressed previous-season
+6. [x] P6 Preseason prior for the team fit (adopted at 9 games, 2026-10-08, #47; `data/` rebuilt
+   and the validation rerun the same day): the team fit shrinks toward a regressed previous-season
    rating that fades out early in the season (the maintainer expects the prior gone by mid-season
    or earlier; the fade point is for the pre-registered test to settle). Protocol first, then code
    (test-first), an independent review, the check run (approved), the decision, and a `data/`
@@ -1545,8 +1545,11 @@ Tasks:
     extra slope fits per season; not proposed unless the maintainer wants it.
   - [x] Ask before the rebuild: approved with the adoption (2026-10-08).
   - [x] Registry, `README.md`, and `docs/methodology.md`: on `feat/team-prior-adoption`.
-  - [ ] Rebuild `data/` and rerun `validate` once the adoption is merged (approved); then the
-    validation report and the methodology's results.
+  - [x] Rebuild `data/` and rerun `validate` once the adoption is merged (approved): done
+    2026-10-08 from `f919beb`; `diff-data` as expected (completed seasons change only
+    `ratings_by_week` weeks 1-9; `.agents/current-status.md` has the summary). `validate`: overall
+    MAE 10.567 (was 10.601), now significantly better than SRS (-0.091, -0.159 to -0.024) and raw
+    EPA (-0.128); `docs/validation-report.md` and `docs/methodology.md` updated.
   - [ ] The nfl-predictor note: this repo never edits `../nfl-predictor`, so it goes to the
     maintainer in the session report, to pass on.
 
