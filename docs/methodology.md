@@ -233,8 +233,8 @@ from week 5 on:
 - Elo is not distinguishable from `team_rating` (difference +0.021, interval -0.047 to +0.088),
   even though Elo carries ratings across seasons and the others rate each season from its own games.
 - Year-over-year stability: `team_rating` 0.434 and SRS 0.437 (Pearson). For quarterbacks,
-  adjusted EPA per dropback is 0.455, a little below passer rating's 0.464 and above ANY/A's
-  0.392. Stability is reported, not optimized; the rating measures the season that was played.
+  adjusted EPA per dropback is 0.455, a little below passer rating's 0.460 and above ANY/A's
+  0.398. Stability is reported, not optimized; the rating measures the season that was played.
 - Adjusted EPA per dropback correlates with ESPN QBR at 0.892 (Pearson) and 0.874 (Spearman) on
   average across 2006-2025.
 
