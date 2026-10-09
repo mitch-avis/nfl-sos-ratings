@@ -74,6 +74,12 @@ history (the composite-rating era and its experiments) is in git, before commit 
    five maintainer questions listed there.
 4. The garbage-time filter, kept but more compact: done, #46 (one control above the table).
 5. A plan for bringing this app's features into nfl-predictor (heads-up; nothing done there).
+6. Scrambles before 2006 in the team ratings (approved 2026-10-08 after a deeper check): nflverse
+   codes scrambles as pass plays (`rush` 0) and before 2006 leaves `qb_dropback` at 0 on most of
+   them, so the scrimmage-snap filter dropped them from the 1999-2005 team ratings, team
+   `dropbacks`, and team passing EPA. Fixed on `fix/pre-2006-scrambles`
+   (`pbp_expressions.dropback_expr`); the `data/` rebuild and the `validate` rerun follow (roadmap
+   "Data notes", "Team scrimmage plays left out scrambles before 2006").
 
 ## Decisions waiting for the maintainer
 
@@ -84,11 +90,6 @@ history (the composite-rating era and its experiments) is in git, before commit 
 2. QB rows drop quarterbacks whose latest nflverse position is not QB (Terrelle Pryor 2013, Taysom
    Hill 2020-2021, and a few others): roadmap "Data notes", "QB rows by career position"; a fix
    changes published QB ratings (ask first). Roadmap Q1 asks whether to fix it before that check.
-3. Team scrimmage plays leave out scrambles before 2006: nflverse leaves `qb_dropback` and `rush`
-   unset on many of them, and `pbp_expressions.scrimmage_snap_expr` needs one of those flags, so
-   the 1999-2005 team ratings, every rate over scrimmage plays, and team `dropbacks` miss them
-   (nearly all in 2003-2005): roadmap "Data notes", "Team scrimmage plays leave out scrambles
-   before 2006". A fix changes published team ratings for 1999-2005 (ask first).
 
 ## State before 2026-10-08
 
