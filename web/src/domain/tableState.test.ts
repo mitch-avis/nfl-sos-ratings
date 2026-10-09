@@ -59,14 +59,22 @@ describe('getHeatCellStyle', () => {
     expect(shades.map((style) => style?.backgroundColor)).toEqual(colors)
   })
 
-  it('shades a context column in one neutral hue, darkest at its tougher end', () => {
+  it("shades a context column in the palette's main color, deepest at its tougher end", () => {
     // Act
     const [hardest, middle, easiest] = [2, 0, -2].map((value) => getHeatCellStyle('sos', value, STATS, 'light', 'classic'))
 
     // Assert
-    expect(hardest?.backgroundColor).toBe('rgba(100, 116, 139, 0.4)')
-    expect(middle?.backgroundColor).toBe('rgba(100, 116, 139, 0.2)')
+    expect(hardest?.backgroundColor).toBe('color-mix(in oklch, var(--primary) 40%, transparent)')
+    expect(middle?.backgroundColor).toBe('color-mix(in oklch, var(--primary) 20%, transparent)')
     expect(easiest).toBeUndefined()
+  })
+
+  it('shades a context column lighter in dark mode', () => {
+    // Act
+    const context = getHeatCellStyle('sos', 2, STATS, 'dark', 'KC')
+
+    // Assert
+    expect(context?.backgroundColor).toBe('color-mix(in oklch, var(--primary) 30%, transparent)')
   })
 
   it('never paints a context column with the good or bad colors', () => {
@@ -75,13 +83,13 @@ describe('getHeatCellStyle', () => {
     const grade = getHeatCellStyle('team_rating', 8, STATS, 'dark', 'KC')
 
     // Assert
-    expect(context?.backgroundColor).toBe('rgba(148, 163, 184, 0.3)')
+    expect(grade?.backgroundColor).not.toContain('var(--primary)')
     expect(grade?.backgroundColor).not.toBe(context?.backgroundColor)
   })
 
   it.each([
-    ['Tougher', 'rgba(100, 116, 139, 0.4)'],
-    ['Middle', 'rgba(100, 116, 139, 0.2)'],
+    ['Tougher', 'color-mix(in oklch, var(--primary) 40%, transparent)'],
+    ['Middle', 'color-mix(in oklch, var(--primary) 20%, transparent)'],
   ])('shades the %s schedule bucket as context', (bucket, color) => {
     // Act
     const style = getHeatCellStyle('opp_schedule_bucket', bucket, STATS, 'light', 'classic')
