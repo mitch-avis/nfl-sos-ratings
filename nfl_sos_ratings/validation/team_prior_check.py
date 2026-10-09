@@ -24,6 +24,10 @@ progress, and week 1 rated by the prior alone.
 
 Run ``nfl-sos-ratings check-team-prior``; it only reads ``data/`` (the information-set check links
 earlier seasons' files into a temporary directory it removes).
+
+"Today's fit" is the team rating without a prior, as published when this test was registered; the
+published rating now uses the 9-game prior this test recommended (``team_prior``), and the check
+keeps its own baseline (``run_walk_forward_backtest(..., team_prior=False)``).
 """
 
 from __future__ import annotations
@@ -1142,10 +1146,13 @@ def main(argv: list[str] | None = None) -> None:
     check_coverage(history, window)
     information = check_information_set(history, data_dir, window)
     penalty_seasons = check_penalties(history, data_dir, seasons)
-    backtest = run_walk_forward_backtest(data_dir, seasons, start_week=PREDICTION_START_WEEK)
+    # The test's baseline is the team rating without a prior, as published when it ran.
+    backtest = run_walk_forward_backtest(
+        data_dir, seasons, start_week=PREDICTION_START_WEEK, team_prior=False
+    )
     today = backtest.filter(pl.col("baseline") == TEAM_RATING_BASELINE)
     validation = run_walk_forward_backtest(
-        data_dir, seasons, start_week=VALIDATION_START_WEEK
+        data_dir, seasons, start_week=VALIDATION_START_WEEK, team_prior=False
     ).filter(pl.col("baseline") == TEAM_RATING_BASELINE)
     validation_gap = max(
         check_matching_rows(

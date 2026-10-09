@@ -325,6 +325,30 @@ describe('season in progress', () => {
     expect(await screen.findByText(/Season in progress/)).toHaveTextContent('3 games')
   })
 
+  it('says a team rating leans on last season until it has played 9 games', async () => {
+    // Arrange
+    const partial = {
+      ...SEASON_2025,
+      season: 2026,
+      in_progress: true,
+      teams: {
+        ...SEASON_2025.teams,
+        rows: SEASON_2025.teams.rows.map((row) => ({ ...row, games_played: 3 })),
+      },
+    }
+    vi.stubGlobal(
+      'fetch',
+      stubApi({ '/api/seasons': { seasons: [2026] }, '/api/metadata': REGISTRY, '/api/seasons/2026': partial }),
+    )
+
+    // Act
+    renderApp('/teams?season=2026')
+
+    // Assert
+    const notice = (await screen.findByText(/Season in progress/)).parentElement
+    expect(notice).toHaveTextContent(/played 9 games.*rating last season/)
+  })
+
   it('states the QB qualifier for the games played so far', async () => {
     // Arrange
     const partial = {
@@ -601,6 +625,38 @@ describe('team detail', () => {
     expect(await screen.findByText('Rating by week')).toBeInTheDocument()
     expect(screen.getByText('Team Rating by week')).toBeInTheDocument()
     expect(screen.getByText('Dashed line: an average team (0).')).toBeInTheDocument()
+  })
+
+  it("says the early weekly team ratings lean on last season's rating", async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/teams/DEN/rating-history': DEN_RATING_HISTORY }))
+
+    // Act
+    renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    expect(await screen.findByText(/Early points also lean on the team's rating last season/)).toBeInTheDocument()
+  })
+
+  it('says the early weekly team ratings sit near 0 before last-season ratings are used', async () => {
+    // Arrange
+    vi.stubGlobal(
+      'fetch',
+      stubApi({
+        '/api/seasons': { seasons: [2002] },
+        '/api/metadata': REGISTRY,
+        '/api/seasons/2002': { ...SEASON_2025, season: 2002 },
+        '/api/seasons/2002/teams/DEN/game-logs': DEN_GAME_LOGS,
+        '/api/seasons/2002/teams/DEN/rating-history': DEN_RATING_HISTORY,
+      }),
+    )
+
+    // Act
+    renderApp('/teams/DEN?season=2002')
+
+    // Assert
+    expect(await screen.findByText(/Early points sit near 0 \(an average team\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/rating last season/)).not.toBeInTheDocument()
   })
 
   it('leaves the rating chart out for a season without a rating history', async () => {

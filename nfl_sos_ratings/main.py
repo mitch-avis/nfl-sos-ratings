@@ -12,6 +12,7 @@ import io
 import logging
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 
@@ -54,6 +55,13 @@ from nfl_sos_ratings.rating_ranges import (
 )
 from nfl_sos_ratings.row_order import data_file_row_order
 from nfl_sos_ratings.srs import solve_srs
+from nfl_sos_ratings.team_prior import (
+    PriorHistory,
+    SeasonPrior,
+    prior_without_team,
+    snapshot_prior,
+    team_prior_table,
+)
 from nfl_sos_ratings.team_rating import (
     TEAM_RATING_COLUMNS,
     TeamRatingFit,
@@ -64,6 +72,11 @@ from nfl_sos_ratings.team_rating import (
     fit_team_ratings_with_previous_penalties,
 )
 from nfl_sos_ratings.team_stats import compute_all_teams_per_game, compute_win_totals
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from nfl_sos_ratings.ridge import UnitPrior
 
 logger = logging.getLogger(__name__)
 
@@ -175,15 +188,22 @@ def played_schedule(schedule_df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def build_team_ratings(weekly_df: pl.DataFrame, fit: TeamRatingFit | None = None) -> pl.DataFrame:
+def build_team_ratings(
+    weekly_df: pl.DataFrame,
+    fit: TeamRatingFit | None = None,
+    *,
+    prior_without: Callable[[str], UnitPrior | None] | None = None,
+) -> pl.DataFrame:
     """Return one row per team with the published ratings, schedule strength, and SRS.
 
-    ``fit`` is the season fit of ``weekly_df`` when the caller already has it.
+    ``fit`` is the season fit of ``weekly_df`` when the caller already has it, and
+    ``prior_without`` the preseason prior source of its head-to-head-excluded refits.
     """
     fit = fit if fit is not None else fit_team_ratings(weekly_df)
     games_played = weekly_df.group_by("team").len("games_played")
+    schedule = compute_team_schedule_strength(weekly_df, fit, prior_without=prior_without)
     return (
-        fit.ratings.join(compute_team_schedule_strength(weekly_df, fit), on="team")
+        fit.ratings.join(schedule, on="team")
         .join(solve_srs(weekly_df, response_col="point_margin"), on="team")
         .rename({"srs_rating": "SRS"})
         .join(games_played, on="team")
@@ -202,16 +222,21 @@ def build_qb_ratings(qb_game_logs: pl.DataFrame, fit: QbRatingFit | None = None)
 
 
 def build_team_rank_summaries(
-    weekly_df: pl.DataFrame, fit: TeamRatingFit
+    weekly_df: pl.DataFrame, fit: TeamRatingFit, scrimmage_prior: UnitPrior | None = None
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Return every team's rank ranges and every ordered pair's head-to-head chances.
 
     Both come from one set of game-bootstrap resamples: each redraws the season's games with
-    replacement and refits with ``fit``'s penalties; ranks are among all teams in the resample
-    (see ``rating_ranges``). The ranges cover the team rating and each unit rating.
+    replacement and refits with ``fit``'s penalties and the season fit's preseason prior means;
+    ranks are among all teams in the resample (see ``rating_ranges``). The ranges cover the team
+    rating and each unit rating.
     """
     draws = bootstrap_team_ratings(
-        weekly_df, fit, resamples=BOOTSTRAP_RESAMPLES, seed=BOOTSTRAP_SEED
+        weekly_df,
+        fit,
+        resamples=BOOTSTRAP_RESAMPLES,
+        seed=BOOTSTRAP_SEED,
+        scrimmage_prior=scrimmage_prior,
     )
     ranges = summarize_rank_ranges(draws, fit.ratings, TEAM_RANGE_COLUMNS).join(
         summarize_unit_rank_ranges(draws, fit.ratings), on="team", how="left", maintain_order="left"
@@ -265,22 +290,31 @@ def _weekly_rank_schema(columns: RangeColumns) -> dict[str, type[pl.DataType]]:
     return schema
 
 
-def build_team_rank_ranges_by_week(weekly_df: pl.DataFrame, fit: TeamRatingFit) -> pl.DataFrame:
+def build_team_rank_ranges_by_week(
+    weekly_df: pl.DataFrame, fit: TeamRatingFit, season_prior: SeasonPrior | None = None
+) -> pl.DataFrame:
     """Return every team's rank range as of each week, from the games through that week.
 
-    Each week refits its games with ``fit``'s penalties, as the rating history does, and
-    bootstraps them like the season's rank ranges; the last week matches the season's ranges.
+    Each week refits its games with ``fit``'s penalties and that week's preseason prior means, as
+    the rating history does, and bootstraps them like the season's rank ranges; the last week
+    matches the season's ranges.
     """
     frames: list[pl.DataFrame] = []
     for week in sorted(weekly_df.get_column("week").unique().to_list()):
         through_week = weekly_df.filter(pl.col("week") <= week)
+        means = snapshot_prior(season_prior, through_week)
         week_fit = fit_team_ratings(
             through_week,
             scrimmage_lambda=fit.scrimmage_lambda,
             special_teams_lambda=fit.special_teams_lambda,
+            scrimmage_prior=means,
         )
         draws = bootstrap_team_ratings(
-            through_week, week_fit, resamples=BOOTSTRAP_RESAMPLES, seed=BOOTSTRAP_SEED
+            through_week,
+            week_fit,
+            resamples=BOOTSTRAP_RESAMPLES,
+            seed=BOOTSTRAP_SEED,
+            scrimmage_prior=means,
         )
         frames.append(
             summarize_rank_ranges(draws, week_fit.ratings, TEAM_RANGE_COLUMNS)
@@ -321,21 +355,26 @@ def build_qb_rank_ranges_by_week(
     return pl.concat(frames).select("week", pl.exclude("week"))
 
 
-def _previous_season_fit(season: int) -> TeamRatingFit | None:
-    """Return the previous season's full-season team fit, whose penalties this season reuses.
-
-    The previous season's game logs come from ``DATA_DIR`` when built, otherwise from nflverse.
-    The first play-by-play season has no previous season and returns ``None``.
-    """
-    if season <= PBP_START_SEASON:
-        return None
-    path = Path(DATA_DIR) / f"{season - 1}_team_game_logs.parquet"
+def _earlier_team_game_logs(season: int) -> pl.DataFrame:
+    """Return an earlier season's team game logs: from ``DATA_DIR`` when built, else nflverse."""
+    path = Path(DATA_DIR) / f"{season}_team_game_logs.parquet"
     if path.exists():
-        previous_logs = pl.read_parquet(path)
-    else:
-        logger.info("Loading %s team stats for the ridge penalties...", season - 1)
-        previous_logs = _build_team_game_logs(load_weekly_team_stats(season - 1))
-    return fit_team_ratings(previous_logs)
+        return pl.read_parquet(path)
+    logger.info("Loading %s team stats for the ridge penalties and the preseason prior...", season)
+    return _build_team_game_logs(load_weekly_team_stats(season))
+
+
+# One history per data directory, so a pipeline run fits each earlier season once. A season asks
+# only for seasons before it, which a run in order has already written.
+_PRIOR_HISTORIES: dict[Path, PriorHistory] = {}
+
+
+def _prior_history() -> PriorHistory:
+    """Return the preseason prior's history over the earlier seasons in ``DATA_DIR``."""
+    key = Path(DATA_DIR).resolve()
+    if key not in _PRIOR_HISTORIES:
+        _PRIOR_HISTORIES[key] = PriorHistory(_earlier_team_game_logs)
+    return _PRIOR_HISTORIES[key]
 
 
 def _load_season_frames(season: int) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
@@ -357,23 +396,43 @@ def _write_team_rating_outputs(
 ) -> pl.DataFrame:
     """Fit the season's team ratings, write every team rating output, and return the ratings."""
     logger.info("Fitting team ratings...")
-    team_fit = fit_team_ratings_with_previous_penalties(weekly_df, _previous_season_fit(season))
-    ratings = build_team_ratings(weekly_df, team_fit)
+    history = _prior_history()
+    previous = history.penalties(season) if season > PBP_START_SEASON else None
+    season_prior = history.season_prior(season)
+    means = snapshot_prior(season_prior, weekly_df)
+    team_fit = fit_team_ratings_with_previous_penalties(weekly_df, previous, scrimmage_prior=means)
+    prior_without = None if means is None else prior_without_team(history, season, weekly_df)
+    ratings = build_team_ratings(weekly_df, team_fit, prior_without=prior_without)
     _write_data_file(ratings, season, "ratings")
     _write_data_file(
         team_combined.join(ratings.drop("games_played"), on="team", how="left"),
         season,
         "combined",
     )
-    _write_data_file(fit_team_ratings_by_week(weekly_df, team_fit), season, "ratings_by_week")
+    _write_data_file(
+        team_prior_table(means, prior_without, ratings.get_column("team").sort().to_list()),
+        season,
+        "team_prior",
+    )
+
+    def week_prior(games: pl.DataFrame) -> UnitPrior | None:
+        return snapshot_prior(season_prior, games)
+
+    _write_data_file(
+        fit_team_ratings_by_week(weekly_df, team_fit, prior_for=week_prior),
+        season,
+        "ratings_by_week",
+    )
     logger.info("Resampling games %d times for team rank ranges and pairs...", BOOTSTRAP_RESAMPLES)
-    team_ranges, team_pairs = build_team_rank_summaries(weekly_df, team_fit)
+    team_ranges, team_pairs = build_team_rank_summaries(weekly_df, team_fit, means)
     _write_data_file(team_ranges, season, "rating_ranges")
     _write_data_file(team_pairs, season, "rating_pairs")
     if season == SEASON:
         logger.info("Resampling each week's games for the season-in-progress team rank ranges...")
         _write_data_file(
-            build_team_rank_ranges_by_week(weekly_df, team_fit), season, "rating_ranges_by_week"
+            build_team_rank_ranges_by_week(weekly_df, team_fit, season_prior),
+            season,
+            "rating_ranges_by_week",
         )
     return ratings
 

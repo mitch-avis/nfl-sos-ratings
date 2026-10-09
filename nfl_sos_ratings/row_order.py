@@ -4,7 +4,8 @@ Every data file is written in one fixed row order, so two builds from the same i
 identical files and a rebuild's diff shows only real changes. Files read top-down keep their
 published order (best first, ties broken by id); every other file is in key order: its first
 identity column present, then week and game, then unit and win-probability bin for files that split
-a game's plays into bins, then the compared team or passer for head-to-head pair files.
+a game's plays into bins, then the compared team or passer for head-to-head pair files, and the
+left-out team for the preseason prior's file.
 """
 
 from __future__ import annotations
@@ -19,18 +20,19 @@ PUBLISHED_ROW_ORDER: dict[str, tuple[tuple[str, bool], ...]] = {
     "qb_ratings": (("adj_qb_epa_per_dropback", True), ("qb_id", False)),
     "rating_ranges": (("team_rank", False), ("team", False)),
     "qb_rating_ranges": (("qb_rank", False), ("qb_id", False)),
+    "team_prior": (("excluded_team", False), ("team", False)),
 }
 ROW_IDENTITY_KEYS = ("qb_id", "team")
 ROW_EVENT_KEYS = ("week", "game_id")
 ROW_DETAIL_KEYS = ("wp_unit", "wp_bin")
-ROW_PAIR_KEYS = ("other_qb_id", "other_team")
+ROW_PAIR_KEYS = ("other_qb_id", "other_team", "excluded_team")
 
 
 def row_identity_keys(columns: Collection[str]) -> tuple[str, ...]:
     """Return the columns that identify a data file's rows, or ``()`` when it has none.
 
     The identity is the first of ``qb_id`` and ``team`` present, then ``week``, ``game_id``,
-    ``wp_unit``, ``wp_bin``, ``other_qb_id``, and ``other_team`` where present.
+    ``wp_unit``, ``wp_bin``, ``other_qb_id``, ``other_team``, and ``excluded_team`` where present.
     """
     identity = next((key for key in ROW_IDENTITY_KEYS if key in columns), None)
     if identity is None:

@@ -18,13 +18,15 @@ if TYPE_CHECKING:
 
 _LINE_LIMIT = 100
 _DECISION_RULE = (
-    "The published team rating (TeamRating) is rebuilt each week from that season's earlier games "
-    "only, alongside SRS and raw EPA margin built from the same games. A margin model fit on "
+    "The published team rating (TeamRating) is rebuilt each week from that season's earlier "
+    "games, with its preseason prior from earlier seasons until a team has played 9 games, "
+    "alongside SRS and raw EPA margin built from the same games alone. A margin model fit on "
     "earlier predictions turns each rating gap into a predicted home margin. TeamRating stays the "
     "published headline unless its overall mean absolute error is significantly worse than "
     "RawEPA's or SRS's: the 95% paired-bootstrap interval of the difference lies entirely above "
-    "zero. Elo carries ratings across seasons, so it sees more information and is shown as a "
-    "reference only. This rule was written before the first run."
+    "zero. Elo carries every rating across seasons and is shown as a reference only. This rule "
+    "was written before the first run, and the prior joined TeamRating after its own "
+    "pre-registered test."
 )
 
 
