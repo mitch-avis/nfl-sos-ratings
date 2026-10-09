@@ -549,6 +549,34 @@ def test_epa_per_carry_and_stuff_rate_divide_over_their_own_plays() -> None:
     assert abs(_num(_row(result, "KC"), "stuff_rate") - 1 / 3) < 1e-9
 
 
+def test_a_scramble_without_the_dropback_flag_counts_as_a_dropback() -> None:
+    """Verify a scramble counts as a dropback and a scrimmage snap however nflverse flags it.
+
+    Before 2006 nflverse leaves ``qb_dropback`` at 0 on most scrambles, which it sets from 2006
+    on. Fixture: a DEN pass with 0.5 EPA and a DEN scramble with 1.5 EPA coded the pre-2006 way.
+    """
+    # Arrange
+    plays = [
+        _play(play_type="pass", **{"pass": 1}, qb_dropback=1, pass_attempt=1, epa=0.5),
+        _play(
+            play_type="run",
+            **{"pass": 1},
+            qb_scramble=1,
+            rush_attempt=1,
+            rushing_yards=7.0,
+            yards_gained=7.0,
+            epa=1.5,
+        ),
+    ]
+
+    # Act
+    result = compute_expanded_team_game_stats(pl.DataFrame(plays))
+
+    # Assert
+    den = _row(result, "DEN")
+    assert (den["dropbacks"], den["scrambles"], den["offensive_epa"]) == (2, 1, 2.0)
+
+
 def test_scrambles_and_designed_runs_leave_out_plays_wiped_out_by_penalty() -> None:
     """Verify nullified scrambles and designed runs are not counted as real plays.
 

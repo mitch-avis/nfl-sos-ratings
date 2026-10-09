@@ -518,6 +518,37 @@ def _pass_play(posteam: str, **flags: object) -> dict[str, object]:
     return play
 
 
+def test_a_scramble_without_the_dropback_flag_counts_as_a_dropback_snap() -> None:
+    """A scramble counts as a dropback and a scrimmage snap however nflverse flags it.
+
+    Before 2006 nflverse leaves ``qb_dropback`` at 0 on most scrambles (``rush`` is 0 on every
+    scramble), while from 2006 on it sets it. Fixture: a DEN pass with 0.5 EPA and a DEN scramble
+    with 1.5 EPA coded the pre-2006 way; both are DEN snaps and both count as passing EPA.
+    """
+    # Arrange
+    pbp = pl.DataFrame(
+        [
+            _pass_play("DEN", play_type="pass", epa=0.5),
+            _pass_play(
+                "DEN",
+                play_type="run",
+                qb_dropback=0,
+                pass_attempt=0,
+                rush_attempt=1,
+                qb_scramble=1,
+                epa=1.5,
+            ),
+        ]
+    )
+
+    # Act
+    result = team_stats.compute_team_game_stats_from_pbp(pbp, pl.DataFrame(), _den_kc_schedule())
+
+    # Assert
+    den = result.filter(pl.col("team") == "DEN").row(0, named=True)
+    assert (den["offensive_snaps"], den["passing_epa"]) == (2, 2.0)
+
+
 def test_sack_and_rushing_fumbles_lost_count_only_the_offenses_own_fumbles() -> None:
     """A lost fumble on a sack or run is the offense's only when the offense fumbled.
 

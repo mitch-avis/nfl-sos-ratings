@@ -1072,20 +1072,29 @@ Proposal (one small pull request after the current one merges):
   1999 and 2000 nflverse also flags scrambles on running backs' carries (153 scrambles in 1999 by
   players without a QB row, 14 of them C.Dillon's, the same command), which the team `scrambles`
   count takes as they are.
-- Team scrimmage plays leave out scrambles before 2006 (found by the Q1 review; not fixed; ask
-  first). `pbp_expressions.scrimmage_snap_expr` counts a play when it is a dropback, rush, kneel,
-  or spike, and before 2006 nflverse leaves `qb_dropback` and `rush` unset on many scrambles. So
-  every team column built on it (`offensive_snaps`, `offensive_epa`, `epa_per_offensive_snap`, and
-  the defensive mirrors, hence the published offense and defense ratings), the team `dropbacks`
-  and `pass_rate`, and the 1999-2005 seasons of `validate` and the preseason prior's check leave
-  them out. Scrambles on run plays left out (`POLARS_MAX_THREADS=1 .venv/bin/python
-  .agents/findings_2026_10_08/qb_protocol_checks.py 1999 2025`), of the scrambles on run plays:
-  818 of 882 in 1999 (+184.3 EPA), 440 of 923 in 2000, 311 of 800 in 2001, 270 of 820 in 2002, 658
-  of 659 in 2003 (+200.4), 711 of 713 in 2004 (+234.1), and 532 of 532 in 2005 (+177.8); none from
-  2006 on, where only penalty-wiped
-  scrambles (`no_play`) are left out, as they should be. A fix adds `qb_scramble` on run plays to
-  the filter, rebuilds `data/`, and reruns `validate` (each ask first): it changes the 1999-2005
-  team ratings and every rate built on scrimmage plays in those seasons.
+- Team scrimmage plays left out scrambles before 2006 (found by the Q1 review; fixed on
+  `fix/pre-2006-scrambles`, maintainer approval 2026-10-08, then a `data/` rebuild and a `validate`
+  rerun). nflverse codes every scramble as a pass play (`rush` 0, `pass` 1, `rush_attempt` 1 in
+  every season) and flags it `qb_dropback` from 2006 on, but before 2006 leaves `qb_dropback` at 0
+  on most scrambles. `pbp_expressions.scrimmage_snap_expr` needed a dropback or rush flag, so every
+  team column built on it (`offensive_snaps`, `offensive_epa`, `epa_per_offensive_snap`, the
+  defensive mirrors, hence the offense and defense ratings), team `dropbacks`, `pass_rate`, and
+  team passing EPA left them out. Run-play scrambles left out (`POLARS_MAX_THREADS=1
+  .venv/bin/python .agents/findings_2026_10_08/qb_protocol_checks.py 1999 2025`): 818 of 882 in
+  1999 (+184.3 EPA), 440 of 923 in 2000, 311 of 800 in 2001, 270 of 820 in 2002, 658 of 659 in
+  2003 (+200.4), 711 of 713 in 2004 (+234.1), and 532 of 532 in 2005 (+177.8); none from 2006
+  on. Confirmed against nflverse's official team stats, which count scramble yards as rushing
+  yards (`POLARS_MAX_THREADS=1 .venv/bin/python .agents/findings_2026_10_08/scramble_coding.py
+  1999 2003 2004 2005 2006 2010 2025`, run on the filter before the fix): play-by-play rushing
+  yards over the filter's plays plus these scrambles come within 47 yards of the official totals
+  (2004: 59,708 of 59,755; 2005: 57,581 of 57,588; 2010: 58,594 of 58,601), and fall 3,567 to
+  5,548 short without them in 1999 and 2003-2005. The same command shows the coding: run-play
+  scrambles carry `rush` 0, `pass` 1, and `rush_attempt` 1 in every season shown, and
+  `qb_dropback` 0 on 818 of 882 in 1999 and on all but 1 or 2 in 2003-2005. Adding nflverse's
+  `pass` flag instead would also add 783 to 1,156 penalty-wiped pass plays a season in 2006,
+  2010, and 2025. The fix,
+  `pbp_expressions.dropback_expr`, counts a run play flagged `qb_scramble` as a dropback, used
+  by the snap filter, team `dropbacks`, and team passing EPA; it changes nothing from 2006 on.
 - Jacksonville's 2001-2002 home games (branch `fix/jax-team-codes`; `data/` not rebuilt). In these
   16 games nflverse credits every player to the visiting team: the play-by-play player team columns
   (`td_team`, `penalty_team`, `fumbled_1_team`, recoveries, tackles), the weekly player stats, and
