@@ -1080,6 +1080,7 @@ def _build_qb_stats(
             "qb_sack_yards_lost",
             "qb_sack_fumbles_lost",
             "qb_passing_epa",
+            "qb_spike_epa",
             "qb_epa_per_dropback",
             "qb_pass_yards_per_dropback",
             "qb_td_int_margin_rate",

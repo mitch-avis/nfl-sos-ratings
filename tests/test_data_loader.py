@@ -754,6 +754,56 @@ def test_load_qb_stats_prefers_official_weekly_player_stats_for_attempt_fields(
     assert result.select("qb_passer_rating").item() == 108.3
 
 
+def test_load_qb_stats_keeps_every_input_of_the_rates_it_pools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every pooled QB rate the game rows carry keeps its inputs, so season and opponent rows can
+    rebuild it from totals instead of averaging game rates (``qb_stats.QB_RATES``)."""
+    # Arrange
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"] * 3,
+            "season_type": ["REG"] * 3,
+            "week": [1, 1, 1],
+            "posteam": ["DEN"] * 3,
+            "defteam": ["KC"] * 3,
+            "passer_player_id": ["00-0031234"] * 3,
+            "passer_player_name": ["John Doe"] * 3,
+            "play_type": ["pass", "pass", "qb_spike"],
+            "qb_dropback": [1, 1, 0],
+            "qb_spike": [0, 0, 1],
+            "pass": [1, 0, 1],
+            "complete_pass": [1, 0, 0],
+            "passing_yards": [18.0, 0.0, 0.0],
+            "pass_touchdown": [0, 0, 0],
+            "interception": [0, 0, 0],
+            "sack": [0, 1, 0],
+            "fumble_lost": [0, 0, 0],
+            "qb_epa": [1.2, -0.4, -0.2],
+        }
+    )
+    players = pl.DataFrame(
+        {"gsis_id": ["00-0031234"], "display_name": ["John Doe"], "position": ["QB"]}
+    )
+    monkeypatch.setattr(data_loader.nfl, "load_pbp", stub(lambda: pbp))
+    monkeypatch.setattr(data_loader.nfl, "load_snap_counts", stub(pl.DataFrame))
+    monkeypatch.setattr(data_loader.nfl, "load_player_stats", stub(pl.DataFrame))
+    monkeypatch.setattr(data_loader.nfl, "load_players", stub(lambda: players))
+    monkeypatch.setattr(data_loader.nfl, "load_rosters_weekly", stub(pl.DataFrame))
+
+    # Act
+    result = data_loader.load_qb_stats(2025)
+
+    # Assert
+    missing = {
+        rate: sorted(set(qb_stats.QB_RATES[rate].inputs) - set(result.columns))
+        for rate in qb_stats.QB_RATES
+        if rate in result.columns
+    }
+    assert {rate: inputs for rate, inputs in missing.items() if inputs} == {}
+    assert result.get_column("qb_spike_epa").to_list() == [pytest.approx(-0.2)]
+
+
 def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify QB loading keeps individual game rows from PBP plus snap counts."""
     # Arrange
@@ -860,6 +910,7 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
         "qb_sack_yards_lost",
         "qb_sack_fumbles_lost",
         "qb_passing_epa",
+        "qb_spike_epa",
         "qb_epa_per_dropback",
         "qb_pass_yards_per_dropback",
         "qb_td_int_margin_rate",
@@ -912,6 +963,7 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_sack_yards_lost": 0.0,
             "qb_sack_fumbles_lost": 0,
             "qb_passing_epa": -2.0,
+            "qb_spike_epa": 0.0,
             "qb_epa_per_dropback": -2.0,
             "qb_pass_yards_per_dropback": 0.0,
             "qb_td_int_margin_rate": -1.0,
@@ -963,6 +1015,7 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_sack_yards_lost": 0.0,
             "qb_sack_fumbles_lost": 0,
             "qb_passing_epa": 0.0,
+            "qb_spike_epa": 0.0,
             "qb_epa_per_dropback": None,
             "qb_pass_yards_per_dropback": None,
             "qb_td_int_margin_rate": None,
@@ -1014,6 +1067,7 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_sack_yards_lost": 0.0,
             "qb_sack_fumbles_lost": 0,
             "qb_passing_epa": 1.5,
+            "qb_spike_epa": 0.0,
             "qb_epa_per_dropback": 0.75,
             "qb_pass_yards_per_dropback": 10.0,
             "qb_td_int_margin_rate": 0.5,
@@ -1065,6 +1119,7 @@ def test_load_qb_stats_keeps_individual_qbs_and_renames(monkeypatch: pytest.Monk
             "qb_sack_yards_lost": 0.0,
             "qb_sack_fumbles_lost": 0,
             "qb_passing_epa": 1.0,
+            "qb_spike_epa": 0.0,
             "qb_epa_per_dropback": 1.0,
             "qb_pass_yards_per_dropback": 15.0,
             "qb_td_int_margin_rate": 0.0,
