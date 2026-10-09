@@ -60,7 +60,9 @@ history (the composite-rating era and its experiments) is in git, before commit 
    validation rerun (roadmap P6).
 2. Default heat scale blue to orange, and deeper light-mode shading in every palette (U17).
 3. QB rating from all of a quarterback's plays (scrambles and designed runs, not only dropbacks):
-   write the pre-registered protocol first (roadmap "Data notes"); adoption is the maintainer's.
+   write the pre-registered protocol first; adoption is the maintainer's. Drafted 2026-10-08 on
+   `docs/qb-all-plays-protocol` (roadmap Q1, with `.agents/findings_2026_10_08/qb_play_types.py`);
+   it waits on an independent review and three maintainer questions listed there.
 4. The garbage-time filter, kept but more compact.
 5. A plan for bringing this app's features into nfl-predictor (heads-up; nothing done there).
 
@@ -70,6 +72,9 @@ history (the composite-rating era and its experiments) is in git, before commit 
    after a return touchdown, the near-duplicate yards-per-snap columns, `opp_longest_*` averaging
    per-game maxima, `fourth_down_aggressiveness` at 2.0 in two 2000 games, play-by-play as a
    2003-2011 source for tackles for loss, and kneel-downs under-recorded in 2000 and 2001.
+2. QB rows drop quarterbacks whose latest nflverse position is not QB (Terrelle Pryor 2013, Taysom
+   Hill 2020-2021, and a few others): roadmap "Data notes", "QB rows by career position"; a fix
+   changes published QB ratings (ask first). Roadmap Q1 asks whether to fix it before that check.
 
 ## State before 2026-10-08
 

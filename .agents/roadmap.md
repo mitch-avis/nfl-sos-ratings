@@ -122,6 +122,10 @@ bottom; update the status boxes in the same change set as the work.
     passed" on success, or the last eight output lines on failure; the app polls every two seconds
     while a run goes and refetches every query when it ends. The maintainer turns it on by
     restarting their server with `--allow-refresh`.
+13. [ ] Q1 QB rating from all of a quarterback's plays (maintainer request, 2026-10-08): protocol
+    first (approved), then review, code (test-first), the run (ask first), and the decision.
+    Protocol drafted on `docs/qb-all-plays-protocol`, not yet reviewed: section "Q1. QB rating from
+    all of a quarterback's plays".
 
 ## Recommended order
 
@@ -143,6 +147,7 @@ bottom; update the status boxes in the same change set as the work.
 | 14 | S5 Test and pipeline speed | Single-threaded Polars: a season build 32.7 s to 4.8 s (scratch) |
 | 15 | U UX audit (2026-10-08) | Bugs first (U1-U4), then layout, detail page, charts, color semantics |
 | 16 | P6 Preseason prior for the team fit | Pre-registered test first; adoption needs the maintainer |
+| 17 | Q1 QB rating from all of a quarterback's plays | Protocol first; three questions for the maintainer |
 
 ## Settled background the workstreams build on
 
@@ -1034,7 +1039,24 @@ Proposal (one small pull request after the current one merges):
   4; Spearman 0.986 between the two ratings), Maye stays 1st (0.210 to 0.254), and Allen moves
   from 11th to 8th (0.102 to 0.149). Counting them changes a published rating, so it needs a
   protocol here before any code. Until then `qb_scramble_rate` divides scrambles by dropbacks that
-  leave them out.
+  leave them out. The maintainer asked (2026-10-08) for every QB play to count; the protocol,
+  scrambles and designed runs both, is Q1.
+- QB rows by career position (found while drafting Q1; not fixed). `load_qb_identity_crosswalk`
+  takes a player's position from `nflreadpy.load_players()` (his latest) before the season's weekly
+  roster, and the QB rows keep only players listed at QB, so a quarterback later listed elsewhere
+  loses every QB row: his dropbacks are neither rated nor in his opponents' pass-defense fits.
+  `POLARS_MAX_THREADS=1 .venv/bin/python .agents/findings_2026_10_08/qb_play_types.py 1999 2025`
+  lists the players with 10 or more dropbacks or scrambles in a season in games where they have no
+  QB row: T.Pryor (302 dropbacks in 11 games in 2013, 30 in 2012, 10 in 2016), T.Hill (135 in
+  2020, 141 in 2021, 21 in 2022, 13 in 2023), L.Thomas (11 in 2014), and K.Hinton (10 in 2020),
+  plus non-quarterbacks' passes (T.Tupa in 1999, A.Randle El in 2002). nflverse's weekly rosters
+  list Pryor (2013) and Hill (2020) at QB. A fix changes published QB ratings in those seasons
+  (ask first); Q1, question 2.
+- Also from that command, not fixed: `qb_designed_carries`, `qb_designed_rush_epa`, and the team
+  `designed_carries` (and so `rush_success_rate`, `team_stats_expanded.py`) count aborted snaps as
+  designed runs; in 1999 and 2000 nflverse flags scrambles on running backs' carries (153 scrambles
+  in 1999 by players without a QB row, 14 of them C.Dillon's), which the team `scrambles` count
+  takes as they are.
 - Jacksonville's 2001-2002 home games (branch `fix/jax-team-codes`; `data/` not rebuilt). In these
   16 games nflverse credits every player to the visiting team: the play-by-play player team columns
   (`td_team`, `penalty_team`, `fumbled_1_team`, recoveries, tackles), the weekly player stats, and
@@ -1504,6 +1526,311 @@ Tasks:
 - [ ] Maintainer decision on the 9-game horizon (asked 2026-10-08).
 - [ ] If adopted: the refits above, then ask before the `data/` rebuild, then update the registry,
   `README.md`, `docs/methodology.md`, the validation report, and the nfl-predictor note.
+
+## Q1. QB rating from all of a quarterback's plays (protocol, not yet run)
+
+Background: the published QB rating, `adj_qb_epa_per_dropback` (`nfl_sos_ratings/qb_rating.py`),
+fits EPA per dropback where a dropback is a play with a passer: pass attempts and sacks. nflverse
+leaves the passer empty on scrambles, so they drop out, and designed QB runs were never counted
+("Data notes", the open decision on scrambles). The maintainer (2026-10-08): mobile quarterbacks
+are highly sought after, and the rating should count every aspect of QB play, to gauge every
+quarterback against the common defenses they face and against one another. The maintainer
+approved writing this protocol first; adoption is the maintainer's decision after the check runs.
+
+Protocol history: drafted 2026-10-08 on `docs/qb-all-plays-protocol`; not yet independently
+reviewed. Inputs seen while drafting are descriptive only: play counts and EPA by type, the checks
+of the play-by-play parts against the published columns, and full-season 2025 refits under A, B,
+and C (ranks and penalties), all from the helper below. No candidate's walk-forward error has
+been computed by anyone.
+
+### What each candidate counts
+
+Every candidate keeps the published estimator: one row per quarterback-game, `EPA per play =
+intercept + passer - defense + home field`, weighted by the candidate's plays, with the ridge
+penalty on the passer and defense effects (`fit_qb_ratings`, unchanged). Only the plays in a row
+change. The rows are the published `{season}_qb_game_logs` rows: a passer with a dropback, or a
+snap-count quarterback, keyed by `qb_id`.
+
+- **A (today):** plays with a passer and nflverse's `qb_dropback` flag, that is pass attempts and
+  sacks, two-point passes included (`qb_stats.compute_qb_game_volumes_from_pbp`). EPA is
+  nflverse's official weekly `passing_epa`
+  (`data_loader._override_qb_game_stats_with_official_weekly`), which sums the passer's `qb_epa`
+  over his passes and spikes, two-point tries included. So A's EPA carries spikes while its play
+  count does not.
+- **B = A + scrambles:** plus every `play_type == "run"` play with `qb_scramble` whose
+  `rusher_player_id` is the quarterback, two-point tries out. B then counts the plays nflverse
+  flags as dropbacks (`qb_dropback`), as the team `dropbacks` column does, two-point scrambles
+  aside.
+- **C = B + designed runs:** plus the quarterback's other runs that nflverse marks as a rush
+  (`rush == 1`, not a scramble, not a two-point try), aborted snaps out.
+
+Left out of every candidate, with the reason:
+
+- Kneel-downs (`play_type == "qb_kneel"`): called to run out the clock once the game is decided;
+  the quarterback has no choice, and their EPA is negative by construction (-0.560 per kneel in
+  2003-2025, below), so counting them would mark down quarterbacks whose teams lead late.
+- Spikes as plays: a called, intentional incompletion to stop the clock. Their EPA stays in A's
+  passing EPA exactly as published, because B and C keep A's passing part unchanged; taking it out
+  would change A, which is outside this test (question 3 below).
+- Aborted snaps (`aborted_play`; nflverse codes them as runs with a rusher): the play never became
+  the pass or run that was called. A and B leave out every aborted snap (nflverse names no passer
+  on them), so counting them in C alone would add a play type the others never see, and at more
+  than 2 EPA lost per play (below) a few of them would move a season's rating. The published
+  `qb_designed_carries` and `qb_designed_rush_epa` count them as designed runs (so does the team
+  `designed_carries`, `team_stats_expanded.py`), so C recounts designed runs from play-by-play.
+  C with aborted snaps is a descriptive extra; the maintainer can reverse this before the run.
+- Two-point tries in the added plays, as the published scramble and carry columns leave them out.
+  A keeps its two-point passes as published.
+- Plays a penalty wiped out (`play_type == "no_play"`): the definitions above take
+  `play_type == "run"` only.
+
+Sourcing and attribution: passes keep A's official passing EPA; scrambles and designed runs take
+nflverse's play-by-play `epa`, as the published `qb_designed_rush_epa` does and the official
+rushing EPA sums it (checks below). Plays go to a quarterback by player
+id, never by name: runs by `rusher_player_id`, spikes by `passer_player_id`, matched to the QB
+rows on `game_id`, `team` (normalized `posteam`), and `qb_id`. Runs by players without a QB row in
+that game (wildcat snaps, trick plays) are not QB plays.
+
+Data checks and sizes, from `POLARS_MAX_THREADS=1 .venv/bin/python
+.agents/findings_2026_10_08/qb_play_types.py 1999 2025 --compare 2025` (reads `data/` and
+play-by-play):
+
+- The published `qb_passing_epa` equals the passer's `qb_epa` over his passes and spikes in every
+  QB-game of 1999-2025 (no row differs by more than 1e-6).
+- In every QB-game of 2001-2025 the play-by-play scramble, kneel, and carry counts (designed runs
+  plus aborted snaps) and the carry EPA equal the published `qb_scrambles`, `qb_kneels`,
+  `qb_designed_carries`, and `qb_designed_rush_epa`. In every QB-game of 1999-2025 the official
+  `qb_rushing_epa` equals the sum of the play-by-play rushing parts (scrambles, designed runs,
+  aborted snaps, kneels, two-point runs, and runs flagged neither as a rush nor as a scramble) to
+  within 1.8e-15.
+- 1999 and 2000 differ (34 and 38 QB-games in scrambles, 10 and 6 in carries): their play-by-play
+  has scramble and rush flags on rows without a play type, and flags scrambles on running backs'
+  runs (153 scrambles in 1999 by players without a QB row, 14 of them by C.Dillon). Kneel-downs
+  on the QB rows number 24 and 25 in 2000 and 2001 against 220 to 433 in every other season, so most
+  of those kneels count as designed runs (615 and 696, against 340 in 1999 and 464 in 2002).
+- 2025: A's refit equals the published rating for the 33 qualified passers (largest gap 4.2e-16).
+  The cross-validated penalty is 177.828 for A and 100.000 for B and C (one grid step lower, so
+  less pull toward average). B changes 23 ranks (by at most 4; Spearman with A 0.986), C 26 (at
+  most 7; 0.968). Drake Maye is 1st under all three (0.210, 0.254, 0.246); Josh Allen is 11th,
+  8th, and 5th; Lamar Jackson 19th, 17th, and 14th; Jaxson Dart 23rd, 20th, and 16th; Jared Goff
+  6th, 7th, and 9th. A defense faced 496 to 671 dropbacks (median 583), 24 to 46 scrambles
+  (median 35), and 6 to 31 designed QB runs (median 19).
+
+Over the window, from `POLARS_MAX_THREADS=1 .venv/bin/python
+.agents/findings_2026_10_08/qb_play_types.py 2003 2025`, on the QB rows of 2003-2025: 428,514
+dropbacks carry 12,764.7 EPA (+0.030 per play), 16,918 scrambles 7,367.2 (+0.435), and 11,261
+designed runs 2,372.2 (+0.211); left out are 2,035 aborted snaps (-4,610.6, -2.266 per play),
+8,570 kneels (-4,800.5, -0.560), and 1,713 spikes (-229.8, -0.134). A keeps a dropback that ends
+in a sack but drops one that ends in a scramble, the most valuable kind of QB play here.
+
+### One unit for C, or separate pass and run terms
+
+Recommendation: one unit, as defined above. How sure: moderately. What would change it: C losing
+on the team target while winning on the quarterback's own EPA per QB play (an extra), which would
+suggest that the play mix, not the quarterback, drives C's numbers.
+
+- One unit: each QB-game row pools all of C's plays, and the defense term becomes defense against
+  all QB plays. A quarterback's play mix then enters his rating: designed runs averaged +0.211 EPA
+  against +0.030 for dropbacks (2003-2025, above), so a team that calls more QB runs lifts its
+  quarterback's number. That is its main cost: some of it is the play-caller's choice.
+- Split: pass rows (dropbacks and scrambles) and run rows (designed runs), each with its own
+  intercept and defense term, and one passer effect shared by both (or one per type, combined by
+  his own mix). It judges a quarterback's runs only against the average QB run, so calling more
+  runs does not lift him, and it keeps a pure pass-defense term. Costs: `ridge.build_unit_design`
+  has one intercept per fit, so it needs a new design; a defense's run term would rest on 6 to 31
+  designed QB runs a season (2025, above) and be shrunk almost to zero; and per-type passer effects
+  make two ratings that need a combining weight.
+- Reasons for one unit: the solver, weekly refits, bootstrap ranges, and the head-to-head exclusion
+  run unchanged; one number for all of a quarterback's plays is what the maintainer asked for; and
+  the split's run terms could hardly be estimated. If C is adopted and a pure pass-defense faced
+  value is wanted, the split can be a separately tested candidate later.
+
+What the defense side means, and `qb_faced_pass_defense` (the head-to-head-excluded,
+play-weighted defense faced):
+
+- A: pass defense on dropbacks with a passer.
+- B: pass defense on every dropback, scrambles included; `qb_faced_pass_defense` keeps its name and
+  meaning.
+- C: defense against every QB play. A defense faced 6 to 31 designed QB runs in 2025 against 496
+  to 671 dropbacks (above), so it stays mostly pass defense, but neither `qb_faced_pass_defense` nor
+  `adj_qb_epa_per_dropback` would be an exact name. Renaming them (for example
+  `qb_faced_defense`, `adj_qb_epa_per_play`) is a published-column change, decided at adoption.
+
+Per-play denominator and qualifier:
+
+- Each candidate's weight is its own play count (A dropbacks; B plus scrambles; C plus designed
+  runs), and its response is its EPA over that count. C also rates QB-game rows with designed runs
+  but no dropback (a backup used only on sneaks), which then inform C's defense terms.
+- The qualifier stays 14 pass attempts per game the quarterback's team has played
+  (`qb_attempt_qualifier`, `qb_stats._with_attempt_qualifier`) for every candidate, so the
+  qualifying passers are the same and ranks, year-over-year pairs, and QBR joins compare the same
+  people. A qualifier on QB plays for C is a separate question at adoption.
+
+### Pre-registered test
+
+- **Hypotheses (falsifiable):** with scrambles counted (B), a team's scheduled starter's rating
+  and the opponent's defense effect predict the team's offensive EPA per play, in a game the
+  rating has not seen, better than A's do; with designed runs counted too (C), better than A's and
+  better than B's. Each is not supported unless its paired interval (below) lies entirely below
+  zero.
+- **Candidates, fixed in advance:** A, B, and C as defined above. Nothing else is a decision input.
+- **Primary metric:** mean absolute error of a team's offensive EPA per scrimmage play in a game
+  (`epa_per_offensive_snap`, `{season}_team_game_logs`), predicted from its scheduled starting
+  quarterback's rating and the opponent's defense effect before that game. Why this target:
+  - It is common to every candidate and defined by none of them: it counts every scrimmage play,
+    running backs' carries and receivers' work included, so no candidate wins by construction.
+  - It measures what the rating is for, how much a quarterback lifts his offense against the
+    defense in front of it, out of sample, on the walk-forward harness `validate` already uses.
+  - Per-play EPA is less noisy than points; points are a descriptive extra.
+  - The existing QB checks do not fit as the decision: year-over-year stability measures
+    repeatability, not accuracy, and `docs/methodology.md` says stability is reported, not
+    optimized; ESPN QBR is a reference, not a target, and counts rushing itself, so it leans
+    toward C; the passer holdout (`check-passer`) is a z-test for one named passer; and a
+    quarterback's own later EPA per play is defined by one candidate's play set (A's or C's), so
+    it favors that candidate. All of them are reported as extras.
+- **Prediction:** for candidate X, season s, and week w of 2 or later, fit X's rows of season s
+  from weeks before w with `fit_qb_ratings(rows, ridge_lambda=lambda_X(s))`, where `lambda_X(s)`
+  is the penalty `fit_qb_ratings` cross-validates on X's full season s-1 rows (2002's for 2003),
+  as the team fit reuses the previous season's. For each team-game of week w, take the scheduled
+  starter q (`home_qb_id` or `away_qb_id` from `data_loader.load_schedule`) and the opponent o:
+  `p = intercept + passer[q] - defense[o] + home_field * home_sign`, with 0 for a passer or
+  defense without earlier rows. The calibrated prediction is `k * p + m`, least squares on all of
+  X's earlier rows in the window (earlier weeks of s and every week from 2 of earlier seasons), as
+  `walk_forward._fit_margin_projection` does for margins (`k = m = 0` with no rows). A team-game
+  whose scheduled starter did not play still counts: the prediction uses pre-game information only.
+- **Allowed information set:** to predict week w of season s, a candidate sees season s's QB-game
+  rows and play-by-play parts from weeks before w, season s-1's full-season rows (for its penalty),
+  the scheduled starters of week w, and the target only for earlier weeks (for its calibration).
+  Shared caveats, not leaks between candidates: nflverse's expected-points model is trained on many
+  seasons, later ones included; the schedule's starter fields record who started, which is known
+  at kickoff.
+- **Window:** prediction weeks 5 and later of seasons 2003-2025, on the team-games every candidate
+  predicts (all of them). Weeks 2-4 are predicted only to feed the calibration and never scored.
+  Reasons for 2003: 2000 and 2001
+  lack most kneel flags, which turns kneels into C's designed runs, and 1999 and 2000 flag
+  scrambles on running backs (above); 2003's penalties come from 2002, whose flags are sound.
+- **Inference:** per team-game paired differences `|error X| - |error Y|` for B - A, C - A, and
+  C - B; a bootstrap that resamples whole seasons (23 clusters, 2003-2025) with replacement, so
+  both sides of a game and a week's shared snapshot stay together; 10,000 resamples, seed 0, the
+  same draws for every comparison and week band; 98.33% percentile intervals (quantiles 1/120 and
+  119/120), which is 95% Bonferroni-adjusted for the three comparisons. "Beats" is a one-sided test
+  at 0.83% per comparison.
+- **Decision rule:** X beats Y when X - Y's overall interval lies entirely below zero and neither
+  of its week-band intervals (prediction weeks 5-8 and 9 on; same draws and level) lies entirely
+  above zero. The candidates in order of simplicity are A, B, C. The recommendation is the
+  simplest candidate no other candidate beats: A unless B or C beats it; B when A is beaten and
+  neither A nor C beats B (even if B itself only ties A); otherwise C. An inconclusive
+  comparison is a tie. Every interval that excludes zero is reported, in either direction. The
+  decision goes to the maintainer as a question either way, with the rule's recommendation as
+  written; the maintainer may still adopt B or C on principle after a tie.
+- **Why A is the simplest:** A has one EPA source for its plays, the published code and columns,
+  and an unchanged defense side. B adds one play type from play-by-play and keeps the defense side
+  and every column name. C adds a second kind of play with its own average EPA, changes what the
+  defense side measures, and needs new column names. B is arguably the more natural definition of
+  a dropback (nflverse's `qb_dropback` flag, as the team `dropbacks` column counts), which the
+  maintainer may weigh; the rule's order follows moving parts, and A gains nothing from being
+  published.
+- **Integrity checks, run before reading any result; if one fails, stop, investigate, and read
+  nothing else:**
+  1. Reproduction: A's full-season fit of every season 2002-2025, with its own cross-validated
+     penalty, equals `adj_qb_epa_per_dropback` in `{season}_qb_ratings.parquet` to 1e-9.
+  2. Play parts: on every QB-game of 2002-2025 the play-by-play scramble and kneel counts equal
+     `qb_scrambles` and `qb_kneels`; designed runs plus aborted snaps equal `qb_designed_carries`,
+     and their EPA `qb_designed_rush_epa`, to 1e-9; `qb_rushing_epa` equals the sum of the
+     rushing parts and `qb_passing_epa` the passer's `qb_epa` over passes and spikes, to 1e-6.
+  3. Zero addition: with the added plays set to zero, B's and C's rows, snapshot fits, and
+     predictions equal A's to 1e-12.
+  4. Penalties: every snapshot of season s uses `lambda_X(s)`, recomputed independently from X's
+     season s-1 rows.
+  5. Information set: replacing every row from week w on (plays and EPA) with other values leaves
+     the week-w predictions unchanged to 1e-12, on every snapshot; every calibration row is from
+     an earlier week.
+  6. Rows: every candidate scores the same team-games; the check prints their count and the
+     team-games whose scheduled starter has no QB row in that game.
+  7. Extras: A's year-over-year Pearson over 1999-2025 reproduces `validate`'s 0.455 over 601
+     pairs, and its mean QBR correlations over 2006-2025 reproduce 0.892 (Pearson) and 0.874
+     (Spearman), to three decimals (`docs/validation-report.md`).
+  8. Inputs: the check prints a SHA-256 fingerprint of the files its decision reads, in name
+     order (`{season}_qb_game_logs`, `{season}_team_game_logs`, and `{season}_qb_ratings` for
+     2002-2025), and a fingerprint of the play-by-play parts and starters it builds (sorted, as
+     CSV).
+- **Descriptive extras (never decision inputs):** MAE and RMSE overall and by band with the paired
+  intervals; each candidate's calibration slope `k` by band, so a gain from rescaling rather than
+  information shows; the same comparisons on points scored (`points_for`); the starter's own EPA
+  per dropback (A's play set) and per QB play (C's), play-weighted, each labeled with the
+  candidate it favors; C with aborted snaps, on every metric; year-over-year Pearson and Spearman
+  of each candidate's full-season rating over consecutive seasons 2003-2025, passers qualifying
+  in both; mean per-season Pearson and Spearman with ESPN QBR, 2006-2025, joined as `validate`
+  joins it; the passer holdout (`passer_holdout`, the 2025 model, Drake Maye) under each
+  candidate, its postseason rows built the same way from postseason play-by-play (validation only);
+  each candidate's 2025 `qb_faced_pass_defense` and its correlation with A's; and the 2025 ranks of
+  Maye and Allen, whichever way they move.
+- **Command:** a new read-only `nfl-sos-ratings check-qb-plays --data-dir data --start-season 2003
+  --end-season 2025 --start-week 5`, modeled on `check-team-prior`. It reads `data/`, loads
+  play-by-play, schedules, postseason play-by-play, and ESPN QBR through the package loaders
+  (cached), and writes only to stdout. `validate` and its report stay as they are unless the
+  maintainer adopts a change.
+
+### If adopted (after the maintainer's decision; not needed for the test)
+
+- B: `qb_dropbacks` and `qb_epa_per_dropback` include scrambles; scramble EPA gets its own
+  registered column beside the official `qb_passing_epa`; every QB rate over `qb_dropbacks` (sack
+  rate, pass yards per dropback, TD-INT margin rate, scramble rate) either follows or keeps
+  attempts plus sacks, decided in that change. `qb_scramble_rate` then divides by dropbacks that
+  include scrambles, which closes the "Data notes" item.
+- C: as B, plus designed runs without aborted snaps, and the column names above.
+- Both: the QB rating histories, rank ranges, pairs, and faced defense take the same rows, so they
+  follow; registry metadata and catalogs, `README.md`, `docs/methodology.md` ("Quarterback
+  Ratings"), the validation report's QB rows, and the nfl-predictor note change with it; a `data/`
+  rebuild and a `validate` rerun, each ask first.
+
+### Tests (test-first) for the check
+
+- Attribution on a synthetic play-by-play: a scramble with an empty passer goes to the rusher's QB
+  row; a designed run, an aborted snap, a kneel, a spike, a two-point scramble, a penalty-wiped run,
+  and a running back's carry each land where defined or nowhere; a passer tagged two ways by name
+  in one game stays one row, keyed by id.
+- Candidate rows: B's and C's plays and EPA per play on a hand-computed QB-game; a QB-game with only
+  designed runs enters C's fit and not A's or B's.
+- Zero addition: B and C equal A exactly when the added plays are zero.
+- No look-ahead: changing any row from week w on leaves week-w predictions unchanged; the season-s
+  penalty reads only season s-1.
+- Starters: a prediction uses the scheduled starter's effect from before the week; a starter with
+  no earlier rows gets the intercept; a scheduled starter who did not play still counts.
+- Calibration: fit on earlier rows only; with none, `k = m = 0`.
+- Season bootstrap: with paired differences constant within each season, the interval equals the
+  one from the team-game-weighted means of the resampled season means with the same draws; every
+  comparison uses the same draws; no row is dropped.
+- Decision rule, table-driven: none beats A gives A; B beats A and C ties B gives B; C beats A but
+  ties B, and B ties A, gives B; C beats A and B gives C; an overall interval below zero with a
+  band interval above zero is not a win; an interval above zero is reported.
+- Synthetic league: when quarterbacks differ only in designed-run value, C beats A on the team
+  target; when designed runs are pure noise, nothing beats A.
+- Each integrity check fails when the code under it is broken (a scramble EPA with its sign
+  flipped, a dropped row, a row from the prediction week in the fit).
+
+Questions for the maintainer, to settle before the check is built:
+
+1. Aborted snaps in C. Today the published `qb_designed_carries` counts them as designed runs.
+   Recommendation: leave them out of C (reasons above), with C including them as an extra. Fairly
+   sure; including them would change C's rating by the snap exchanges, which A and B never count.
+2. QB rows missing some quarterbacks ("Data notes", QB rows by career position). Every candidate
+   shares the rows, so the test is fair either way, but those seasons' ratings are wrong for the
+   missing passers and their opponents. Recommendation: fix it first in its own change and rebuild
+   `data/` (ask first), then build and run this check on the fixed rows.
+3. Spikes in A's EPA (above). Recommendation: leave A as published for this test; aligning A's
+   EPA with its play count is a small separate fix after the decision.
+
+Tasks:
+
+- [x] Draft the protocol and the findings helper (2026-10-08, on `docs/qb-all-plays-protocol`).
+- [ ] Maintainer answers to the three questions above.
+- [ ] Independent review of the protocol (a fresh subagent), findings resolved here; then merge the
+  protocol before any of the check's code (pre-registration).
+- [ ] `check-qb-plays` test-first; integrity checks on real data before reading any result; an
+  independent code review.
+- [ ] **Ask first**, then run the check; results here, with the command.
+- [ ] Maintainer decision; if adopted, the changes above.
 
 ## Ideas parking lot (not approved yet)
 
