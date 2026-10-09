@@ -8,7 +8,7 @@ import {
   formatSignedChange,
   parseWpRatings,
   parseWpThreshold,
-  sortWpRows,
+  withWpColumns,
   withWpThreshold,
   wpColumns,
 } from './wpFilter'
@@ -130,30 +130,6 @@ describe('parseWpRatings', () => {
   })
 })
 
-describe('sortWpRows', () => {
-  it('orders by the biggest rating gain first', () => {
-    // Arrange
-    const rows = parseWpRatings('teams', TEAM_PAYLOAD)
-
-    // Act
-    const sorted = sortWpRows(rows, { key: 'ratingChange', descending: true })
-
-    // Assert
-    expect(sorted.map((row) => row.id)).toEqual(['KC', 'DEN'])
-  })
-
-  it('orders by published rank, best first', () => {
-    // Arrange
-    const rows = parseWpRatings('teams', TEAM_PAYLOAD)
-
-    // Act
-    const sorted = sortWpRows(rows, { key: 'publishedRank', descending: false })
-
-    // Assert
-    expect(sorted.map((row) => row.id)).toEqual(['DEN', 'KC'])
-  })
-})
-
 describe('formatRankChange', () => {
   it.each([
     [-2, 'up 2'],
@@ -213,5 +189,54 @@ describe('wpColumns', () => {
       rank: 'qb_rank',
       kept: 'wp_kept_dropback_share',
     })
+  })
+})
+
+describe('withWpColumns', () => {
+  const TABLE = {
+    rows: [
+      { team: 'DEN', team_rank: 1, team_rating: 6.0 },
+      { team: 'KC', team_rank: 2, team_rating: 4.1 },
+      { team: 'LV', team_rank: 3, team_rating: 1.0 },
+    ],
+    visible_columns: ['team', 'team_rank', 'team_rating', 'SRS'],
+    column_groups: { ratings: ['team_rank', 'team_rating', 'SRS'] },
+  }
+
+  it('puts the filtered rating and rank beside the published rating', () => {
+    // Act
+    const merged = withWpColumns('teams', TABLE, ['team', 'team_rank', 'team_rating', 'SRS'], TEAM_PAYLOAD)
+
+    // Assert
+    expect(merged.selectedColumns).toEqual([
+      'team',
+      'team_rank',
+      'team_rating',
+      'filtered_team_rating',
+      'filtered_team_rank',
+      'SRS',
+    ])
+    expect(merged.table.rows.map((row) => [row.team, row.filtered_team_rating, row.filtered_team_rank])).toEqual([
+      ['DEN', 4.9, 2],
+      ['KC', 5.3, 1],
+      ['LV', null, null],
+    ])
+  })
+
+  it('leaves a view without the rating column alone', () => {
+    // Act
+    const merged = withWpColumns('teams', TABLE, ['team', 'SRS'], TEAM_PAYLOAD)
+
+    // Assert
+    expect(merged.selectedColumns).toEqual(['team', 'SRS'])
+  })
+
+  it('leaves the table alone while the filter is off or loading', () => {
+    // Act
+    const merged = withWpColumns('teams', TABLE, ['team', 'team_rating'], undefined)
+
+    // Assert
+    expect(merged.table).toBe(TABLE)
+    expect(merged.selectedColumns).toEqual(['team', 'team_rating'])
   })
 })

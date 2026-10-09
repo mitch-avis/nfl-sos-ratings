@@ -191,16 +191,16 @@ Keep logic that can be tested without a browser in `src/domain/`, with a `*.test
   sentence such as "NE rated above BUF in 38% of redraws. Typical gap (NE minus BUF): -1.2 points
   per game; 95% of redraws: -5.0 to +2.8." The comparison panel shows the same sentence when
   exactly two rows are compared.
-- The garbage-time filter is a folded section at the end of each page ("Explore ratings without
-  garbage time"), open when the address carries a threshold. It holds a slider from Off to 20%,
-  kept in the address as `?wp=`. A threshold of X% asks
+- The garbage-time filter is one button, "Garbage time: off" or "Garbage time: 10%", in the index
+  table's toolbar and under a detail page's rating summary (none for a team or QB without a
+  rating). Its popover holds a slider from Off to 20%, kept in the address as `?wp=`, what the
+  threshold keeps, an "Exploration only" note, and "Count every play". A threshold of X% asks
   `/api/seasons/{season}/{teams|qbs}/wp-ratings` for the ratings refit on the plays whose win
-  probability before the snap was between X% and 100% minus X%. It then lists
-  every team or qualifying QB by filtered rank, beside the change, the published rank and rating,
-  and the share of plays kept, under an "Exploration only" label. Detail pages show
-  the same for one row (and none for a team or QB without a rating). The slider waits 250 ms
-  after it stops moving before asking. Rank ranges and everything else on the page still count
-  every play.
+  probability before the snap was between X% and 100% minus X%. The index table's Ratings view
+  then adds the filtered rating and rank beside the published rating (other views are unchanged),
+  and a detail page shows one line with the filtered rating and rank and how far each moved. The
+  slider waits 250 ms after it stops moving before asking; links from the table keep the
+  threshold. Rank ranges and everything else on the page still count every play.
 - Click a team or QB to open its detail page. It leads with the ratings: each with its rank ("15th
   of 32"; QBs among the qualifiers; context such as SoS unranked) and, on the headline tile, the
   value before the schedule adjustment (EPA margin per play, or raw EPA per dropback). The rank

@@ -2,9 +2,10 @@ import { CalendarClock } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 
-import { useRankRanges } from '@/api/queries'
+import { useRankRanges, useWpRatings } from '@/api/queries'
 import type { EntityKind, SeasonDataset } from '@/api/types'
 import { useEntityPageState } from '@/app/EntityViewStateProvider'
+import { useWpThreshold } from '@/app/useWpThreshold'
 import { ErrorState } from '@/components/common/ErrorState'
 import { InfoTooltip } from '@/components/common/InfoTooltip'
 import { Notice } from '@/components/common/Notice'
@@ -14,7 +15,7 @@ import { ComparisonPanel } from '@/components/entity/ComparisonPanel'
 import { EntityTable } from '@/components/entity/EntityTable'
 import { RankRangeChart } from '@/components/entity/RankRangeChart'
 import { ViewControls } from '@/components/entity/ViewControls'
-import { WpExploration } from '@/components/entity/WpExploration'
+import { WpFilterControl } from '@/components/entity/WpFilterControl'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -30,6 +31,7 @@ import {
 import { isMissingRankRanges, parseRankRanges } from '@/domain/rankRanges'
 import { getInProgressGames } from '@/domain/seasonRules'
 import { buildSeasonViewTable } from '@/domain/viewModel'
+import { withWpColumns } from '@/domain/wpFilter'
 
 function sameIds(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index])
@@ -116,7 +118,7 @@ function SelectionBar({ count, onView, onClear }: { count: number; onView: () =>
   )
 }
 
-/** The Teams or QBs index: the ranking line, the table, comparison, rank ranges, and exploration. */
+/** The Teams or QBs index: the ranking line, the table with its filter, comparison, and rank ranges. */
 export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: SeasonDataset }) {
   const config = getEntityConfig(kind)
   const notFound = notFoundId(useLocation().state)
@@ -150,6 +152,13 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
       rows: seasonView.table.rows.filter((row) => row.qb_is_eligible === true),
     }
   }, [kind, seasonView.table, state.showUnratedRows])
+  const [wpThreshold] = useWpThreshold()
+  const wpQuery = useWpRatings(kind, dataset.season, wpThreshold)
+  // At a non-zero threshold the filtered rating and rank sit beside the published rating.
+  const tableView = useMemo(
+    () => withWpColumns(kind, displayTable, seasonView.selectedColumns, wpThreshold > 0 ? wpQuery.data : undefined),
+    [displayTable, kind, seasonView.selectedColumns, wpQuery.data, wpThreshold],
+  )
   const compareColumns = useMemo(() => {
     // The first column already names each row, so only a QB's team stays from the identity columns.
     const requested = seasonView.selectedColumns.filter(
@@ -202,11 +211,12 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
         query={state.query}
         rankRanges={rankRanges}
         season={season}
-        selectedColumns={seasonView.selectedColumns}
+        selectedColumns={tableView.selectedColumns}
         sorting={state.sorting}
-        table={displayTable}
+        table={tableView.table}
         toolbar={
           <>
+            <WpFilterControl kind={kind} season={season} where="beside the published rating in the Ratings view" />
             {kind === 'qbs' ? (
               <div className="flex items-center gap-2">
                 <Switch
@@ -263,8 +273,6 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
           </CardContent>
         </Card>
       ) : null}
-
-      <WpExploration kind={kind} season={season} />
     </div>
   )
 }
