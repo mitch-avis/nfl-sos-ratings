@@ -99,7 +99,8 @@ bottom; update the status boxes in the same change set as the work.
    throwing depth more than quality); `player_id` and `player_display_name` left the registry and
    `ui_data._build_qb_payload` (no file in `data/` has them; the tests' fixtures now use `qb_id` and
    `qb_name`, as the data does); the nine labels of 19-20 characters stay.
-6. [ ] P6 Preseason prior for the team fit: the team fit shrinks toward a regressed previous-season
+6. [x] P6 Preseason prior for the team fit (adopted at 9 games, 2026-10-08, #47; `data/` rebuilt
+   and the validation rerun the same day): the team fit shrinks toward a regressed previous-season
    rating that fades out early in the season (the maintainer expects the prior gone by mid-season
    or earlier; the fade point is for the pre-registered test to settle). Protocol first, then code
    (test-first), an independent review, the check run (approved), the decision, and a `data/`
@@ -508,6 +509,16 @@ threshold is a cumulative sum and the API refits on demand with the weighted eng
   showing its team. One screenshot timed out once, right after scripted key presses on the slider,
   while the page's scripts kept answering at once; it did not recur. The filtered QB table now
   shows each QB's team in its own column, as the main QB table does (pull request after #5).
+
+### WP3 follow-up: compact filter (2026-10-08)
+
+The maintainer could not find the folded exploration section at the end of each page and found it
+too large; they want the filter kept, smaller. Done on `feat/compact-wp-filter`: the filter is one
+toolbar button with a popover (slider, what it keeps, the exploration note, "Count every play"); at
+a non-zero threshold the index table's Ratings view adds the filtered rating and rank beside the
+published rating, and a detail page shows one line under its rating summary. The separate
+filtered table and its kept-share and change columns are gone from the app (the API still serves
+them); table links keep `?wp=`.
 
 ### WP4. Pre-registered walk-forward test
 
@@ -1523,9 +1534,46 @@ Tasks:
   candidate (no rescaling); Elo by band 10.996 / 10.730 / 10.605; carryover slopes 0.68-0.82
   (offense) and 0.38-0.47 (defense); 2026 DEN after week 4 -0.37 (15th) today, +0.96 (12th) at 9
   games; week 1 by the prior alone MAE 10.341 against 10.689 for the home edge alone.
-- [ ] Maintainer decision on the 9-game horizon (asked 2026-10-08).
+- [x] Maintainer decision on the 9-game horizon: adopt (2026-10-08), with the rebuild and the
+  validation rerun approved in the same answer.
 - [ ] If adopted: the refits above, then ask before the `data/` rebuild, then update the registry,
   `README.md`, `docs/methodology.md`, the validation report, and the nfl-predictor note.
+  - [x] The refits, on `feat/team-prior-adoption`: `team_prior.PRIOR_HORIZON_GAMES` (9),
+    `snapshot_prior` (a snapshot's means, `None` once every team has played 9 games, so completed
+    seasons take the plain fit), `PriorHistory.season_prior_without` and `prior_without_team` (the
+    head-to-head-excluded refits' means from the previous season refit without the evaluated team,
+    faded by the snapshot's games and centered over the others), and `team_prior_table` (the new
+    `{season}_team_prior` file, read back by the API's garbage-time filter so 0% equals the
+    published rating). The season fit, `sos`, the weekly history (each week's own means), the rank
+    ranges and head-to-head chances (the snapshot's means held fixed in every resample), the weekly
+    rank ranges, the filter, and the walk-forward validation's team snapshots (`snapshot_fit`, as
+    the test ran them) all take the prior; `check-team-prior` keeps its no-prior baseline
+    (`run_walk_forward_backtest(..., team_prior=False)`). The registry adds `excluded_team`,
+    `offense_prior`, and `defense_prior` and notes the prior on the three scrimmage ratings;
+    `README.md`, `docs/methodology.md`, and the app's season-in-progress and rating-by-week text
+    describe it. Scratch builds of 2003, 2010, 2025, and 2026 into a copy of `data/`, compared with
+    `nfl-sos-ratings diff-data --before data --after <copy> --season <season> --tolerance 1e-9`: in
+    the completed seasons only `ratings_by_week` changed (288 rows each, weeks 1-9) plus the new
+    `team_prior` file; their ratings, rank ranges, and pairs are unchanged, the integrity check the
+    plan asked for. 2026 (4 games a team) changed its ratings, `sos`, ranges, pairs, and weekly
+    files; DEN moved from -0.37 (15th) to +0.96 (12th), the check's 9-game value. The check, rerun
+    on the rebuilt data (input fingerprint `bb5276fe...6b43`), printed the same results as before.
+  - Narrowed: the head-to-head-excluded `sos` test above (changing the evaluated team's
+    previous-season games leaves its `sos` unchanged) cannot hold as written, because the spec's
+    own `rho` is pooled over every team's season pairs, the evaluated team's included, as the
+    penalties are. The test checks what can hold: the opponents' prior means are unchanged
+    (`test_season_prior_without_a_team_ignores_that_teams_previous_games`), while the slopes may
+    move slightly. Making `sos` exactly invariant would need slopes refit without each team, 32
+    extra slope fits per season; not proposed unless the maintainer wants it.
+  - [x] Ask before the rebuild: approved with the adoption (2026-10-08).
+  - [x] Registry, `README.md`, and `docs/methodology.md`: on `feat/team-prior-adoption`.
+  - [x] Rebuild `data/` and rerun `validate` once the adoption is merged (approved): done
+    2026-10-08 from `f919beb`; `diff-data` as expected (completed seasons change only
+    `ratings_by_week` weeks 1-9; `.agents/current-status.md` has the summary). `validate`: overall
+    MAE 10.567 (was 10.601), now significantly better than SRS (-0.091, -0.159 to -0.024) and raw
+    EPA (-0.128); `docs/validation-report.md` and `docs/methodology.md` updated.
+  - [ ] The nfl-predictor note: this repo never edits `../nfl-predictor`, so it goes to the
+    maintainer in the session report, to pass on.
 
 ## Q1. QB rating from all of a quarterback's plays (protocol, not yet run)
 

@@ -15,7 +15,10 @@ published ones, through the origin, pooled over the season pairs before the seas
 and centering keeps the effects averaging zero when byes leave teams with different game counts.
 Special teams keep a prior of zero.
 
-The read-only ``check-team-prior`` test uses this module; the published ratings do not.
+The published team fit uses the prior at ``PRIOR_HORIZON_GAMES``, the horizon the pre-registered
+``check-team-prior`` test recommended: every fit of a season's games so far takes the means of
+:func:`snapshot_prior`, and a head-to-head-excluded refit takes the means of the previous season
+refit without the evaluated team (:meth:`PriorHistory.season_prior_without`).
 """
 
 from __future__ import annotations
@@ -45,6 +48,9 @@ if TYPE_CHECKING:
 NEAR_UNPENALIZED_LAMBDA = 1e-6
 # Season pairs the carryover slope needs before a season gets a prior (2003 is the first).
 MIN_CARRYOVER_PAIRS = 3
+# Games after which a team's prior is gone: the published horizon, the one the pre-registered test
+# recommended.
+PRIOR_HORIZON_GAMES = 9.0
 
 
 def fade(games: int, horizon: float) -> float:
@@ -148,6 +154,32 @@ def prior_means(
     return UnitPrior(offense=_centered(offense, fitted), defense=_centered(defense, fitted))
 
 
+def snapshot_prior(
+    season_prior: SeasonPrior | None,
+    game_logs: pl.DataFrame,
+    horizon: float = PRIOR_HORIZON_GAMES,
+    games: Mapping[str, int] | None = None,
+) -> UnitPrior | None:
+    """Return the centered prior means for a fit of ``game_logs``, one season's games so far.
+
+    Each team's games played come from ``games`` when given (a head-to-head-excluded refit keeps the
+    snapshot's counts), otherwise from ``game_logs``. The means are centered over the teams with
+    scrimmage rows in ``game_logs``. ``None`` means no prior: the season has none, or every team
+    has played ``horizon`` games, where every mean is zero and the plain fit is the same.
+    """
+    if season_prior is None:
+        return None
+    rows = scrimmage_rows(game_logs)
+    fitted = sorted(
+        set(rows.get_column("team").to_list()) | set(rows.get_column("opponent_team").to_list())
+    )
+    counts = dict(games) if games is not None else games_played(game_logs, fitted)
+    counts = {team: counts[team] for team in fitted}
+    if all(fade(count, horizon) == 0.0 for count in counts.values()):
+        return None
+    return prior_means(season_prior, counts, horizon, fitted)
+
+
 def snapshot_ratings(
     game_logs: pl.DataFrame,
     season_teams: Sequence[str],
@@ -220,6 +252,87 @@ def snapshot_fit(
     return pl.concat([fit.ratings, prior_rows.select(fit.ratings.columns)]).sort("team"), means
 
 
+# The columns of a season's ``team_prior`` file: the means a fit used, per team and side.
+TEAM_PRIOR_COLUMNS = ("excluded_team", "team", "offense_prior", "defense_prior")
+_TEAM_PRIOR_SCHEMA = {
+    "excluded_team": pl.String,
+    "team": pl.String,
+    "offense_prior": pl.Float64,
+    "defense_prior": pl.Float64,
+}
+
+
+def team_prior_table(
+    season_means: UnitPrior | None,
+    prior_without: Callable[[str], UnitPrior | None] | None,
+    teams: Sequence[str],
+) -> pl.DataFrame:
+    """Return the prior means a season's fits used, for the garbage-time filter to refit with.
+
+    One row per team with the season fit's means (``excluded_team`` null), then, for each of
+    ``teams`` in order, one row per other team with the means of the refit that leaves it out.
+    Empty without a prior, so a season whose priors have faded keeps no stale means.
+    """
+    rows: list[tuple[str | None, str, float, float]] = []
+    if season_means is not None:
+        rows.extend(
+            (None, team, season_means.offense[team], season_means.defense[team])
+            for team in sorted(season_means.offense)
+        )
+    if prior_without is not None:
+        for left_out in teams:
+            means = prior_without(left_out)
+            if means is not None:
+                rows.extend(
+                    (left_out, team, means.offense[team], means.defense[team])
+                    for team in sorted(means.offense)
+                )
+    return pl.DataFrame(rows, schema=_TEAM_PRIOR_SCHEMA, orient="row")
+
+
+def read_team_prior_table(table: pl.DataFrame) -> tuple[UnitPrior | None, dict[str, UnitPrior]]:
+    """Return the season fit's means and each left-out team's from a ``team_prior`` table."""
+    by_group: dict[str | None, UnitPrior] = {}
+    for (left_out,), group in table.group_by("excluded_team", maintain_order=True):
+        teams = group.get_column("team").to_list()
+        by_group[None if left_out is None else str(left_out)] = UnitPrior(
+            offense=dict(zip(teams, group.get_column("offense_prior").to_list(), strict=True)),
+            defense=dict(zip(teams, group.get_column("defense_prior").to_list(), strict=True)),
+        )
+    season_means = by_group.pop(None, None)
+    return season_means, {str(team): means for team, means in by_group.items()}
+
+
+def prior_without_team(
+    history: PriorHistory,
+    season: int,
+    game_logs: pl.DataFrame,
+    horizon: float = PRIOR_HORIZON_GAMES,
+) -> Callable[[str], UnitPrior | None]:
+    """Return the prior source for the refits of ``game_logs`` that leave out one team.
+
+    For a left-out team, the means come from the previous season refit without that team
+    (:meth:`PriorHistory.season_prior_without`), faded by each other team's games in the whole
+    snapshot (its game against the left-out team included) and centered over the teams left in
+    the refit. ``None`` when no other game remains or the snapshot has no prior.
+    """
+    teams = sorted(
+        set(game_logs.get_column("team").to_list())
+        | set(game_logs.get_column("opponent_team").to_list())
+    )
+    counts = games_played(game_logs, teams)
+
+    def prior(team: str) -> UnitPrior | None:
+        others = game_logs.filter((pl.col("team") != team) & (pl.col("opponent_team") != team))
+        if others.is_empty():
+            return None
+        return snapshot_prior(
+            history.season_prior_without(season, team), others, horizon, games=counts
+        )
+
+    return prior
+
+
 class PriorHistory:
     """The prior's inputs season by season, from one source of seasons' team game logs.
 
@@ -241,6 +354,7 @@ class PriorHistory:
         self._cross_validated: dict[int, TeamRatingFit] = {}
         self._published: dict[int, UnitFit] = {}
         self._unpenalized: dict[int, UnitFit] = {}
+        self._without: dict[tuple[int, str], SeasonPrior | None] = {}
 
     def game_logs(self, season: int) -> pl.DataFrame:
         """Return one season's team game logs."""
@@ -309,6 +423,33 @@ class PriorHistory:
             pairs=len(later_seasons),
         )
 
+    def season_prior_without(self, season: int, team: str) -> SeasonPrior | None:
+        """Return the season's prior built from a previous season that leaves out ``team``.
+
+        A head-to-head-excluded refit (``sos``) rates the opponents without the evaluated team's
+        games, so their prior means come from the previous season refit without that team's games
+        too, at the published fit's penalty, and those games never shape them. The slopes are the
+        season's own, pooled over every team as the penalty is. ``None`` when the season has no
+        prior.
+        """
+        if (season, team) in self._without:
+            return self._without[(season, team)]
+        slopes = self.slopes(season)
+        prior = None
+        if slopes is not None:
+            previous = self.game_logs(season - 1)
+            others = previous.filter((pl.col("team") != team) & (pl.col("opponent_team") != team))
+            fit = fit_unit_ridge(
+                scrimmage_rows(others),
+                TEAM_UNIT_COLUMNS,
+                ridge_lambda=self.penalties(season - 1).scrimmage_lambda,
+            )
+            prior = SeasonPrior(
+                season=season, offense=dict(fit.offense), defense=dict(fit.defense), slopes=slopes
+            )
+        self._without[(season, team)] = prior
+        return prior
+
     def season_prior(self, season: int) -> SeasonPrior | None:
         """Return what the season's prior is built from, or ``None`` when it has no prior."""
         slopes = self.slopes(season)
@@ -326,6 +467,8 @@ class PriorHistory:
 __all__ = [
     "MIN_CARRYOVER_PAIRS",
     "NEAR_UNPENALIZED_LAMBDA",
+    "PRIOR_HORIZON_GAMES",
+    "TEAM_PRIOR_COLUMNS",
     "CarryoverSlopes",
     "PriorHistory",
     "SeasonPrior",
@@ -333,6 +476,10 @@ __all__ = [
     "fade",
     "games_played",
     "prior_means",
+    "prior_without_team",
+    "read_team_prior_table",
     "snapshot_fit",
+    "snapshot_prior",
     "snapshot_ratings",
+    "team_prior_table",
 ]

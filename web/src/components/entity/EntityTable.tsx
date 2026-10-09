@@ -12,6 +12,7 @@ import { Link } from 'react-router'
 
 import type { EntityConfig, EntityKind, RowValue, TablePayload } from '@/api/types'
 import { useTheme } from '@/app/ThemeProvider'
+import { useWpThreshold } from '@/app/useWpThreshold'
 import { CsvExportButton } from '@/components/common/CsvExportButton'
 import { Hint } from '@/components/common/Hint'
 import { InfoTooltip } from '@/components/common/InfoTooltip'
@@ -25,6 +26,7 @@ import { Input } from '@/components/ui/input'
 import { csvFileName, toCsv } from '@/domain/csv'
 import { formatValue } from '@/domain/format'
 import { getMetricMetadata } from '@/domain/metricMetadata'
+import { withWpThreshold } from '@/domain/wpFilter'
 import {
   belowQualifierDetail,
   belowQualifierText,
@@ -147,6 +149,8 @@ export function EntityTable({
   toolbar,
 }: EntityTableProps) {
   const { resolved: theme, activePalette: palette } = useTheme()
+  // A row's link keeps the garbage-time threshold, so its page opens with the same filter.
+  const [wpThreshold] = useWpThreshold()
   const basePath = `/${config.kind}`
   const availableColumnIds = useMemo(() => [...CONTROL_COLUMNS, ...selectedColumns], [selectedColumns])
   const fallbackSorting = useMemo<SortingState>(
@@ -294,7 +298,7 @@ export function EntityTable({
             return (
               <Link
                 className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline"
-                to={`${basePath}/${encodeURIComponent(entityId)}?season=${season}`}
+                to={withWpThreshold(`${basePath}/${encodeURIComponent(entityId)}?season=${season}`, wpThreshold)}
               >
                 {chip}
                 {formatValue(value)}
@@ -316,6 +320,7 @@ export function EntityTable({
       rankRangeColumn,
       season,
       selectedColumns,
+      wpThreshold,
     ],
   )
 

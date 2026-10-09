@@ -26,6 +26,7 @@ from nfl_sos_ratings.rating_ranges import (
     RangeColumns,
     quantile_suffix,
 )
+from nfl_sos_ratings.team_prior import read_team_prior_table
 from nfl_sos_ratings.team_rating import fit_team_ratings, fit_team_ratings_with_previous_penalties
 from nfl_sos_ratings.wp_filter import MAX_WP_THRESHOLD, QbWpFilter, TeamWpFilter
 
@@ -50,6 +51,7 @@ FIRST_17_GAME_SEASON = 2021
 # fewer games understate the uncertainty).
 MIN_GAMES_FOR_RANK_HISTORY = 3
 TEAM_GAME_LOG_SUFFIX = "team_game_logs"
+TEAM_PRIOR_SUFFIX = "team_prior"
 QB_GAME_LOG_SUFFIX = "qb_game_logs"
 TEAM_RATING_HISTORY_SUFFIX = "ratings_by_week"
 QB_RATING_HISTORY_SUFFIX = "qb_ratings_by_week"
@@ -302,7 +304,8 @@ class _WpInputs:
     """The files a season's filter model reads, stamped so a rebuilt file means a new model.
 
     ``previous`` is the previous season's team game logs, whose cross-validated penalties the team
-    fit reuses as the season command does; the first play-by-play season has none.
+    fit reuses as the season command does; the first play-by-play season has none. ``prior`` is
+    the season's ``team_prior`` file, the preseason prior means its fits used, when written.
     """
 
     game_logs: Path
@@ -310,6 +313,7 @@ class _WpInputs:
     published: Path
     previous: Path | None
     stamp: tuple[tuple[str, int, int], ...]
+    prior: Path | None = None
 
 
 def _wp_inputs(
@@ -333,19 +337,33 @@ def _wp_inputs(
     if missing:
         msg = f"Season {season} is missing garbage-time filter files: {', '.join(missing)}"
         raise MissingSeasonContractError(msg)
-    stamp = tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in needed)
-    return _WpInputs(paths[0], paths[1], paths[2], previous, stamp)
+    prior = data_dir / f"{season}_{TEAM_PRIOR_SUFFIX}.parquet" if reuse_previous else None
+    prior = prior if prior is not None and prior.exists() else None
+    stamped = [*needed, *([] if prior is None else [prior])]
+    stamp = tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in stamped)
+    return _WpInputs(paths[0], paths[1], paths[2], previous, stamp, prior)
 
 
 @functools.lru_cache(maxsize=_WP_MODEL_CACHE_SIZE)
 def _team_wp_model(inputs: _WpInputs) -> TeamWpFilter:
-    """Build a season's team filter model with the penalties the season command used."""
+    """Build a season's team filter model with the penalties and prior the season command used."""
     game_logs = pl.read_parquet(inputs.game_logs)
     previous = (
         None if inputs.previous is None else fit_team_ratings(pl.read_parquet(inputs.previous))
     )
-    fit = fit_team_ratings_with_previous_penalties(game_logs, previous)
-    return TeamWpFilter(game_logs, pl.read_parquet(inputs.bins), fit)
+    season_means, priors_without = (
+        (None, {}) if inputs.prior is None else read_team_prior_table(pl.read_parquet(inputs.prior))
+    )
+    fit = fit_team_ratings_with_previous_penalties(
+        game_logs, previous, scrimmage_prior=season_means
+    )
+    return TeamWpFilter(
+        game_logs,
+        pl.read_parquet(inputs.bins),
+        fit,
+        scrimmage_prior=season_means,
+        priors_without=priors_without,
+    )
 
 
 @functools.lru_cache(maxsize=_WP_MODEL_CACHE_SIZE)

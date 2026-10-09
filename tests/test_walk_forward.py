@@ -8,6 +8,14 @@ import numpy as np
 import polars as pl
 import pytest
 
+from nfl_sos_ratings.team_prior import (
+    MIN_CARRYOVER_PAIRS,
+    PRIOR_HORIZON_GAMES,
+    CarryoverSlopes,
+    PriorHistory,
+    SeasonPrior,
+    snapshot_fit,
+)
 from nfl_sos_ratings.team_rating import fit_team_ratings
 from nfl_sos_ratings.validation import walk_forward
 from nfl_sos_ratings.validation.report import (
@@ -188,13 +196,105 @@ def test_build_team_rating_feature_rows_use_the_previous_seasons_penalties() -> 
     )
 
 
+def test_build_team_rating_feature_rows_with_a_season_prior_rate_each_snapshot_with_it() -> None:
+    # Arrange
+    game_logs = _team_game_logs()
+    previous = fit_team_ratings(game_logs, scrimmage_lambda=12.0, special_teams_lambda=34.0)
+    season_prior = SeasonPrior(
+        season=2025,
+        offense={"A": 0.03, "B": 0.01, "C": -0.01, "D": -0.03},
+        defense={"A": 0.0, "B": 0.02, "C": -0.02, "D": 0.0},
+        slopes=CarryoverSlopes(offense=0.7, defense=0.4, pairs=MIN_CARRYOVER_PAIRS),
+    )
+    snapshot, _ = snapshot_fit(
+        game_logs.filter(pl.col("week") < 3),
+        ["A", "B", "C", "D"],
+        previous,
+        season_prior,
+        PRIOR_HORIZON_GAMES,
+    )
+    rating = dict(snapshot.select("team", "team_rating").iter_rows())
+
+    # Act
+    feature_rows = build_team_rating_feature_rows(game_logs, 2025, previous, season_prior)
+
+    # Assert
+    week_three = feature_rows.filter(pl.col("week") == 3).sort("game_id")
+    assert week_three.get_column("rating_diff").to_list() == pytest.approx(
+        [rating["A"] - rating["C"], rating["B"] - rating["D"]]
+    )
+
+
+def test_run_walk_forward_backtest_rates_snapshots_with_the_seasons_prior(tmp_path: Path) -> None:
+    # Arrange
+    logs = _with_epa_margin(_team_game_logs())
+    for season in range(1999, 2026):
+        logs.write_parquet(tmp_path / f"{season}_team_game_logs.parquet")
+    history = PriorHistory(
+        lambda season: pl.read_parquet(tmp_path / f"{season}_team_game_logs.parquet")
+    )
+    expected = build_team_rating_feature_rows(
+        logs, 2025, history.penalties(2025), history.season_prior(2025)
+    ).filter(pl.col("week") >= 2)
+
+    # Act
+    predictions = run_walk_forward_backtest(tmp_path, [2025], start_week=2)
+
+    # Assert
+    team = predictions.filter(pl.col("baseline") == TEAM_RATING_BASELINE).sort("game_id")
+    assert team.get_column("rating_diff").to_list() == pytest.approx(
+        expected.sort("game_id").get_column("rating_diff").to_list()
+    )
+
+
+def test_run_walk_forward_backtest_names_every_season_the_prior_lacks(tmp_path: Path) -> None:
+    # Arrange
+    for season in (2024, 2025):
+        _with_epa_margin(_team_game_logs()).write_parquet(
+            tmp_path / f"{season}_team_game_logs.parquet"
+        )
+
+    # Act & Assert
+    with pytest.raises(FileNotFoundError, match=r"1999-2023"):
+        run_walk_forward_backtest(tmp_path, [2025], start_week=2)
+
+
+def test_run_walk_forward_backtest_names_missing_seasons_as_runs(tmp_path: Path) -> None:
+    # Arrange
+    for season in range(1999, 2026):
+        if season not in {2001, 2010, 2011}:
+            _with_epa_margin(_team_game_logs()).write_parquet(
+                tmp_path / f"{season}_team_game_logs.parquet"
+            )
+
+    # Act & Assert
+    with pytest.raises(FileNotFoundError, match=r"lacks 2001, 2010-2011$"):
+        run_walk_forward_backtest(tmp_path, [2025], start_week=2)
+
+
+def test_run_walk_forward_backtest_without_the_prior_needs_only_the_previous_season(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    for season in (2024, 2025):
+        _with_epa_margin(_team_game_logs()).write_parquet(
+            tmp_path / f"{season}_team_game_logs.parquet"
+        )
+
+    # Act
+    predictions = run_walk_forward_backtest(tmp_path, [2025], start_week=2, team_prior=False)
+
+    # Assert
+    assert predictions.filter(pl.col("baseline") == TEAM_RATING_BASELINE).height == 4
+
+
 def test_run_walk_forward_backtest_needs_the_previous_seasons_game_logs(tmp_path: Path) -> None:
     # Arrange
     _with_epa_margin(_team_game_logs()).write_parquet(tmp_path / "2025_team_game_logs.parquet")
 
     # Act & Assert
     with pytest.raises(FileNotFoundError, match="2024_team_game_logs"):
-        run_walk_forward_backtest(tmp_path, [2025])
+        run_walk_forward_backtest(tmp_path, [2025], team_prior=False)
 
 
 def test_run_walk_forward_backtest_first_play_by_play_season_cross_validates(
@@ -525,10 +625,12 @@ def test_main_writes_a_report_with_the_decision(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Arrange
-    for season in (2023, 2024, 2025):
+    # The prior's carryover slopes read every season since 1999.
+    for season in range(1999, 2026):
         _with_epa_margin(_team_game_logs()).write_parquet(
             tmp_path / f"{season}_team_game_logs.parquet"
         )
+    for season in (2023, 2024, 2025):
         _write_season_files(tmp_path, season, 0.0)
     qbr = pl.DataFrame(
         {

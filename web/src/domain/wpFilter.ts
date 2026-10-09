@@ -1,4 +1,4 @@
-import type { EntityKind, RowValue, WpRatingsPayload } from '@/api/types'
+import type { EntityKind, RowValue, TablePayload, WpRatingsPayload } from '@/api/types'
 
 import { formatFixed } from './format'
 
@@ -39,8 +39,6 @@ export interface WpRatingRow {
   keptShare: number | null
 }
 
-export type WpSortKey = 'filteredRank' | 'publishedRank' | 'ratingChange' | 'rankChange' | 'keptShare'
-
 /** Read `?wp=`: a whole percentage from 0 to 20; anything else means no filter. */
 export function parseWpThreshold(raw: string | null): number {
   if (raw === null || !/^\d+$/.test(raw)) return 0
@@ -75,19 +73,6 @@ export function parseWpRatings(kind: EntityKind, payload: WpRatingsPayload): WpR
   }))
 }
 
-/** Sort filter rows by one field; rows without a value go last either way. */
-export function sortWpRows(
-  rows: readonly WpRatingRow[],
-  sort: { key: WpSortKey; descending: boolean },
-): WpRatingRow[] {
-  return [...rows].sort((left, right) => {
-    const a = left[sort.key]
-    const b = right[sort.key]
-    if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1
-    return sort.descending ? b - a : a - b
-  })
-}
-
 /** Describe a rank change: negative means the row moved up the table. */
 export function formatRankChange(change: number | null): string {
   if (change === null) return '—'
@@ -106,4 +91,31 @@ export function formatSignedChange(value: number | null, decimals: number | null
   if (value === null) return '—'
   const text = formatFixed(value, decimals)
   return value > 0 && Number(value.toFixed(decimals ?? 2)) !== 0 ? `+${text}` : text
+}
+
+/**
+ * The main table with the filter's rating and rank beside the published rating: each row gains
+ * `filtered_<rating>` and `filtered_<rank>` from `payload` (null for a row the filter view lacks),
+ * placed right after the rating column. A view without the rating column, or no payload (the
+ * filter off or still loading), leaves the table and columns as they are.
+ */
+export function withWpColumns(
+  kind: EntityKind,
+  table: TablePayload,
+  selectedColumns: string[],
+  payload: WpRatingsPayload | undefined,
+): { table: TablePayload; selectedColumns: string[] } {
+  const { id, rating, rank } = WP_COLUMNS[kind]
+  const position = selectedColumns.indexOf(rating)
+  if (payload === undefined || position < 0) return { table, selectedColumns }
+  const added = [`filtered_${rating}`, `filtered_${rank}`]
+  const filtered = new Map(payload.rows.map((row) => [String(row[id]), row]))
+  const rows = table.rows.map((row) => {
+    const source = filtered.get(String(row[id]))
+    return { ...row, ...Object.fromEntries(added.map((column) => [column, source?.[column] ?? null])) }
+  })
+  return {
+    table: { ...table, rows, visible_columns: [...table.visible_columns, ...added] },
+    selectedColumns: [...selectedColumns.slice(0, position + 1), ...added, ...selectedColumns.slice(position + 1)],
+  }
 }

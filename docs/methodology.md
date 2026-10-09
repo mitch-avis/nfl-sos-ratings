@@ -50,6 +50,30 @@ points against 11.158 for prediction weeks 2-5 (difference -0.191, 95% interval 
 and tied from week 6 on (`nfl-sos-ratings check-in-season-penalty --data-dir data --start-season
 2000 --end-season 2025`). 1999, the first season of play-by-play, cross-validates its own.
 
+Early in a season the penalty pulls each team's scrimmage offense and defense toward a preseason
+prior instead of toward average:
+
+```text
+prior = max(0, 1 - games played / 9) x carryover slope x last season's per-play strength
+```
+
+centered so the league's priors average zero. The carryover slope is how much of a strength usually
+survives into the next season, regressed over every earlier pair of seasons (0.68 to 0.82 for
+offenses and 0.38 to 0.47 for defenses so far). After a team's 9th game its own prior is gone (only
+the centering shift remains while other teams still have one), and once every team has played 9 the
+fit is exactly the one without a prior, as every completed season is; special teams keep a prior of
+zero; the first prior comes in 2003, once three earlier pairs of seasons give a slope. The weekly
+rating history, the rank ranges, the head-to-head chances, and the garbage-time filter take the same
+priors, and schedule strength's refits take priors from last season refit without the evaluated
+team's games, so those games never shape its opponents' priors (the carryover slopes and the
+penalty, pooled over every team, still include them, as the penalty always has). The `team_prior`
+file keeps each season's priors. A pre-registered test predicted every game from week 2 on in
+2003-2025 (5,600 games) from the games before it: mean absolute error 10.668 points with the 9-game
+prior against 10.750 without (difference -0.082, 98.33% season-bootstrap interval -0.114 to -0.050),
+better in weeks 2-4 (-0.264) and 5-8 (-0.136) and unchanged from week 9 on, by when nearly every
+prior has faded (`nfl-sos-ratings check-team-prior --data-dir data --start-season 2003 --end-season
+2025`; horizons of 3 and 6 games helped less).
+
 Special teams get the same fit over kicks, punts, returns, field goals, and extra points, with each
 team's possession units and coverage units estimated separately and then added together.
 
@@ -103,8 +127,9 @@ Each season also gets a rating history: `team_rating` with its three parts, and
 `adj_qb_epa_per_dropback`, refit on the games through each week. Every week reuses the season fit's
 ridge penalty (the previous season's for teams, the season's own cross-validated one for
 quarterbacks), because one or two weeks of games are too few to choose one. With the penalty fixed,
-the pull toward average depends only on how much evidence there is: early-week ratings sit close to
-average and spread out as games accumulate, and the last week's ratings are the season's. `sos` and
+the pull depends only on how much evidence there is: early-week ratings sit close to their target
+(a team's preseason prior at that week's games played, a quarterback's league average) and spread
+out as games accumulate, and the last week's ratings are the season's. `sos` and
 `qb_faced_pass_defense` are not refit week by week. The histories are the `ratings_by_week` and
 `qb_ratings_by_week` files.
 
@@ -145,7 +170,9 @@ the medians.
   hour to a full rebuild. In the first weeks, with one or two games per team, a resample can only
   repeat or drop a team's games, never change their results, so those weeks' ranges understate the
   uncertainty; the app's weekly rank chart therefore starts at the first week in which every team
-  has played three games (the files keep every week).
+  has played three games (the files keep every week). A team's preseason prior is held fixed
+  across a week's resamples, so before its 9th game its range also leaves out how uncertain the
+  prior itself is.
 
 ## Garbage-Time Filter (Exploration View)
 
@@ -171,18 +198,18 @@ always use every play.
   play-by-play EPA credited to the passer at every threshold, including 0%. The published rating
   uses official weekly passing EPA; in 2025 the two differed by at most 0.002 EPA per dropback
   among qualifying quarterbacks. Filtered changes are measured against the 0% play-level value.
-- **Tested: filtering does not improve predictions.** A walk-forward test, its decision rule
-  written before it ran, rated teams with the published fit on the plays kept at 5%, 10%, and
-  20%, each threshold with its own cross-validated penalties, and predicted the margin of every
-  game from week 5 on in 1999-2025 (5,297 games) from the games before it. Mean absolute error was
-  10.601 points with every play, 10.623 at 5%, 10.663 at 10%, and 10.733 at 20%. In a paired game
-  bootstrap with 98.33% intervals (95% after a Bonferroni adjustment for three comparisons), 5%
-  and 10% tied with every play and 20% was worse (+0.133 points, +0.046 to +0.222). Year-over-year
-  stability and the quarterback correlation with ESPN QBR also fell as the threshold rose. The
-  command is `nfl-sos-ratings check-wp-filter --data-dir data --start-season 1999 --end-season
-  2025 --start-week 5`. The exploration view keeps the season fit's penalties instead, so its
-  filtered values differ slightly from the tested fits, and rank ranges are not recomputed at
-  other thresholds.
+- **Tested: filtering does not improve predictions.** A walk-forward test, its decision rule written
+  before it ran, rated teams with the published fit (as it was before the preseason prior) on the
+  plays kept at 5%, 10%, and 20%, each threshold with its own cross-validated penalties, and
+  predicted the margin of every game from week 5 on in 1999-2025 (5,297 games) from the games before
+  it. Mean absolute error was 10.601 points with every play, 10.623 at 5%, 10.663 at 10%, and 10.733
+  at 20%. In a paired game bootstrap with 98.33% intervals (95% after a Bonferroni adjustment for
+  three comparisons), 5% and 10% tied with every play and 20% was worse (+0.133 points, +0.046 to
+  +0.222). Year-over-year stability and the quarterback correlation with ESPN QBR also fell as the
+  threshold rose. The command is `nfl-sos-ratings check-wp-filter --data-dir data --start-season
+  1999 --end-season 2025 --start-week 5`. The exploration view keeps the season fit's penalties
+  instead, so its filtered values differ slightly from the tested fits, and rank ranges are not
+  recomputed at other thresholds.
 
 ## What the Ratings Leave Out
 
@@ -209,12 +236,13 @@ Every rating rests on choices. These are the ones that matter most here:
 
 ## How the Ratings Are Checked
 
-The walk-forward check rebuilds `team_rating` each week from that season's earlier games only (with
-the previous season's penalties, as published), fits a margin model on earlier predictions only, and
-predicts the coming week's home margins. `SRS` and raw EPA margin built from the same games are the
-comparisons, and Elo, which carries ratings across seasons and so sees more information, is shown as
-a reference. The decision rule was written before the first run: `team_rating` stays the headline
-unless its mean absolute error is significantly worse than raw EPA's or SRS's in a paired bootstrap.
+The walk-forward check rebuilds `team_rating` each week as published: from that season's earlier
+games, with the previous season's penalties and, until a team has played 9 games, its preseason
+prior. It fits a margin model on earlier predictions only and predicts the coming week's home
+margins. `SRS` and raw EPA margin built from the same games alone are the comparisons, and Elo,
+which carries every rating across seasons, is shown as a reference. The decision rule was written
+before the first run: `team_rating` stays the headline unless its mean absolute error is
+significantly worse than raw EPA's or SRS's in a paired bootstrap.
 
 The quarterback checks are year-over-year stability beside passer rating and ANY/A, and the
 per-season correlation with ESPN QBR, which is a reference, not a target.
@@ -225,13 +253,16 @@ From [validation-report.md], generated by `nfl-sos-ratings validate --data-dir d
 1999 --end-season 2025 --start-week 5 --report-path docs/validation-report.md` over 5,297 games
 from week 5 on:
 
-- Overall mean absolute error of the predicted home margin: `team_rating` 10.601 points, SRS
+- Overall mean absolute error of the predicted home margin: `team_rating` 10.567 points, SRS
   10.658, raw EPA 10.695, and Elo 10.580.
-- `team_rating` beats raw EPA: difference -0.095 (95% interval -0.154 to -0.038).
-- `team_rating` against SRS is a statistical tie: difference -0.057 (95% interval -0.125 to
-  +0.008). The rule's outcome is adopt.
-- Elo is not distinguishable from `team_rating` (difference +0.021, interval -0.047 to +0.088),
-  even though Elo carries ratings across seasons and the others rate each season from its own games.
+- `team_rating` beats raw EPA: difference -0.128 (95% interval -0.190 to -0.069).
+- `team_rating` beats SRS: difference -0.091 (95% interval -0.159 to -0.024). The rule's outcome
+  is adopt.
+- Elo is not distinguishable from `team_rating` overall (difference -0.012, interval -0.081 to
+  +0.057). In prediction weeks 5-7, where the preseason prior still carries weight, `team_rating`
+  beats Elo (-0.148, -0.291 to -0.004) and raw EPA (-0.245, -0.365 to -0.130) and ties SRS
+  (-0.146, -0.304 to +0.002). Before the prior (the 2026-10-08 run), `team_rating` was 10.601
+  overall and tied SRS (-0.057, -0.125 to +0.008).
 - Year-over-year stability: `team_rating` 0.434 and SRS 0.437 (Pearson). For quarterbacks,
   adjusted EPA per dropback is 0.455, a little below passer rating's 0.460 and above ANY/A's
   0.398. Stability is reported, not optimized; the rating measures the season that was played.

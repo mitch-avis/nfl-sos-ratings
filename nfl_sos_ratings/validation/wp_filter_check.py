@@ -2,20 +2,22 @@
 
 A filter at X% keeps the plays whose offense's win probability before the snap was between X% and
 100% minus X% (``team_wp_bins``), plus the plays without one. For each candidate threshold (5%,
-10%, and 20%) and for 0%, the published team fit runs unchanged on the kept plays: the kept plays
+10%, and 20%) and for 0%, the team fit runs unchanged on the kept plays: the kept plays
 and EPA replace the four game-log columns the fit reads
 (:func:`nfl_sos_ratings.wp_filter.team_game_logs_at_threshold`), and the penalties are the
 previous season's, cross-validated on that season's kept plays at the same threshold. Each
 threshold then goes through the walk-forward harness's prior-only margin model, so its own fitted
 slope absorbs any difference in rating scale.
 
-Before reading any result, the test checks that 0% is the published rating: the 0% kept columns
-equal the game logs in every season, and the 0% walk-forward rows equal ``validate``'s
-``TeamRating`` rows. Each candidate is compared with 0% by a paired game bootstrap of the absolute
-errors (10,000 resamples, one seed for all three), with 98.33% intervals: 95% after a Bonferroni
-adjustment for three comparisons. The decision rule, written in ``.agents/roadmap.md`` before the
-first run: a threshold qualifies only if its overall interval lies entirely below zero; the
-qualifying threshold with the lowest MAE is the recommendation, and with none, no filter is.
+The team fit is the published one without its preseason prior, as published when this test ran
+(``walk_forward.build_team_rating_feature_rows`` without a season prior). Before reading any result,
+the test checks that 0% is that rating: the 0% kept columns equal the game logs in every season, and
+the 0% walk-forward rows equal its rows. Each candidate is compared with 0% by a paired game
+bootstrap of the absolute errors (10,000 resamples, one seed for all three), with 98.33% intervals:
+95% after a Bonferroni adjustment for three comparisons. The decision rule, written in
+``.agents/roadmap.md`` before the first run: a threshold qualifies only if its overall interval lies
+entirely below zero; the qualifying threshold with the lowest MAE is the recommendation, and with
+none, no filter is.
 
 Descriptive extras, never decision inputs: the kept share of plays, team and QB year-over-year
 stability, the QB correlation with ESPN QBR, and one team's and one passer's ratings by threshold.

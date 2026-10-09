@@ -13,6 +13,13 @@ from nfl_sos_ratings.rating_ranges import (
     RangeColumns,
     summarize_rank_ranges,
 )
+from nfl_sos_ratings.ridge import UnitPrior
+from nfl_sos_ratings.team_prior import team_prior_table
+from nfl_sos_ratings.team_rating import (
+    compute_team_schedule_strength,
+    fit_team_ratings,
+    fit_team_ratings_with_previous_penalties,
+)
 from nfl_sos_ratings.ui_data import (
     MissingEntityRowsError,
     MissingSeasonContractError,
@@ -598,6 +605,53 @@ def test_team_wp_ratings_at_zero_reproduce_the_published_ratings(tmp_path: Path)
     )
     assert [row["filtered_team_rank"] for row in rows] == [row["team_rank"] for row in rows]
     assert {row["filtered_team_rating_change"] for row in rows} == {0.0}
+
+
+def test_team_wp_ratings_at_zero_reproduce_ratings_published_with_a_prior(
+    tmp_path: Path,
+) -> None:
+    """In a season under way the published fit has prior means; the filter reads them back."""
+    # Arrange
+    write_wp_season(tmp_path, _WP_SEASON)
+    logs = pl.read_parquet(tmp_path / f"{_WP_SEASON}_team_game_logs.parquet")
+    teams = sorted(logs.get_column("team").unique().to_list())
+    prior = UnitPrior(
+        offense={team: 0.02 * (index - 2.5) for index, team in enumerate(teams)},
+        defense=dict.fromkeys(teams, 0.0),
+    )
+    published = fit_team_ratings_with_previous_penalties(
+        logs, fit_team_ratings(logs), scrimmage_prior=prior
+    )
+    published.ratings.select("team", "team_rating").write_parquet(
+        tmp_path / f"{_WP_SEASON}_ratings.parquet"
+    )
+    priors_without = {
+        left_out: UnitPrior(
+            offense={team: 0.01 for team in teams if team != left_out},
+            defense={team: -0.01 * index for index, team in enumerate(teams) if team != left_out},
+        )
+        for left_out in teams
+    }
+    team_prior_table(prior, priors_without.__getitem__, teams).write_parquet(
+        tmp_path / f"{_WP_SEASON}_team_prior.parquet"
+    )
+    sos = dict(
+        compute_team_schedule_strength(logs, published, prior_without=priors_without.__getitem__)
+        .select("team", "sos")
+        .iter_rows()
+    )
+
+    # Act
+    payload = load_team_wp_ratings_payload(tmp_path, _WP_SEASON, 0)
+
+    # Assert
+    rows = payload["rows"]
+    assert [row["filtered_team_rating"] for row in rows] == pytest.approx(
+        [row["team_rating"] for row in rows]
+    )
+    assert [row["filtered_sos"] for row in rows] == pytest.approx(
+        [sos[str(row["team"])] for row in rows]
+    )
 
 
 def test_team_wp_ratings_list_teams_by_filtered_rank(tmp_path: Path) -> None:

@@ -47,8 +47,10 @@ from nfl_sos_ratings.team_rating import (
 from nfl_sos_ratings.wp_bins import SCRIMMAGE_UNIT, SPECIAL_TEAMS_UNIT
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from nfl_sos_ratings.qb_rating import QbRatingFit
-    from nfl_sos_ratings.ridge import UnitColumns, UnitDesign, UnitFit
+    from nfl_sos_ratings.ridge import UnitColumns, UnitDesign, UnitFit, UnitPrior
     from nfl_sos_ratings.team_rating import TeamRatingFit
 
 type FloatArray = npt.NDArray[np.float64]
@@ -111,8 +113,16 @@ class _ThresholdDesign:
     offense: npt.NDArray[np.str_]
     defense: npt.NDArray[np.str_]
 
-    def solve(self, threshold: int, multipliers: FloatArray | None = None) -> UnitFit:
-        """Solve on the plays kept at ``threshold``, rows scaled by ``multipliers`` (default 1)."""
+    def solve(
+        self,
+        threshold: int,
+        multipliers: FloatArray | None = None,
+        prior: UnitPrior | None = None,
+    ) -> UnitFit:
+        """Solve on the plays kept at ``threshold``, rows scaled by ``multipliers`` (default 1).
+
+        ``prior`` holds the preseason prior means the penalty pulls toward (zero when ``None``).
+        """
         weights = self.kept_weight[:, threshold]
         response = np.divide(
             self.kept_response_sum[:, threshold],
@@ -124,6 +134,7 @@ class _ThresholdDesign:
             replace(self.design, weights=weights, response=response),
             self.ridge_lambda,
             np.ones_like(weights) if multipliers is None else multipliers,
+            prior,
         )
 
     def without(self, unit: str) -> FloatArray:
@@ -162,9 +173,24 @@ class TeamWpFilter:
     (penalties and per-game scales); :meth:`ratings` then costs a few dozen small solves.
     """
 
-    def __init__(self, game_logs: pl.DataFrame, bins: pl.DataFrame, fit: TeamRatingFit) -> None:
-        """Build the scrimmage and special-teams designs and their kept plays by threshold."""
+    def __init__(
+        self,
+        game_logs: pl.DataFrame,
+        bins: pl.DataFrame,
+        fit: TeamRatingFit,
+        *,
+        scrimmage_prior: UnitPrior | None = None,
+        priors_without: Mapping[str, UnitPrior] | None = None,
+    ) -> None:
+        """Build the scrimmage and special-teams designs and their kept plays by threshold.
+
+        ``scrimmage_prior`` holds the season fit's preseason prior means and ``priors_without``
+        those of each head-to-head-excluded refit, by left-out team (``team_prior``), so every
+        threshold refits as the season command did; neither is needed once the prior has faded.
+        """
         self._fit = fit
+        self._prior = scrimmage_prior
+        self._priors_without: Mapping[str, UnitPrior] = priors_without or {}
         values = ("wp_bin_plays", "wp_bin_epa")
         self._units = (
             _threshold_design(
@@ -190,8 +216,11 @@ class TeamWpFilter:
     def _rated(self, threshold: int, without: str | None = None) -> pl.DataFrame:
         """Return the four rating columns at ``threshold``, optionally refit without a team."""
         scrimmage, special_teams = self._units
+        prior = self._prior if without is None else self._priors_without.get(without)
         return team_ratings_from_unit_fits(
-            scrimmage.solve(threshold, None if without is None else scrimmage.without(without)),
+            scrimmage.solve(
+                threshold, None if without is None else scrimmage.without(without), prior
+            ),
             special_teams.solve(
                 threshold, None if without is None else special_teams.without(without)
             ),

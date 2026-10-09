@@ -29,9 +29,14 @@ costing anything later. The first play-by-play season cross-validates its own.
 The rating history (``fit_team_ratings_by_week``) refits the ratings on the games through each
 week with the season's penalties, so each week's row shows the rating as the evidence then
 supported it.
+
+Early in a season the scrimmage effects shrink toward a preseason prior instead of toward zero
+(``team_prior``): every function here takes the prior means a caller built for its snapshot, and
+none builds them itself.
 """
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
@@ -46,6 +51,9 @@ from nfl_sos_ratings.ridge import (
     fit_unit_ridge,
     solve_unit_design,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 SCRIMMAGE_PLAYS_COLUMN = "offensive_snaps"
 SCRIMMAGE_EPA_COLUMN = "offensive_epa"
@@ -228,10 +236,21 @@ class TeamRatingResampler:
     resampled games with duplicates relabeled, without rebuilding anything.
     """
 
-    def __init__(self, game_logs: pl.DataFrame, fit: TeamRatingFit) -> None:
-        """Build the scrimmage and special-teams designs for ``game_logs``."""
+    def __init__(
+        self,
+        game_logs: pl.DataFrame,
+        fit: TeamRatingFit,
+        *,
+        scrimmage_prior: UnitPrior | None = None,
+    ) -> None:
+        """Build the scrimmage and special-teams designs for ``game_logs``.
+
+        ``scrimmage_prior`` holds the snapshot's prior means, which every resample keeps: a
+        resample does not recount games, so a team's prior does not change with its draws.
+        """
         _require_columns(game_logs)
         self._fit = fit
+        self._priors: tuple[UnitPrior | None, UnitPrior | None] = (scrimmage_prior, None)
         self.game_ids: list[str] = sorted(game_logs.get_column("game_id").unique().to_list())
         index = {game_id: position for position, game_id in enumerate(self.game_ids)}
         self._units: list[tuple[UnitDesign, npt.NDArray[np.int64], npt.NDArray[np.float64]]] = []
@@ -262,30 +281,37 @@ class TeamRatingResampler:
         counts = np.asarray(game_counts, dtype=np.float64)
         fits: list[UnitFit] = []
         plays_per_game: list[float] = []
-        for (design, games, plays), ridge_lambda in zip(
+        for (design, games, plays), ridge_lambda, prior in zip(
             self._units,
             (self._fit.scrimmage_lambda, self._fit.special_teams_lambda),
+            self._priors,
             strict=True,
         ):
             multipliers = counts[games]
-            fits.append(solve_unit_design(design, ridge_lambda, multipliers))
+            fits.append(solve_unit_design(design, ridge_lambda, multipliers, prior))
             plays_per_game.append(float((multipliers * plays).sum() / multipliers.sum()))
         return _ratings_frame(fits[0], fits[1], plays_per_game[0], plays_per_game[1])
 
 
 def bootstrap_team_ratings(
-    game_logs: pl.DataFrame, fit: TeamRatingFit, *, resamples: int, seed: int
+    game_logs: pl.DataFrame,
+    fit: TeamRatingFit,
+    *,
+    resamples: int,
+    seed: int,
+    scrimmage_prior: UnitPrior | None = None,
 ) -> pl.DataFrame:
     """Return every team's ratings in ``resamples`` game-bootstrap resamples.
 
-    Each resample draws the season's games with replacement and refits with ``fit``'s penalties.
+    Each resample draws the season's games with replacement and refits with ``fit``'s penalties
+    and the snapshot's ``scrimmage_prior``.
 
     Returns:
         Long rows with ``draw``, ``team``, and the four ``TEAM_RATING_COLUMNS`` (the three unit
         ratings and ``team_rating``, their sum).
 
     """
-    resampler = TeamRatingResampler(game_logs, fit)
+    resampler = TeamRatingResampler(game_logs, fit, scrimmage_prior=scrimmage_prior)
     rng = np.random.default_rng(seed)
     game_count = len(resampler.game_ids)
     frames = [
@@ -298,7 +324,10 @@ def bootstrap_team_ratings(
 
 
 def fit_team_ratings_with_previous_penalties(
-    game_logs: pl.DataFrame, previous: TeamRatingFit | None
+    game_logs: pl.DataFrame,
+    previous: TeamRatingFit | None,
+    *,
+    scrimmage_prior: UnitPrior | None = None,
 ) -> TeamRatingFit:
     """Fit the published team ratings: this season's games with the previous season's penalties.
 
@@ -306,21 +335,29 @@ def fit_team_ratings_with_previous_penalties(
         game_logs: This season's team-game rows, as :func:`fit_team_ratings` takes them.
         previous: The previous season's full-season fit (penalties cross-validated), or ``None``
             for a season without a previous one, which cross-validates its own penalties.
+        scrimmage_prior: The snapshot's preseason prior means (``team_prior.snapshot_prior``), or
+            ``None`` for none. A prior needs ``previous``: cross-validation never sees a prior.
 
     Returns:
         The season fit.
 
     """
     if previous is None:
-        return fit_team_ratings(game_logs)
+        return fit_team_ratings(game_logs, scrimmage_prior=scrimmage_prior)
     return fit_team_ratings(
         game_logs,
         scrimmage_lambda=previous.scrimmage_lambda,
         special_teams_lambda=previous.special_teams_lambda,
+        scrimmage_prior=scrimmage_prior,
     )
 
 
-def fit_team_ratings_by_week(game_logs: pl.DataFrame, fit: TeamRatingFit) -> pl.DataFrame:
+def fit_team_ratings_by_week(
+    game_logs: pl.DataFrame,
+    fit: TeamRatingFit,
+    *,
+    prior_for: Callable[[pl.DataFrame], UnitPrior | None] | None = None,
+) -> pl.DataFrame:
     """Return each team's ratings as of every week, each fit on the games through that week.
 
     Every week reuses the season fit's penalties rather than cross-validating its own: after one
@@ -333,6 +370,8 @@ def fit_team_ratings_by_week(game_logs: pl.DataFrame, fit: TeamRatingFit) -> pl.
     Args:
         game_logs: The team-game rows passed to :func:`fit_team_ratings`, plus ``week``.
         fit: The season fit of ``game_logs`` whose penalties every week reuses.
+        prior_for: Returns the preseason prior means for the games through a week (that week's
+            games played set the fade), or ``None`` for none; no prior when omitted.
 
     Returns:
         One row per week and team that has played by then, with ``week``, ``team``,
@@ -356,6 +395,7 @@ def fit_team_ratings_by_week(game_logs: pl.DataFrame, fit: TeamRatingFit) -> pl.
             through_week,
             scrimmage_lambda=fit.scrimmage_lambda,
             special_teams_lambda=fit.special_teams_lambda,
+            scrimmage_prior=None if prior_for is None else prior_for(through_week),
         ).ratings
         frames.append(
             ratings.join(games_played, on="team").select(
@@ -368,10 +408,13 @@ def fit_team_ratings_by_week(game_logs: pl.DataFrame, fit: TeamRatingFit) -> pl.
     return pl.concat(frames)
 
 
-def _ratings_without(game_logs: pl.DataFrame, team: str, fit: TeamRatingFit) -> pl.DataFrame:
+def _ratings_without(
+    game_logs: pl.DataFrame, team: str, fit: TeamRatingFit, prior: UnitPrior | None
+) -> pl.DataFrame:
     """Rate every other team from a refit that drops all games involving ``team``.
 
-    Returns an empty frame when no games remain, as can happen in the first weeks of a season.
+    ``prior`` holds the refit's prior means (none for ``None``). Returns an empty frame when no
+    games remain, as can happen in the first weeks of a season.
     """
     others = game_logs.filter((pl.col("team") != team) & (pl.col("opponent_team") != team))
     if others.is_empty():
@@ -380,6 +423,7 @@ def _ratings_without(game_logs: pl.DataFrame, team: str, fit: TeamRatingFit) -> 
         _unit_rows(others, SCRIMMAGE_PLAYS_COLUMN, SCRIMMAGE_EPA_COLUMN),
         TEAM_UNIT_COLUMNS,
         ridge_lambda=fit.scrimmage_lambda,
+        prior=prior,
     )
     special_teams = fit_unit_ridge(
         _unit_rows(others, SPECIAL_TEAMS_PLAYS_COLUMN, SPECIAL_TEAMS_EPA_COLUMN),
@@ -394,12 +438,20 @@ def _ratings_without(game_logs: pl.DataFrame, team: str, fit: TeamRatingFit) -> 
     )
 
 
-def compute_team_schedule_strength(game_logs: pl.DataFrame, fit: TeamRatingFit) -> pl.DataFrame:
+def compute_team_schedule_strength(
+    game_logs: pl.DataFrame,
+    fit: TeamRatingFit,
+    *,
+    prior_without: Callable[[str], UnitPrior | None] | None = None,
+) -> pl.DataFrame:
     """Return each team's played-game mean opponent ``team_rating``, head-to-head excluded.
 
     Args:
         game_logs: The same team-game rows passed to :func:`fit_team_ratings`.
         fit: The full-season fit whose penalties and per-game scales the refits reuse.
+        prior_without: Returns the preseason prior means for the refit that leaves out a team,
+            built without that team's previous-season games too, or ``None`` for none; no prior
+            when omitted.
 
     Returns:
         One row per team with ``team`` and ``sos`` in points per game. Early in a season an
@@ -411,7 +463,8 @@ def compute_team_schedule_strength(game_logs: pl.DataFrame, fit: TeamRatingFit) 
     teams: list[str] = fit.ratings.get_column("team").to_list()
     values: list[float | None] = []
     for team in teams:
-        opponent_ratings = _ratings_without(game_logs, team, fit).select(
+        prior = None if prior_without is None else prior_without(team)
+        opponent_ratings = _ratings_without(game_logs, team, fit, prior).select(
             pl.col("team").alias("opponent_team"), pl.col("team_rating").alias("sos")
         )
         rated = (
