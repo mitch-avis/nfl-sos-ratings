@@ -58,7 +58,7 @@ const CONCEPTS: GlossaryEntry[] = [
   concept(
     'schedule-adjustment',
     'Schedule adjustment',
-    "Every team or QB is rated against the opponents it actually faced, and each of those opponents against everyone it faced, in one fit. Early in a season, with few games, a team's rating also leans on its rating last season, a little less after each game until its 9th; a QB's leans toward the league average.",
+    "Every team or QB is rated against the opponents it actually faced, and each of those opponents against everyone it faced, in one fit. Early in a season, with few games, a QB's rating leans toward the league average, and a team's (from 2003 on) also leans on its rating last season, a little less after each game until its 9th.",
   ),
   concept(
     'schedule-strength',

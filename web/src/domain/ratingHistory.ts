@@ -3,6 +3,12 @@ import type { EntityKind, RowValue, TablePayload } from '@/api/types'
 
 import type { TrendReference } from './trend'
 
+/**
+ * The first season whose early team ratings lean on the previous season's ratings. The carryover
+ * from one season to the next is estimated from earlier season pairs, so 1999-2002 have none.
+ */
+export const FIRST_PRIOR_SEASON = 2003
+
 /** What the "Rating by week" chart draws for one team or QB. */
 export interface RatingHistoryChart {
   rows: Array<Record<string, RowValue>>

@@ -627,6 +627,38 @@ describe('team detail', () => {
     expect(screen.getByText('Dashed line: an average team (0).')).toBeInTheDocument()
   })
 
+  it("says the early weekly team ratings lean on last season's rating", async () => {
+    // Arrange
+    vi.stubGlobal('fetch', stubApi({ ...API, '/api/seasons/2025/teams/DEN/rating-history': DEN_RATING_HISTORY }))
+
+    // Act
+    renderApp('/teams/DEN?season=2025')
+
+    // Assert
+    expect(await screen.findByText(/Early points also lean on the team's rating last season/)).toBeInTheDocument()
+  })
+
+  it('says the early weekly team ratings sit near 0 before last-season ratings are used', async () => {
+    // Arrange
+    vi.stubGlobal(
+      'fetch',
+      stubApi({
+        '/api/seasons': { seasons: [2002] },
+        '/api/metadata': REGISTRY,
+        '/api/seasons/2002': { ...SEASON_2025, season: 2002 },
+        '/api/seasons/2002/teams/DEN/game-logs': DEN_GAME_LOGS,
+        '/api/seasons/2002/teams/DEN/rating-history': DEN_RATING_HISTORY,
+      }),
+    )
+
+    // Act
+    renderApp('/teams/DEN?season=2002')
+
+    // Assert
+    expect(await screen.findByText(/Early points sit near 0 \(an average team\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/rating last season/)).not.toBeInTheDocument()
+  })
+
   it('leaves the rating chart out for a season without a rating history', async () => {
     // Act
     renderApp('/teams/DEN?season=2025')
