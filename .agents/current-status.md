@@ -69,8 +69,9 @@ history (the composite-rating era and its experiments) is in git, before commit 
    #45.
 3. QB rating from all of a quarterback's plays (scrambles and designed runs, not only dropbacks):
    write the pre-registered protocol first; adoption is the maintainer's. Drafted 2026-10-08 on
-   `docs/qb-all-plays-protocol` (roadmap Q1, with `.agents/findings_2026_10_08/qb_play_types.py`);
-   it waits on an independent review and three maintainer questions listed there.
+   `docs/qb-all-plays-protocol` (roadmap Q1, with `.agents/findings_2026_10_08/qb_play_types.py`
+   and `qb_protocol_checks.py`), independently reviewed with every finding resolved; it waits on
+   five maintainer questions listed there.
 4. The garbage-time filter, kept but more compact: done, #46 (one control above the table).
 5. A plan for bringing this app's features into nfl-predictor (heads-up; nothing done there).
 
@@ -83,6 +84,11 @@ history (the composite-rating era and its experiments) is in git, before commit 
 2. QB rows drop quarterbacks whose latest nflverse position is not QB (Terrelle Pryor 2013, Taysom
    Hill 2020-2021, and a few others): roadmap "Data notes", "QB rows by career position"; a fix
    changes published QB ratings (ask first). Roadmap Q1 asks whether to fix it before that check.
+3. Team scrimmage plays leave out scrambles before 2006: nflverse leaves `qb_dropback` and `rush`
+   unset on many of them, and `pbp_expressions.scrimmage_snap_expr` needs one of those flags, so
+   the 1999-2005 team ratings, every rate over scrimmage plays, and team `dropbacks` miss them
+   (nearly all in 2003-2005): roadmap "Data notes", "Team scrimmage plays leave out scrambles
+   before 2006". A fix changes published team ratings for 1999-2005 (ask first).
 
 ## State before 2026-10-08
 

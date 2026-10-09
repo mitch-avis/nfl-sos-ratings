@@ -244,8 +244,9 @@ def candidate_rows(logs: pl.DataFrame, parts: pl.DataFrame, candidate: str) -> p
     """Return the QB fit's rows for one candidate, with plays as weight and EPA per play.
 
     A is the published rows unchanged. B adds scrambles to dropbacks and their EPA to the dropback
-    EPA; C adds designed runs on top of B; ``C_aborted`` adds aborted snaps on top of C. The
-    columns keep their published names so the fit reads them unchanged.
+    EPA; C adds designed runs on top of B; ``C_aborted`` adds aborted snaps on top of C. Every
+    candidate keeps the rows with at least one dropback, the rows A's fit uses. The columns keep
+    their published names so the fit reads them unchanged.
     """
     if candidate == "A":
         return logs
@@ -256,7 +257,7 @@ def candidate_rows(logs: pl.DataFrame, parts: pl.DataFrame, candidate: str) -> p
     }[candidate]
     plays = pl.sum_horizontal("qb_dropbacks", *added)
     epa = pl.sum_horizontal("qb_passing_epa", *(PLAY_TYPES[name] for name in added))
-    return with_parts(logs, parts).with_columns(
+    return with_parts(logs.filter(pl.col("qb_dropbacks") > 0), parts).with_columns(
         pl.when(plays > 0).then(epa / plays).otherwise(None).alias("qb_epa_per_dropback"),
         plays.alias("qb_dropbacks"),
     )
@@ -381,7 +382,7 @@ def main() -> None:
             ).select(pl.lit(season).alias("season"), pl.all())
         )
     table = pl.DataFrame(rows)
-    shown = ["dropbacks", "scrambles", "designed_runs", "aborted", "kneels", "spikes"]
+    shown = ["dropbacks", *PLAY_TYPES]
     epa_columns = {"dropbacks": "dropback_epa", **PLAY_TYPES}
     plays = table.select(
         "season", *(column for name in shown for column in (name, epa_columns[name]))
