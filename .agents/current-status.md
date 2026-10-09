@@ -85,6 +85,10 @@ history (the composite-rating era and its experiments) is in git, before commit 
    stats (Taysom Hill, Terrelle Pryor, and a few others had lost every QB row). Fixed on
    `fix/qb-multi-position`; the `data/` rebuild follows (roadmap "Data notes", "QB rows by career
    position").
+8. Spikes out of the QB rating (maintainer decision 2026-10-08, the QB all-plays protocol's
+   question on spikes): EPA per dropback now subtracts the passer's spike EPA (new column
+   `qb_spike_epa`), which nflverse's official passing EPA counts; kneel-downs were never in it.
+   Fixed on `fix/qb-rating-without-spikes`; the `data/` rebuild follows.
 
 ## Decisions waiting for the maintainer
 

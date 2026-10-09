@@ -289,11 +289,26 @@ QB_VOLUME_METRICS: tuple[MetricDef, ...] = (
         full_name="QB Passing EPA",
         description=(
             "Expected points added (how much each play raised or lowered the offense's expected "
-            "points) on pass attempts and sacks. Scrambles count in rushing EPA instead."
+            "points) on pass attempts, sacks, and spikes, as nflverse's official passing EPA "
+            "counts them. Scrambles count in rushing EPA instead."
         ),
         shape="count",
         polarity="higher",
         source="PLS",
+        since=1999,
+    ),
+    _volume(
+        name="qb_spike_epa",
+        label="Spike EPA",
+        full_name="QB Spike EPA",
+        description=(
+            "Expected points added on the quarterback's spikes, throwing the ball into the ground "
+            "to stop the clock. Passing EPA includes them; EPA per dropback and the QB rating "
+            "leave them out, as a spike is a called incompletion, not a dropback."
+        ),
+        shape="count",
+        polarity="neutral",
+        source="PBP",
         since=1999,
     ),
     _volume(
@@ -348,15 +363,15 @@ QB_EFFICIENCY_METRICS: tuple[MetricDef, ...] = (
         full_name="QB EPA Per Dropback",
         description=(
             "Expected points added (how much each play raised or lowered the offense's expected "
-            "points) per dropback, before any adjustment for opponents. League average is usually "
-            "a little above 0."
+            "points) per dropback, before any adjustment for opponents. Spikes and kneel-downs "
+            "are not dropbacks and are left out. League average is usually a little above 0."
         ),
         shape="rate",
         polarity="higher",
         source="D",
         denominator="dropbacks",
         since=1999,
-        formula="Passing EPA ÷ dropbacks (pass attempts + sacks)",
+        formula="(Passing EPA - spike EPA) ÷ dropbacks (pass attempts + sacks)",
     ),
     _efficiency(
         name="qb_pass_yards_per_dropback",

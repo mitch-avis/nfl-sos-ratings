@@ -103,7 +103,10 @@ placed in the full history the data covers.
 
 ## Quarterback Ratings
 
-Each quarterback-game contributes one row: EPA per dropback, weighted by dropbacks. A player is a
+Each quarterback-game contributes one row: EPA per dropback, weighted by dropbacks. Dropbacks are
+pass attempts and sacks. Spikes and kneel-downs are not dropbacks, and the EPA leaves spikes out
+too (`qb_spike_epa`), though nflverse's official passing EPA, shown as `qb_passing_epa`, counts
+them: a spike is a called incompletion to stop the clock, as a kneel-down runs it out. A player is a
 quarterback in a season when nflverse lists him at QB in its players file or in any week of that
 season's roster, so a quarterback who also plays another position (Taysom Hill, listed at tight
 end) is rated like any other. The fit has the same shape, with passers in place of offenses:

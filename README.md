@@ -28,7 +28,7 @@ Teams, all in points per game against an average team on a neutral field:
 - `SRS`: the classic point-margin rating, kept beside the EPA-based rating as a score-based
   reference.
 
-Quarterbacks, in EPA per dropback:
+Quarterbacks, in EPA per dropback (pass attempts and sacks; spikes and kneel-downs left out):
 
 - `adj_qb_epa_per_dropback`: EPA per dropback after adjusting for the pass defenses faced, on the
   same scale as the raw `qb_epa_per_dropback`.

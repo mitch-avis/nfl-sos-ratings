@@ -24,6 +24,7 @@ from nfl_sos_ratings.qb_stats import (
     CPOE_PARTS,
     QB_PASSING_TOTALS,
     compute_qb_game_stats_from_pbp,
+    qb_epa_per_dropback_expr,
     qb_passer_rating_expr,
 )
 from nfl_sos_ratings.team_stats import add_per_snap_rates, compute_team_game_stats_from_pbp
@@ -468,10 +469,7 @@ def _override_qb_game_stats_with_official_weekly(
             .alias("qb_rushing_2pt_conversions"),
         )
         .with_columns(
-            pl.when(pl.col("qb_dropbacks") > 0)
-            .then(pl.col("qb_passing_epa") / pl.col("qb_dropbacks"))
-            .otherwise(None)
-            .alias("qb_epa_per_dropback"),
+            qb_epa_per_dropback_expr(),
             pl.when(pl.col("qb_dropbacks") > 0)
             .then(pl.col("qb_pass_yards") / pl.col("qb_dropbacks"))
             .otherwise(None)

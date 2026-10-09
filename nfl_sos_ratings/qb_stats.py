@@ -48,6 +48,7 @@ _QB_TOTAL_COLUMNS: dict[str, tuple[str, PolarsCastType]] = {
     "qb_sack_yards_lost": ("qb_sack_yards_lost_total", pl.Float64),
     "qb_sack_fumbles_lost": ("qb_sack_fumbles_lost_total", pl.Float64),
     "qb_passing_epa": ("qb_passing_epa_total", pl.Float64),
+    "qb_spike_epa": ("qb_spike_epa_total", pl.Float64),
     "qb_carries": ("qb_carries_total", pl.Int64),
     "qb_rushing_yards": ("qb_rushing_yards_total", pl.Float64),
     "qb_rushing_tds": ("qb_rushing_tds_total", pl.Int64),
@@ -78,6 +79,7 @@ _QB_PER_GAME_COLUMNS: dict[str, str] = {
     "qb_sack_yards_lost": "qb_sack_yards_lost_per_game",
     "qb_sack_fumbles_lost": "qb_sack_fumbles_lost_per_game",
     "qb_passing_epa": "qb_passing_epa_per_game",
+    "qb_spike_epa": "qb_spike_epa_per_game",
     "qb_carries": "qb_carries_per_game",
     "qb_rushing_yards": "qb_rushing_yards_per_game",
     "qb_rushing_tds": "qb_rushing_tds_per_game",
@@ -441,6 +443,7 @@ _QB_GAME_STATS_SCHEMA: dict[str, type[pl.DataType]] = {
     "qb_sack_yards_lost": pl.Float64,
     "qb_sack_fumbles_lost": pl.Int64,
     "qb_passing_epa": pl.Float64,
+    "qb_spike_epa": pl.Float64,
     "qb_designed_carries": pl.Int64,
     "qb_designed_rush_yards": pl.Float64,
     "qb_designed_rush_epa": pl.Float64,
@@ -462,6 +465,63 @@ _QB_GAME_STATS_SCHEMA: dict[str, type[pl.DataType]] = {
     numerator_column(CPOE_COLUMN): pl.Float64,
     denominator_column(CPOE_COLUMN): pl.Int64,
 }
+
+
+def qb_epa_per_dropback_expr() -> pl.Expr:
+    """Return a QB-game's EPA per dropback: passing EPA without spikes over dropbacks.
+
+    A spike is a called incompletion to stop the clock, not a dropback, so its EPA, which
+    nflverse's passing EPA counts, stays out of the rate, as it does out of the dropbacks.
+    """
+    return (
+        pl.when(pl.col("qb_dropbacks") > 0)
+        .then((pl.col("qb_passing_epa") - pl.col("qb_spike_epa")) / pl.col("qb_dropbacks"))
+        .otherwise(None)
+        .alias("qb_epa_per_dropback")
+    )
+
+
+def _qb_spike_stats(pbp_df: pl.DataFrame, qb_identity_df: pl.DataFrame | None) -> pl.DataFrame:
+    """Return each passer's spike EPA per game (``qb_spike_epa``), keyed like the QB rows.
+
+    A spike is a play nflverse flags ``qb_spike`` (or, without that column, types ``qb_spike``);
+    its EPA is the passer's ``qb_epa``, as in nflverse's passing EPA.
+    """
+    schema = {
+        "game_id": pl.String,
+        "week": pl.Int64,
+        "team_abbr": pl.String,
+        "qb_id": pl.String,
+        "qb_spike_epa": pl.Float64,
+    }
+    columns = set(pbp_df.columns)
+    if "qb_spike" in columns:
+        spike = pl.col("qb_spike").fill_null(0) > 0
+    elif "play_type" in columns:
+        spike = (pl.col("play_type") == "qb_spike").fill_null(value=False)
+    else:
+        return pl.DataFrame(schema=schema)
+    spikes = (
+        pbp_df.filter(
+            pl.col("posteam").is_not_null() & pl.col("passer_player_name").is_not_null() & spike
+        )
+        .with_columns(
+            pl.coalesce([pl.col("passer_player_id"), pl.col("passer_player_name")]).alias(
+                "_passer_key"
+            )
+        )
+        .group_by(["game_id", "week", "posteam", "_passer_key"])
+        .agg(
+            pl.col("passer_player_id").drop_nulls().first(),
+            pl.col("passer_player_name").drop_nulls().sort().first(),
+            pl.col("qb_epa").fill_null(0.0).sum().alias("qb_spike_epa"),
+        )
+        .drop("_passer_key")
+        .rename(
+            {"posteam": "team_abbr", "passer_player_id": "qb_id", "passer_player_name": "qb_name"}
+        )
+    )
+    return _canonicalize_qb_rows(spikes, qb_identity_df, join_key="qb_id").select(list(schema))
 
 
 def compute_qb_game_stats_from_pbp(
@@ -673,6 +733,8 @@ def compute_qb_game_stats_from_pbp(
             ]
         )
 
+    spike_stats = _qb_spike_stats(pbp_df, qb_identity_df)
+
     return (
         volumes.join(
             pbp_stats,
@@ -684,6 +746,14 @@ def compute_qb_game_stats_from_pbp(
             on=["game_id", "week", "team_abbr", "qb_id"],
             how="left",
         )
+        .join(spike_stats, on=["game_id", "week", "team_abbr", "qb_id"], how="left")
+        .with_columns(
+            # Passing EPA counts spikes, as nflverse's official passing EPA does.
+            (pl.col("qb_passing_epa").fill_null(0.0) + pl.col("qb_spike_epa").fill_null(0.0)).alias(
+                "qb_passing_epa"
+            ),
+            pl.col("qb_spike_epa").fill_null(0.0),
+        )
         .with_columns(
             pl.col("qb_attempts").fill_null(0).cast(pl.Int64),
             pl.col("qb_completions").fill_null(0).cast(pl.Int64),
@@ -693,7 +763,6 @@ def compute_qb_game_stats_from_pbp(
             pl.col("qb_sacks").fill_null(0).cast(pl.Int64),
             pl.col("qb_sack_yards_lost").fill_null(0.0),
             pl.col("qb_sack_fumbles_lost").fill_null(0).cast(pl.Int64),
-            pl.col("qb_passing_epa").fill_null(0.0),
             pl.col("qb_designed_carries").fill_null(0).cast(pl.Int64),
             pl.col("qb_designed_rush_yards").fill_null(0.0),
             pl.col("qb_designed_rush_epa").fill_null(0.0),
@@ -702,10 +771,7 @@ def compute_qb_game_stats_from_pbp(
             pl.col("qb_kneels").fill_null(0).cast(pl.Int64),
         )
         .with_columns(
-            pl.when(pl.col("qb_dropbacks") > 0)
-            .then(pl.col("qb_passing_epa") / pl.col("qb_dropbacks"))
-            .otherwise(None)
-            .alias("qb_epa_per_dropback"),
+            qb_epa_per_dropback_expr(),
             pl.when(pl.col("qb_dropbacks") > 0)
             .then(pl.col("qb_pass_yards") / pl.col("qb_dropbacks"))
             .otherwise(None)
@@ -842,6 +908,11 @@ def _td_int_differential(total: TotalOf) -> pl.Expr:
     return total("qb_pass_touchdowns") - total("qb_interceptions")
 
 
+def _epa_per_dropback(total: TotalOf) -> pl.Expr:
+    """Return passing EPA without spikes per dropback (pass attempts and sacks)."""
+    return guarded_ratio(total("qb_passing_epa") - total("qb_spike_epa"), total("qb_dropbacks"))
+
+
 def _td_int_margin_rate(total: TotalOf) -> pl.Expr:
     """Return touchdown passes minus interceptions per dropback."""
     return guarded_ratio(_td_int_differential(total), total("qb_dropbacks"))
@@ -877,7 +948,9 @@ QB_RATES: dict[str, QbRate] = {
     "qb_designed_epa_per_carry": _ratio("qb_designed_rush_epa", "qb_designed_carries"),
     "qb_yards_per_scramble": _ratio("qb_scramble_yards", "qb_scrambles"),
     "qb_scramble_rate": _ratio("qb_scrambles", "qb_dropbacks"),
-    "qb_epa_per_dropback": _ratio("qb_passing_epa", "qb_dropbacks"),
+    "qb_epa_per_dropback": QbRate(
+        ("qb_passing_epa", "qb_spike_epa", "qb_dropbacks"), _epa_per_dropback
+    ),
     "qb_pass_yards_per_dropback": _ratio("qb_pass_yards", "qb_dropbacks"),
     "qb_td_int_margin_rate": QbRate(
         ("qb_pass_touchdowns", "qb_interceptions", "qb_dropbacks"), _td_int_margin_rate

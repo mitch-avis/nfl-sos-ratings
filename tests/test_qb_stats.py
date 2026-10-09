@@ -309,6 +309,7 @@ def test_compute_qb_season_stats_derives_dropback_metrics_and_totals() -> None:
             "qb_sacks": [2.0, 1.0],
             "qb_sack_yards_lost": [12.0, 7.0],
             "qb_passing_epa": [5.0, 3.0],
+            "qb_spike_epa": [0.0, 0.0],
         }
     )
 
@@ -519,6 +520,7 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             "qb_sack_yards_lost": 0.0,
             "qb_sack_fumbles_lost": 0,
             "qb_passing_epa": -2.0,
+            "qb_spike_epa": 0.0,
             "qb_designed_carries": 0,
             "qb_designed_rush_yards": 0.0,
             "qb_designed_rush_epa": 0.0,
@@ -558,6 +560,7 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             "qb_sack_yards_lost": 0.0,
             "qb_sack_fumbles_lost": 0,
             "qb_passing_epa": 0.0,
+            "qb_spike_epa": 0.0,
             "qb_designed_carries": 0,
             "qb_designed_rush_yards": 0.0,
             "qb_designed_rush_epa": 0.0,
@@ -597,6 +600,7 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             "qb_sack_yards_lost": 7.0,
             "qb_sack_fumbles_lost": 1,
             "qb_passing_epa": 0.5,
+            "qb_spike_epa": 0.0,
             "qb_designed_carries": 0,
             "qb_designed_rush_yards": 0.0,
             "qb_designed_rush_epa": 0.0,
@@ -619,6 +623,76 @@ def test_compute_qb_game_stats_from_pbp_derives_dropback_metrics() -> None:
             denominator_column(qb_stats.CPOE_COLUMN): 2,
         },
     ]
+
+
+def _pass_sack_and_spike_pbp() -> pl.DataFrame:
+    """Return one DEN passer's pass (+1.2 EPA), sack (-0.4), and spike (-0.2) in one game."""
+    return pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"] * 3,
+            "week": [1, 1, 1],
+            "posteam": ["DEN"] * 3,
+            "defteam": ["KC"] * 3,
+            "passer_player_id": ["GSIS_A"] * 3,
+            "passer_player_name": ["Starter QB"] * 3,
+            "play_type": ["pass", "pass", "qb_spike"],
+            "qb_dropback": [1, 1, 0],
+            "qb_spike": [0, 0, 1],
+            "pass": [1, 0, 1],
+            "complete_pass": [1, 0, 0],
+            "passing_yards": [18.0, 0.0, 0.0],
+            "pass_touchdown": [0, 0, 0],
+            "interception": [0, 0, 0],
+            "sack": [0, 1, 0],
+            "yards_gained": [18.0, -6.0, 0.0],
+            "fumble_lost": [0, 0, 0],
+            "qb_epa": [1.2, -0.4, -0.2],
+        }
+    )
+
+
+def test_compute_qb_game_stats_from_pbp_leaves_spikes_out_of_epa_per_dropback() -> None:
+    """A spike is a called incompletion to stop the clock, so the rating's EPA leaves it out.
+
+    Passing EPA keeps it, as nflverse's official passing EPA does: 1.2 - 0.4 - 0.2 = 0.6 over the
+    passer's plays, of which -0.2 is the spike, so EPA per dropback is (0.6 + 0.2) / 2 = 0.4.
+    """
+    # Arrange
+    pbp = _pass_sack_and_spike_pbp()
+
+    # Act
+    result = qb_stats.compute_qb_game_stats_from_pbp(pbp)
+
+    # Assert
+    row = result.row(0, named=True)
+    assert (row["qb_dropbacks"], row["qb_passing_epa"], row["qb_spike_epa"]) == pytest.approx(
+        (2, 0.6, -0.2)
+    )
+    assert row["qb_epa_per_dropback"] == pytest.approx(0.4)
+
+
+def test_compute_qb_season_stats_leaves_spikes_out_of_epa_per_dropback() -> None:
+    """The season rate pools passing EPA less spike EPA over dropbacks: (3.0 + 0.5) / 50."""
+    # Arrange
+    qb_df = pl.DataFrame(
+        {
+            "team_abbr": ["DEN", "DEN"],
+            "week": [1, 2],
+            "qb_id": ["QB_A", "QB_A"],
+            "qb_name": ["QB A", "QB A"],
+            "qb_attempts": [20, 25],
+            "qb_dropbacks": [22, 28],
+            "qb_passing_epa": [2.0, 1.0],
+            "qb_spike_epa": [-0.2, -0.3],
+        }
+    )
+
+    # Act
+    result = qb_stats.compute_qb_season_stats(qb_df)
+
+    # Assert
+    assert result.select("qb_epa_per_dropback").item() == pytest.approx(3.5 / 50)
+    assert result.select("qb_spike_epa_total").item() == pytest.approx(-0.5)
 
 
 def test_compute_qb_game_stats_from_pbp_counts_only_the_offenses_sack_fumbles_lost() -> None:

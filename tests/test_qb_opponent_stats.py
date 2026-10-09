@@ -330,6 +330,7 @@ def test_compute_qb_opponent_profiles_derives_allowed_efficiency_rates() -> None
             "qb_sacks": [1.0, 2.0, 1.0],
             "qb_sack_yards_lost": [8.0, 12.0, 8.0],
             "qb_passing_epa": [3.0, 10.0, 4.4],
+            "qb_spike_epa": [0.0, 0.0, 0.0],
             "qb_epa_per_dropback": [3.0 / 28.0, 10.0 / 45.0, 4.4 / 22.0],
             "qb_pass_yards_per_dropback": [200.0 / 28.0, 200.0 / 45.0, 160.0 / 22.0],
             "qb_td_int_margin_rate": [1.0 / 28.0, 0.0, 2.0 / 22.0],
