@@ -50,6 +50,28 @@ points against 11.158 for prediction weeks 2-5 (difference -0.191, 95% interval 
 and tied from week 6 on (`nfl-sos-ratings check-in-season-penalty --data-dir data --start-season
 2000 --end-season 2025`). 1999, the first season of play-by-play, cross-validates its own.
 
+Early in a season the penalty pulls each team's scrimmage offense and defense toward a preseason
+prior instead of toward average:
+
+```text
+prior = max(0, 1 - games played / 9) x carryover slope x last season's per-play strength
+```
+
+centered so the league's priors average zero. The carryover slope is how much of a strength
+usually survives into the next season, regressed over every earlier pair of seasons (0.68 to 0.82
+for offenses and 0.38 to 0.47 for defenses so far). After a team's 9th game its prior is gone, so a
+completed season is rated exactly as it would be without one; special teams keep a prior of zero;
+the first prior comes in 2003, once three earlier pairs of seasons give a slope. The weekly rating
+history, the rank ranges, the head-to-head chances, and the garbage-time filter take the same
+priors, and schedule strength's refits take priors from last season refit without the evaluated
+team, so its results never move its opponents' priors. The `team_prior` file keeps each season's
+priors. A pre-registered test predicted every game from week 2 on in 2003-2025 (5,600 games) from
+the games before it: mean absolute error 10.668 points with the 9-game prior against 10.750
+without (difference -0.082, 98.33% season-bootstrap interval -0.114 to -0.050), better in weeks 2-4
+(-0.264) and 5-8 (-0.136) and unchanged from week 9 on, where every prior has faded (`nfl-sos-ratings
+check-team-prior --data-dir data --start-season 2003 --end-season 2025`; horizons of 3 and 6 games
+helped less).
+
 Special teams get the same fit over kicks, punts, returns, field goals, and extra points, with each
 team's possession units and coverage units estimated separately and then added together.
 
@@ -103,8 +125,9 @@ Each season also gets a rating history: `team_rating` with its three parts, and
 `adj_qb_epa_per_dropback`, refit on the games through each week. Every week reuses the season fit's
 ridge penalty (the previous season's for teams, the season's own cross-validated one for
 quarterbacks), because one or two weeks of games are too few to choose one. With the penalty fixed,
-the pull toward average depends only on how much evidence there is: early-week ratings sit close to
-average and spread out as games accumulate, and the last week's ratings are the season's. `sos` and
+the pull depends only on how much evidence there is: early-week ratings sit close to their target
+(a team's preseason prior at that week's games played, a quarterback's league average) and spread
+out as games accumulate, and the last week's ratings are the season's. `sos` and
 `qb_faced_pass_defense` are not refit week by week. The histories are the `ratings_by_week` and
 `qb_ratings_by_week` files.
 
@@ -145,7 +168,9 @@ the medians.
   hour to a full rebuild. In the first weeks, with one or two games per team, a resample can only
   repeat or drop a team's games, never change their results, so those weeks' ranges understate the
   uncertainty; the app's weekly rank chart therefore starts at the first week in which every team
-  has played three games (the files keep every week).
+  has played three games (the files keep every week). A team's preseason prior is held fixed
+  across a week's resamples, so before its 9th game its range also leaves out how uncertain the
+  prior itself is.
 
 ## Garbage-Time Filter (Exploration View)
 
