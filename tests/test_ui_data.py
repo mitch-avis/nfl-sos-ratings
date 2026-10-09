@@ -44,14 +44,14 @@ def test_discover_available_seasons_requires_complete_contract(tmp_path: Path) -
     # Arrange
     contract_files = {
         "team_per_game_stats": "team,points_for\nDET,31\n",
-        "qb_per_game_stats": "player_id,player_display_name\nqb-1,Jared Goff\n",
+        "qb_per_game_stats": "qb_id,qb_name\nqb-1,Jared Goff\n",
         "combined": "team,points_for,opp_points_for,team_rating\nDET,31,20,1.2\n",
         "qb_combined": (
-            "player_id,player_display_name,qb_attempts_total,opp_qb_any_a,adj_qb_epa_per_dropback\n"
+            "qb_id,qb_name,qb_attempts_total,opp_qb_any_a,adj_qb_epa_per_dropback\n"
             "qb-1,Jared Goff,500,6.5,0.1\n"
         ),
         "ratings": "team,team_rating\nDET,1.2\n",
-        "qb_ratings": "player_id,adj_qb_epa_per_dropback\nqb-1,0.1\n",
+        "qb_ratings": "qb_id,adj_qb_epa_per_dropback\nqb-1,0.1\n",
     }
 
     for suffix, content in contract_files.items():
@@ -79,10 +79,7 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
     )
     _write_table(
         tmp_path / "2024_qb_per_game_stats.parquet",
-        (
-            "player_id,player_display_name,team,qb_attempts_total,qb_attempts_per_game,"
-            "qb_epa_per_dropback"
-        ),
+        ("qb_id,qb_name,team,qb_attempts_total,qb_attempts_per_game,qb_epa_per_dropback"),
         "qb-1,Jared Goff,DET,605,35.6,0.18",
     )
     _write_table(
@@ -98,13 +95,13 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
     _write_table(
         tmp_path / "2024_qb_combined.parquet",
         (
-            "player_id,player_display_name,team,qb_attempts_total,qb_attempts_per_game,"
+            "qb_id,qb_name,team,qb_attempts_total,qb_attempts_per_game,"
             "qb_epa_per_dropback,opp_qb_any_a,adj_qb_epa_per_dropback,qb_faced_pass_defense"
         ),
         "qb-1,Jared Goff,DET,605,35.6,0.18,6.5,0.15,0.01",
     )
     _write_table(
-        tmp_path / "2024_qb_ratings.parquet", "player_id,adj_qb_epa_per_dropback\n", "qb-1,0.15"
+        tmp_path / "2024_qb_ratings.parquet", "qb_id,adj_qb_epa_per_dropback\n", "qb-1,0.15"
     )
 
     # Act
@@ -113,7 +110,7 @@ def test_load_season_ui_dataset_groups_team_and_qb_columns(tmp_path: Path) -> No
     # Assert
     assert dataset["season"] == 2024
     assert dataset["teams"]["rows"][0]["team"] == "DET"
-    assert dataset["qbs"]["rows"][0]["player_display_name"] == "Jared Goff"
+    assert dataset["qbs"]["rows"][0]["qb_name"] == "Jared Goff"
     assert dataset["teams"]["column_groups"]["per_game_rates"] == ["points_for", "total_yards"]
     assert dataset["teams"]["column_groups"]["per_snap_rates"] == ["points_per_offensive_snap"]
     assert dataset["teams"]["column_groups"]["opponent_context"] == [
@@ -724,18 +721,16 @@ def _write_minimal_season(data_dir: Path, season: int, games_played: tuple[int, 
     teams = [f"T{index}" for index in range(len(games_played))]
     rows = "\n".join(f"{team},{games},1.0" for team, games in zip(teams, games_played, strict=True))
     _write_table(data_dir / f"{season}_team_per_game_stats.parquet", "team,points_for", "T0,20")
-    _write_table(
-        data_dir / f"{season}_qb_per_game_stats.parquet", "player_id,player_display_name", "qb,Q"
-    )
+    _write_table(data_dir / f"{season}_qb_per_game_stats.parquet", "qb_id,qb_name", "qb,Q")
     _write_table(data_dir / f"{season}_combined.parquet", "team,games_played,team_rating", rows)
     _write_table(data_dir / f"{season}_ratings.parquet", "team,games_played,team_rating", rows)
     _write_table(
         data_dir / f"{season}_qb_combined.parquet",
-        "player_id,player_display_name,adj_qb_epa_per_dropback",
+        "qb_id,qb_name,adj_qb_epa_per_dropback",
         "qb,Q,0.1",
     )
     _write_table(
-        data_dir / f"{season}_qb_ratings.parquet", "player_id,adj_qb_epa_per_dropback", "qb,0.1"
+        data_dir / f"{season}_qb_ratings.parquet", "qb_id,adj_qb_epa_per_dropback", "qb,0.1"
     )
 
 
@@ -804,7 +799,7 @@ def test_qb_payload_names_raw_epa_and_dropbacks_as_rating_companions() -> None:
     # Arrange
     frame = pl.DataFrame(
         {
-            "player_id": ["qb-1"],
+            "qb_id": ["qb-1"],
             "qb_dropbacks_total": [640],
             "qb_epa_per_dropback": [0.18],
             "adj_qb_epa_per_dropback": [0.15],

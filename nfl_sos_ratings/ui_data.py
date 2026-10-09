@@ -610,9 +610,7 @@ def _build_team_payload(frame: pl.DataFrame) -> TablePayload:
 def _build_qb_payload(frame: pl.DataFrame) -> TablePayload:
     """Return a grouped QB index payload from the season QB combined data."""
     identity_columns = [
-        column
-        for column in ("qb_id", "qb_name", "player_id", "player_display_name", "team")
-        if column in frame.columns
+        column for column in ("qb_id", "qb_name", "team") if column in frame.columns
     ]
     rating_columns = _ordered_existing_columns(frame.columns, QB_RATING_COLUMNS)
     opponent_context = [column for column in frame.columns if column.startswith(("opp_", "qopp_"))]

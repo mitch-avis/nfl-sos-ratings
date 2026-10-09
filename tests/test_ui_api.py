@@ -39,7 +39,7 @@ def _seed_season_contract(data_dir: Path, season: int) -> None:
     )
     _write_table(
         data_dir / f"{season}_qb_per_game_stats.parquet",
-        "player_id,player_display_name,team,qb_attempts_total,qb_attempts_per_game,qb_epa_per_dropback",
+        "qb_id,qb_name,team,qb_attempts_total,qb_attempts_per_game,qb_epa_per_dropback",
         "qb-1,Jared Goff,DET,605,35.6,0.18",
     )
     _write_table(
@@ -51,13 +51,13 @@ def _seed_season_contract(data_dir: Path, season: int) -> None:
     _write_table(
         data_dir / f"{season}_qb_combined.parquet",
         (
-            "player_id,player_display_name,team,qb_attempts_total,qb_attempts_per_game,"
+            "qb_id,qb_name,team,qb_attempts_total,qb_attempts_per_game,"
             "qb_epa_per_dropback,opp_qb_any_a,adj_qb_epa_per_dropback,qb_faced_pass_defense"
         ),
         "qb-1,Jared Goff,DET,605,35.6,0.18,6.5,0.15,0.01",
     )
     _write_table(
-        data_dir / f"{season}_qb_ratings.parquet", "player_id,adj_qb_epa_per_dropback", "qb-1,0.15"
+        data_dir / f"{season}_qb_ratings.parquet", "qb_id,adj_qb_epa_per_dropback", "qb-1,0.15"
     )
 
 
@@ -90,7 +90,7 @@ def test_get_season_returns_grouped_team_and_qb_tables(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["season"] == 2024
     assert payload["teams"]["rows"][0]["team"] == "DET"
-    assert payload["qbs"]["rows"][0]["player_display_name"] == "Jared Goff"
+    assert payload["qbs"]["rows"][0]["qb_name"] == "Jared Goff"
     assert payload["teams"]["column_groups"]["ratings"] == [
         "team_rating",
         "offense_rating",

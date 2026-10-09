@@ -161,27 +161,6 @@ QB_IDENTITY_METRICS: tuple[MetricDef, ...] = (
         source="PBP",
     ),
     _identity(
-        name="player_id",
-        label="Player ID",
-        full_name="Player ID",
-        description=(
-            "The league's player ID as carried in the official weekly stats, used to match rows "
-            "across data sources."
-        ),
-        shape="id",
-        polarity="neutral",
-        source="PLS",
-    ),
-    _identity(
-        name="player_display_name",
-        label="Player Name",
-        full_name="Quarterback Display Name",
-        description="The quarterback's name as given in the official weekly stats.",
-        shape="id",
-        polarity="neutral",
-        source="PLS",
-    ),
-    _identity(
         name="qb_games_played",
         label="QB Games",
         full_name="QB Games Played",
