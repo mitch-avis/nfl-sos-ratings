@@ -80,6 +80,11 @@ history (the composite-rating era and its experiments) is in git, before commit 
    `dropbacks`, and team passing EPA. Fixed on `fix/pre-2006-scrambles`
    (`pbp_expressions.dropback_expr`); the `data/` rebuild and the `validate` rerun follow (roadmap
    "Data notes", "Team scrimmage plays left out scrambles before 2006").
+7. Quarterbacks also listed at another position (approved 2026-10-08): a player any source lists at
+   QB in a season counts as a QB that season, in the identity crosswalk and the official weekly
+   stats (Taysom Hill, Terrelle Pryor, and a few others had lost every QB row). Fixed on
+   `fix/qb-multi-position`; the `data/` rebuild follows (roadmap "Data notes", "QB rows by career
+   position").
 
 ## Decisions waiting for the maintainer
 
@@ -87,9 +92,6 @@ history (the composite-rating era and its experiments) is in git, before commit 
    after a return touchdown, the near-duplicate yards-per-snap columns, `opp_longest_*` averaging
    per-game maxima, `fourth_down_aggressiveness` at 2.0 in two 2000 games, play-by-play as a
    2003-2011 source for tackles for loss, and kneel-downs under-recorded in 2000 and 2001.
-2. QB rows drop quarterbacks whose latest nflverse position is not QB (Terrelle Pryor 2013, Taysom
-   Hill 2020-2021, and a few others): roadmap "Data notes", "QB rows by career position"; a fix
-   changes published QB ratings (ask first). Roadmap Q1 asks whether to fix it before that check.
 
 ## State before 2026-10-08
 
