@@ -8,16 +8,19 @@ cached, through the package loader) credits to the same player id, game, and tea
 
 - scrambles: ``play_type == "run"`` with ``qb_scramble``, the quarterback as ``rusher_player_id``;
 - designed runs: his other runs nflverse marks as a rush (``rush``), aborted snaps left out;
-- aborted snaps (``aborted_play``), kneel-downs (``play_type == "qb_kneel"``), and spikes
-  (``play_type == "qb_spike"``, the quarterback as ``passer_player_id``), which no candidate
-  counts as plays.
+- aborted snaps (``aborted_play``) by rusher, as the published carry columns count them, and
+  ``charged_aborted``: aborted snaps coded as a run with the ``rush`` flag (so scrimmage snaps)
+  that the official scorer charged to the quarterback (``fumbled_1_player_id``), whoever ran
+  after the fumble, which candidate C counts;
+- kneel-downs (``play_type == "qb_kneel"``) and spikes (``play_type == "qb_spike"``, the
+  quarterback as ``passer_player_id``), which no candidate counts.
 
 Two-point tries are left out of every count, as the published scramble and carry columns leave
 them out. EPA is nflverse's play-by-play ``epa``. The first table gives, per season, each play
 type's count and summed EPA over the quarterback-game rows (dropbacks and their EPA are the
-published ``qb_dropbacks`` and ``qb_passing_epa``). The checks table counts the dropbacks,
-scrambles, and aborted snaps of players in games where they have no QB row, and compares the
-play-by-play counts with the published ``qb_scrambles``, ``qb_kneels``, and
+published ``qb_dropbacks``, and ``qb_passing_epa`` less ``qb_spike_epa``). The checks table
+counts the dropbacks, scrambles, and aborted snaps of players in games where they have no QB
+row, and compares the play-by-play counts with the published ``qb_scrambles``, ``qb_kneels``, and
 ``qb_designed_carries`` (which counts aborted snaps as designed runs), the official weekly rushing
 EPA (``qb_rushing_epa``) with the play-by-play parts that make it up, and the published passing
 EPA with the passer's ``qb_epa`` over his passes and spikes. Then it lists the players with 10 or
@@ -25,8 +28,9 @@ more dropbacks or scrambles in a season in games where they have no QB row.
 
 With ``--compare SEASON`` it also refits the published QB fit (``fit_qb_ratings``, penalty
 cross-validated each time) on each candidate's rows and prints every qualified passer's adjusted
-EPA per play and rank: A, the published rows; B, scrambles added to dropbacks and dropback EPA;
-C, B plus designed runs; and C with aborted snaps, for reference. It ends with the least, median,
+EPA per play and rank: A, the published rows (passing EPA without spikes); B, scrambles added to
+dropbacks and dropback EPA; C, B plus designed runs and the aborted snaps charged to the
+quarterback; and C without those snaps, for reference. It ends with the least, median,
 and most of each play type a defense faced. Reads ``data/`` and play-by-play; writes to stdout.
 
 Run from the repository root:
@@ -48,13 +52,14 @@ from nfl_sos_ratings.qb_rating import fit_qb_ratings
 
 DATA = Path("data")
 GAME_KEYS = ["game_id", "team", "qb_id"]
-CANDIDATES = ("A", "B", "C", "C_aborted")
+CANDIDATES = ("A", "B", "C", "C_without_aborted")
 RUSHING_GAP_TOLERANCE = 1e-6
 # Each play type the play-by-play pass counts, with the column of its summed EPA.
 PLAY_TYPES = {
     "scrambles": "scramble_epa",
     "designed_runs": "designed_run_epa",
     "aborted": "aborted_epa",
+    "charged_aborted": "charged_aborted_epa",
     "kneels": "kneel_epa",
     "spikes": "spike_epa",
     "two_point_runs": "two_point_run_epa",
@@ -129,8 +134,18 @@ def qb_play_parts(pbp: pl.DataFrame) -> pl.DataFrame:
         )
         .rename({"posteam": "team", "passer_player_id": "qb_id"})
     )
-    return rushes.join(spikes, on=GAME_KEYS, how="full", coalesce=True).with_columns(
-        pl.col(column).fill_null(0) for column in PART_COLUMNS
+    # A botched snap counts against the quarterback the official scorer charged with the fumble,
+    # whoever ran with the ball after it (``fumbled_1_player_id``), as the maintainer decided.
+    charged = (
+        pbp.filter(pl.col("posteam").is_not_null() & pl.col("fumbled_1_player_id").is_not_null())
+        .group_by("game_id", "posteam", "fumbled_1_player_id")
+        .agg(*_count_and_epa("charged_aborted", run & _flag("rush") & _flag("aborted_play")))
+        .rename({"posteam": "team", "fumbled_1_player_id": "qb_id"})
+    )
+    return (
+        rushes.join(spikes, on=GAME_KEYS, how="full", coalesce=True)
+        .join(charged, on=GAME_KEYS, how="full", coalesce=True)
+        .with_columns(pl.col(column).fill_null(0) for column in PART_COLUMNS)
     )
 
 
@@ -211,7 +226,7 @@ def season_row(
     return {
         "season": season,
         "dropbacks": int(total(rows, "qb_dropbacks")),
-        "dropback_epa": total(rows, "qb_passing_epa"),
+        "dropback_epa": total(rows, "qb_passing_epa") - total(rows, "qb_spike_epa"),
         **{column: total(rows, column) for column in PART_COLUMNS if column in rows.columns},
         "dropbacks_off_rows": int(total(off_rows, "dropbacks")),
         "scrambles_off_rows": int(total(off_rows, "scrambles")),
@@ -243,20 +258,22 @@ def season_row(
 def candidate_rows(logs: pl.DataFrame, parts: pl.DataFrame, candidate: str) -> pl.DataFrame:
     """Return the QB fit's rows for one candidate, with plays as weight and EPA per play.
 
-    A is the published rows unchanged. B adds scrambles to dropbacks and their EPA to the dropback
-    EPA; C adds designed runs on top of B; ``C_aborted`` adds aborted snaps on top of C. Every
-    candidate keeps the rows with at least one dropback, the rows A's fit uses. The columns keep
-    their published names so the fit reads them unchanged.
+    A is the published rows unchanged. B adds scrambles to dropbacks and their EPA to the
+    published dropback EPA (passing EPA without spikes); C adds designed runs and the run-coded
+    aborted snaps the scorer charged to the quarterback; ``C_without_aborted`` leaves those
+    snaps out. Every candidate keeps the rows with at least one dropback, the rows A's fit uses.
+    The columns keep their published names so the fit reads them unchanged.
     """
     if candidate == "A":
         return logs
     added = {
         "B": ("scrambles",),
-        "C": ("scrambles", "designed_runs"),
-        "C_aborted": ("scrambles", "designed_runs", "aborted"),
+        "C": ("scrambles", "designed_runs", "charged_aborted"),
+        "C_without_aborted": ("scrambles", "designed_runs"),
     }[candidate]
     plays = pl.sum_horizontal("qb_dropbacks", *added)
-    epa = pl.sum_horizontal("qb_passing_epa", *(PLAY_TYPES[name] for name in added))
+    dropback_epa = pl.col("qb_passing_epa") - pl.col("qb_spike_epa")
+    epa = pl.sum_horizontal(dropback_epa, *(PLAY_TYPES[name] for name in added))
     return with_parts(logs.filter(pl.col("qb_dropbacks") > 0), parts).with_columns(
         pl.when(plays > 0).then(epa / plays).otherwise(None).alias("qb_epa_per_dropback"),
         plays.alias("qb_dropbacks"),
@@ -274,7 +291,7 @@ def comparison(
             pl.col("qb_dropbacks").sum().alias("dropbacks"),
             pl.col("scrambles").sum(),
             pl.col("designed_runs").sum(),
-            pl.col("aborted").sum(),
+            pl.col("charged_aborted").sum(),
         )
     )
     table = (
