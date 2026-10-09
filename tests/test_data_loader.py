@@ -3,7 +3,7 @@
 import polars as pl
 import pytest
 
-from nfl_sos_ratings import data_loader
+from nfl_sos_ratings import data_loader, qb_stats
 from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
 from nfl_sos_ratings.pooled_rates import denominator_column, numerator_column
 from tests.stubs import stub
@@ -1826,6 +1826,61 @@ def test_override_qb_game_stats_without_official_rows_keeps_the_input() -> None:
 
     # Assert
     assert result.equals(qb_df)
+
+
+def test_override_qb_game_stats_leaves_spikes_out_of_epa_per_dropback() -> None:
+    """Official passing EPA counts spikes; the rating's EPA per dropback does not.
+
+    Fixture: the passer's pass (+1.2 EPA), sack (-0.4), and spike (-0.2), and an official
+    passing EPA of 0.6 that includes the spike, so EPA per dropback is (0.6 + 0.2) / 2 = 0.4.
+    """
+    # Arrange
+    pbp = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"] * 3,
+            "week": [1, 1, 1],
+            "posteam": ["DEN"] * 3,
+            "defteam": ["KC"] * 3,
+            "passer_player_id": ["GSIS_A"] * 3,
+            "passer_player_name": ["Starter QB"] * 3,
+            "play_type": ["pass", "pass", "qb_spike"],
+            "qb_dropback": [1, 1, 0],
+            "qb_spike": [0, 0, 1],
+            "pass": [1, 0, 1],
+            "complete_pass": [1, 0, 0],
+            "passing_yards": [18.0, 0.0, 0.0],
+            "pass_touchdown": [0, 0, 0],
+            "interception": [0, 0, 0],
+            "sack": [0, 1, 0],
+            "yards_gained": [18.0, -6.0, 0.0],
+            "fumble_lost": [0, 0, 0],
+            "qb_epa": [1.2, -0.4, -0.2],
+        }
+    )
+    player_stats = pl.DataFrame(
+        {
+            "game_id": ["2025_01_DEN_KC"],
+            "week": [1],
+            "team": ["DEN"],
+            "player_id": ["GSIS_A"],
+            "player_display_name": ["Starter QB"],
+            "position": ["QB"],
+            "attempts": [2],
+            "passing_epa": [0.6],
+        }
+    )
+    qb_df = qb_stats.compute_qb_game_stats_from_pbp(pbp)
+    official = data_loader._load_official_weekly_qb_stats(
+        player_stats, data_loader._empty_qb_identity_crosswalk()
+    )
+
+    # Act
+    result = data_loader._override_qb_game_stats_with_official_weekly(qb_df, official)
+
+    # Assert
+    row = result.row(0, named=True)
+    assert (row["qb_passing_epa"], row["qb_spike_epa"]) == pytest.approx((0.6, -0.2))
+    assert row["qb_epa_per_dropback"] == pytest.approx(0.4)
 
 
 def test_load_official_weekly_team_surface_without_rows_is_typed_empty() -> None:
