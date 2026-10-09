@@ -90,14 +90,15 @@ function notFoundId(state: unknown): string | null {
 const TABLE_NOTE = 'Sort any column, search, and switch views; open a row for its game-by-game detail.'
 
 /** One line under the title while a season is under way: how far it is, and what that means. */
-function SeasonProgress({ games }: { games: number }) {
+function SeasonProgress({ kind, games }: { kind: EntityKind; games: number }) {
   return (
     <p className="-mt-6 flex max-w-prose items-start gap-2 text-sm text-muted-foreground">
       <CalendarClock className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
       <span>
         <span className="font-medium text-foreground">Season in progress: up to {games} games per team.</span>{' '}
-        Ratings use only the games played so far, so they lean toward the league average and will move
-        as the season goes on.
+        {kind === 'teams'
+          ? "Until a team has played 9 games, its rating also leans on its rating last season, a little less after each game, so ratings will move as the season goes on."
+          : 'Ratings use only the games played so far, so they lean toward the league average and will move as the season goes on.'}
       </span>
     </p>
   )
@@ -182,7 +183,7 @@ export function EntityIndexPage({ kind, dataset }: { kind: EntityKind; dataset: 
         }
       />
 
-      {gamesSoFar !== null ? <SeasonProgress games={gamesSoFar} /> : null}
+      {gamesSoFar !== null ? <SeasonProgress kind={kind} games={gamesSoFar} /> : null}
 
       {notFound !== null ? (
         <Notice>

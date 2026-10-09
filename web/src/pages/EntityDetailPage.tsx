@@ -203,10 +203,11 @@ export function EntityDetailPage({ kind, dataset }: { kind: EntityKind; dataset:
           <CardHeader>
             <CardTitle className="text-base">Rating by week</CardTitle>
             <CardDescription>
-              Each point is the rating using only the {season} games through that week. Early points sit
-              near {kind === 'teams' ? '0 (an average team)' : 'the league average'}, because a few games
-              are thin evidence, and spread out as games are added. The last point is the season rating
-              shown above.
+              Each point is the rating using only the {season} games through that week.{' '}
+              {kind === 'teams'
+                ? "Early points also lean on the team's rating last season, a little less after each game until the 9th, because a few games are thin evidence."
+                : 'Early points sit near the league average, because a few games are thin evidence, and spread out as games are added.'}{' '}
+              The last point is the season rating shown above.
             </CardDescription>
           </CardHeader>
           <CardContent>

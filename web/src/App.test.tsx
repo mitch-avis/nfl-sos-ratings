@@ -325,6 +325,30 @@ describe('season in progress', () => {
     expect(await screen.findByText(/Season in progress/)).toHaveTextContent('3 games')
   })
 
+  it('says a team rating leans on last season until it has played 9 games', async () => {
+    // Arrange
+    const partial = {
+      ...SEASON_2025,
+      season: 2026,
+      in_progress: true,
+      teams: {
+        ...SEASON_2025.teams,
+        rows: SEASON_2025.teams.rows.map((row) => ({ ...row, games_played: 3 })),
+      },
+    }
+    vi.stubGlobal(
+      'fetch',
+      stubApi({ '/api/seasons': { seasons: [2026] }, '/api/metadata': REGISTRY, '/api/seasons/2026': partial }),
+    )
+
+    // Act
+    renderApp('/teams?season=2026')
+
+    // Assert
+    const notice = (await screen.findByText(/Season in progress/)).parentElement
+    expect(notice).toHaveTextContent(/played 9 games.*rating last season/)
+  })
+
   it('states the QB qualifier for the games played so far', async () => {
     // Arrange
     const partial = {
