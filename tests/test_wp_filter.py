@@ -2,6 +2,20 @@
 
 import polars as pl
 import pytest
+from tests.wp_league import (
+    CLOSE_PLAYS,
+    LAMBDA,
+    LOPSIDED_BIN,
+    LOPSIDED_PLAYS,
+    OFFENSE,
+    PASSER,
+    ST_CLOSE_PLAYS,
+    ST_UNBINNED_PLAYS,
+    qb_bins,
+    qb_games,
+    team_bins,
+    team_game_logs,
+)
 
 from nfl_sos_ratings.qb_rating import (
     QbRatingFit,
@@ -21,20 +35,6 @@ from nfl_sos_ratings.wp_filter import (
     TeamWpFilter,
     qb_games_at_threshold,
     team_game_logs_at_threshold,
-)
-from tests.wp_league import (
-    CLOSE_PLAYS,
-    LAMBDA,
-    LOPSIDED_BIN,
-    LOPSIDED_PLAYS,
-    OFFENSE,
-    PASSER,
-    ST_CLOSE_PLAYS,
-    ST_UNBINNED_PLAYS,
-    qb_bins,
-    qb_games,
-    team_bins,
-    team_game_logs,
 )
 
 

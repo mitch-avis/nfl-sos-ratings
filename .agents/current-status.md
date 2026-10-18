@@ -4,7 +4,17 @@ The handoff document for the repo's current state: what is done, what is open, a
 agent should do first. Update it in the same change set whenever any of that changes. Earlier
 history (the composite-rating era and its experiments) is in git, before commit `21c5290`.
 
-## Current state (2026-10-08, end of session)
+## Current state (2026-10-17, end of session)
+
+- 2026-10-17 follow-up fixes on top of `de3a271`: `tests/conftest.py` now lifts the coverage
+  floor both at configure time and at collection time for the exact `pytest -m published_data`
+  run, so `scripts/refresh-season.sh` succeeds again under the default xdist path; pyright now
+  suppresses missing-stub errors for `nflreadpy` in both its root and `tests` execution
+  environments; and `nfl_sos_ratings/refresh_runner.py` closes its child stdout pipe and always
+  finalizes the process, which stopped the refresh-button runner from leaking file handles under
+  Python 3.14.
+- The current toolchain floor in `pyproject.toml` and `uv.lock` is `uv >=0.13`,
+  `uv_build >=0.13,<0.14`, `polars >=2.0`, `fastapi >=0.143`, `ruff >=0.17`, and `ty >=0.0.89`.
 
 - `main` = `origin/main` = `de3a271` plus this handoff. Pull requests #17-#38 landed on
   2026-10-08, each merged with a merge commit once the gate and CI passed (the maintainer approved
@@ -193,9 +203,10 @@ Garbage-time filter test (2026-10-05, `nfl-sos-ratings check-wp-filter --data-di
 every play, 10.623 at 5%, 10.663 at 10%, 10.733 at 20%; 5% and 10% tie, 20% is worse (+0.133, 98.33%
 interval +0.046 to +0.222). The published ratings keep every play.
 
-Gate state: `scripts/gate.sh --web` passes on `main` (`4d23890`, 2026-10-09), and
-`.venv/bin/pytest -m published_data` passes on `data/` (8 tests, 2026-10-08; with only those tests
-selected the coverage floor is lifted, so `--no-cov` is not needed).
+Gate state: `scripts/gate.sh --web` passes on `main` (`4d23890`, 2026-10-09), and this
+2026-10-17 follow-up branch passes `scripts/gate.sh` plus `.venv/bin/pytest -m published_data -q`
+(8 tests; with only those tests selected the coverage floor is lifted, so `--no-cov` is not
+needed).
 
 Season rollover: after the 2026 season, set `END_YEAR` to 2026 and `SEASON` to 2027 in
 `nfl_sos_ratings/config.py`, rebuild (ask first), and regenerate the validation report. The weekly
@@ -216,6 +227,8 @@ the maintainer's input. `pytest-html` and `pytest-metadata` stay as dev dependen
    `docs/validation-report.md`, and write a falsifiable protocol and decision rule in an `.agents/`
    plan before changing code.
 3. After any registry change, run `nfl-sos-ratings catalog`; the catalog drift test fails otherwise.
+4. If the task is to port this repo's recent follow-ups into `../nfl-predictor`, start with
+  `.agents/nfl-predictor-porting-handoff-2026-10-17.md`.
 
 ## File-keeping rule
 

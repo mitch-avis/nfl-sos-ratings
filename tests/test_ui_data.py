@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
+from tests.wp_league import LOPSIDED_BIN, write_wp_season
 
 from nfl_sos_ratings import config, ui_data
 from nfl_sos_ratings.rating_ranges import (
@@ -35,7 +36,6 @@ from nfl_sos_ratings.ui_data import (
     load_team_wp_ratings_payload,
     season_in_progress,
 )
-from tests.wp_league import LOPSIDED_BIN, write_wp_season
 
 if TYPE_CHECKING:
     from pathlib import Path

@@ -230,6 +230,8 @@ request; `.venv/bin/pre-commit install` adds the commit and pre-push hooks.
 pytest skips tests marked `published_data`, which read the generated files in `data/`; run them
 with `.venv/bin/pytest -m published_data` after a data refresh (with only those tests selected, the
 coverage floor and report are lifted for the run, as these few tests cover little of the package).
+The default addopts also run tests in parallel (`-n=auto`); add `-n 0` when you need an
+in-process repro.
 Agent working rules live in [AGENTS.md].
 
 ## Data Sources

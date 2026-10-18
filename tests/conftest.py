@@ -39,6 +39,12 @@ class _CoverageOptions(Protocol):
     cov_report: object
 
 
+class _PytestOptions(Protocol):
+    """The pytest options this file reads from the config object."""
+
+    markexpr: str
+
+
 class _Marked(Protocol):
     """A collected test, as far as the marker check needs it."""
 
@@ -57,6 +63,38 @@ def only_published_data(items: Sequence[_Marked]) -> bool:
     return bool(items) and all(item.get_closest_marker(PUBLISHED_DATA_MARKER) for item in items)
 
 
+def _coverage_options(config: pytest.Config) -> _CoverageOptions | None:
+    """Return the pytest-cov options object when coverage is active."""
+    plugin = config.pluginmanager.getplugin("_cov")
+    return cast("_CoverageOptions | None", getattr(plugin, "options", None))
+
+
+def _lift_coverage_floor(options: _CoverageOptions) -> None:
+    """Disable the coverage floor and report for a published-data-only run."""
+    options.cov_fail_under = 0
+    options.cov_report = {}
+
+
+def _is_exact_published_data_selection(markexpr: str) -> bool:
+    """Return whether the marker expression is exactly ``published_data``."""
+    return markexpr.strip().removeprefix("(").removesuffix(")") == PUBLISHED_DATA_MARKER
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_configure(config: pytest.Config) -> None:
+    """Lift the coverage floor early when the run selects exactly ``published_data``.
+
+    With xdist, the controller process may not see the final item list in
+    ``pytest_collection_modifyitems`` soon enough to affect the top-level coverage gate, but the
+    exact marker expression is already known here.
+    """
+    options = _coverage_options(config)
+    pytest_options = cast("_PytestOptions", config.option)
+    if options is None or not _is_exact_published_data_selection(pytest_options.markexpr):
+        return
+    _lift_coverage_floor(options)
+
+
 @pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Lift the coverage floor and report when only published-data checks are selected.
@@ -64,12 +102,10 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     Runs after the ``-m`` deselection, so ``items`` is what will run. Sets the pytest-cov options
     ``--cov-fail-under`` and ``--cov-report`` to nothing for this run only.
     """
-    plugin = config.pluginmanager.getplugin("_cov")
-    options = cast("_CoverageOptions | None", getattr(plugin, "options", None))
+    options = _coverage_options(config)
     if options is None or not only_published_data(items):
         return
-    options.cov_fail_under = 0
-    options.cov_report = {}
+    _lift_coverage_floor(options)
 
 
 @pytest.fixture(autouse=True)
@@ -83,7 +119,6 @@ def _block_nflverse_downloads(monkeypatch: pytest.MonkeyPatch) -> None:
     import urllib.request
 
     from nflreadpy.downloader import NflverseDownloader
-
     from tests.stubs import NflverseDownloadBlockedError
 
     def refuse(

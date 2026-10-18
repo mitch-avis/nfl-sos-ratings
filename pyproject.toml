@@ -1,45 +1,41 @@
 [build-system]
-requires = ["uv_build>=0.12"]
+requires = ["uv_build>=0.13,<0.14"]
 build-backend = "uv_build"
 
 [project]
 name = "nfl-sos-ratings"
 version = "0.1.0"
 description = "Schedule-strength-adjusted NFL team and quarterback ratings from nflverse data."
-keywords = ["stats", "sports", "football", "machine learning"]
 readme = "README.md"
-authors = [{ name = "Mitch Avis", email = "mitchavis@gmail.com" }]
 requires-python = ">=3.14"
 license = "MIT"
 license-files = ["LICENSE"]
-dependencies = [
-    "fastapi>=0.142",
-    "nflreadpy>=0.1",
-    "numpy>=2.5",
-    "polars>=1.44",
-    "uvicorn>=0.54",
-]
+authors = [{ name = "Mitch Avis", email = "mitchavis@gmail.com" }]
+keywords = ["stats", "sports", "football", "machine learning"]
 classifiers = [
     "Programming Language :: Python :: 3.14",
     "Operating System :: POSIX :: Linux",
+    "Private :: Do Not Upload",
+]
+dependencies = [
+    "fastapi>=0.143",
+    "nflreadpy>=0.1",
+    "numpy>=2.5",
+    "polars>=2.0",
+    "uvicorn>=0.54",
 ]
 
 [project.scripts]
-nfl-sos-ratings = "nfl_sos_ratings.cli:main"
-# Shortcuts kept for existing habits: `nfl-sos-ratings season` and `nfl-sos-ratings pipeline`.
-# They go through the front door so they get its defaults (single-threaded BLAS).
 nfl-sos = "nfl_sos_ratings.cli:season_shortcut"
 nfl-sos-pipeline = "nfl_sos_ratings.cli:pipeline_shortcut"
-
-[project.urls]
-Homepage = "https://github.com/mitch-avis/nfl-sos-ratings"
+nfl-sos-ratings = "nfl_sos_ratings.cli:main"
 
 [dependency-groups]
 dev = [
     "colorama>=0.4",
     "httpx2>=2.13",
     "pre-commit>=4.6",
-    "pre-commit-uv>=4.3.0",
+    "pre-commit-uv>=4.4.0",
     "pyright>=1.1",
     "pytest>=9.1",
     "pytest-cov>=7.1",
@@ -47,13 +43,12 @@ dev = [
     "pytest-metadata>=3.1",
     "pytest-sugar>=1.1",
     "pytest-xdist>=3.8",
-    "ruff>=0.16",
-    "ty>=0.0.84",
+    "ruff>=0.17",
+    "ty>=0.0.89",
 ]
 
 [tool.uv]
-default-groups = ["dev"]
-required-version = ">=0.12"
+required-version = ">=0.13"
 
 # The package sits at the repo root (flat layout), not under src/.
 [tool.uv.build-backend]
@@ -64,20 +59,8 @@ module-root = ""
 # --------------------------------------------------------------------------------------------
 [tool.ruff]
 line-length = 100
-target-version = "py314"
-src = [".", "tests"]
-extend-exclude = [
-    ".venv",
-    ".git",
-    "__pycache__",
-    ".pytest_cache",
-    ".mypy_cache",
-    "build",
-    "dist",
-    "data",
-    "web",
-    "ui",
-]
+src = ["nfl_sos_ratings", "tests"]
+extend-exclude = ["build", "data", "web"]
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -85,10 +68,7 @@ docstring-code-format = true
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "D203",   # Conflicts with D211 (no-blank-line-before-class)
-    "D213",   # Conflicts with D212 (multi-line-summary-first-line)
     "COM812", # Conflicts with `ruff format`, which owns trailing commas
-    "ISC001", # Conflicts with `ruff format`, which joins implicit concatenations
     "CPY001", # The license is declared once in pyproject.toml, not per file
 ]
 
@@ -101,10 +81,7 @@ convention = "google"
 # FastAPI reads route signatures at runtime, so the types they name must stay real imports rather
 # than moving under TYPE_CHECKING.
 [tool.ruff.lint.flake8-type-checking]
-runtime-evaluated-decorators = [
-    "fastapi.FastAPI.get",
-    "fastapi.APIRouter.get",
-]
+runtime-evaluated-decorators = ["fastapi.FastAPI.get", "fastapi.APIRouter.get"]
 
 # `pl.lit(True)` builds a literal from a value; the boolean is data, not a behavior flag.
 [tool.ruff.lint.flake8-boolean-trap]
@@ -132,7 +109,6 @@ extend-allowed-calls = ["polars.lit"]
 [tool.ty.environment]
 # Pin ty to the repo venv so local and CI checks resolve the same interpreter.
 python = ".venv"
-python-version = "3.14"
 
 [tool.ty.src]
 include = ["nfl_sos_ratings", "tests"]
@@ -140,49 +116,51 @@ include = ["nfl_sos_ratings", "tests"]
 [tool.pyright]
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
+pythonPlatform = "Linux"
 venvPath = "."
 venv = ".venv"
-pythonPlatform = "Linux"
 include = ["nfl_sos_ratings", "tests"]
-exclude = ["**/__pycache__", "**/.*", ".venv", "**/node_modules", "data", "dist", "web", "ui"]
-# Tests may call private helpers directly (ruff's SLF001 is off there for the same reason).
-executionEnvironments = [
-    { root = "tests", extraPaths = ["."], reportPrivateUsage = false },
-    { root = "." },
-]
-# nflreadpy and a few scientific dependencies ship without stubs.
-reportMissingTypeStubs = false
+
+[[tool.pyright.executionEnvironments]]
+root = "tests"
+extraPaths = ["."]           # keeps `tests.*` imports resolving from the repo root
+reportPrivateUsage = false   # unit tests import their own module's private helpers
+reportMissingTypeStubs = false  # nflreadpy and a few scientific dependencies ship without stubs.
+
+[[tool.pyright.executionEnvironments]]
+root = "."
+reportMissingTypeStubs = false  # nflreadpy and a few scientific dependencies ship without stubs.
 
 # --------------------------------------------------------------------------------------------
 # Tests and coverage
 # --------------------------------------------------------------------------------------------
-[tool.pytest.ini_options]
+[tool.pytest]
 minversion = "9.0"
 testpaths = ["tests"]
-# Tests import shared helpers as `tests.*`.
+# Tests import shared helpers as `tests.*`; the package itself is imported from src/ via the
+# editable install, so bare `pytest` and `python -m pytest` resolve the same modules.
 pythonpath = ["."]
+# strict_config, strict_markers, strict_xfail and strict_parametrization_ids.
+strict = true
 addopts = [
     "-ra",                       # show extra summary for (s)kipped, (x)failed
-    "--strict-markers",
-    "--cov=nfl_sos_ratings",
+    "-m",                        # generated-data checks stay opt-in on the default suite
+    "not published_data",
+    "-n=auto",                   # pytest-xdist: one worker per core; `-n 0` runs in-process
+    "--cov",                     # measure the paths in [tool.coverage.run] source
     "--cov-report=term-missing",
-    "-m", "not published_data",  # opt in with `pytest -m published_data`
 ]
 markers = [
     "published_data: reads the generated Parquet outputs under data/; deselected by default",
 ]
-filterwarnings = ["ignore::DeprecationWarning"]
+filterwarnings = ["error"]
 
 [tool.coverage.run]
 branch = true
 source = ["nfl_sos_ratings"]
-omit = ["config.py", "config-*.py", "*/config.py", "*/config-*.py"]
 
 [tool.coverage.report]
-# The floor; the goal is 100%.
 fail_under = 90
 show_missing = true
 skip_empty = true
-exclude_lines = ["pragma: no cover", "if __name__ == \"__main__\":"]
-# Never run by design: typing-only imports, and the `...` body of a Protocol method.
-exclude_also = ["if TYPE_CHECKING:", "^\\s*\\.\\.\\.$"]
+exclude_also = ["if __name__ == \"__main__\":", "if TYPE_CHECKING:"]

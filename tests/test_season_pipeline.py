@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
+from tests.stubs import stub
 
 from nfl_sos_ratings import main
 from nfl_sos_ratings.pooled_rates import denominator_column, is_rate_part, numerator_column
@@ -30,7 +31,6 @@ from nfl_sos_ratings.team_rating import (
     fit_team_ratings_with_previous_penalties,
 )
 from nfl_sos_ratings.team_stats import add_per_snap_rates
-from tests.stubs import stub
 
 if TYPE_CHECKING:
     from nfl_sos_ratings.ridge import UnitPrior

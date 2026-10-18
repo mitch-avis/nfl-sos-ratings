@@ -4,11 +4,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from tests.stubs import stub
 
 from nfl_sos_ratings.metrics import CategoryDef, MetricDef, catalog_docs
 from nfl_sos_ratings.metrics.catalog_docs import CATALOG_PATHS, render_catalog, write_catalogs
 from nfl_sos_ratings.metrics.registry import MetricRegistry
-from tests.stubs import stub
 
 if TYPE_CHECKING:
     from nfl_sos_ratings.metrics.schema import Entity

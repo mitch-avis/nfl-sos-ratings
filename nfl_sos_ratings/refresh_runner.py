@@ -101,13 +101,17 @@ class RefreshRunner:
 
     def _follow(self, process: subprocess.Popen[str]) -> None:
         """Collect the child's output line by line, then record how it ended."""
-        for line in process.stdout or ():
-            text = line.rstrip("\n")
-            with self._lock:
-                self._lines.append(text)
-                if text.startswith(SUMMARY_PREFIX):
-                    self._summary = text
-        self._finish(process.wait(), [])
+        try:
+            if process.stdout is not None:
+                with process.stdout:
+                    for line in process.stdout:
+                        text = line.rstrip("\n")
+                        with self._lock:
+                            self._lines.append(text)
+                            if text.startswith(SUMMARY_PREFIX):
+                                self._summary = text
+        finally:
+            self._finish(process.wait(), [])
 
     def _finish(self, exit_code: int, lines: list[str]) -> None:
         """Record the exit code, any final lines, and the finished state."""

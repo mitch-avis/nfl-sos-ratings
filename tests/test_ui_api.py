@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, cast
 import polars as pl
 import pytest
 from fastapi.testclient import TestClient
+from tests.wp_league import write_wp_season
 
 from nfl_sos_ratings import ui_api
 from nfl_sos_ratings.rating_ranges import (
@@ -17,7 +18,6 @@ from nfl_sos_ratings.rating_ranges import (
 )
 from nfl_sos_ratings.refresh_runner import RefreshRunner
 from nfl_sos_ratings.ui_api import create_app
-from tests.wp_league import write_wp_season
 
 if TYPE_CHECKING:
     from pathlib import Path

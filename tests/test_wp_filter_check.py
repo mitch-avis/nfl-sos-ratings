@@ -5,6 +5,17 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
+from tests.stubs import stub
+from tests.wp_league import (
+    CLOSE_PLAYS,
+    LOPSIDED_PLAYS,
+    ST_CLOSE_PLAYS,
+    ST_UNBINNED_PLAYS,
+    qb_bins,
+    qb_games,
+    team_bins,
+    team_game_logs,
+)
 
 from nfl_sos_ratings.team_rating import fit_team_ratings, fit_team_ratings_with_previous_penalties
 from nfl_sos_ratings.validation import walk_forward
@@ -27,17 +38,6 @@ from nfl_sos_ratings.validation.wp_filter_check import (
     report_decision,
     report_spotlight,
     year_over_year_pearson,
-)
-from tests.stubs import stub
-from tests.wp_league import (
-    CLOSE_PLAYS,
-    LOPSIDED_PLAYS,
-    ST_CLOSE_PLAYS,
-    ST_UNBINNED_PLAYS,
-    qb_bins,
-    qb_games,
-    team_bins,
-    team_game_logs,
 )
 
 if TYPE_CHECKING:

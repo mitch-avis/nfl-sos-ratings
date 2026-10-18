@@ -942,7 +942,9 @@ Proposal (one small pull request after the current one merges):
   when every selected test is a `published_data` one. Checked on the real `data/`: the plain
   command passes (6 tests, no coverage report), and `pytest -m "published_data or not
   published_data"` still enforces the floor (100%). `scripts/refresh-season.sh` dropped
-  `--no-cov`.
+  `--no-cov`. Follow-up on 2026-10-17: after pytest's default path moved to `-n=auto`, the exact
+  `pytest -m published_data` command also needed the same lift in `pytest_configure`, because the
+  xdist controller can need the coverage decision before collection finishes.
 
 ## Data notes (2026-10-08)
 

@@ -29,3 +29,30 @@ def test_pyproject_matches_current_cli_and_runtime_surface() -> None:
     assert "nfl-sos-viz" not in scripts
     assert any(dependency.startswith("numpy") for dependency in dependencies)
     assert all(not dependency.startswith("matplotlib") for dependency in dependencies)
+
+
+def test_pyright_execution_environments_share_the_missing_stub_policy() -> None:
+    """Pyright should treat known untyped third-party packages the same in tests and runtime."""
+    # Act
+    pyproject = _load_pyproject()
+
+    # Assert
+    execution_environments = {
+        environment["root"]: environment
+        for environment in pyproject["tool"]["pyright"]["executionEnvironments"]
+    }
+
+    assert execution_environments["."]["reportMissingTypeStubs"] is False
+    assert execution_environments["tests"]["reportMissingTypeStubs"] is False
+
+
+def test_pytest_default_addopts_keep_published_data_opt_in() -> None:
+    """The default pytest run should keep generated-data checks opt-in for local and CI runs."""
+    # Act
+    pyproject = _load_pyproject()
+
+    # Assert
+    addopts = pyproject["tool"]["pytest"]["addopts"]
+
+    marker_option_index = addopts.index("-m")
+    assert addopts[marker_option_index + 1] == "not published_data"

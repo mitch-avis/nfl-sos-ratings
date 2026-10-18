@@ -6,10 +6,15 @@ from typing import cast
 
 import nflreadpy as nfl
 import pytest
+from tests.conftest import (
+    limit_polars_threads,
+    only_published_data,
+    pytest_collection_modifyitems,
+    pytest_configure,
+)
+from tests.stubs import NflverseDownloadBlockedError
 
 from nfl_sos_ratings import data_loader
-from tests.conftest import limit_polars_threads, only_published_data, pytest_collection_modifyitems
-from tests.stubs import NflverseDownloadBlockedError
 
 
 class _FakeItem:
@@ -24,14 +29,18 @@ class _FakeItem:
         return object() if name == "published_data" and self._published_data else None
 
 
-def _config(plugin: object | None) -> pytest.Config:
+def _config(plugin: object | None, *, markexpr: str = "") -> pytest.Config:
     """Return a stand-in pytest config whose plugin manager knows ``plugin`` as the coverage one."""
 
     def getplugin(name: str) -> object | None:
         return plugin if name == "_cov" else None
 
     return cast(
-        "pytest.Config", SimpleNamespace(pluginmanager=SimpleNamespace(getplugin=getplugin))
+        "pytest.Config",
+        SimpleNamespace(
+            pluginmanager=SimpleNamespace(getplugin=getplugin),
+            option=SimpleNamespace(markexpr=markexpr),
+        ),
     )
 
 
@@ -88,6 +97,18 @@ def test_collection_hook_lifts_the_coverage_floor_for_published_data_only() -> N
 
     # Act
     pytest_collection_modifyitems(_config(plugin), items)
+
+    # Assert
+    assert plugin.options.cov_fail_under == 0
+    assert plugin.options.cov_report == {}
+
+
+def test_configure_hook_lifts_the_coverage_floor_for_exact_published_data_selection() -> None:
+    # Arrange
+    plugin = _coverage_plugin()
+
+    # Act
+    pytest_configure(_config(plugin, markexpr="published_data"))
 
     # Assert
     assert plugin.options.cov_fail_under == 0

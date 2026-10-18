@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
+from tests.stubs import stub
 
 from nfl_sos_ratings.ridge import UnitFit
 from nfl_sos_ratings.validation import passer_holdout
@@ -14,7 +15,6 @@ from nfl_sos_ratings.validation.passer_holdout import (
     residual_sigma,
     score_part,
 )
-from tests.stubs import stub
 
 if TYPE_CHECKING:
     from pathlib import Path

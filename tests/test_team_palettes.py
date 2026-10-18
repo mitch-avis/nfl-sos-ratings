@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import nflreadpy
 import polars as pl
 import pytest
+from tests.stubs import stub
 
 from nfl_sos_ratings import team_palettes
 from nfl_sos_ratings.config import DIVISIONS
@@ -24,7 +25,6 @@ from nfl_sos_ratings.team_palettes import (
     parse_oklch,
     srgb_to_oklch,
 )
-from tests.stubs import stub
 
 if TYPE_CHECKING:
     from pathlib import Path

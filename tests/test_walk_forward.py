@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import polars as pl
 import pytest
+from tests.stubs import stub
 
 from nfl_sos_ratings.team_prior import (
     MIN_CARRYOVER_PAIRS,
@@ -36,7 +37,6 @@ from nfl_sos_ratings.validation.walk_forward import (
     run_walk_forward_backtest,
     score_prediction_rows,
 )
-from tests.stubs import stub
 
 if TYPE_CHECKING:
     from pathlib import Path

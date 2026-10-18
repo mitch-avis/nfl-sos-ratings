@@ -2,11 +2,11 @@
 
 import polars as pl
 import pytest
+from tests.stubs import stub
 
 from nfl_sos_ratings import data_loader, qb_stats
 from nfl_sos_ratings.config import TEAM_ABBR_ALIASES
 from nfl_sos_ratings.pooled_rates import denominator_column, numerator_column
-from tests.stubs import stub
 
 
 def test_load_weekly_team_stats_enriches_and_filters(monkeypatch: pytest.MonkeyPatch) -> None:
