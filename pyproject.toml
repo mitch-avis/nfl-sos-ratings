@@ -18,7 +18,7 @@ classifiers = [
     "Private :: Do Not Upload",
 ]
 dependencies = [
-    "fastapi>=0.143",
+    "fastapi>=0.162",
     "nflreadpy>=0.1",
     "numpy>=2.5",
     "polars>=2.0",
@@ -33,10 +33,10 @@ nfl-sos-ratings = "nfl_sos_ratings.cli:main"
 [dependency-groups]
 dev = [
     "colorama>=0.4",
-    "httpx2>=2.13",
-    "pre-commit>=4.6",
+    "httpx2>=2.16",
+    "pre-commit>=4.7",
     "pre-commit-uv>=4.4.0",
-    "pyright>=1.1",
+    "pyright>=1.1.414",
     "pytest>=9.1",
     "pytest-cov>=7.1",
     "pytest-html>=4.2",
@@ -44,7 +44,7 @@ dev = [
     "pytest-sugar>=1.1",
     "pytest-xdist>=3.8",
     "ruff>=0.17",
-    "ty>=0.0.89",
+    "ty>=0.0.91",
 ]
 
 [tool.uv]
